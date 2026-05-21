@@ -16,6 +16,58 @@ export type ProcessingJobStatus =
   | "failed"
   | "dead";
 
+export type ProcessingJobStageStatus =
+  | "pending"
+  | "running"
+  | "succeeded"
+  | "skipped"
+  | "disabled"
+  | "blocked_by_scan"
+  | "partial_failed"
+  | "failed"
+  | "retrying";
+
+export interface ProcessingJobProgress {
+  completed: number;
+  total: number;
+  percent: number;
+}
+
+export interface ProcessingJobErrorDetail {
+  code: string;
+  message: string;
+  retryable: boolean;
+  attempts: number;
+  maxAttempts: number;
+}
+
+export interface ProcessingJobStageDetail {
+  stage: string;
+  status: ProcessingJobStageStatus;
+  reason?: string;
+  required?: boolean;
+  jobId?: string;
+  queueJobId?: string;
+  progress?: ProcessingJobProgress;
+  error?: ProcessingJobErrorDetail;
+  metadata?: Record<string, unknown>;
+}
+
+export interface ProcessingJobResult {
+  statusDetail?: ProcessingJobStageStatus;
+  stageGraph?: ProcessingJobStageDetail[];
+  progress?: ProcessingJobProgress;
+  metadata?: Record<string, unknown>;
+}
+
+export interface ProcessingJobDetails {
+  status: ProcessingJobStageStatus;
+  stage: string;
+  progress: ProcessingJobProgress;
+  stages: ProcessingJobStageDetail[];
+  error: ProcessingJobErrorDetail | null;
+}
+
 export interface ProcessingJobRecord {
   id: string;
   projectId: string;
@@ -89,9 +141,9 @@ export interface ProcessingJobStore {
   getJob(projectId: string, jobId: string): Promise<ProcessingJobRecord>;
   listJobs(input: ListProcessingJobsInput): Promise<ProcessingJobRecord[]>;
   resetJobForRetry(projectId: string, jobId: string): Promise<ProcessingJobRecord>;
-  markJobRunning(jobId: string): Promise<ProcessingJobRecord>;
-  markJobSucceeded(jobId: string): Promise<ProcessingJobRecord>;
-  markJobFailed(jobId: string, error: Error): Promise<ProcessingJobRecord>;
+  markJobRunning(jobId: string, metadata?: Record<string, unknown>): Promise<ProcessingJobRecord>;
+  markJobSucceeded(jobId: string, metadata?: Record<string, unknown>): Promise<ProcessingJobRecord>;
+  markJobFailed(jobId: string, error: Error, metadata?: Record<string, unknown>): Promise<ProcessingJobRecord>;
 }
 
 export interface ProcessingJobProcessorContext {
@@ -102,7 +154,7 @@ export interface ProcessingJobProcessorContext {
 export interface ProcessingJobProcessor {
   readonly type: ProcessingJobType;
   readonly processorVersion: string;
-  process(context: ProcessingJobProcessorContext): Promise<void>;
+  process(context: ProcessingJobProcessorContext): Promise<ProcessingJobResult | void>;
 }
 
 export interface ProcessingJobProcessorRegistry {
@@ -154,17 +206,31 @@ export class ProcessingJobRunner {
       throw new QueueError("processor_not_found", `No processor registered for ${payload.type}.`);
     }
 
-    const runningJob = await this.store.markJobRunning(payload.jobId);
+    const runningJob = await this.store.markJobRunning(payload.jobId, buildProcessingJobResultMetadata(payload, {
+      statusDetail: "running",
+      stageGraph: [{
+        stage: stageNameForJobType(payload.type),
+        status: "running",
+        metadata: {
+          processor_version: payload.processorVersion
+        }
+      }],
+      progress: {
+        completed: 0,
+        total: 1,
+        percent: 0
+      }
+    }));
 
     try {
-      await processor.process({
+      const result = await processor.process({
         job: runningJob,
         payload
       });
-      await this.store.markJobSucceeded(payload.jobId);
+      await this.store.markJobSucceeded(payload.jobId, buildProcessingJobResultMetadata(payload, normalizeProcessingJobResult(result)));
     } catch (error) {
       const normalizedError = error instanceof Error ? error : new Error(String(error));
-      await this.store.markJobFailed(payload.jobId, normalizedError);
+      await this.store.markJobFailed(payload.jobId, normalizedError, buildProcessingJobFailureMetadata(payload, runningJob, normalizedError));
       throw normalizedError;
     }
   }
@@ -199,4 +265,189 @@ export function toQueuePayload(job: ProcessingJobRecord): ProcessingJobQueuePayl
     maxAttempts: job.maxAttempts,
     metadata: job.metadata
   };
+}
+
+export function buildProcessingJobDetails(job: ProcessingJobRecord): ProcessingJobDetails {
+  const stage = stageNameForJobType(job.type);
+  const stages = readStageGraph(job.metadata.stage_graph) ?? [{
+    stage,
+    status: statusDetailForJobStatus(job.status),
+    ...(job.lastError ? { error: errorDetailFromJob(job, job.lastError) } : {})
+  }];
+  const progress = readProgress(job.metadata.progress) ?? progressFromStageGraph(stages);
+  const error = readErrorDetail(job.metadata.job_error) ?? (job.lastError ? errorDetailFromJob(job, job.lastError) : null);
+  return {
+    status: readStageStatus(job.metadata.job_status_detail) ?? statusDetailForJobStatus(job.status),
+    stage,
+    progress,
+    stages,
+    error
+  };
+}
+
+export function buildProcessingJobResultMetadata(payload: ProcessingJobQueuePayload, result: ProcessingJobResult): Record<string, unknown> {
+  const statusDetail = result.statusDetail ?? "succeeded";
+  const stageGraph = result.stageGraph ?? [{
+    stage: stageNameForJobType(payload.type),
+    status: statusDetail
+  }];
+  return {
+    ...(result.metadata ?? {}),
+    job_status_detail: statusDetail,
+    stage_graph: stageGraph,
+    progress: result.progress ?? progressFromStageGraph(stageGraph),
+    job_error: null
+  };
+}
+
+function buildProcessingJobFailureMetadata(payload: ProcessingJobQueuePayload, job: ProcessingJobRecord, error: Error): Record<string, unknown> {
+  const errorDetail = errorDetailFromJob(job, error.message, error);
+  const statusDetail: ProcessingJobStageStatus = errorDetail.code === "blocked_by_scan" ? "blocked_by_scan" : "failed";
+  return {
+    job_status_detail: statusDetail,
+    stage_graph: [{
+      stage: stageNameForJobType(payload.type),
+      status: statusDetail,
+      error: errorDetail
+    }],
+    progress: {
+      completed: 0,
+      total: 1,
+      percent: 0
+    },
+    job_error: errorDetail
+  };
+}
+
+function normalizeProcessingJobResult(result: ProcessingJobResult | void): ProcessingJobResult {
+  return result ?? {
+    statusDetail: "succeeded"
+  };
+}
+
+function statusDetailForJobStatus(status: ProcessingJobStatus): ProcessingJobStageStatus {
+  switch (status) {
+    case "pending":
+      return "pending";
+    case "running":
+      return "running";
+    case "succeeded":
+      return "succeeded";
+    case "failed":
+    case "dead":
+      return "failed";
+  }
+}
+
+function stageNameForJobType(type: ProcessingJobType): string {
+  switch (type) {
+    case "document.scan":
+      return "scan";
+    case "document.route":
+      return "route";
+    case "document.extract":
+      return "extract";
+    case "document.chunk":
+      return "chunk";
+    case "document.embed":
+      return "embed";
+    case "document.index":
+      return "index";
+    case "document.recompute":
+      return "recompute";
+    case "memory.derive":
+      return "memory_derive";
+    case "session.summarize":
+      return "session_summarize";
+  }
+}
+
+function progressFromStageGraph(stages: ProcessingJobStageDetail[]): ProcessingJobProgress {
+  const total = Math.max(stages.length, 1);
+  const completed = stages.filter((stage) => ["succeeded", "skipped", "disabled", "partial_failed"].includes(stage.status)).length;
+  return {
+    completed,
+    total,
+    percent: Math.round((completed / total) * 100)
+  };
+}
+
+function errorDetailFromJob(job: ProcessingJobRecord, message: string, error?: Error): ProcessingJobErrorDetail {
+  const code = readErrorCode(error) ?? "processing_job_failed";
+  return {
+    code,
+    message,
+    retryable: job.attempts < job.maxAttempts,
+    attempts: job.attempts,
+    maxAttempts: job.maxAttempts
+  };
+}
+
+function readErrorCode(error: Error | undefined): string | null {
+  const code = (error as { code?: unknown } | undefined)?.code;
+  return typeof code === "string" && code.length > 0 ? code : null;
+}
+
+function readStageGraph(value: unknown): ProcessingJobStageDetail[] | null {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+  const stages = value.filter((item): item is ProcessingJobStageDetail => {
+    if (typeof item !== "object" || item === null) {
+      return false;
+    }
+    const record = item as Record<string, unknown>;
+    return typeof record.stage === "string" && readStageStatus(record.status) !== null;
+  });
+  return stages.length > 0 ? stages : null;
+}
+
+function readProgress(value: unknown): ProcessingJobProgress | null {
+  if (typeof value !== "object" || value === null) {
+    return null;
+  }
+  const record = value as Record<string, unknown>;
+  return typeof record.completed === "number" && typeof record.total === "number" && typeof record.percent === "number"
+    ? {
+      completed: record.completed,
+      total: record.total,
+      percent: record.percent
+    }
+    : null;
+}
+
+function readErrorDetail(value: unknown): ProcessingJobErrorDetail | null {
+  if (typeof value !== "object" || value === null) {
+    return null;
+  }
+  const record = value as Record<string, unknown>;
+  return typeof record.code === "string"
+    && typeof record.message === "string"
+    && typeof record.retryable === "boolean"
+    && typeof record.attempts === "number"
+    && typeof record.maxAttempts === "number"
+    ? {
+      code: record.code,
+      message: record.message,
+      retryable: record.retryable,
+      attempts: record.attempts,
+      maxAttempts: record.maxAttempts
+    }
+    : null;
+}
+
+function readStageStatus(value: unknown): ProcessingJobStageStatus | null {
+  return typeof value === "string" && [
+    "pending",
+    "running",
+    "succeeded",
+    "skipped",
+    "disabled",
+    "blocked_by_scan",
+    "partial_failed",
+    "failed",
+    "retrying"
+  ].includes(value)
+    ? value as ProcessingJobStageStatus
+    : null;
 }

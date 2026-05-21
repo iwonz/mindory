@@ -15,7 +15,8 @@ import {
 import {
   type ProcessingJobDispatcher,
   type ProcessingJobProcessor,
-  type ProcessingJobProcessorContext
+  type ProcessingJobProcessorContext,
+  type ProcessingJobResult
 } from "@mindory/core/queue";
 import type { ObjectStorage } from "@mindory/core/storage";
 
@@ -114,7 +115,7 @@ export class ClamAvDocumentScanProcessor implements ProcessingJobProcessor {
     this.processorVersion = options.processorVersion ?? "clamav-v1";
   }
 
-  async process(context: ProcessingJobProcessorContext): Promise<void> {
+  async process(context: ProcessingJobProcessorContext): Promise<ProcessingJobResult> {
     const document = await this.documents.getDocument(context.payload.projectId, context.payload.targetId);
     const object = await this.storage.getObject(document.storageKey);
 
@@ -134,7 +135,7 @@ export class ClamAvDocumentScanProcessor implements ProcessingJobProcessor {
             antivirus: result
           }
         });
-        await this.jobs?.createAndEnqueue({
+        const routeJob = await this.jobs?.createAndEnqueue({
           projectId: document.projectId,
           type: "document.route",
           targetType: "document",
@@ -147,7 +148,24 @@ export class ClamAvDocumentScanProcessor implements ProcessingJobProcessor {
             antivirus_provider: this.policy.provider
           }
         });
-        return;
+        return {
+          stageGraph: [
+            {
+              stage: "scan",
+              status: "succeeded",
+              metadata: {
+                antivirus_provider: this.policy.provider,
+                verdict: result.verdict
+              }
+            },
+            ...(routeJob ? [{
+              stage: "route",
+              status: "pending" as const,
+              jobId: routeJob.processingJobId,
+              queueJobId: routeJob.queueJobId
+            }] : [])
+          ]
+        };
       }
 
       await this.documents.updateDocumentStatus({
@@ -159,6 +177,19 @@ export class ClamAvDocumentScanProcessor implements ProcessingJobProcessor {
           antivirus: result
         }
       });
+      return {
+        statusDetail: "blocked_by_scan",
+        stageGraph: [{
+          stage: "scan",
+          status: "blocked_by_scan",
+          reason: "infected",
+          metadata: {
+            antivirus_provider: this.policy.provider,
+            verdict: result.verdict,
+            signature: result.signature ?? null
+          }
+        }]
+      };
     } catch (error) {
       await this.documents.updateDocumentStatus({
         projectId: document.projectId,

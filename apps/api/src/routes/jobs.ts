@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import type { ListProcessingJobsInput, ProcessingJobDispatcher, ProcessingJobRecord, ProcessingJobStatus, ProcessingJobStore, ProcessingJobType } from "@mindory/core/queue";
+import { buildProcessingJobDetails, type ListProcessingJobsInput, type ProcessingJobDispatcher, type ProcessingJobRecord, type ProcessingJobStatus, type ProcessingJobStore, type ProcessingJobType } from "@mindory/core/queue";
 import { requireProjectPermission } from "../auth.js";
 import { notImplemented } from "../errors.js";
 
@@ -79,6 +79,7 @@ function toJobResponse(job: ProcessingJobRecord): Record<string, unknown> {
     attempts: job.attempts,
     max_attempts: job.maxAttempts,
     last_error: job.lastError,
+    details: buildProcessingJobDetails(job),
     metadata: job.metadata,
     created_at: job.createdAt.toISOString(),
     updated_at: job.updatedAt.toISOString(),

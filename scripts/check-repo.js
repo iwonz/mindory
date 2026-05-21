@@ -15,6 +15,7 @@ const checks = [
   ["api:runtime:validate", "scripts/validate-api-runtime-wiring.js"],
   ["storage:validate", "scripts/validate-storage-adapters.js"],
   ["queue:validate", "scripts/validate-queue.js"],
+  ["jobs:validate", "scripts/validate-job-semantics.js"],
   ["documents:validate", "scripts/validate-document-pipeline.js"],
   ["processing:validate", "scripts/validate-processing-pipeline.js"],
   ["memory:validate", "scripts/validate-memory-context.js"],

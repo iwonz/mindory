@@ -146,7 +146,7 @@ test("MVP runtime integration covers auth, upload, worker jobs and context", { t
       audioDocumentId: audioDocument.documentId,
       videoDocumentId: videoDocument.documentId
     });
-    await assertJobsApi(apiUrl, managementStore, sessionId, routeJobId);
+    await assertJobsApi(apiUrl, managementStore, sessionId, documentId, routeJobId);
     await assertDocumentRecompute(apiUrl, documentId);
     await assertMemoryAndContext(apiUrl, sessionId, messageId, documentId);
     await assertRevokedTokenIsRejected(apiUrl, childToken.id, childToken.rawToken);
@@ -796,12 +796,40 @@ async function uploadAndIndexDocument(input) {
   return documentId;
 }
 
-async function assertJobsApi(apiUrl, store, sessionId, routeJobId) {
+async function assertJobsApi(apiUrl, store, sessionId, documentId, routeJobId) {
   const listed = await requestJson(apiUrl, "GET", `/v1/jobs?projectId=${encodeURIComponent(projectId)}&limit=20`);
   assert.ok(listed.jobs.some((job) => job.id === routeJobId), "job list should include document route job");
 
   const routeJob = await requestJson(apiUrl, "GET", `/v1/jobs/${encodeURIComponent(routeJobId)}?projectId=${encodeURIComponent(projectId)}`);
   assert.equal(routeJob.status, "succeeded");
+  assert.equal(routeJob.details.status, "succeeded");
+  assert.ok(routeJob.details.stages.some((stage) => stage.stage === "route" && stage.status === "succeeded"), "route job should expose route stage details.");
+  assert.ok(routeJob.details.stages.some((stage) => stage.stage === "text" && stage.status === "pending"), "route job should expose planned extraction stage.");
+
+  const chunkJobSummary = listed.jobs.find((job) => job.type === "document.chunk" && job.target_id === documentId);
+  assert.ok(chunkJobSummary, "job list should include document chunk job");
+  const chunkJob = await requestJson(apiUrl, "GET", `/v1/jobs/${encodeURIComponent(chunkJobSummary.id)}?projectId=${encodeURIComponent(projectId)}`);
+  assert.equal(chunkJob.status, "succeeded");
+  assert.ok(chunkJob.details.stages.some((stage) => stage.stage === "embed" && stage.status === "disabled"), "chunk job should expose disabled embedding stage.");
+
+  const failedSeed = await store.createPendingJob({
+    projectId,
+    type: "document.route",
+    targetType: "document",
+    targetId: documentId,
+    idempotencyKey: `integration.document.failed:${documentId}`,
+    processorVersion: "document-route-v1",
+    metadata: {
+      source: "integration-test"
+    }
+  });
+  await store.markJobRunning(failedSeed.id);
+  await store.markJobFailed(failedSeed.id, Object.assign(new Error("Synthetic readable failure."), { code: "document_route_failed" }));
+  const failedJob = await requestJson(apiUrl, "GET", `/v1/jobs/${encodeURIComponent(failedSeed.id)}?projectId=${encodeURIComponent(projectId)}`);
+  assert.equal(failedJob.status, "failed");
+  assert.equal(failedJob.details.status, "failed");
+  assert.equal(failedJob.details.error.code, "document_route_failed");
+  assert.equal(failedJob.details.error.retryable, true);
 
   const retrySeed = await store.createPendingJob({
     projectId,
