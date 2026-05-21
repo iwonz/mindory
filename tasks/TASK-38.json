@@ -1,0 +1,67 @@
+{
+  "id": "TASK-38",
+  "title": "Add derived artifact schema",
+  "status": "done",
+  "type": "chore",
+  "priority": "high",
+  "branch": "task/TASK-38-derived-artifact-schema",
+  "created_at": "2026-05-21",
+  "updated_at": "2026-05-21",
+  "context": {
+    "summary": "Add the database and repository foundation for recomputable derived document artifacts.",
+    "background": "TASK-37 added a model runtime boundary. Multimodal document processing now needs durable derived-state tables that never mutate RAW originals and can support text/OCR/transcript/image/frame/face artifacts in later tasks."
+  },
+  "scope": {
+    "in": [
+      "Add a separate derived artifact migration after the immutable baseline schema.",
+      "Add processing run, document artifact, artifact vector, text span, media metadata, metadata index, face identity and face observation tables.",
+      "Represent derived artifact tables in Drizzle schema and relations.",
+      "Add core artifact contracts and a DB repository boundary for derived artifact writes.",
+      "Update migration runner to apply multiple migrations without changing the 0000 checksum.",
+      "Document the derived-state model and RAW original immutability."
+    ],
+    "out": [
+      "Implement file-type routing after antivirus.",
+      "Implement OCR, ASR, image, video or face processors.",
+      "Expose artifact APIs, CLI commands or MCP tools.",
+      "Backfill derived artifacts for existing documents."
+    ]
+  },
+  "acceptance_criteria": [
+    "A new migration creates derived artifact tables without modifying 0000_initial_schema.",
+    "Derived tables are project/document scoped and cascade with their owning document/project.",
+    "The schema can store processing run fingerprints, source refs, artifact payload pointers, text spans, media metadata and workspace-scoped face observations.",
+    "RAW document originals remain represented only by document storage keys; derived artifacts use separate tables and optional storage keys.",
+    "@mindory/core exports artifact contracts and @mindory/db exports a derived artifact repository.",
+    "The migration runner can apply 0000 and 0001 sequentially.",
+    "All repository checks pass."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "pnpm db:validate",
+      "pnpm db:repositories:validate",
+      "pnpm typecheck",
+      "pnpm lint",
+      "pnpm test",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-38.",
+      "Confirm packages/db/drizzle/0000_initial_schema.sql is unchanged.",
+      "Confirm derived artifact tables do not store or mutate RAW original blobs."
+    ]
+  },
+  "dependencies": [
+    "TASK-37"
+  ],
+  "risks": [
+    "Changing the baseline migration would break existing checksum validation; keep new schema in 0001.",
+    "Future processors must treat derived artifacts as rebuildable projections and not as canonical RAW storage."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch is committed and merged back into master."
+  ]
+}

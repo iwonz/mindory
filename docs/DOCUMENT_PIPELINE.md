@@ -7,7 +7,8 @@ then processed asynchronously.
 file storage. `TASK-8` adds the document upload service and scan job flow.
 `TASK-9` adds text/Markdown extraction, deterministic chunking, embedding
 providers and vector index scaffolding. `TASK-19` registers those pieces in the
-worker document pipeline.
+worker document pipeline. `TASK-38` adds the derived artifact schema that later
+multimodal processors will write to.
 
 ## MVP Pipeline
 
@@ -27,6 +28,24 @@ supported through an adapter if feasible. OCR, audio and video processing are
 outside MVP scope.
 
 Processing status must be durable in PostgreSQL, not only in BullMQ.
+
+## Derived Artifact State
+
+RAW originals remain immutable in object storage. Post-upload processors write
+only derived state:
+
+- `processing_runs` records why a derived run happened, which processor/config
+  version produced it and which original storage key/checksum it read.
+- `document_artifacts` stores semantic outputs such as extracted text, OCR text,
+  transcripts, captions, page artifacts and video keyframes.
+- `document_artifact_text_spans` stores source-local text spans with optional
+  page, frame, time and bounding-box coordinates.
+- `document_media_metadata` and `document_metadata_index` store typed metadata
+  used by future filters.
+- `face_identities` and `face_observations` keep face matching workspace-scoped.
+
+This schema is designed so any derived run can be superseded and recomputed for
+one document without changing the RAW object.
 
 Original files must stay out of PostgreSQL. The future upload path should store
 the blob through `ObjectStorage`, then persist only document metadata and the

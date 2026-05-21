@@ -6,6 +6,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const schemaPath = path.join(root, "packages/db/src/schema.ts");
 const relationsPath = path.join(root, "packages/db/src/relations.ts");
 const migrationPath = path.join(root, "packages/db/drizzle/0000_initial_schema.sql");
+const derivedMigrationPath = path.join(root, "packages/db/drizzle/0001_derived_artifact_schema.sql");
 const drizzleConfigPath = path.join(root, "packages/db/drizzle.config.ts");
 
 const requiredTables = [
@@ -21,7 +22,15 @@ const requiredTables = [
   "chunks",
   "chunk_vector_embeddings",
   "memory_claims",
-  "processing_jobs"
+  "processing_jobs",
+  "processing_runs",
+  "document_artifacts",
+  "document_artifact_vectors",
+  "document_artifact_text_spans",
+  "document_media_metadata",
+  "document_metadata_index",
+  "face_identities",
+  "face_observations"
 ];
 
 const projectScopedTables = [
@@ -36,7 +45,15 @@ const projectScopedTables = [
   "chunks",
   "chunk_vector_embeddings",
   "memory_claims",
-  "processing_jobs"
+  "processing_jobs",
+  "processing_runs",
+  "document_artifacts",
+  "document_artifact_vectors",
+  "document_artifact_text_spans",
+  "document_media_metadata",
+  "document_metadata_index",
+  "face_identities",
+  "face_observations"
 ];
 
 const requiredEnums = [
@@ -48,7 +65,10 @@ const requiredEnums = [
   "memory_claim_type",
   "memory_claim_status",
   "processing_job_type",
-  "processing_job_status"
+  "processing_job_status",
+  "processing_run_status",
+  "document_artifact_type",
+  "face_identity_status"
 ];
 
 const requiredIndexes = [
@@ -68,7 +88,16 @@ const requiredIndexes = [
   "memory_claims_project_status_idx",
   "memory_claims_source_refs_idx",
   "processing_jobs_idempotency_key_idx",
-  "processing_jobs_type_status_idx"
+  "processing_jobs_type_status_idx",
+  "processing_runs_project_document_idx",
+  "document_artifacts_project_document_idx",
+  "document_artifacts_source_refs_idx",
+  "document_artifact_vectors_embedding_hnsw_idx",
+  "document_artifact_text_spans_project_type_idx",
+  "document_media_metadata_duration_idx",
+  "document_metadata_index_key_number_idx",
+  "face_identities_project_status_idx",
+  "face_observations_embedding_hnsw_idx"
 ];
 
 function assert(condition, message) {
@@ -105,13 +134,17 @@ function tableBody(sql, tableName) {
 assert(fs.existsSync(schemaPath), "packages/db/src/schema.ts is required.");
 assert(fs.existsSync(relationsPath), "packages/db/src/relations.ts is required.");
 assert(fs.existsSync(migrationPath), "packages/db/drizzle/0000_initial_schema.sql is required.");
+assert(fs.existsSync(derivedMigrationPath), "packages/db/drizzle/0001_derived_artifact_schema.sql is required.");
 assert(fs.existsSync(drizzleConfigPath), "packages/db/drizzle.config.ts is required.");
 
 const rootPackage = JSON.parse(read("package.json"));
 const dbPackage = JSON.parse(read("packages/db/package.json"));
 const schema = fs.readFileSync(schemaPath, "utf8");
 const relations = fs.readFileSync(relationsPath, "utf8");
-const migration = fs.readFileSync(migrationPath, "utf8");
+const migration = [
+  fs.readFileSync(migrationPath, "utf8"),
+  fs.readFileSync(derivedMigrationPath, "utf8")
+].join("\n");
 const drizzleConfig = fs.readFileSync(drizzleConfigPath, "utf8");
 
 assert(rootPackage.scripts?.["db:validate"] === "node scripts/validate-db-schema.js", "Root package must expose db:validate.");
@@ -152,7 +185,13 @@ assert(migration.includes("CHECK (confidence >= 0 AND confidence <= 1)"), "confi
 assert(migration.includes("text[] NOT NULL"), "Permissions must be stored as a text array.");
 assert(migration.includes("embedding vector(1536) NOT NULL"), "Chunk vector embeddings must use pgvector.");
 assert(migration.includes("USING hnsw (embedding vector_cosine_ops)"), "Chunk vector embeddings must have an HNSW cosine index.");
+assert(migration.includes("embedding vector(512)"), "Face observations must support 512-dimensional face embeddings.");
+assert(migration.includes("document_artifacts_has_payload"), "Document artifacts must require content, storage or source refs.");
+assert(migration.includes("document_metadata_index_has_value"), "Document metadata index rows must require a typed value.");
 assert(schema.includes("SourceRef"), "Schema must type SourceRef.");
 assert(schema.includes("SourceSnapshot"), "Schema must type SourceSnapshot.");
+assert(schema.includes("processingRuns"), "Schema must define processingRuns.");
+assert(schema.includes("documentArtifacts"), "Schema must define documentArtifacts.");
+assert(schema.includes("faceObservations"), "Schema must define faceObservations.");
 
 console.log("Database schema scaffold validated.");
