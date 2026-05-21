@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const composePath = path.join(root, "docker-compose.yml");
 const overridePath = path.join(root, "docker-compose.override.yml");
+const testComposePath = path.join(root, "docker-compose.test.yml");
 const dockerfilePath = path.join(root, "Dockerfile");
 const dockerignorePath = path.join(root, ".dockerignore");
 
@@ -16,6 +17,7 @@ function assert(condition, message) {
 
 const compose = fs.readFileSync(composePath, "utf8");
 const override = fs.readFileSync(overridePath, "utf8");
+const testCompose = fs.readFileSync(testComposePath, "utf8");
 const dockerfile = fs.readFileSync(dockerfilePath, "utf8");
 const dockerignore = fs.readFileSync(dockerignorePath, "utf8");
 
@@ -51,5 +53,8 @@ assert(compose.includes("'http://127.0.0.1:'+port+'/ready'"), "API healthcheck m
 assert(compose.includes("objects-data:/data/mindory/objects"), "API/worker services must mount local object storage volume.");
 assert(compose.includes("MINDORY_CLAMAV_PLATFORM"), "Compose must allow ClamAV platform override for local Docker Desktop compatibility.");
 assert(override.includes("NODE_ENV: development"), "docker-compose.override.yml must set development mode.");
+assert(testCompose.includes("name: mindory-test"), "docker-compose.test.yml must isolate the integration test project.");
+assert(testCompose.includes("MINDORY_TEST_POSTGRES_PORT"), "docker-compose.test.yml must expose configurable PostgreSQL test port.");
+assert(testCompose.includes("MINDORY_TEST_REDIS_PORT"), "docker-compose.test.yml must expose configurable Redis test port.");
 
 console.log("Docker Compose runnable deployment validated.");

@@ -1,7 +1,7 @@
 {
   "id": "TASK-30",
   "title": "Add real integration test suite",
-  "status": "ready",
+  "status": "done",
   "type": "test",
   "priority": "high",
   "branch": "task/TASK-30-real-integration-tests",

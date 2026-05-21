@@ -72,6 +72,13 @@ standard scripts are available through `pnpm check`, `pnpm lint`,
 `pnpm typecheck`, `pnpm test`, `pnpm tasks:validate` and
 `pnpm workspace:validate`.
 
+`pnpm test` runs the real MVP integration suite. It starts the separate
+`mindory-test` Docker Compose project for PostgreSQL and Redis, applies
+migrations, starts API and worker runtimes in-process, then verifies auth,
+document upload/chunking, job get/list/retry and source-backed context build.
+The default test path keeps embeddings disabled and does not require external
+provider credentials.
+
 The database package also exposes `pnpm db:generate`, `pnpm db:migrate` and
 `pnpm db:validate`. Local pnpm is required for Drizzle commands.
 
@@ -144,3 +151,23 @@ filesystem storage. Optional profiles are `minio`, `clamav`, `qdrant`,
 
 `pnpm mvp:acceptance` without `MINDORY_E2E_LIVE=true` runs a dry-run scenario
 coverage check that does not require Docker.
+
+## Integration Tests
+
+Run:
+
+```bash
+pnpm test
+```
+
+By default the test runner uses:
+
+```text
+PostgreSQL: localhost:55432
+Redis:      localhost:56379
+```
+
+Override these with `MINDORY_TEST_POSTGRES_PORT`, `MINDORY_TEST_REDIS_PORT`,
+`MINDORY_TEST_DATABASE_URL` or `MINDORY_TEST_REDIS_URL`. Set
+`MINDORY_TEST_SKIP_DOCKER=true` when pointing tests at already-running
+PostgreSQL and Redis services.

@@ -31,7 +31,7 @@
     "queue:validate": "node scripts/validate-queue.js",
     "storage:validate": "node scripts/validate-storage-adapters.js",
     "typecheck": "node scripts/typecheck-workspaces.js",
-    "test": "node scripts/test-placeholder.js",
+    "test": "node scripts/test-integration.js",
     "tasks:validate": "node scripts/validate-tasks.js",
     "workspace:validate": "node scripts/validate-workspace.js"
   },
