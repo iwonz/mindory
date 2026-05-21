@@ -23,6 +23,7 @@
     "@mindory/config": "workspace:*",
     "@mindory/core": "workspace:*",
     "@mindory/db": "workspace:*",
+    "@mindory/extractor-audio-transcript": "workspace:*",
     "@mindory/extractor-builtin-text": "workspace:*",
     "@mindory/extractor-docling": "workspace:*",
     "@mindory/extractor-image-semantic": "workspace:*",

@@ -37,6 +37,10 @@ const testEnv = {
   MINDORY_AV_MODE: "disabled",
   MINDORY_DOCUMENT_PROCESSING_PDF_ENABLED: "true",
   MINDORY_DOCUMENT_PROCESSING_IMAGE_ENABLED: "true",
+  MINDORY_DOCUMENT_PROCESSING_AUDIO_ENABLED: "true",
+  MINDORY_MODEL_RUNTIME_ASR_ENABLED: "true",
+  MINDORY_MODEL_RUNTIME_ASR_PROVIDER: "local",
+  MINDORY_MODEL_RUNTIME_ASR_MODEL: "whisper-tiny-fallback",
   MINDORY_MODEL_RUNTIME_FACE_DETECTION_ENABLED: "true",
   MINDORY_MODEL_RUNTIME_FACE_RECOGNITION_ENABLED: "true",
   MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_ENABLED: "false",
@@ -133,6 +137,7 @@ test("MVP runtime integration covers auth, upload, worker jobs and context", { t
     await uploadAndProcessPdfDocument(apiUrl);
     const imageDocument = await uploadAndProcessImageDocument(apiUrl);
     await assertFaceSubsystem(apiUrl, imageDocument.documentId);
+    await uploadAndProcessAudioDocument(apiUrl);
     await assertJobsApi(apiUrl, managementStore, sessionId, routeJobId);
     await assertDocumentRecompute(apiUrl, documentId);
     await assertMemoryAndContext(apiUrl, sessionId, messageId, documentId);
@@ -554,6 +559,69 @@ async function assertFaceSubsystem(apiUrl, documentId) {
   assert.ok(targetObservations.observations.length >= 2, "target identity should include reassigned observations.");
 }
 
+async function uploadAndProcessAudioDocument(apiUrl) {
+  const audio = buildMinimalWav({
+    durationMs: 1000,
+    sampleRate: 16_000,
+    transcript: "audio transcript mentions source-backed context and durable memory recall."
+  });
+  const form = new FormData();
+  form.append("projectId", projectId);
+  form.append("title", "Integration audio document");
+  form.append("file", new Blob([audio], { type: "audio/wav" }), "integration-audio-memory.wav");
+
+  const uploadResponse = await fetch(`${apiUrl}/v1/documents`, {
+    method: "POST",
+    headers: {
+      accept: "application/json",
+      authorization: `Bearer ${bootstrapToken}`
+    },
+    body: form
+  });
+  if (uploadResponse.status !== 202) {
+    throw new Error(`audio document upload failed ${uploadResponse.status}: ${await uploadResponse.text()}`);
+  }
+  const upload = await uploadResponse.json();
+  const documentId = upload.document.id;
+  const routeJobId = upload.route_job?.id;
+  assert.equal(typeof routeJobId, "string", "audio upload should enqueue a route job when scan is disabled");
+
+  await waitFor(async () => {
+    const status = await requestJson(apiUrl, "GET", `/v1/documents/${encodeURIComponent(documentId)}/status?projectId=${encodeURIComponent(projectId)}`);
+    return status.status === "chunked";
+  }, "audio document to reach chunked status");
+
+  const routeJob = await waitForJobStatus(apiUrl, routeJobId, "succeeded");
+  assert.equal(routeJob.type, "document.route");
+  const document = await requestJson(apiUrl, "GET", `/v1/documents/${encodeURIComponent(documentId)}?projectId=${encodeURIComponent(projectId)}`);
+  assert.equal(document.metadata.routing.classification.kind, "audio");
+  assert.equal(document.metadata.extraction.processing_stage, "audio");
+  assert.equal(document.metadata.extraction.audio_transcript, true);
+  assert.equal(document.metadata.extraction.transcript_segment_count, 1);
+
+  const search = await requestJson(apiUrl, "POST", "/v1/documents/search", {
+    projectIds: [projectId],
+    query: "durable memory recall",
+    limit: 5,
+    metadataFilters: [
+      { key: "extension", valueText: "wav" },
+      { key: "duration_ms", operator: "between", minNumber: 900, maxNumber: 1100, unit: "ms" }
+    ]
+  });
+  const audioHit = search.hits.find((hit) => hit.documentId === documentId);
+  assert.ok(audioHit, "audio document search should find transcript text.");
+  assert.ok(audioHit.sourceRefs.some((ref) => ref.type === "artifact"), "audio search should include artifact source refs.");
+  assert.ok(audioHit.metadata.transcript_artifact_ids.length > 0, "audio chunk metadata should include transcript artifact ids.");
+  assert.ok(audioHit.metadata.transcript_time_ranges.some((range) => range.start_ms === 0 && range.end_ms === 1000), "audio chunk metadata should include transcript time ranges.");
+
+  assert.equal(await countDocumentArtifacts(projectId, documentId, "transcript", databaseUrl), 1);
+  assert.equal(await countDocumentTextSpans(projectId, documentId, "transcript_segment", databaseUrl), 1);
+  const mediaMetadata = await getDocumentMediaMetadata(projectId, documentId, databaseUrl);
+  assert.equal(mediaMetadata.media_type, "audio");
+  assert.equal(mediaMetadata.codec, "pcm");
+  assert.equal(mediaMetadata.duration_ms, 1000);
+}
+
 async function uploadAndIndexDocument(input) {
   const documentText = [
     "Mindory indexed document.",
@@ -875,7 +943,7 @@ async function getDocumentMediaMetadata(id, documentId, connectionString) {
   await client.connect();
   try {
     const result = await client.query(
-      "select media_type, checksum_sha256, metadata from document_media_metadata where project_id = $1 and document_id = $2",
+      "select media_type, duration_ms, codec, checksum_sha256, metadata from document_media_metadata where project_id = $1 and document_id = $2",
       [id, documentId]
     );
     assert.equal(result.rows.length, 1, "document_media_metadata should contain one row for the document.");
@@ -1007,6 +1075,47 @@ function buildMinimalPng(input) {
     pngChunk("IDAT", deflateSync(rawRows)),
     pngChunk("IEND", Buffer.alloc(0))
   ]);
+}
+
+function buildMinimalWav(input) {
+  const channels = 1;
+  const bitsPerSample = 16;
+  const bytesPerSample = bitsPerSample / 8;
+  const sampleCount = Math.round((input.sampleRate * input.durationMs) / 1000);
+  const data = Buffer.alloc(sampleCount * channels * bytesPerSample);
+  const fmt = Buffer.alloc(16);
+  fmt.writeUInt16LE(1, 0);
+  fmt.writeUInt16LE(channels, 2);
+  fmt.writeUInt32LE(input.sampleRate, 4);
+  fmt.writeUInt32LE(input.sampleRate * channels * bytesPerSample, 8);
+  fmt.writeUInt16LE(channels * bytesPerSample, 12);
+  fmt.writeUInt16LE(bitsPerSample, 14);
+  const transcript = Buffer.concat([
+    Buffer.from(input.transcript, "utf8"),
+    Buffer.from([0])
+  ]);
+  const info = Buffer.concat([
+    Buffer.from("INFO", "latin1"),
+    riffChunk("ICMT", transcript)
+  ]);
+  const chunks = [
+    riffChunk("fmt ", fmt),
+    riffChunk("data", data),
+    riffChunk("LIST", info)
+  ];
+  const size = 4 + chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+  const header = Buffer.alloc(12);
+  header.write("RIFF", 0, "latin1");
+  header.writeUInt32LE(size, 4);
+  header.write("WAVE", 8, "latin1");
+  return Buffer.concat([header, ...chunks]);
+}
+
+function riffChunk(id, data) {
+  const header = Buffer.alloc(8);
+  header.write(id, 0, "latin1");
+  header.writeUInt32LE(data.length, 4);
+  return Buffer.concat([header, data, data.length % 2 === 1 ? Buffer.from([0]) : Buffer.alloc(0)]);
 }
 
 function pngChunk(type, data) {

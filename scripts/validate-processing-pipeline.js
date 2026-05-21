@@ -10,6 +10,7 @@ const requiredFiles = [
   "packages/core/src/document-routing.ts",
   "packages/core/src/recompute.ts",
   "packages/processors/extractors/builtin-text/src/index.ts",
+  "packages/processors/extractors/audio-transcript/src/index.ts",
   "packages/processors/extractors/docling/src/index.ts",
   "packages/processors/extractors/image-semantic/src/index.ts",
   "packages/processors/embeddings/openai-compatible/src/index.ts",
@@ -45,6 +46,8 @@ const rootPackage = readJson("package.json");
 const corePackage = readJson("packages/core/package.json");
 const extractorPackage = readJson("packages/processors/extractors/builtin-text/package.json");
 const extractorTsconfig = readJson("packages/processors/extractors/builtin-text/tsconfig.json");
+const audioTranscriptPackage = readJson("packages/processors/extractors/audio-transcript/package.json");
+const audioTranscriptTsconfig = readJson("packages/processors/extractors/audio-transcript/tsconfig.json");
 const doclingPackage = readJson("packages/processors/extractors/docling/package.json");
 const doclingTsconfig = readJson("packages/processors/extractors/docling/tsconfig.json");
 const imageSemanticPackage = readJson("packages/processors/extractors/image-semantic/package.json");
@@ -66,6 +69,7 @@ const faces = read("packages/core/src/faces.ts");
 const routing = read("packages/core/src/document-routing.ts");
 const recompute = read("packages/core/src/recompute.ts");
 const extractor = read("packages/processors/extractors/builtin-text/src/index.ts");
+const audioTranscript = read("packages/processors/extractors/audio-transcript/src/index.ts");
 const docling = read("packages/processors/extractors/docling/src/index.ts");
 const imageSemantic = read("packages/processors/extractors/image-semantic/src/index.ts");
 const openAi = read("packages/processors/embeddings/openai-compatible/src/index.ts");
@@ -96,6 +100,7 @@ for (const symbol of [
   "ExtractTextInput",
   "ExtractedText",
   "ExtractedFaceObservation",
+  "ExtractedTranscriptSegment",
   "TextChunker",
   "FixedSizeTextChunker",
   "TextChunk",
@@ -119,6 +124,7 @@ for (const token of [
   "routingEnabled",
   "pdf_extraction",
   "image_semantic_extraction",
+  "audio_transcription",
   "processor_not_implemented"
 ]) {
   assert(routing.includes(token), `@mindory/core document routing module must include ${token}.`);
@@ -141,6 +147,13 @@ assert(extractorPackage.exports?.["."], "Builtin text extractor must export its 
 assert(extractorTsconfig.references?.some((reference) => reference.path === "../../../../packages/core"), "Builtin text extractor must reference @mindory/core.");
 for (const token of ["BuiltinTextExtractor", "supports(", "extract(", "normalizeMarkdown", "\"text/plain\"", "\"text/markdown\"", "\".txt\"", "\".md\"", "\".markdown\""]) {
   assert(extractor.includes(token), `Builtin text extractor must include ${token}.`);
+}
+
+assert(audioTranscriptPackage.dependencies?.["@mindory/core"] === "workspace:*", "Audio transcript extractor must depend on @mindory/core.");
+assert(audioTranscriptPackage.exports?.["."], "Audio transcript extractor must export its root module.");
+assert(audioTranscriptTsconfig.references?.some((reference) => reference.path === "../../../../packages/core"), "Audio transcript extractor must reference @mindory/core.");
+for (const token of ["AudioTranscriptExtractor", "transcriptSegments", "transcript_segment", "readWavMetadata", "ICMT", "asr"]) {
+  assert(audioTranscript.includes(token), `Audio transcript extractor must include ${token}.`);
 }
 
 assert(doclingPackage.dependencies?.["@mindory/core"] === "workspace:*", "Docling PDF extractor must depend on @mindory/core.");
@@ -259,17 +272,22 @@ for (const token of [
   "checksum_sha256",
   "DoclingPdfExtractor",
   "ImageSemanticExtractor",
+  "AudioTranscriptExtractor",
   "FaceService",
   "pdf_page",
   "pdf_native_text",
+  "transcript_segment",
   "face_observation",
   "page_artifact_ids",
   "semantic_artifact_ids",
   "semantic_artifact_types",
+  "transcript_artifact_ids",
+  "transcript_time_ranges",
   "face_observation_artifact_ids",
   "text_artifact_id",
   "artifact_id",
   "createExtractedSemanticArtifacts",
+  "createExtractedTranscriptArtifacts",
   "createExtractedFaceObservations",
   "ClamAvDocumentScanProcessor",
   "document.recompute",

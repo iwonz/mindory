@@ -28,6 +28,7 @@ import {
   type ExtractedFaceObservation,
   type ExtractedSemanticArtifact,
   type ExtractedTextPage,
+  type ExtractedTranscriptSegment,
   type TextChunk,
   type TextChunker,
   type TextExtractor,
@@ -36,6 +37,7 @@ import {
 } from "@mindory/core/processing";
 import { FaceService } from "@mindory/core/faces";
 import type { ObjectStorage } from "@mindory/core/storage";
+import { AudioTranscriptExtractor } from "@mindory/extractor-audio-transcript";
 import { BuiltinTextExtractor } from "@mindory/extractor-builtin-text";
 import { DoclingPdfExtractor } from "@mindory/extractor-docling";
 import { ImageSemanticExtractor } from "@mindory/extractor-image-semantic";
@@ -71,6 +73,14 @@ export class DocumentPipelineProcessorRegistry implements ProcessingJobProcessor
 export function buildDocumentPipelineProcessors(options: DocumentPipelineProcessorOptions): DocumentPipelineProcessorRegistry {
   const extractors = options.extractors ?? [
     new BuiltinTextExtractor(),
+    new AudioTranscriptExtractor({
+      asr: {
+        enabled: options.config.modelRuntime.asr.enabled,
+        provider: options.config.modelRuntime.asr.provider,
+        model: options.config.modelRuntime.asr.model,
+        required: options.config.modelRuntime.asr.required
+      }
+    }),
     new DoclingPdfExtractor({
       ocr: {
         enabled: options.config.modelRuntime.ocr.enabled,
@@ -496,7 +506,9 @@ class DocumentExtractProcessor implements ProcessingJobProcessor {
       ? "pdf"
       : routeKind === "image" || document.mimeType.toLowerCase().startsWith("image/")
         ? "image"
-        : "text";
+        : routeKind === "audio" || document.mimeType.toLowerCase().startsWith("audio/")
+          ? "audio"
+          : "text";
     const processingRunId = incomingProcessingRunId
       ?? deterministicProcessingRunId(document.id, extractionStage, sha256Hex(rawBytes));
     const configFingerprint = buildDocumentRecomputeFingerprint({
@@ -583,6 +595,17 @@ class DocumentExtractProcessor implements ProcessingJobProcessor {
       extractorVersion: extractor.version,
       configFingerprint
     });
+    const transcriptSegments = await createExtractedTranscriptArtifacts({
+      artifacts: this.artifacts,
+      document,
+      processingRunId,
+      textArtifactId,
+      transcriptText: extracted.text,
+      transcriptSegments: extracted.transcriptSegments ?? [],
+      extractorName: extractor.name,
+      extractorVersion: extractor.version,
+      configFingerprint
+    });
     const faceObservations = await createExtractedFaceObservations({
       artifacts: this.artifacts,
       document,
@@ -613,12 +636,14 @@ class DocumentExtractProcessor implements ProcessingJobProcessor {
           extractor_version: extractor.version,
           page_artifacts: pageArtifacts,
           semantic_artifacts: semanticArtifacts,
+          transcript_segments: transcriptSegments,
           face_observations: faceObservations,
           source_refs: [
             { type: "document", id: document.id },
             { type: "processing_run", id: processingRunId },
             { type: "artifact", id: textArtifactId }
           ].concat(semanticArtifacts.map((artifact) => ({ type: "artifact", id: artifact.artifact_id })))
+            .concat(transcriptSegments.map((segment) => ({ type: "artifact", id: segment.artifact_id })))
             .concat(faceObservations.map((observation) => ({ type: "artifact", id: observation.artifact_id })))
         }
       }]
@@ -639,6 +664,7 @@ class DocumentExtractProcessor implements ProcessingJobProcessor {
           processing_stage: extractionStage,
           page_artifacts: pageArtifacts,
           semantic_artifacts: semanticArtifacts,
+          transcript_segments: transcriptSegments,
           face_observations: faceObservations,
           page_count: extracted.pages?.length ?? 0,
           ...extracted.metadata
@@ -705,6 +731,7 @@ class DocumentChunkProcessor implements ProcessingJobProcessor {
     }
     const pageRefs = readExtractionPageRefs(document.metadata.extraction);
     const semanticRefs = readExtractionSemanticArtifactRefs(document.metadata.extraction);
+    const transcriptRefs = readExtractionTranscriptSegmentRefs(document.metadata.extraction);
     const faceRefs = readExtractionFaceObservationRefs(document.metadata.extraction);
 
     const extractedObject = await this.storage.getObject(extractedTextKey);
@@ -721,7 +748,7 @@ class DocumentChunkProcessor implements ProcessingJobProcessor {
         text_artifact_id: textArtifactId
       }
     }).map((chunk) => deterministicChunkId(document.id, chunk))
-      .map((chunk) => enrichChunkWithArtifactRefs(chunk, processingRunId, textArtifactId, pageRefs, semanticRefs, faceRefs));
+      .map((chunk) => enrichChunkWithArtifactRefs(chunk, processingRunId, textArtifactId, pageRefs, semanticRefs, transcriptRefs, faceRefs));
 
     await this.chunks.replaceDocumentChunks({
       projectId: document.projectId,
@@ -1022,6 +1049,16 @@ interface ExtractedSemanticArtifactRef {
   span_type: string;
 }
 
+interface ExtractedTranscriptSegmentRef {
+  artifact_id: string;
+  text_span_id: string;
+  segment_index: number;
+  start_offset: number;
+  end_offset: number;
+  start_ms: number;
+  end_ms: number;
+}
+
 interface ExtractedFaceObservationRef {
   artifact_id: string;
   observation_id: string;
@@ -1214,6 +1251,106 @@ async function createExtractedSemanticArtifacts(input: {
       span_type: spanType
     });
   }
+
+  return refs;
+}
+
+async function createExtractedTranscriptArtifacts(input: {
+  artifacts: DerivedArtifactRepository;
+  document: DocumentRecord;
+  processingRunId: string;
+  textArtifactId: string;
+  transcriptText: string;
+  transcriptSegments: ExtractedTranscriptSegment[];
+  extractorName: string;
+  extractorVersion: string;
+  configFingerprint: string;
+}): Promise<ExtractedTranscriptSegmentRef[]> {
+  if (input.transcriptSegments.length === 0) {
+    return [];
+  }
+
+  const artifactId = deterministicArtifactId(input.processingRunId, "transcript", 0);
+  await input.artifacts.createDocumentArtifact({
+    id: artifactId,
+    projectId: input.document.projectId,
+    documentId: input.document.id,
+    processingRunId: input.processingRunId,
+    parentArtifactId: input.textArtifactId,
+    artifactType: "transcript",
+    artifactIndex: 0,
+    content: input.transcriptText,
+    contentHash: sha256Hex(Buffer.from(input.transcriptText, "utf8")),
+    sourceRefs: [
+      { type: "document", id: input.document.id },
+      { type: "processing_run", id: input.processingRunId },
+      { type: "artifact", id: input.textArtifactId }
+    ],
+    source: input.document.source,
+    sourcePosition: {
+      start_offset: 0,
+      end_offset: input.transcriptText.length
+    },
+    configFingerprint: input.configFingerprint,
+    metadata: {
+      extractor: input.extractorName,
+      extractor_version: input.extractorVersion,
+      text_artifact_id: input.textArtifactId,
+      segment_count: input.transcriptSegments.length
+    }
+  });
+
+  const refs: ExtractedTranscriptSegmentRef[] = input.transcriptSegments.map((segment, index) => {
+    const segmentIndex = segment.segmentIndex ?? index;
+    return {
+      artifact_id: artifactId,
+      text_span_id: deterministicTextSpanId(artifactId, segmentIndex),
+      segment_index: segmentIndex,
+      start_offset: segment.startOffset ?? 0,
+      end_offset: segment.endOffset ?? segment.text.length,
+      start_ms: segment.startMs,
+      end_ms: segment.endMs
+    };
+  });
+  await input.artifacts.replaceDocumentArtifactTextSpans({
+    projectId: input.document.projectId,
+    documentId: input.document.id,
+    artifactId,
+    spans: input.transcriptSegments.map((segment, index) => {
+      const segmentIndex = segment.segmentIndex ?? index;
+      const startOffset = segment.startOffset ?? 0;
+      const endOffset = segment.endOffset ?? startOffset + segment.text.length;
+      return {
+        id: deterministicTextSpanId(artifactId, segmentIndex),
+        projectId: input.document.projectId,
+        documentId: input.document.id,
+        artifactId,
+        spanType: "transcript_segment",
+        content: segment.text,
+        startOffset,
+        endOffset,
+        timestampMs: segment.startMs,
+        confidence: segment.confidence ?? null,
+        metadata: {
+          ...(segment.metadata ?? {}),
+          processing_run_id: input.processingRunId,
+          artifact_id: artifactId,
+          text_artifact_id: input.textArtifactId,
+          segment_index: segmentIndex,
+          start_ms: segment.startMs,
+          end_ms: segment.endMs,
+          extractor: input.extractorName,
+          extractor_version: input.extractorVersion,
+          source_refs: [
+            { type: "document", id: input.document.id },
+            { type: "processing_run", id: input.processingRunId },
+            { type: "artifact", id: input.textArtifactId },
+            { type: "artifact", id: artifactId }
+          ]
+        }
+      };
+    })
+  });
 
   return refs;
 }
@@ -1721,13 +1858,17 @@ function enrichChunkWithArtifactRefs(
   textArtifactId: string,
   pageRefs: ExtractedPageArtifactRef[],
   semanticRefs: ExtractedSemanticArtifactRef[],
+  transcriptRefs: ExtractedTranscriptSegmentRef[],
   faceRefs: ExtractedFaceObservationRef[]
 ): TextChunk {
   const artifactId = deterministicArtifactId(processingRunId, "text_chunk", chunk.index);
   const textSpanId = deterministicTextSpanId(artifactId, 0);
   const overlappingPages = pageRefsForChunk(chunk, pageRefs);
+  const overlappingTranscriptSegments = transcriptRefsForChunk(chunk, transcriptRefs);
   const pageSourceRefs = overlappingPages.map((page) => ({ type: "artifact" as const, id: page.artifact_id }));
   const semanticSourceRefs = semanticRefs.map((artifact) => ({ type: "artifact" as const, id: artifact.artifact_id }));
+  const transcriptSourceRefs = uniqueStrings(overlappingTranscriptSegments.map((segment) => segment.artifact_id))
+    .map((artifactId) => ({ type: "artifact" as const, id: artifactId }));
   const faceSourceRefs = faceRefs.map((observation) => ({ type: "artifact" as const, id: observation.artifact_id }));
   return {
     ...chunk,
@@ -1741,6 +1882,12 @@ function enrichChunkWithArtifactRefs(
       page_artifact_ids: overlappingPages.map((page) => page.artifact_id),
       semantic_artifact_ids: semanticRefs.map((artifact) => artifact.artifact_id),
       semantic_artifact_types: semanticRefs.map((artifact) => artifact.artifact_type),
+      transcript_artifact_ids: uniqueStrings(overlappingTranscriptSegments.map((segment) => segment.artifact_id)),
+      transcript_segment_span_ids: overlappingTranscriptSegments.map((segment) => segment.text_span_id),
+      transcript_time_ranges: overlappingTranscriptSegments.map((segment) => ({
+        start_ms: segment.start_ms,
+        end_ms: segment.end_ms
+      })),
       face_observation_artifact_ids: faceRefs.map((observation) => observation.artifact_id),
       face_identity_ids: faceRefs.map((observation) => observation.face_identity_id),
       source_refs: [
@@ -1749,6 +1896,7 @@ function enrichChunkWithArtifactRefs(
         { type: "artifact", id: textArtifactId },
         ...pageSourceRefs,
         ...semanticSourceRefs,
+        ...transcriptSourceRefs,
         ...faceSourceRefs,
         { type: "artifact", id: artifactId },
         { type: "chunk", id: chunk.id }
@@ -1768,6 +1916,23 @@ function pageRefsForChunk(chunk: TextChunk, pageRefs: ExtractedPageArtifactRef[]
     return overlapping;
   }
   return pageRefs.filter((page) => page.start_offset <= startOffset && page.end_offset >= startOffset);
+}
+
+function transcriptRefsForChunk(chunk: TextChunk, transcriptRefs: ExtractedTranscriptSegmentRef[]): ExtractedTranscriptSegmentRef[] {
+  if (transcriptRefs.length === 0) {
+    return [];
+  }
+  const startOffset = chunk.metadata.start_offset;
+  const endOffset = chunk.metadata.end_offset;
+  const overlapping = transcriptRefs.filter((segment) => segment.end_offset > startOffset && segment.start_offset < endOffset);
+  if (overlapping.length > 0) {
+    return overlapping;
+  }
+  return transcriptRefs.filter((segment) => segment.start_offset <= startOffset && segment.end_offset >= startOffset);
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return Array.from(new Set(values));
 }
 
 function deterministicProcessingRunId(documentId: string, stage: string, checksum: string): string {
@@ -1845,6 +2010,27 @@ function readExtractionSemanticArtifactRefs(metadata: unknown): ExtractedSemanti
     return typeof recordItem.artifact_id === "string"
       && typeof recordItem.artifact_type === "string"
       && typeof recordItem.span_type === "string";
+  });
+}
+
+function readExtractionTranscriptSegmentRefs(metadata: unknown): ExtractedTranscriptSegmentRef[] {
+  const record = typeof metadata === "object" && metadata !== null ? metadata as Record<string, unknown> : null;
+  const value = record?.transcript_segments;
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter((item): item is ExtractedTranscriptSegmentRef => {
+    if (typeof item !== "object" || item === null) {
+      return false;
+    }
+    const recordItem = item as Record<string, unknown>;
+    return typeof recordItem.artifact_id === "string"
+      && typeof recordItem.text_span_id === "string"
+      && typeof recordItem.segment_index === "number"
+      && typeof recordItem.start_offset === "number"
+      && typeof recordItem.end_offset === "number"
+      && typeof recordItem.start_ms === "number"
+      && typeof recordItem.end_ms === "number";
   });
 }
 
