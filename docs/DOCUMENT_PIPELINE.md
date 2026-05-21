@@ -100,7 +100,7 @@ small magic-byte sample. The worker `document.route` processor records routing
 metadata on the document and then enqueues only the supported, enabled
 downstream jobs.
 
-The default route configuration is conservative:
+The bare runtime default route configuration is conservative:
 
 - text: enabled, creates `document.extract`;
 - PDF: disabled by default, creates `document.extract` when enabled;
@@ -112,6 +112,10 @@ The default route configuration is conservative:
 Disabling a modality means no job is created for that file type. Enabling a
 future modality before its processor exists records a skipped route with
 `processor_not_implemented`; it does not enqueue a missing processor.
+
+For the local MVP path, `.env.example`, Docker Compose and `pnpm mvp:demo`
+enable text, PDF, image, audio and video routers while keeping model-backed
+capabilities disabled/non-blocking by default.
 
 ## Attachment Metadata Index
 

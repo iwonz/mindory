@@ -49,6 +49,10 @@ for (const token of [
   "scripts/seed-demo.js",
   "MINDORY_E2E_LIVE",
   "scripts/mvp-acceptance.js",
+  "--model-profile",
+  "local-models",
+  "MINDORY_DOCUMENT_PROCESSING_PDF_ENABLED",
+  "MINDORY_E2E_MODEL_PROFILE",
   "/ready",
   "migrate",
   "--volumes",
@@ -60,6 +64,10 @@ for (const token of [
 for (const token of ["pnpm mvp:demo", "pnpm mvp:up", "pnpm mvp:down", "pnpm mvp:reset"]) {
   assertIncludes(readme, token, "README.md");
   assertIncludes(deployment, token, "docs/DEPLOYMENT.md");
+  assertIncludes(acceptance, token, "docs/MVP_ACCEPTANCE.md");
+}
+
+for (const token of ["PDF", "image", "audio", "video", "artifact search", "metadata filters", "reprocess", "disabled and non-blocking"]) {
   assertIncludes(acceptance, token, "docs/MVP_ACCEPTANCE.md");
 }
 

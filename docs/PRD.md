@@ -1632,6 +1632,7 @@ clamav
 qdrant
 docling
 ollama
+local-models
 ```
 
 Example:

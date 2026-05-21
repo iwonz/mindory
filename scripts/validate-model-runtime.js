@@ -98,6 +98,11 @@ for (const token of [
   assertIncludes(config, token, "packages/config/src/index.ts");
 }
 
+assertIncludes(compose, "profiles: [\"local-models\"]", "docker-compose.yml");
+assertIncludes(compose, "model-runtime", "docker-compose.yml");
+assertIncludes(envExample, "MINDORY_E2E_MODEL_PROFILE=disabled", ".env.example");
+assertIncludes(docs, "local-models", "model runtime docs");
+
 for (const token of [
   "MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_ENABLED",
   "MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_PROVIDER",
