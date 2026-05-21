@@ -25,6 +25,7 @@ import {
   ProcessingError,
   type DocumentChunkRepository,
   type EmbeddingsProvider,
+  type ExtractedTextPage,
   type TextChunk,
   type TextChunker,
   type TextExtractor,
@@ -33,6 +34,7 @@ import {
 } from "@mindory/core/processing";
 import type { ObjectStorage } from "@mindory/core/storage";
 import { BuiltinTextExtractor } from "@mindory/extractor-builtin-text";
+import { DoclingPdfExtractor } from "@mindory/extractor-docling";
 import { buildMindoryTextEmbeddingsProvider } from "@mindory/model-runtime";
 import { ClamAvDocumentScanProcessor, ClamAvScanner } from "@mindory/processor-antivirus-clamav";
 
@@ -63,7 +65,17 @@ export class DocumentPipelineProcessorRegistry implements ProcessingJobProcessor
 }
 
 export function buildDocumentPipelineProcessors(options: DocumentPipelineProcessorOptions): DocumentPipelineProcessorRegistry {
-  const extractors = options.extractors ?? [new BuiltinTextExtractor()];
+  const extractors = options.extractors ?? [
+    new BuiltinTextExtractor(),
+    new DoclingPdfExtractor({
+      ocr: {
+        enabled: options.config.modelRuntime.ocr.enabled,
+        provider: options.config.modelRuntime.ocr.provider,
+        model: options.config.modelRuntime.ocr.model,
+        required: options.config.modelRuntime.ocr.required
+      }
+    })
+  ];
   const chunker = options.chunker ?? new FixedSizeTextChunker({
     maxTokens: 800,
     overlapTokens: 80,
@@ -443,26 +455,29 @@ class DocumentExtractProcessor implements ProcessingJobProcessor {
       body: Readable.from(rawBytes)
     });
     const incomingProcessingRunId = readMetadataString(context.payload.metadata, "processing_run_id");
+    const extractionStage = readMetadataString(context.payload.metadata, "route_kind") === "pdf" || document.mimeType.toLowerCase().startsWith("application/pdf")
+      ? "pdf"
+      : "text";
     const processingRunId = incomingProcessingRunId
-      ?? deterministicProcessingRunId(document.id, "text", sha256Hex(rawBytes));
+      ?? deterministicProcessingRunId(document.id, extractionStage, sha256Hex(rawBytes));
     const configFingerprint = buildDocumentRecomputeFingerprint({
       extractor: extractor.name,
       extractorVersion: extractor.version,
       processorVersion: this.processorVersion,
-      stage: "text"
+      stage: extractionStage
     });
     if (!incomingProcessingRunId) {
       await this.artifacts.createProcessingRun({
         id: processingRunId,
         projectId: document.projectId,
         documentId: document.id,
-        reason: "text_pipeline",
+        reason: `${extractionStage}_pipeline`,
         processorVersion: this.processorVersion,
         configFingerprint,
         sourceDocumentStorageKey: document.storageKey,
         sourceDocumentChecksum: sha256Hex(rawBytes),
         metadata: {
-          stage: "text",
+          stage: extractionStage,
           extractor: extractor.name,
           extractor_version: extractor.version,
           created_by: "document.extract"
@@ -509,6 +524,16 @@ class DocumentExtractProcessor implements ProcessingJobProcessor {
         ...extracted.metadata
       }
     });
+    const pageArtifacts = await createExtractedPageArtifacts({
+      artifacts: this.artifacts,
+      document,
+      processingRunId,
+      textArtifactId,
+      pages: extracted.pages ?? [],
+      extractorName: extractor.name,
+      extractorVersion: extractor.version,
+      configFingerprint
+    });
     await this.artifacts.replaceDocumentArtifactTextSpans({
       projectId: document.projectId,
       documentId: document.id,
@@ -527,6 +552,7 @@ class DocumentExtractProcessor implements ProcessingJobProcessor {
           artifact_id: textArtifactId,
           extractor: extractor.name,
           extractor_version: extractor.version,
+          page_artifacts: pageArtifacts,
           source_refs: [
             { type: "document", id: document.id },
             { type: "processing_run", id: processingRunId },
@@ -548,6 +574,9 @@ class DocumentExtractProcessor implements ProcessingJobProcessor {
           extracted_text_key: extractedTextKey,
           processing_run_id: processingRunId,
           text_artifact_id: textArtifactId,
+          processing_stage: extractionStage,
+          page_artifacts: pageArtifacts,
+          page_count: extracted.pages?.length ?? 0,
           ...extracted.metadata
         }
       }
@@ -610,6 +639,7 @@ class DocumentChunkProcessor implements ProcessingJobProcessor {
     if (!processingRunId || !textArtifactId) {
       throw new ProcessingError("text_extraction_failed", `Document ${document.id} is missing text artifact metadata.`);
     }
+    const pageRefs = readExtractionPageRefs(document.metadata.extraction);
 
     const extractedObject = await this.storage.getObject(extractedTextKey);
     const text = await readUtf8(extractedObject.body);
@@ -625,7 +655,7 @@ class DocumentChunkProcessor implements ProcessingJobProcessor {
         text_artifact_id: textArtifactId
       }
     }).map((chunk) => deterministicChunkId(document.id, chunk))
-      .map((chunk) => enrichChunkWithArtifactRefs(chunk, processingRunId, textArtifactId));
+      .map((chunk) => enrichChunkWithArtifactRefs(chunk, processingRunId, textArtifactId, pageRefs));
 
     await this.chunks.replaceDocumentChunks({
       projectId: document.projectId,
@@ -727,7 +757,7 @@ class DocumentChunkProcessor implements ProcessingJobProcessor {
         status: "succeeded",
         finishedAt: new Date(),
         metadata: {
-          stage: "text",
+          stage: readMetadataString(document.metadata.extraction, "processing_stage") ?? "text",
           chunk_count: chunked.length,
           text_artifact_id: textArtifactId,
           completed_by: "document.chunk",
@@ -897,7 +927,7 @@ class DocumentIndexProcessor implements ProcessingJobProcessor {
         status: "succeeded",
         finishedAt: new Date(),
         metadata: {
-          stage: "text",
+          stage: readMetadataString(document.metadata.extraction, "processing_stage") ?? "text",
           indexed_chunks: indexed.length,
           completed_by: "document.index",
           vector_index_provider: this.vectorIndex.provider,
@@ -906,6 +936,122 @@ class DocumentIndexProcessor implements ProcessingJobProcessor {
       });
     }
   }
+}
+
+interface ExtractedPageArtifactRef {
+  artifact_id: string;
+  text_span_id?: string;
+  page_number: number;
+  start_offset: number;
+  end_offset: number;
+  width: number | null;
+  height: number | null;
+  ocr: boolean;
+}
+
+async function createExtractedPageArtifacts(input: {
+  artifacts: DerivedArtifactRepository;
+  document: DocumentRecord;
+  processingRunId: string;
+  textArtifactId: string;
+  pages: ExtractedTextPage[];
+  extractorName: string;
+  extractorVersion: string;
+  configFingerprint: string;
+}): Promise<ExtractedPageArtifactRef[]> {
+  const refs: ExtractedPageArtifactRef[] = [];
+  for (const page of input.pages) {
+    const artifactId = deterministicArtifactId(input.processingRunId, "pdf_page", page.pageNumber - 1);
+    const textSpanId = page.text.length > 0 ? deterministicTextSpanId(artifactId, 0) : undefined;
+    await input.artifacts.createDocumentArtifact({
+      id: artifactId,
+      projectId: input.document.projectId,
+      documentId: input.document.id,
+      processingRunId: input.processingRunId,
+      parentArtifactId: input.textArtifactId,
+      artifactType: "pdf_page",
+      artifactIndex: page.pageNumber - 1,
+      content: page.text,
+      contentHash: sha256Hex(Buffer.from(page.text, "utf8")),
+      sourceRefs: [
+        { type: "document", id: input.document.id },
+        { type: "processing_run", id: input.processingRunId },
+        { type: "artifact", id: input.textArtifactId }
+      ],
+      source: input.document.source,
+      sourcePosition: {
+        page_number: page.pageNumber,
+        start_offset: page.startOffset,
+        end_offset: page.endOffset
+      },
+      configFingerprint: input.configFingerprint,
+      metadata: {
+        ...(page.metadata ?? {}),
+        extractor: input.extractorName,
+        extractor_version: input.extractorVersion,
+        page_number: page.pageNumber,
+        width: page.width ?? null,
+        height: page.height ?? null,
+        ocr: page.ocr ?? false,
+        text_artifact_id: input.textArtifactId
+      }
+    });
+    if (textSpanId) {
+      await input.artifacts.replaceDocumentArtifactTextSpans({
+        projectId: input.document.projectId,
+        documentId: input.document.id,
+        artifactId,
+        spans: [{
+          id: textSpanId,
+          projectId: input.document.projectId,
+          documentId: input.document.id,
+          artifactId,
+          spanType: page.ocr ? "ocr_text" : "pdf_native_text",
+          content: page.text,
+          startOffset: page.startOffset,
+          endOffset: page.endOffset,
+          pageNumber: page.pageNumber,
+          confidence: page.confidence ?? null,
+          metadata: {
+            ...(page.metadata ?? {}),
+            processing_run_id: input.processingRunId,
+            artifact_id: artifactId,
+            text_artifact_id: input.textArtifactId,
+            extractor: input.extractorName,
+            extractor_version: input.extractorVersion,
+            source_refs: [
+              { type: "document", id: input.document.id },
+              { type: "processing_run", id: input.processingRunId },
+              { type: "artifact", id: input.textArtifactId },
+              { type: "artifact", id: artifactId }
+            ]
+          }
+        }]
+      });
+    } else {
+      await input.artifacts.replaceDocumentArtifactTextSpans({
+        projectId: input.document.projectId,
+        documentId: input.document.id,
+        artifactId,
+        spans: []
+      });
+    }
+    const ref: ExtractedPageArtifactRef = {
+      artifact_id: artifactId,
+      page_number: page.pageNumber,
+      start_offset: page.startOffset,
+      end_offset: page.endOffset,
+      width: page.width ?? null,
+      height: page.height ?? null,
+      ocr: page.ocr ?? false
+    };
+    if (textSpanId !== undefined) {
+      ref.text_span_id = textSpanId;
+    }
+    refs.push(ref);
+  }
+
+  return refs;
 }
 
 interface IndexAttachmentMetadataInput {
@@ -1316,9 +1462,16 @@ function deterministicChunkId(documentId: string, chunk: TextChunk): TextChunk {
   };
 }
 
-function enrichChunkWithArtifactRefs(chunk: TextChunk, processingRunId: string, textArtifactId: string): TextChunk {
+function enrichChunkWithArtifactRefs(
+  chunk: TextChunk,
+  processingRunId: string,
+  textArtifactId: string,
+  pageRefs: ExtractedPageArtifactRef[]
+): TextChunk {
   const artifactId = deterministicArtifactId(processingRunId, "text_chunk", chunk.index);
   const textSpanId = deterministicTextSpanId(artifactId, 0);
+  const overlappingPages = pageRefsForChunk(chunk, pageRefs);
+  const pageSourceRefs = overlappingPages.map((page) => ({ type: "artifact" as const, id: page.artifact_id }));
   return {
     ...chunk,
     metadata: {
@@ -1327,15 +1480,31 @@ function enrichChunkWithArtifactRefs(chunk: TextChunk, processingRunId: string, 
       text_artifact_id: textArtifactId,
       artifact_id: artifactId,
       text_span_id: textSpanId,
+      page_numbers: overlappingPages.map((page) => page.page_number),
+      page_artifact_ids: overlappingPages.map((page) => page.artifact_id),
       source_refs: [
         { type: "document", id: chunk.documentId },
         { type: "processing_run", id: processingRunId },
         { type: "artifact", id: textArtifactId },
+        ...pageSourceRefs,
         { type: "artifact", id: artifactId },
         { type: "chunk", id: chunk.id }
       ]
     }
   };
+}
+
+function pageRefsForChunk(chunk: TextChunk, pageRefs: ExtractedPageArtifactRef[]): ExtractedPageArtifactRef[] {
+  if (pageRefs.length === 0) {
+    return [];
+  }
+  const startOffset = chunk.metadata.start_offset;
+  const endOffset = chunk.metadata.end_offset;
+  const overlapping = pageRefs.filter((page) => page.end_offset > startOffset && page.start_offset < endOffset);
+  if (overlapping.length > 0) {
+    return overlapping;
+  }
+  return pageRefs.filter((page) => page.start_offset <= startOffset && page.end_offset >= startOffset);
 }
 
 function deterministicProcessingRunId(documentId: string, stage: string, checksum: string): string {
@@ -1371,6 +1540,24 @@ function readMetadataStringArray(metadata: unknown, key: string): string[] | und
   return Array.isArray(value) && value.every((item) => typeof item === "string")
     ? value
     : undefined;
+}
+
+function readExtractionPageRefs(metadata: unknown): ExtractedPageArtifactRef[] {
+  const record = typeof metadata === "object" && metadata !== null ? metadata as Record<string, unknown> : null;
+  const value = record?.page_artifacts;
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter((item): item is ExtractedPageArtifactRef => {
+    if (typeof item !== "object" || item === null) {
+      return false;
+    }
+    const recordItem = item as Record<string, unknown>;
+    return typeof recordItem.artifact_id === "string"
+      && typeof recordItem.page_number === "number"
+      && typeof recordItem.start_offset === "number"
+      && typeof recordItem.end_offset === "number";
+  });
 }
 
 async function readUtf8(stream: Readable): Promise<string> {

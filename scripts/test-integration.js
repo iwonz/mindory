@@ -34,6 +34,7 @@ const testEnv = {
   MINDORY_AV_ENABLED: "false",
   MINDORY_AV_PROVIDER: "disabled",
   MINDORY_AV_MODE: "disabled",
+  MINDORY_DOCUMENT_PROCESSING_PDF_ENABLED: "true",
   MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_ENABLED: "false",
   MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_PROVIDER: "disabled",
   MINDORY_WORKER_CONCURRENCY: "1"
@@ -125,6 +126,7 @@ test("MVP runtime integration covers auth, upload, worker jobs and context", { t
     const childToken = await assertTokenLifecycle(apiUrl);
     const { sessionId, messageId } = await createConversation(apiUrl);
     const { documentId, routeJobId } = await uploadAndProcessDocument(apiUrl);
+    await uploadAndProcessPdfDocument(apiUrl);
     await assertJobsApi(apiUrl, managementStore, sessionId, routeJobId);
     await assertDocumentRecompute(apiUrl, documentId);
     await assertMemoryAndContext(apiUrl, sessionId, messageId, documentId);
@@ -391,6 +393,62 @@ async function uploadAndProcessDocument(apiUrl) {
     documentId,
     routeJobId
   };
+}
+
+async function uploadAndProcessPdfDocument(apiUrl) {
+  const pdf = buildMinimalPdf([
+    "Native PDF extraction page one source-backed evidence.",
+    "Second PDF page keeps OCR pipeline page refs searchable."
+  ]);
+  const form = new FormData();
+  form.append("projectId", projectId);
+  form.append("title", "Integration PDF document");
+  form.append("file", new Blob([pdf], { type: "application/pdf" }), "integration.pdf");
+
+  const uploadResponse = await fetch(`${apiUrl}/v1/documents`, {
+    method: "POST",
+    headers: {
+      accept: "application/json",
+      authorization: `Bearer ${bootstrapToken}`
+    },
+    body: form
+  });
+  if (uploadResponse.status !== 202) {
+    throw new Error(`PDF document upload failed ${uploadResponse.status}: ${await uploadResponse.text()}`);
+  }
+  const upload = await uploadResponse.json();
+  const documentId = upload.document.id;
+  const routeJobId = upload.route_job?.id;
+  assert.equal(typeof routeJobId, "string", "PDF upload should enqueue a route job when scan is disabled");
+
+  await waitFor(async () => {
+    const status = await requestJson(apiUrl, "GET", `/v1/documents/${encodeURIComponent(documentId)}/status?projectId=${encodeURIComponent(projectId)}`);
+    return status.status === "chunked";
+  }, "PDF document to reach chunked status");
+
+  const routeJob = await waitForJobStatus(apiUrl, routeJobId, "succeeded");
+  assert.equal(routeJob.type, "document.route");
+  const document = await requestJson(apiUrl, "GET", `/v1/documents/${encodeURIComponent(documentId)}?projectId=${encodeURIComponent(projectId)}`);
+  assert.equal(document.metadata.routing.classification.kind, "pdf");
+  assert.equal(document.metadata.extraction.processing_stage, "pdf");
+  assert.equal(document.metadata.extraction.page_count, 2);
+
+  const search = await requestJson(apiUrl, "POST", "/v1/documents/search", {
+    projectIds: [projectId],
+    query: "OCR pipeline page refs",
+    limit: 5,
+    metadataFilters: [{ key: "extension", valueText: "pdf" }]
+  });
+  const pdfHit = search.hits.find((hit) => hit.documentId === documentId);
+  assert.ok(pdfHit, "PDF document search should find extracted native text.");
+  assert.ok(pdfHit.sourceRefs.some((ref) => ref.type === "artifact"), "PDF search should include artifact source refs.");
+  assert.ok(pdfHit.metadata.page_numbers.includes(2), "PDF chunk metadata should include page numbers.");
+  assert.ok(pdfHit.metadata.page_artifact_ids.length > 0, "PDF chunk metadata should include page artifact ids.");
+
+  const pageArtifacts = await countDocumentArtifacts(projectId, documentId, "pdf_page", databaseUrl);
+  assert.equal(pageArtifacts, 2, "PDF extraction should persist one pdf_page artifact per page.");
+  const pageSpans = await countDocumentTextSpans(projectId, documentId, "pdf_native_text", databaseUrl);
+  assert.equal(pageSpans, 2, "PDF extraction should persist page-level native text spans.");
 }
 
 async function uploadAndIndexDocument(input) {
@@ -667,6 +725,34 @@ async function countArtifactTextSpans(id, documentId, connectionString) {
   }
 }
 
+async function countDocumentArtifacts(id, documentId, artifactType, connectionString) {
+  const client = new Client({ connectionString });
+  await client.connect();
+  try {
+    const result = await client.query(
+      "select count(*)::int as count from document_artifacts where project_id = $1 and document_id = $2 and artifact_type = $3",
+      [id, documentId, artifactType]
+    );
+    return Number(result.rows[0]?.count ?? 0);
+  } finally {
+    await client.end();
+  }
+}
+
+async function countDocumentTextSpans(id, documentId, spanType, connectionString) {
+  const client = new Client({ connectionString });
+  await client.connect();
+  try {
+    const result = await client.query(
+      "select count(*)::int as count from document_artifact_text_spans where project_id = $1 and document_id = $2 and span_type = $3",
+      [id, documentId, spanType]
+    );
+    return Number(result.rows[0]?.count ?? 0);
+  } finally {
+    await client.end();
+  }
+}
+
 async function countDocumentMetadataIndexRows(id, documentId, connectionString) {
   const client = new Client({ connectionString });
   await client.connect();
@@ -762,6 +848,30 @@ function deterministicEmbedding(text, dimensions) {
     const byte = digest[index % digest.length];
     return Number(((byte / 255) * 2 - 1).toFixed(6));
   });
+}
+
+function buildMinimalPdf(pageTexts) {
+  const objects = [
+    "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj",
+    `2 0 obj\n<< /Type /Pages /Kids [${pageTexts.map((_, index) => `${3 + index * 2} 0 R`).join(" ")}] /Count ${pageTexts.length} >>\nendobj`
+  ];
+  for (const [index, text] of pageTexts.entries()) {
+    const pageObjectId = 3 + index * 2;
+    const contentObjectId = pageObjectId + 1;
+    const content = `BT /F1 12 Tf 72 720 Td (${escapePdfLiteralString(text)}) Tj ET`;
+    objects.push(`${pageObjectId} 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents ${contentObjectId} 0 R >>\nendobj`);
+    objects.push(`${contentObjectId} 0 obj\n<< /Length ${Buffer.byteLength(content, "latin1")} >>\nstream\n${content}\nendstream\nendobj`);
+  }
+  return Buffer.from([
+    "%PDF-1.4",
+    ...objects,
+    "trailer\n<< /Root 1 0 R >>",
+    "%%EOF"
+  ].join("\n"), "latin1");
+}
+
+function escapePdfLiteralString(value) {
+  return value.replace(/[()\\]/g, (match) => `\\${match}`);
 }
 
 function hashAccessToken(value) {

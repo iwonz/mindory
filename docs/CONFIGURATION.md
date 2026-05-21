@@ -77,8 +77,11 @@ disabled. It defaults to `true`.
 Each modality has `MINDORY_DOCUMENT_PROCESSING_<TYPE>_ENABLED` and
 `MINDORY_DOCUMENT_PROCESSING_<TYPE>_REQUIRED` settings. Current types are
 `TEXT`, `PDF`, `IMAGE`, `AUDIO` and `VIDEO`. Text is enabled by default and
-routes to the existing text extraction/chunking/indexing pipeline. PDF, image,
-audio and video default to disabled until their processors are implemented.
+routes to the existing text extraction/chunking/indexing pipeline. PDF is
+implemented for native text streams but remains disabled by default; set
+`MINDORY_DOCUMENT_PROCESSING_PDF_ENABLED=true` to route PDFs into
+`document.extract`. Image, audio and video default to disabled until their
+processors are implemented.
 
 `MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES` sets the future video
 keyframe cap and defaults to `10`.

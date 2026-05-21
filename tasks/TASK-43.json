@@ -1,0 +1,70 @@
+{
+  "id": "TASK-43",
+  "title": "Add PDF OCR pipeline",
+  "status": "done",
+  "type": "chore",
+  "priority": "high",
+  "branch": "task/TASK-43-pdf-ocr-pipeline",
+  "created_at": "2026-05-21",
+  "updated_at": "2026-05-21",
+  "context": {
+    "summary": "Add PDF processing on the derived artifact model with native text extraction, page artifacts and OCR-ready metadata.",
+    "background": "TASK-39 routes PDF as a recognized modality but skipped it as processor_not_implemented. TASK-41 moved text outputs onto artifacts, which PDF can now reuse for chunking/search/indexing."
+  },
+  "scope": {
+    "in": [
+      "Route enabled PDF uploads to document.extract instead of processor_not_implemented.",
+      "Implement a dependency-light PDF extractor in @mindory/extractor-docling for native text streams.",
+      "Represent extracted PDF pages as page-level derived artifacts and text spans.",
+      "Propagate page source refs and page metadata into chunk/search results.",
+      "Record OCR configuration/skipped state in extractor metadata without mutating RAW originals.",
+      "Add integration coverage for PDF upload, chunking and search.",
+      "Update worker, pipeline and configuration documentation."
+    ],
+    "out": [
+      "Heavy PDF rasterization, external Docling service orchestration or real OCR model execution.",
+      "Image OCR for standalone images.",
+      "Changing document_artifact_vectors or removing legacy chunks.",
+      "Changing 0000_initial_schema.sql."
+    ]
+  },
+  "acceptance_criteria": [
+    "Enabled PDF routing creates a document.extract job.",
+    "@mindory/extractor-docling extracts native PDF text into page records when text streams are available.",
+    "PDF extraction writes pdf_page artifacts and page-level text spans with page_number metadata.",
+    "Chunk metadata/source refs include page artifacts when chunks overlap PDF page ranges.",
+    "PDF document search returns source-backed hits through the existing document search endpoint.",
+    "OCR state is recorded as derived metadata and RAW originals remain unchanged.",
+    "No schema changes modify 0000_initial_schema.sql."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "pnpm db:repositories:validate",
+      "pnpm documents:validate",
+      "pnpm processing:validate",
+      "pnpm typecheck",
+      "pnpm lint",
+      "pnpm tasks:validate",
+      "pnpm test",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-43.",
+      "Confirm packages/db/drizzle/0000_initial_schema.sql is unchanged.",
+      "Confirm PDF search hits include artifact/page metadata."
+    ]
+  },
+  "dependencies": [
+    "TASK-42"
+  ],
+  "risks": [
+    "The PDF extractor intentionally handles simple native text streams for MVP; complex scanned PDFs require the later real OCR/model profile.",
+    "OCR execution is represented as provider-ready metadata until a concrete OCR adapter is installed."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch is committed and merged back into master."
+  ]
+}

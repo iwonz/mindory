@@ -13,6 +13,7 @@ classifies uploaded files and creates only the enabled downstream jobs.
 `TASK-40` adds recompute flow for derived state.
 `TASK-41` moves the text pipeline onto the derived artifact model.
 `TASK-42` adds typed attachment metadata indexing for search filters.
+`TASK-43` adds PDF native text extraction on page-level artifacts.
 
 ## MVP Pipeline
 
@@ -28,10 +29,10 @@ index
 derive memory candidates
 ```
 
-Text and Markdown extraction are the currently implemented route. PDF, image,
-audio and video can be enabled in configuration, but their handlers intentionally
-skip as `processor_not_implemented` until the corresponding tasks add concrete
-processors.
+Text, Markdown and PDF native text extraction are the currently implemented
+routes. Image, audio and video can be enabled in configuration, but their
+handlers intentionally skip as `processor_not_implemented` until the
+corresponding tasks add concrete processors.
 
 Processing status must be durable in PostgreSQL, not only in BullMQ.
 
@@ -101,7 +102,8 @@ downstream jobs.
 The default route configuration is conservative:
 
 - text: enabled, creates `document.extract`;
-- PDF/image/audio/video: disabled until their processors exist;
+- PDF: disabled by default, creates `document.extract` when enabled;
+- image/audio/video: disabled until their processors exist;
 - video keyframe limit: `10`.
 
 Disabling a modality means no job is created for that file type. Enabling a
@@ -130,6 +132,21 @@ Search accepts structured metadata filters. Examples:
 The PostgreSQL full-text fallback and pgvector search both enforce these
 filters through `document_metadata_index`.
 
+## PDF Processing
+
+When `MINDORY_DOCUMENT_PROCESSING_PDF_ENABLED=true`, routing sends PDF uploads
+to `document.extract`. The `@mindory/extractor-docling` MVP extractor reads
+native PDF text streams without mutating the RAW object. It writes:
+
+- a top-level extracted text artifact;
+- one `pdf_page` artifact per extracted page;
+- one page-level `pdf_native_text` span per page with `page_number` metadata;
+- chunk metadata and source refs that point back to overlapping page artifacts.
+
+OCR configuration is recorded in extraction metadata. The default runtime keeps
+OCR disabled; scanned-PDF OCR requires a later concrete OCR/model adapter, while
+native-text PDFs are searchable now.
+
 ## Recompute Flow
 
 `POST /v1/documents/:id/recompute` creates a durable `document.recompute` job.
@@ -141,18 +158,20 @@ new `processing_run`, marks previous runs for the requested stage as
 The RAW storage key is not changed. Existing derived rows stay attached to their
 old `processing_run`; the current run is the latest non-superseded version.
 Current implemented stages are `all`, `route`, `text`, `pdf`, `image`, `audio`
-and `video`, with only `text` reaching a concrete extractor today.
+and `video`, with `text` and opt-in `pdf` reaching concrete extractors today.
 
 ## Current Worker Processing
 
 `@mindory/core/processing` defines the processing contracts. The built-in text
-extractor supports plain text and Markdown inputs, and `FixedSizeTextChunker`
-creates deterministic token windows with offset metadata. Text extraction now
-writes a `text` artifact plus an `extracted_text` span; chunking writes one
-child `text` artifact and one `text_chunk` span per chunk. Legacy `chunks` rows
-remain the compatibility table for context and embeddings, but their metadata
-points back to `processing_run_id`, `text_artifact_id`, chunk `artifact_id` and
-artifact source refs.
+extractor supports plain text and Markdown inputs, `@mindory/extractor-docling`
+supports native-text PDF inputs, and `FixedSizeTextChunker` creates
+deterministic token windows with offset metadata. Text/PDF extraction writes a
+`text` artifact plus an `extracted_text` span; PDF extraction also writes
+`pdf_page` artifacts and page-level spans. Chunking writes one child `text`
+artifact and one `text_chunk` span per chunk. Legacy `chunks` rows remain the
+compatibility table for context and embeddings, but their metadata points back
+to `processing_run_id`, `text_artifact_id`, chunk `artifact_id`, page artifact
+ids when applicable and artifact source refs.
 
 Text embedding providers are selected through the shared
 `@mindory/model-runtime` module. Low-level adapters exist for
@@ -169,9 +188,10 @@ artifact and processing run.
 
 `TASK-19` adds `DocumentChunkRepository`, a Drizzle-backed chunk repository and
 the worker processor registry. Clean scans enqueue routing, routing enqueues
-extraction for text/Markdown documents, extraction writes derived text objects,
-chunking replaces durable chunk rows, and embedding/index processors write
-pgvector rows when text embeddings are configured. With
+extraction for text/Markdown/PDF documents when the modality is enabled,
+extraction writes derived text objects, chunking replaces durable chunk rows,
+and embedding/index processors write pgvector rows when text embeddings are
+configured. With
 `MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_ENABLED=false`, the pipeline
 intentionally stops at `chunked` and API document search falls back to text
 chunk search.

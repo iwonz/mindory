@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-42",
+  "current_task_id": "TASK-43",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -330,6 +330,13 @@
       "status": "done",
       "branch": "task/TASK-42-attachment-metadata-index",
       "file": "tasks/TASK-42.json"
+    },
+    {
+      "id": "TASK-43",
+      "title": "Add PDF OCR pipeline",
+      "status": "done",
+      "branch": "task/TASK-43-pdf-ocr-pipeline",
+      "file": "tasks/TASK-43.json"
     }
   ]
 }

@@ -89,6 +89,9 @@ importers:
       '@mindory/extractor-builtin-text':
         specifier: workspace:*
         version: link:../../packages/processors/extractors/builtin-text
+      '@mindory/extractor-docling':
+        specifier: workspace:*
+        version: link:../../packages/processors/extractors/docling
       '@mindory/model-runtime':
         specifier: workspace:*
         version: link:../../packages/model-runtime
@@ -167,7 +170,11 @@ importers:
         specifier: workspace:*
         version: link:../../../core
 
-  packages/processors/extractors/docling: {}
+  packages/processors/extractors/docling:
+    dependencies:
+      '@mindory/core':
+        specifier: workspace:*
+        version: link:../../../core
 
   packages/queue/bullmq:
     dependencies:
