@@ -7,7 +7,7 @@ export interface HermesMindoryApiClientOptions {
 }
 
 export interface HermesJsonRequestInput {
-  method: "GET" | "POST" | "DELETE";
+  method: "GET" | "POST" | "PATCH" | "DELETE";
   path: string;
   body?: unknown;
 }
@@ -38,6 +38,10 @@ export class HermesMindoryApiClient {
 
   async postJson(pathname: string, body: unknown): Promise<unknown> {
     return this.requestJson({ method: "POST", path: pathname, body });
+  }
+
+  async patchJson(pathname: string, body: unknown): Promise<unknown> {
+    return this.requestJson({ method: "PATCH", path: pathname, body });
   }
 
   async deleteJson(pathname: string): Promise<unknown> {

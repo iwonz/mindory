@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-49",
+  "current_task_id": "TASK-50",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -379,6 +379,13 @@
       "status": "done",
       "branch": "task/TASK-49-jobs-failure-semantics",
       "file": "tasks/TASK-49.json"
+    },
+    {
+      "id": "TASK-50",
+      "title": "Update CLI MCP and Hermes surfaces",
+      "status": "done",
+      "branch": "task/TASK-50-cli-mcp-hermes-surfaces",
+      "file": "tasks/TASK-50.json"
     }
   ]
 }

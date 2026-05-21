@@ -43,6 +43,9 @@ try {
   for (const requiredTool of [
     "document_upload",
     "document_search",
+    "document_reprocess",
+    "artifact_search",
+    "face_identity_list",
     "memory_remember",
     "memory_recall",
     "context_build",
@@ -67,6 +70,19 @@ try {
   assert.equal(fakeApi.requests.length, 1, "MCP tool call should reach the HTTP API exactly once.");
   assert.equal(fakeApi.requests[0]?.pathname, "/v1/memories/search");
   assert.equal(fakeApi.requests[0]?.authorization, `Bearer ${token}`);
+
+  const artifactSearch = await withTimeout(client.callTool({
+    name: "artifact_search",
+    arguments: {
+      projectIds: ["mcp-smoke"],
+      query: "passport airport",
+      artifactTypes: ["ocr_text"],
+      metadataFilters: [{ key: "extension", valueText: "png" }],
+      limit: 2
+    }
+  }), "MCP tools/call artifact_search", 10_000);
+  assert.equal(artifactSearch.isError, undefined, `artifact_search should succeed. stderr: ${stderr}`);
+  assert.equal(fakeApi.requests.at(-1)?.pathname, "/v1/artifacts/search");
 
   console.log("MCP stdio spawn smoke scenario passed.");
 } finally {
@@ -96,6 +112,21 @@ function startFakeMindoryApi() {
             text: "source-backed smoke memory",
             score: 1,
             sourceRefs: [{ type: "message", id: "msg_mcp_smoke" }]
+          }
+        ]
+      }));
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/v1/artifacts/search") {
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({
+        hits: [
+          {
+            artifact_id: "artifact_mcp_smoke",
+            artifact_type: "ocr_text",
+            content: "passport at airport",
+            source_refs: [{ type: "document", id: "doc_mcp_smoke" }]
           }
         ]
       }));

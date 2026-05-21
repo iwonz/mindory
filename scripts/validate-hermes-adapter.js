@@ -118,20 +118,39 @@ assert(runtimeContract.includes("preparePromptContext(input)"), "Hermes runtime 
 assert(runtimeContract.includes("saveTurn(input)"), "Hermes runtime bridge must map after_response to saveTurn.");
 assert(runtimeContract.includes("handleTurn(input)"), "Hermes runtime bridge must map completed_turn to handleTurn.");
 
-for (const symbol of ["HermesMindoryApiClient", "requestJson", "uploadAttachment", "FormData", "authorization", "Bearer"]) {
+for (const symbol of ["HermesMindoryApiClient", "requestJson", "patchJson", "uploadAttachment", "FormData", "authorization", "Bearer"]) {
   assert(httpClient.includes(symbol), `Hermes HTTP client must include ${symbol}.`);
 }
 assert(httpClient.includes("fetchImpl"), "Hermes HTTP client must support injectable fetch.");
 
-for (const toolName of ["memor_recall", "memor_remember", "memor_document_search", "memor_document_read", "memor_explain"]) {
+for (const toolName of [
+  "memor_recall",
+  "memor_remember",
+  "memor_document_search",
+  "memor_artifact_search",
+  "memor_document_read",
+  "memor_document_status",
+  "memor_document_reprocess",
+  "memor_face_identities",
+  "memor_face_observations",
+  "memor_face_rename",
+  "memor_face_merge",
+  "memor_explain"
+]) {
   assert(tools.includes(toolName), `Hermes optional tools must include ${toolName}.`);
 }
 assert(tools.includes("sourceRefs"), "Hermes remember tool must preserve evidence sourceRefs.");
 assert(tools.includes("ensureProjectPeerSession"), "Hermes tools must ensure identity before API calls.");
+assert(tools.includes("/v1/artifacts/search"), "Hermes tools must call artifact search over HTTP.");
+assert(tools.includes("/recompute"), "Hermes tools must call document recompute over HTTP.");
+assert(tools.includes("/v1/faces/identities"), "Hermes tools must call face identity HTTP API.");
+assert(tools.includes("metadataFilters"), "Hermes tools must pass metadata filters.");
 
 assert(smoke.includes("handleTurn"), "Hermes smoke must exercise lifecycle helper.");
 assert(smoke.includes("Context must be built before saving the current turn"), "Hermes smoke must verify context before turn save.");
 assert(smoke.includes("Hermes tools must ensure identity"), "Hermes smoke must verify tool identity ensure.");
+assert(smoke.includes("Hermes artifact tool must call artifact search"), "Hermes smoke must verify artifact search tool.");
+assert(smoke.includes("Hermes face rename tool must call face identity PATCH"), "Hermes smoke must verify face rename tool.");
 assert(smoke.includes("Later sessions must recall project-scoped context"), "Hermes smoke must verify later-session recall.");
 for (const token of [
   "local_contract_fixture",
@@ -150,7 +169,8 @@ for (const token of [
   "afterResponse",
   "uploaded attachment response",
   "Later Hermes sessions must recall project-scoped context",
-  "memor_recall"
+  "memor_recall",
+  "memor_artifact_search"
 ]) {
   assert(contractSmoke.includes(token), `Hermes contract smoke must include ${token}.`);
 }

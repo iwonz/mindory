@@ -28,9 +28,17 @@ const expectedTools = [
   "memory_list",
   "document_upload",
   "document_status",
+  "document_reprocess",
+  "document_processing_runs",
   "document_search",
   "document_read",
   "document_list",
+  "artifact_search",
+  "face_identity_list",
+  "face_identity_get",
+  "face_observation_list",
+  "face_identity_rename",
+  "face_identity_merge",
   "context_build",
   "job_get",
   "job_list",
@@ -104,7 +112,12 @@ for (const route of [
   "/v1/memories/search",
   "/v1/context/build",
   "/v1/documents",
+  "/processing-runs",
+  "/recompute",
   "/v1/documents/search",
+  "/v1/artifacts/search",
+  "/v1/faces/identities",
+  "/v1/faces/observations",
   "/v1/jobs"
 ]) {
   assert(tools.includes(route), `MCP tools must call ${route}.`);
@@ -112,6 +125,8 @@ for (const route of [
 
 assert(tools.includes("sourceRefs"), "memory_remember tool must expose sourceRefs.");
 assert(tools.includes("projectIds"), "context and search tools must expose projectIds.");
+assert(tools.includes("metadataFilters"), "document/artifact search tools must expose metadataFilters.");
+assert(tools.includes("patchJson"), "MCP tools must support PATCH routes.");
 assert(tools.includes("tokenBudget"), "context build tool must expose tokenBudget.");
 assert(tools.includes("mcpTextResult"), "MCP calls must return MCP text content results.");
 for (const token of [
@@ -139,12 +154,13 @@ for (const token of [
   "client.callTool",
   "memory_recall",
   "/v1/memories/search",
+  "/v1/artifacts/search",
   "MINDORY_MCP_API_URL",
   "MINDORY_MCP_API_TOKEN"
 ]) {
   assert(smoke.includes(token), `MCP stdio smoke script must include ${token}.`);
 }
-for (const toolName of ["document_upload", "document_search", "memory_remember", "memory_recall", "context_build", "job_get", "job_list", "job_retry"]) {
+for (const toolName of ["document_upload", "document_search", "document_reprocess", "artifact_search", "face_identity_list", "memory_remember", "memory_recall", "context_build", "job_get", "job_list", "job_retry"]) {
   assert(smoke.includes(`"${toolName}"`), `MCP stdio smoke must assert ${toolName} is exposed.`);
 }
 for (const example of [clientExample, pnpmClientExample]) {

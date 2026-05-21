@@ -7,7 +7,7 @@ export interface MindoryApiClientOptions {
 }
 
 export interface JsonRequestInput {
-  method: "GET" | "POST" | "DELETE";
+  method: "GET" | "POST" | "PATCH" | "DELETE";
   path: string;
   body?: unknown;
 }
@@ -38,6 +38,10 @@ export class MindoryApiClient {
 
   async postJson(path: string, body: unknown): Promise<unknown> {
     return this.requestJson({ method: "POST", path, body });
+  }
+
+  async patchJson(path: string, body: unknown): Promise<unknown> {
+    return this.requestJson({ method: "PATCH", path, body });
   }
 
   async deleteJson(path: string): Promise<unknown> {

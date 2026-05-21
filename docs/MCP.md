@@ -99,7 +99,11 @@ clients should use the stdio process configuration above and point
 
 - Session tools: create session, append message, read session and messages.
 - Memory tools: remember, recall, explain, forget and list.
-- Document tools: upload, status, search, read and list.
+- Document tools: upload, status, reprocess, processing runs, search, read and
+  list.
+- Artifact tools: unified artifact search with artifact/span type filters and
+  metadata filters.
+- Face tools: list/read/rename/merge identities and list observations.
 - Context tools: build prompt-ready context.
 - Job tools: read, list and retry processing jobs.
 
@@ -118,9 +122,17 @@ memory_forget
 memory_list
 document_upload
 document_status
+document_reprocess
+document_processing_runs
 document_search
 document_read
 document_list
+artifact_search
+face_identity_list
+face_identity_get
+face_observation_list
+face_identity_rename
+face_identity_merge
 context_build
 job_get
 job_list
@@ -129,4 +141,5 @@ job_retry
 
 Token management is not exposed as an MCP tool. Job tools call the HTTP jobs API
 added in `TASK-21`. Memory/context tools call the runtime paths updated in
-`TASK-22`.
+`TASK-22`. `TASK-50` adds the multimodal surfaces through HTTP only; MCP still
+does not access PostgreSQL, Redis, object storage or vector indexes directly.

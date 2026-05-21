@@ -13,9 +13,17 @@ export type MindoryMcpToolName =
   | "memory_list"
   | "document_upload"
   | "document_status"
+  | "document_reprocess"
+  | "document_processing_runs"
   | "document_search"
   | "document_read"
   | "document_list"
+  | "artifact_search"
+  | "face_identity_list"
+  | "face_identity_get"
+  | "face_observation_list"
+  | "face_identity_rename"
+  | "face_identity_merge"
   | "context_build"
   | "job_get"
   | "job_list"
@@ -123,12 +131,30 @@ export const mindoryMcpToolDefinitions: McpToolDefinition[] = [
       projectId: stringSchema()
     }
   }),
+  tool("document_reprocess", "Recompute derived document artifacts through the HTTP API.", {
+    required: ["documentId", "projectId"],
+    properties: {
+      documentId: stringSchema(),
+      projectId: stringSchema(),
+      stages: arraySchema(stringSchema()),
+      reason: stringSchema(),
+      requestId: stringSchema()
+    }
+  }),
+  tool("document_processing_runs", "List document processing runs through the HTTP API.", {
+    required: ["documentId", "projectId"],
+    properties: {
+      documentId: stringSchema(),
+      projectId: stringSchema()
+    }
+  }),
   tool("document_search", "Search document chunks through the HTTP API.", {
     required: ["projectIds", "query", "limit"],
     properties: {
       projectIds: arraySchema(stringSchema()),
       query: stringSchema(),
-      limit: integerSchema()
+      limit: integerSchema(),
+      metadataFilters: arraySchema(objectSchema())
     }
   }),
   tool("document_read", "Read document metadata through the HTTP API.", {
@@ -144,6 +170,57 @@ export const mindoryMcpToolDefinitions: McpToolDefinition[] = [
       projectId: stringSchema(),
       status: stringSchema(),
       limit: integerSchema()
+    }
+  }),
+  tool("artifact_search", "Search derived artifact text spans through the HTTP API.", {
+    required: ["projectIds", "query", "limit"],
+    properties: {
+      projectIds: arraySchema(stringSchema()),
+      query: stringSchema(),
+      artifactTypes: arraySchema(stringSchema()),
+      spanTypes: arraySchema(stringSchema()),
+      metadataFilters: arraySchema(objectSchema()),
+      limit: integerSchema()
+    }
+  }),
+  tool("face_identity_list", "List workspace-scoped face identities through the HTTP API.", {
+    required: ["projectId"],
+    properties: {
+      projectId: stringSchema(),
+      status: enumSchema(["candidate", "confirmed", "archived"]),
+      limit: integerSchema()
+    }
+  }),
+  tool("face_identity_get", "Read a face identity through the HTTP API.", {
+    required: ["identityId", "projectId"],
+    properties: {
+      identityId: stringSchema(),
+      projectId: stringSchema()
+    }
+  }),
+  tool("face_observation_list", "List face observations through the HTTP API.", {
+    required: ["projectId"],
+    properties: {
+      projectId: stringSchema(),
+      identityId: stringSchema(),
+      documentId: stringSchema(),
+      limit: integerSchema()
+    }
+  }),
+  tool("face_identity_rename", "Rename or clear a face identity label through the HTTP API.", {
+    required: ["identityId", "projectId", "label"],
+    properties: {
+      identityId: stringSchema(),
+      projectId: stringSchema(),
+      label: nullableStringSchema()
+    }
+  }),
+  tool("face_identity_merge", "Merge one face identity into another through the HTTP API.", {
+    required: ["sourceIdentityId", "targetIdentityId", "projectId"],
+    properties: {
+      sourceIdentityId: stringSchema(),
+      targetIdentityId: stringSchema(),
+      projectId: stringSchema()
     }
   }),
   tool("context_build", "Build prompt-ready context from session, memory and document evidence.", {
@@ -241,6 +318,10 @@ export async function callMindoryTool(
       return api.uploadDocument(readUploadDocumentInput(args));
     case "document_status":
       return api.getJson(`/v1/documents/${encodeURIComponent(requiredString(args, "documentId"))}/status?${projectQuery(args)}`);
+    case "document_reprocess":
+      return api.postJson(`/v1/documents/${encodeURIComponent(requiredString(args, "documentId"))}/recompute`, withoutKeys(args, ["documentId"]));
+    case "document_processing_runs":
+      return api.getJson(`/v1/documents/${encodeURIComponent(requiredString(args, "documentId"))}/processing-runs?${projectQuery(args)}`);
     case "document_search":
       return api.postJson("/v1/documents/search", args);
     case "document_read":
@@ -251,6 +332,33 @@ export async function callMindoryTool(
         status: optionalString(args, "status"),
         limit: optionalString(args, "limit")
       })}`);
+    case "artifact_search":
+      return api.postJson("/v1/artifacts/search", args);
+    case "face_identity_list":
+      return api.getJson(`/v1/faces/identities?${queryString({
+        projectId: requiredString(args, "projectId"),
+        status: optionalString(args, "status"),
+        limit: optionalString(args, "limit")
+      })}`);
+    case "face_identity_get":
+      return api.getJson(`/v1/faces/identities/${encodeURIComponent(requiredString(args, "identityId"))}?${projectQuery(args)}`);
+    case "face_observation_list":
+      return api.getJson(`/v1/faces/observations?${queryString({
+        projectId: requiredString(args, "projectId"),
+        identityId: optionalString(args, "identityId"),
+        documentId: optionalString(args, "documentId"),
+        limit: optionalString(args, "limit")
+      })}`);
+    case "face_identity_rename":
+      return api.patchJson(`/v1/faces/identities/${encodeURIComponent(requiredString(args, "identityId"))}`, {
+        projectId: requiredString(args, "projectId"),
+        label: nullableString(args, "label")
+      });
+    case "face_identity_merge":
+      return api.postJson(`/v1/faces/identities/${encodeURIComponent(requiredString(args, "sourceIdentityId"))}/merge`, {
+        projectId: requiredString(args, "projectId"),
+        targetIdentityId: requiredString(args, "targetIdentityId")
+      });
     case "job_get":
       return api.getJson(`/v1/jobs/${encodeURIComponent(requiredString(args, "jobId"))}?${projectQuery(args)}`);
     case "job_list":
@@ -345,6 +453,10 @@ function stringSchema(): Record<string, unknown> {
   return { type: "string", minLength: 1 };
 }
 
+function nullableStringSchema(): Record<string, unknown> {
+  return { anyOf: [stringSchema(), { type: "null" }] };
+}
+
 function integerSchema(): Record<string, unknown> {
   return { type: "integer", minimum: 1 };
 }
@@ -382,6 +494,14 @@ function requiredString(args: Record<string, unknown>, key: string): string {
     throw new Error(`${key} is required.`);
   }
   return value;
+}
+
+function nullableString(args: Record<string, unknown>, key: string): string | null {
+  const value = args[key];
+  if (value === null || typeof value === "string") {
+    return value;
+  }
+  throw new Error(`${key} is required.`);
 }
 
 function optionalString(args: Record<string, unknown>, key: string): string | undefined {

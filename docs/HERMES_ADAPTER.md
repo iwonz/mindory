@@ -84,8 +84,16 @@ provided; otherwise the configured default peer ids are used.
   Hermes attachment ids are preserved in user-message metadata until a dedicated
   attachment linking API is added.
 - Optional `memor_recall`, `memor_remember`, `memor_document_search`,
-  `memor_document_read` and `memor_explain` tools call memory/document HTTP API
-  paths after ensuring project/peer/session identity.
+  `memor_artifact_search`, `memor_document_read`, `memor_document_status`,
+  `memor_document_reprocess`, `memor_face_identities`,
+  `memor_face_observations`, `memor_face_rename`, `memor_face_merge` and
+  `memor_explain` tools call memory/document/artifact/face HTTP API paths after
+  ensuring project/peer/session identity.
+
+`TASK-50` extends the optional tool surface to derived artifact search,
+metadata filters, document status/reprocess and face identity operations. These
+helpers remain HTTP-only and do not couple the adapter to database, worker or
+storage internals.
 
 The adapter calls only implemented MVP HTTP route surfaces for project, peer,
 session, message, document upload, memory, document search and context build.

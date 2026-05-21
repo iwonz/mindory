@@ -33,9 +33,19 @@ mindory message list --session <id> --project <id> [--limit 50]
 
 mindory document upload <path> --project <id> [--mime-type <type>] [--title <text>]
 mindory document status <id> --project <id>
-mindory document search --project <id> <query> [--limit 10]
+mindory document reprocess <id> --project <id> [--stages text,pdf,image,audio,video]
+mindory document runs <id> --project <id>
+mindory document search --project <id> <query> [--limit 10] [--metadata-filter <json>]
 mindory document read <id> --project <id>
 mindory document list --project <id> [--status <status>] [--limit 20]
+
+mindory artifact search --project <id> <query> [--artifact-type <csv>] [--span-type <csv>] [--metadata-filter <json>]
+
+mindory face identities --project <id> [--status candidate] [--limit 20]
+mindory face identity <id> --project <id>
+mindory face observations --project <id> [--identity <id>] [--document <id>]
+mindory face rename <id> --project <id> --label <text|null>
+mindory face merge <source-id> --project <id> --target <target-id>
 
 mindory memory remember --project <id> --source-ref <type:id> <text>
 mindory memory recall --project <id> <query> [--limit 10]
@@ -52,6 +62,11 @@ mindory jobs retry <id> --project <id>
 
 Manual memory creation requires at least one `--source-ref <type:id>` argument
 to keep memories evidence-backed.
+
+`TASK-50` extends the CLI surface to the multimodal derived-state runtime:
+document reprocess/runs, metadata-filtered document search, unified artifact
+search and face identity operations. `--metadata-filter` accepts one JSON object
+per flag, matching the HTTP API filter shape.
 
 ## Configuration
 
