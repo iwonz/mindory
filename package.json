@@ -23,6 +23,7 @@
     "hermes:contract": "node scripts/smoke-hermes-contract.js",
     "hermes:validate": "node scripts/validate-hermes-adapter.js",
     "hermes:smoke": "node scripts/smoke-hermes.js",
+    "jobs:validate": "node scripts/validate-job-semantics.js",
     "lint": "node scripts/lint-repo.js",
     "model-runtime:validate": "node scripts/validate-model-runtime.js",
     "memory:validate": "node scripts/validate-memory-context.js",

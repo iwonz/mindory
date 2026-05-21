@@ -269,6 +269,7 @@ export interface VectorIndex {
 }
 
 export type ProcessingErrorCode =
+  | "blocked_by_scan"
   | "document_recompute_failed"
   | "document_route_failed"
   | "embedding_provider_error"

@@ -1,0 +1,69 @@
+{
+  "id": "TASK-49",
+  "title": "Add stage graph job failure semantics",
+  "status": "done",
+  "type": "chore",
+  "priority": "high",
+  "branch": "task/TASK-49-jobs-failure-semantics",
+  "created_at": "2026-05-21",
+  "updated_at": "2026-05-21",
+  "context": {
+    "summary": "Expose document pipeline stage graph semantics through processing jobs and job APIs.",
+    "background": "The multimodal router can skip disabled stages and workers can partially proceed, but job records still expose only coarse pending/running/succeeded/failed states."
+  },
+  "scope": {
+    "in": [
+      "Add core job status/details contracts for skipped, disabled, blocked_by_scan, partial_failed, retry and per-stage progress.",
+      "Update job store mapping and API responses to expose readable stage graph status, progress and errors without changing raw originals.",
+      "Update worker route/extract/chunk/embed/index paths to record skipped/disabled/blocking/partial failure semantics in job metadata.",
+      "Preserve existing queue retry behavior while making retryable errors explicit in job details.",
+      "Add integration or validator coverage for skipped/disabled stages and readable failed job details.",
+      "Update jobs and document pipeline docs."
+    ],
+    "out": [
+      "New CLI, MCP or Hermes job command surfaces.",
+      "Changing the queue backend.",
+      "Adding a new durable workflow engine.",
+      "Changing 0000_initial_schema.sql."
+    ]
+  },
+  "acceptance_criteria": [
+    "Jobs API exposes stage graph status details for skipped, disabled, blocked_by_scan and partial_failed outcomes.",
+    "Job responses include per-stage progress metadata when processors record it.",
+    "Failed jobs expose readable error codes/messages and retryability metadata.",
+    "Disabled handlers are represented as skipped/disabled stage details rather than silent success.",
+    "Scan-blocked documents surface blocked_by_scan semantics.",
+    "Existing job retry API remains compatible.",
+    "No schema changes modify 0000_initial_schema.sql."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "pnpm jobs:validate",
+      "pnpm processing:validate",
+      "pnpm api:runtime:validate",
+      "pnpm typecheck",
+      "pnpm lint",
+      "pnpm tasks:validate",
+      "pnpm test",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-49.",
+      "Confirm packages/db/drizzle/0000_initial_schema.sql is unchanged.",
+      "Confirm jobs API responses include stage graph details and readable errors."
+    ]
+  },
+  "dependencies": [
+    "TASK-48"
+  ],
+  "risks": [
+    "The existing jobs table status enum stays coarse; stage graph semantics must fit metadata without schema churn.",
+    "Partial failure semantics need to be informative without pretending a non-blocking skipped stage is a hard failure."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch is committed and merged back into master."
+  ]
+}

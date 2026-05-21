@@ -181,6 +181,14 @@ POST /v1/jobs/:id/retry
 `ProcessingJobDispatcher` in the API runtime. Job reads and manual retry are
 project-scoped and require `project:read` permission.
 
+After `TASK-49`, job responses include a normalized `details` object in
+addition to the raw durable metadata. `details.status` can describe stage graph
+outcomes such as `skipped`, `disabled`, `blocked_by_scan`, `partial_failed`,
+`failed` or `retrying` while the database row keeps its coarse durable job
+status. `details.stages` carries per-stage progress and queued child job ids.
+`details.error` exposes readable error code/message, attempt counts and
+retryability for failed jobs.
+
 ## MCP Boundary
 
 `TASK-11` adds MCP tools in `apps/mcp`; those tools call HTTP API paths rather
@@ -245,3 +253,4 @@ processing job status/list/retry routes. `TASK-22` wires message-triggered
 summary and conservative memory derivation jobs. `TASK-29` wires token lifecycle
 operations. `TASK-45` wires face identity/observation management.
 `TASK-48` adds unified artifact search across derived artifact text spans.
+`TASK-49` adds stage graph details to job responses and worker job metadata.

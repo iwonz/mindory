@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-48",
+  "current_task_id": "TASK-49",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -372,6 +372,13 @@
       "status": "done",
       "branch": "task/TASK-48-unified-artifact-search-api",
       "file": "tasks/TASK-48.json"
+    },
+    {
+      "id": "TASK-49",
+      "title": "Add stage graph job failure semantics",
+      "status": "done",
+      "branch": "task/TASK-49-jobs-failure-semantics",
+      "file": "tasks/TASK-49.json"
     }
   ]
 }

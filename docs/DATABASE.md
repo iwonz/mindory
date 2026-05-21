@@ -173,5 +173,9 @@ search.
 uses `DbMemoryRepository` from workers to write derived memory candidates with
 source refs.
 
+`TASK-49` keeps `processing_jobs.status` as the coarse durable state used for
+list filters and scheduling. Stage graph semantics, progress, readable errors
+and retryability are stored in `processing_jobs.metadata`.
+
 The runtime wiring is still not a migration runner and has not been tested
 against a live database in the current bootstrap environment.

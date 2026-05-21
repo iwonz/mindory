@@ -39,6 +39,13 @@ enqueueing the BullMQ job. BullMQ uses the job idempotency key as `jobId` so
 duplicate enqueue attempts are coalesced by Redis while PostgreSQL remains
 canonical.
 
+`TASK-49` keeps `processing_jobs.status` coarse but records stage graph details
+inside job metadata. Worker results can mark stages as `skipped`, `disabled`,
+`blocked_by_scan`, `partial_failed`, `failed` or `retrying`; the Jobs API
+normalizes that metadata into `details.status`, `details.stages`,
+`details.progress` and `details.error`. Disabled embeddings/vector indexing and
+scan-blocked documents are now visible job outcomes instead of silent success.
+
 The document pipeline processors now include:
 
 - `document.scan` via ClamAV, which enqueues routing after a clean scan.
@@ -81,3 +88,5 @@ ClamAV is enabled, scan must finish cleanly before route planning runs.
 - PostgreSQL records durable job state.
 - BullMQ schedules execution but is not canonical business state.
 - `TASK-21` exposes job status, listing and manual retry through the HTTP API.
+- `TASK-49` exposes stage graph semantics without changing the durable job
+  status enum or RAW document objects.

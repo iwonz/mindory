@@ -6,14 +6,19 @@ import type { MindoryConfig } from "@mindory/config";
 import type { CreateDocumentMetadataIndexInput, DerivedArtifactRepository } from "@mindory/core/artifacts";
 import {
   planDocumentProcessingRoute,
-  type DocumentProcessingRouteConfig
+  type DocumentFileKind,
+  type DocumentProcessingRouteConfig,
+  type DocumentRouteSkip
 } from "@mindory/core/document-routing";
 import type { DocumentRecord, DocumentRepository } from "@mindory/core/documents";
 import {
   type ProcessingJobDispatcher,
   type ProcessingJobProcessor,
   type ProcessingJobProcessorRegistry,
-  type ProcessingJobProcessorContext
+  type ProcessingJobProcessorContext,
+  type ProcessingJobResult,
+  type ProcessingJobStageDetail,
+  type ProcessingJobStageStatus
 } from "@mindory/core/queue";
 import {
   buildDocumentRecomputeFingerprint,
@@ -249,10 +254,10 @@ class DocumentRecomputeProcessor implements ProcessingJobProcessor {
     this.modelRuntimeFingerprint = options.modelRuntimeFingerprint;
   }
 
-  async process(context: ProcessingJobProcessorContext): Promise<void> {
+  async process(context: ProcessingJobProcessorContext): Promise<ProcessingJobResult> {
     const document = await this.documents.getDocument(context.payload.projectId, context.payload.targetId);
     if (["quarantined", "scan_infected"].includes(document.status)) {
-      throw new ProcessingError("document_recompute_failed", `Document ${document.id} is not safe to recompute.`);
+      throw blockedByScanError(document, "recompute");
     }
 
     const stages = normalizeDocumentRecomputeStages(readMetadataStringArray(context.payload.metadata, "stages"));
@@ -330,6 +335,26 @@ class DocumentRecomputeProcessor implements ProcessingJobProcessor {
           raw_original_unchanged: true
         }
       });
+      return {
+        stageGraph: [
+          stageDetail("recompute", "succeeded", {
+            processing_run_id: run.id,
+            superseded_runs: supersededRuns
+          }),
+          stageDetail("route", "pending", {
+            job_id: routeJob.processingJobId,
+            queue_job_id: routeJob.queueJobId
+          })
+        ],
+        metadata: {
+          processing_run_id: run.id,
+          queued_jobs: [{
+            type: "document.route",
+            processing_job_id: routeJob.processingJobId,
+            queue_job_id: routeJob.queueJobId
+          }]
+        }
+      };
     } catch (error) {
       if (runCreated) {
         await this.artifacts.updateProcessingRunStatus({
@@ -376,10 +401,10 @@ class DocumentRouteProcessor implements ProcessingJobProcessor {
     this.processorVersion = options.processorVersion;
   }
 
-  async process(context: ProcessingJobProcessorContext): Promise<void> {
+  async process(context: ProcessingJobProcessorContext): Promise<ProcessingJobResult> {
     const document = await this.documents.getDocument(context.payload.projectId, context.payload.targetId);
     if (["quarantined", "scan_infected"].includes(document.status)) {
-      throw new ProcessingError("document_route_failed", `Document ${document.id} is not safe to route.`);
+      throw blockedByScanError(document, "route");
     }
 
     const object = await this.storage.getObject(document.storageKey);
@@ -447,8 +472,9 @@ class DocumentRouteProcessor implements ProcessingJobProcessor {
       metadata
     });
 
+    const enqueuedJobs = [];
     for (const job of plan.jobs) {
-      await this.jobs.createAndEnqueue(nextJob(context, {
+      const enqueued = await this.jobs.createAndEnqueue(nextJob(context, {
         type: job.type,
         idempotencyKey: withProcessingRunId(`${job.type}:${document.id}:${job.processorVersion}`, processingRunId),
         processorVersion: job.processorVersion,
@@ -458,7 +484,45 @@ class DocumentRouteProcessor implements ProcessingJobProcessor {
           storage_key: document.storageKey
         }
       }));
+      enqueuedJobs.push({
+        ...job,
+        processingJobId: enqueued.processingJobId,
+        queueJobId: enqueued.queueJobId
+      });
     }
+
+    const skippedStageDetails = plan.skipped.map((skipped) => stageDetail(
+      routeStageForKind(skipped.kind),
+      routeSkippedStageStatus(skipped),
+      {
+        reason: skipped.reason,
+        required: skipped.required
+      }
+    ));
+    const stageGraph: ProcessingJobStageDetail[] = [
+      stageDetail("route", "succeeded", {
+        classification: plan.classification
+      }),
+      ...enqueuedJobs.map((job) => stageDetail(routeStageForKind(plan.classification.kind), "pending", {
+        reason: job.reason,
+        job_id: job.processingJobId,
+        queue_job_id: job.queueJobId
+      })),
+      ...skippedStageDetails
+    ];
+    return {
+      statusDetail: skippedStageDetails.some((stage) => stage.status === "partial_failed") ? "partial_failed" : "succeeded",
+      stageGraph,
+      metadata: {
+        planned_jobs: enqueuedJobs.map((job) => ({
+          type: job.type,
+          processing_job_id: job.processingJobId,
+          queue_job_id: job.queueJobId,
+          reason: job.reason
+        })),
+        skipped_stages: plan.skipped
+      }
+    };
   }
 }
 
@@ -490,10 +554,10 @@ class DocumentExtractProcessor implements ProcessingJobProcessor {
     this.processorVersion = options.processorVersion;
   }
 
-  async process(context: ProcessingJobProcessorContext): Promise<void> {
+  async process(context: ProcessingJobProcessorContext): Promise<ProcessingJobResult> {
     const document = await this.documents.getDocument(context.payload.projectId, context.payload.targetId);
     if (["quarantined", "scan_infected"].includes(document.status)) {
-      throw new ProcessingError("text_extraction_failed", `Document ${document.id} is not safe to extract.`);
+      throw blockedByScanError(document, "extract");
     }
 
     const extractor = this.extractors.find((candidate) => candidate.supports(document));
@@ -681,7 +745,7 @@ class DocumentExtractProcessor implements ProcessingJobProcessor {
       }
     });
 
-    await this.jobs.createAndEnqueue(nextJob(context, {
+    const chunkJob = await this.jobs.createAndEnqueue(nextJob(context, {
       type: "document.chunk",
       idempotencyKey: withProcessingRunId(`document.chunk:${document.id}:${this.nextProcessorVersion}`, readMetadataString(context.payload.metadata, "processing_run_id")),
       processorVersion: this.nextProcessorVersion,
@@ -690,6 +754,22 @@ class DocumentExtractProcessor implements ProcessingJobProcessor {
         text_artifact_id: textArtifactId
       }
     }));
+    return {
+      stageGraph: [
+        stageDetail(extractionStage, "succeeded", {
+          extractor: extractor.name,
+          artifact_count: 1 + pageArtifacts.length + semanticArtifacts.length + (transcriptSegments.length > 0 ? 1 : 0) + faceObservations.length
+        }),
+        stageDetail("chunk", "pending", {
+          job_id: chunkJob.processingJobId,
+          queue_job_id: chunkJob.queueJobId
+        })
+      ],
+      metadata: {
+        processing_run_id: processingRunId,
+        text_artifact_id: textArtifactId
+      }
+    };
   }
 }
 
@@ -724,7 +804,7 @@ class DocumentChunkProcessor implements ProcessingJobProcessor {
     this.processorVersion = options.processorVersion;
   }
 
-  async process(context: ProcessingJobProcessorContext): Promise<void> {
+  async process(context: ProcessingJobProcessorContext): Promise<ProcessingJobResult> {
     const document = await this.documents.getDocument(context.payload.projectId, context.payload.targetId);
     const extractedTextKey = readMetadataString(context.payload.metadata, "extracted_text_key")
       ?? readMetadataString(document.metadata.extraction, "extracted_text_key");
@@ -844,7 +924,7 @@ class DocumentChunkProcessor implements ProcessingJobProcessor {
     });
 
     if (this.enqueueEmbeddings && chunked.length > 0) {
-      await this.jobs.createAndEnqueue(nextJob(context, {
+      const embedJob = await this.jobs.createAndEnqueue(nextJob(context, {
         type: "document.embed",
         idempotencyKey: withProcessingRunId(`document.embed:${document.id}:${this.processorVersion}`, readMetadataString(context.payload.metadata, "processing_run_id")),
         processorVersion: "document-embed-v1",
@@ -852,6 +932,21 @@ class DocumentChunkProcessor implements ProcessingJobProcessor {
           chunk_count: chunked.length
         }
       }));
+      return {
+        stageGraph: [
+          stageDetail("chunk", "succeeded", {
+            chunk_count: chunked.length
+          }),
+          stageDetail("embed", "pending", {
+            job_id: embedJob.processingJobId,
+            queue_job_id: embedJob.queueJobId
+          })
+        ],
+        metadata: {
+          processing_run_id: processingRunId,
+          chunk_count: chunked.length
+        }
+      };
     } else {
       await this.artifacts.updateProcessingRunStatus({
         projectId: document.projectId,
@@ -866,6 +961,20 @@ class DocumentChunkProcessor implements ProcessingJobProcessor {
           raw_original_unchanged: true
         }
       });
+      return {
+        stageGraph: [
+          stageDetail("chunk", "succeeded", {
+            chunk_count: chunked.length
+          }),
+          stageDetail("embed", "disabled", {
+            reason: "embeddings_provider_disabled"
+          })
+        ],
+        metadata: {
+          processing_run_id: processingRunId,
+          chunk_count: chunked.length
+        }
+      };
     }
   }
 }
@@ -895,7 +1004,7 @@ class DocumentEmbedProcessor implements ProcessingJobProcessor {
     this.processorVersion = options.processorVersion;
   }
 
-  async process(context: ProcessingJobProcessorContext): Promise<void> {
+  async process(context: ProcessingJobProcessorContext): Promise<ProcessingJobResult> {
     const document = await this.documents.getDocument(context.payload.projectId, context.payload.targetId);
     if (!this.embeddings) {
       await this.documents.updateDocumentStatus({
@@ -909,7 +1018,13 @@ class DocumentEmbedProcessor implements ProcessingJobProcessor {
           }
         }
       });
-      return;
+      return {
+        stageGraph: [
+          stageDetail("embed", "disabled", {
+            reason: "embeddings_provider_disabled"
+          })
+        ]
+      };
     }
 
     const chunks = await this.chunks.listDocumentChunks(document.projectId, document.id);
@@ -945,7 +1060,7 @@ class DocumentEmbedProcessor implements ProcessingJobProcessor {
       }
     });
 
-    await this.jobs.createAndEnqueue(nextJob(context, {
+    const indexJob = await this.jobs.createAndEnqueue(nextJob(context, {
       type: "document.index",
       idempotencyKey: withProcessingRunId(`document.index:${document.id}:${this.embeddings.provider}:${this.embeddings.model}`, readMetadataString(context.payload.metadata, "processing_run_id")),
       processorVersion: "document-index-v1",
@@ -953,6 +1068,23 @@ class DocumentEmbedProcessor implements ProcessingJobProcessor {
         embeddings_key: embeddingsKey
       }
     }));
+    return {
+      stageGraph: [
+        stageDetail("embed", "succeeded", {
+          embeddings_provider: this.embeddings.provider,
+          embeddings_model: this.embeddings.model,
+          chunk_count: embeddings.length
+        }),
+        stageDetail("index", "pending", {
+          job_id: indexJob.processingJobId,
+          queue_job_id: indexJob.queueJobId
+        })
+      ],
+      metadata: {
+        embeddings_key: embeddingsKey,
+        embedded_chunks: embeddings.length
+      }
+    };
   }
 }
 
@@ -981,7 +1113,7 @@ class DocumentIndexProcessor implements ProcessingJobProcessor {
     this.processorVersion = options.processorVersion;
   }
 
-  async process(context: ProcessingJobProcessorContext): Promise<void> {
+  async process(context: ProcessingJobProcessorContext): Promise<ProcessingJobResult> {
     const document = await this.documents.getDocument(context.payload.projectId, context.payload.targetId);
     if (!this.vectorIndex) {
       await this.documents.updateDocumentStatus({
@@ -995,7 +1127,13 @@ class DocumentIndexProcessor implements ProcessingJobProcessor {
           }
         }
       });
-      return;
+      return {
+        stageGraph: [
+          stageDetail("index", "disabled", {
+            reason: "vector_index_not_configured"
+          })
+        ]
+      };
     }
 
     const embeddingsKey = readMetadataString(context.payload.metadata, "embeddings_key");
@@ -1037,6 +1175,18 @@ class DocumentIndexProcessor implements ProcessingJobProcessor {
         }
       });
     }
+    return {
+      stageGraph: [
+        stageDetail("index", "succeeded", {
+          vector_index_provider: this.vectorIndex.provider,
+          indexed_chunks: indexed.length
+        })
+      ],
+      metadata: {
+        indexed_chunks: indexed.length,
+        vector_index_provider: this.vectorIndex.provider
+      }
+    };
   }
 }
 
@@ -1890,6 +2040,56 @@ function nextJob(context: ProcessingJobProcessorContext, input: {
       previous_job_id: context.payload.jobId
     }
   };
+}
+
+function stageDetail(stage: string, status: ProcessingJobStageStatus, metadata: Record<string, unknown> = {}): ProcessingJobStageDetail {
+  const reason = typeof metadata.reason === "string" ? metadata.reason : undefined;
+  const required = typeof metadata.required === "boolean" ? metadata.required : undefined;
+  const jobId = typeof metadata.job_id === "string" ? metadata.job_id : undefined;
+  const queueJobId = typeof metadata.queue_job_id === "string" ? metadata.queue_job_id : undefined;
+  const detailMetadata = Object.fromEntries(Object.entries(metadata).filter(([key]) =>
+    !["reason", "required", "job_id", "queue_job_id"].includes(key)
+  ));
+  return {
+    stage,
+    status,
+    ...(reason ? { reason } : {}),
+    ...(required !== undefined ? { required } : {}),
+    ...(jobId ? { jobId } : {}),
+    ...(queueJobId ? { queueJobId } : {}),
+    ...(Object.keys(detailMetadata).length > 0 ? { metadata: detailMetadata } : {})
+  };
+}
+
+function routeStageForKind(kind: DocumentFileKind): string {
+  switch (kind) {
+    case "text":
+      return "text";
+    case "pdf":
+      return "pdf";
+    case "image":
+      return "image";
+    case "audio":
+      return "audio";
+    case "video":
+      return "video";
+    case "unknown":
+      return "unsupported";
+  }
+}
+
+function routeSkippedStageStatus(skipped: DocumentRouteSkip): ProcessingJobStageStatus {
+  if (skipped.reason === "disabled") {
+    return "disabled";
+  }
+  return skipped.required ? "partial_failed" : "skipped";
+}
+
+function blockedByScanError(document: DocumentRecord, stage: string): ProcessingError {
+  return new ProcessingError(
+    "blocked_by_scan",
+    `Document ${document.id} is blocked by antivirus status ${document.status} before ${stage}.`
+  );
 }
 
 function withProcessingRunId(idempotencyKey: string, processingRunId: string | undefined): string {
