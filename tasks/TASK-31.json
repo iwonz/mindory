@@ -1,0 +1,66 @@
+{
+  "id": "TASK-31",
+  "title": "Enable live embeddings and indexed search acceptance",
+  "status": "ready",
+  "type": "feature",
+  "priority": "high",
+  "branch": "task/TASK-31-live-embeddings-indexed-search",
+  "created_at": "2026-05-21",
+  "updated_at": "2026-05-21",
+  "context": {
+    "summary": "Make the MVP demonstrably reach indexed document status with a configured embeddings provider.",
+    "background": "The document pipeline works with embeddings disabled, but a full MVP needs real semantic search validation through pgvector using OpenAI-compatible or Ollama embeddings."
+  },
+  "scope": {
+    "in": [
+      "Document and validate OpenAI-compatible embeddings configuration.",
+      "Document and validate Ollama embeddings configuration for local demos.",
+      "Update live acceptance so it can require indexed document status when embeddings are enabled.",
+      "Verify chunk embeddings are persisted to pgvector.",
+      "Verify document semantic search returns source-backed chunks.",
+      "Keep disabled embeddings as a supported fallback mode."
+    ],
+    "out": [
+      "Hard-require a paid external embeddings provider for all local checks.",
+      "Make Qdrant the default vector backend.",
+      "Add ranking beyond the MVP semantic search contract."
+    ]
+  },
+  "acceptance_criteria": [
+    "Configured embeddings provider can process demo document chunks into pgvector rows.",
+    "Live acceptance can run in a strict indexed mode and wait for indexed status.",
+    "Semantic search returns relevant document chunks with source metadata.",
+    "Disabled embeddings mode still reaches chunked status and remains documented.",
+    ".env.example and docs describe provider-specific settings.",
+    "All repository checks pass."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "pnpm typecheck",
+      "pnpm lint",
+      "pnpm test",
+      "pnpm mvp:acceptance",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-31.",
+      "Run live acceptance with a real embeddings provider when credentials/local model are available.",
+      "Confirm fallback mode does not require provider secrets."
+    ]
+  },
+  "dependencies": [
+    "TASK-20",
+    "TASK-27",
+    "TASK-30"
+  ],
+  "risks": [
+    "Provider configuration may differ between OpenAI-compatible services and Ollama.",
+    "Embedding dimensions must match the pgvector schema or indexing will fail."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch is committed and merged back into master."
+  ]
+}

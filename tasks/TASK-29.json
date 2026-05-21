@@ -1,0 +1,68 @@
+{
+  "id": "TASK-29",
+  "title": "Add auth token operations",
+  "status": "ready",
+  "type": "feature",
+  "priority": "high",
+  "branch": "task/TASK-29-auth-token-operations",
+  "created_at": "2026-05-21",
+  "updated_at": "2026-05-21",
+  "context": {
+    "summary": "Add first-class API and CLI operations for issuing, listing, rotating and revoking bearer tokens.",
+    "background": "Access control exists, but MVP credentials are currently created by seed scripts or direct database writes. A working MVP needs operational token management without manual DB access."
+  },
+  "scope": {
+    "in": [
+      "Add project-scoped token creation API with permission selection and optional expiration.",
+      "Add token listing API that never returns raw token values after creation.",
+      "Add token revoke API and token rotation API.",
+      "Add CLI commands for token create/list/revoke/rotate.",
+      "Ensure token hashes, status, expiration and last-used behavior remain safe.",
+      "Update API, CLI and security documentation."
+    ],
+    "out": [
+      "Add a web UI for token management.",
+      "Implement OAuth or multi-user login.",
+      "Replace bearer-token auth with another auth scheme."
+    ]
+  },
+  "acceptance_criteria": [
+    "API can create a token and returns the raw token exactly once.",
+    "API can list token metadata without exposing raw tokens or hashes.",
+    "API can revoke a token and revoked tokens receive 401/403 behavior as appropriate.",
+    "API can rotate a token while preserving project permissions.",
+    "CLI exposes token create/list/revoke/rotate commands with clear errors and exit codes.",
+    "Docs describe token lifecycle and safe storage expectations.",
+    "All repository checks pass."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "pnpm typecheck",
+      "pnpm lint",
+      "pnpm test",
+      "pnpm api:runtime:validate",
+      "pnpm cli:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-29.",
+      "Confirm raw token values are not stored or logged.",
+      "Confirm seed-based demo token still works unless intentionally replaced."
+    ]
+  },
+  "dependencies": [
+    "TASK-17",
+    "TASK-21",
+    "TASK-27"
+  ],
+  "risks": [
+    "Token rotation can accidentally invalidate live demo scripts if compatibility is not preserved.",
+    "Returning token secrets from list/get endpoints would be a security regression."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch is committed and merged back into master."
+  ]
+}

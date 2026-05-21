@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-27",
+  "current_task_id": "TASK-29",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -225,6 +225,62 @@
       "status": "done",
       "branch": "task/TASK-27-e2e-mvp-acceptance-hardening",
       "file": "tasks/TASK-27.json"
+    },
+    {
+      "id": "TASK-28",
+      "title": "Plan full MVP hardening tasks",
+      "status": "done",
+      "branch": "task/TASK-28-plan-full-mvp-hardening-tasks",
+      "file": "tasks/TASK-28.json"
+    },
+    {
+      "id": "TASK-29",
+      "title": "Add auth token operations",
+      "status": "ready",
+      "branch": "task/TASK-29-auth-token-operations",
+      "file": "tasks/TASK-29.json"
+    },
+    {
+      "id": "TASK-30",
+      "title": "Add real integration test suite",
+      "status": "ready",
+      "branch": "task/TASK-30-real-integration-tests",
+      "file": "tasks/TASK-30.json"
+    },
+    {
+      "id": "TASK-31",
+      "title": "Enable live embeddings and indexed search acceptance",
+      "status": "ready",
+      "branch": "task/TASK-31-live-embeddings-indexed-search",
+      "file": "tasks/TASK-31.json"
+    },
+    {
+      "id": "TASK-32",
+      "title": "Package MCP stdio for real client use",
+      "status": "ready",
+      "branch": "task/TASK-32-mcp-client-packaging",
+      "file": "tasks/TASK-32.json"
+    },
+    {
+      "id": "TASK-33",
+      "title": "Validate Hermes runtime integration",
+      "status": "ready",
+      "branch": "task/TASK-33-hermes-real-runtime-validation",
+      "file": "tasks/TASK-33.json"
+    },
+    {
+      "id": "TASK-34",
+      "title": "Add production hardening baseline",
+      "status": "ready",
+      "branch": "task/TASK-34-production-hardening-baseline",
+      "file": "tasks/TASK-34.json"
+    },
+    {
+      "id": "TASK-35",
+      "title": "Add one-command MVP demo workflow",
+      "status": "ready",
+      "branch": "task/TASK-35-one-command-mvp-demo",
+      "file": "tasks/TASK-35.json"
     }
   ]
 }
