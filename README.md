@@ -18,8 +18,8 @@ context builder contracts. The MCP package now exposes HTTP-backed tool
 definitions and a server registry. The CLI package now exposes HTTP-backed
 commands. The Hermes adapter package maps Hermes lifecycle inputs to HTTP API
 calls. The database package now exposes Drizzle-backed repository skeletons.
-The API server now wires those repositories for core project, peer, session,
-message, memory, context and document read/search routes, and verifies
+The API server now wires those repositories for core project, token, peer,
+session, message, memory, context and document read/search routes, and verifies
 project-scoped bearer tokens in the server runtime. Worker document processors
 are wired in the worker package, and pgvector is wired for document chunk
 embeddings/search. Jobs HTTP routes are wired. Message append now enqueues
@@ -108,7 +108,8 @@ and do not access database, queue, storage or vector internals directly.
 
 The CLI package exposes the `mindory` binary, a minimal bootstrap argument
 parser, and commands for project, token, session, message, document, memory,
-context and job operations. Commands call HTTP API paths, use stable exit codes
+context and job operations. Token commands can create, list, revoke and rotate
+project-scoped bearer tokens. Commands call HTTP API paths, use stable exit codes
 for usage/API/network failures, and do not access database or worker internals
 directly.
 
@@ -120,9 +121,9 @@ attachment metadata on saved messages, and does not import a Hermes SDK yet.
 The database package exposes repository classes for projects, access tokens,
 peers, sessions, messages, documents, memory claims, document chunk text search
 and processing jobs. The API runtime wires core read/write repositories for
-projects, peers, sessions, messages, memories, context and document
-read/status/list/search, access token verification and document upload runtime
-for local-fs storage plus BullMQ scan job dispatch.
+projects, tokens, peers, sessions, messages, memories, context and document
+read/status/list/search, access token verification/lifecycle operations and
+document upload runtime for local-fs storage plus BullMQ scan job dispatch.
 
 ## Docker Compose
 

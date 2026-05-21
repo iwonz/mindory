@@ -71,6 +71,22 @@ const routeCases = [
     expected: { method: "GET", path: "/v1/projects" }
   },
   {
+    argv: ["token", "list", "--project", "p1", "--limit", "2"],
+    expected: { method: "GET", path: "/v1/tokens?projectId=p1&limit=2" }
+  },
+  {
+    argv: ["token", "create", "--project", "p1", "--permissions", "project:read,token:read"],
+    expected: { method: "POST", path: "/v1/tokens" }
+  },
+  {
+    argv: ["token", "revoke", "tok1", "--project", "p1"],
+    expected: { method: "POST", path: "/v1/tokens/tok1/revoke" }
+  },
+  {
+    argv: ["token", "rotate", "tok1", "--project", "p1", "--expires-at", "2030-01-01T00:00:00.000Z"],
+    expected: { method: "POST", path: "/v1/tokens/tok1/rotate" }
+  },
+  {
     argv: ["session", "list", "--project", "p1", "--limit", "2"],
     expected: { method: "GET", path: "/v1/sessions?projectId=p1&limit=2" }
   },

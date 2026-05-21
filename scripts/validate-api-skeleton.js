@@ -11,6 +11,7 @@ const requiredFiles = [
   "apps/api/src/errors.ts",
   "apps/api/src/routes/health.ts",
   "apps/api/src/routes/projects.ts",
+  "apps/api/src/routes/tokens.ts",
   "packages/config/src/index.ts"
 ];
 
@@ -37,6 +38,7 @@ const auth = read("apps/api/src/auth.ts");
 const errors = read("apps/api/src/errors.ts");
 const healthRoutes = read("apps/api/src/routes/health.ts");
 const projectRoutes = read("apps/api/src/routes/projects.ts");
+const tokenRoutes = read("apps/api/src/routes/tokens.ts");
 const config = read("packages/config/src/index.ts");
 const envExample = read(".env.example");
 const compose = read("docker-compose.yml");
@@ -50,6 +52,7 @@ assert(app.includes("Fastify(fastifyOptions)") || app.includes("Fastify({"), "AP
 assert(app.includes("registerAuth"), "API app must register auth.");
 assert(app.includes("registerErrorHandlers"), "API app must register error handlers.");
 assert(app.includes("registerHealthRoutes"), "API app must register health routes.");
+assert(app.includes("registerTokenRoutes"), "API app must register token routes.");
 assert(app.includes("registerProjectRoutes"), "API app must register project routes.");
 assert(app.includes("redact"), "API logger must redact sensitive fields.");
 
@@ -74,6 +77,11 @@ for (const route of ['"/v1/projects"', '"/v1/projects/:id"']) {
 }
 assert(projectRoutes.includes("app.post"), "Project routes must include POST /v1/projects.");
 assert(projectRoutes.includes("notImplemented"), "Project routes must remain explicit stubs.");
+
+for (const route of ['"/v1/tokens"', '"/v1/tokens/:id/revoke"', '"/v1/tokens/:id/rotate"']) {
+  assert(tokenRoutes.includes(route), `Token routes must include ${route}.`);
+}
+assert(tokenRoutes.includes("notImplemented"), "Token routes must remain explicit when runtime dependencies are absent.");
 
 for (const envName of ["MINDORY_LOG_LEVEL", "MINDORY_API_HOST", "MINDORY_API_PORT", "MINDORY_DATABASE_URL", "MINDORY_REDIS_URL"]) {
   assert(config.includes(envName), `Config loader must read ${envName}.`);

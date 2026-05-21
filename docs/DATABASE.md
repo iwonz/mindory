@@ -107,6 +107,12 @@ tokens by `token_hash`, loads project scopes from
 `access_token_project_scopes`, and updates `last_used_at` after successful
 verification.
 
+`TASK-29` extends `DbAccessTokenRepository` with token lifecycle operations:
+create, list, revoke and rotate. Create and rotate receive only token hashes
+from the API layer; raw bearer tokens are never persisted. List/revoke/rotate
+responses are metadata-only and preserve permissions through
+`access_token_project_scopes`.
+
 `TASK-19` adds `DbDocumentChunkRepository` for worker chunk persistence. It
 replaces a document's chunk rows idempotently, lists chunks in document order and
 can attach vector embedding ids after indexing.

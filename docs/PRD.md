@@ -901,6 +901,8 @@ Initial permission names:
 
 ```text
 project:read
+token:read
+token:write
 session:read
 session:write
 message:read
@@ -1384,6 +1386,8 @@ GET  /v1/projects/:id
 ```text
 POST /v1/tokens
 GET  /v1/tokens
+POST /v1/tokens/:id/revoke
+POST /v1/tokens/:id/rotate
 ```
 
 ### Peers

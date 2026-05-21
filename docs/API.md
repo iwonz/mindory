@@ -26,6 +26,22 @@ When started through the API server runtime, project routes use
 `DbProjectRepository`. When `buildApiApp` is used without dependencies, they
 return structured `501 not_implemented` responses.
 
+Registered token routes:
+
+```text
+POST /v1/tokens
+GET  /v1/tokens
+POST /v1/tokens/:id/revoke
+POST /v1/tokens/:id/rotate
+```
+
+`POST /v1/tokens` creates a project-scoped bearer token, stores only the
+SHA-256 token hash and returns the raw token exactly once in the response.
+`GET /v1/tokens` lists token metadata without raw token values or hashes.
+Revoke marks a token `revoked`; rotate replaces the stored hash with a new raw
+token while preserving the token's project permissions. Listing requires
+`token:read`; create, revoke and rotate require `token:write`.
+
 Registered peer routes:
 
 ```text
@@ -118,7 +134,8 @@ tool set.
 
 `TASK-12` adds the `mindory` CLI in `apps/cli`. CLI commands also call HTTP API
 paths rather than repositories or database internals. `TASK-21` wires job
-list/retry commands to implemented API routes; token creation remains planned.
+list/retry commands to implemented API routes; `TASK-29` wires token
+create/list/revoke/rotate commands to implemented API routes.
 
 ## Hermes Adapter Boundary
 
@@ -151,7 +168,7 @@ placeholders.
 ## MVP Endpoint Groups
 
 - Projects
-- Tokens (planned)
+- Tokens
 - Peers
 - Sessions and messages
 - Documents and document search
@@ -159,13 +176,11 @@ placeholders.
 - Context builder
 - Processing jobs
 
-Remaining token endpoint group and response normalization will be added in later
-tasks.
-
 `TASK-14` adds Drizzle-backed repository classes in `@mindory/db`. `TASK-15`
 adds API runtime dependency construction and wires core routes to those
 repositories. `TASK-17` wires access token verification and route-level
 permission checks. `TASK-18` wires document upload storage/queue runtime.
 `TASK-20` wires pgvector-backed document chunk search. `TASK-21` wires
 processing job status/list/retry routes. `TASK-22` wires message-triggered
-summary and conservative memory derivation jobs.
+summary and conservative memory derivation jobs. `TASK-29` wires token lifecycle
+operations.

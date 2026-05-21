@@ -30,6 +30,17 @@ export async function dispatchCliCommand(parsed: ParsedCliArgs, context: CliComm
       return context.api.getJson("/v1/projects");
     case "token:create":
       return createToken(parsed, context);
+    case "token:list":
+      return context.api.getJson(`/v1/tokens?${queryString({
+        projectId: requiredFlag(parsed, "project"),
+        limit: readPositiveIntegerFlag(parsed, "limit")
+      })}`);
+    case "token:revoke":
+      return context.api.postJson(`/v1/tokens/${encodeURIComponent(requiredArg(args, 0, "token id"))}/revoke`, {
+        projectId: requiredFlag(parsed, "project")
+      });
+    case "token:rotate":
+      return rotateToken(args, parsed, context);
     case "session:create":
       return createSession(parsed, context);
     case "session:get":
@@ -106,6 +117,9 @@ export function helpText(): string {
     "  mindory project get <id>",
     "  mindory project list",
     "  mindory token create --project <id> --permissions <csv> [--name <name>]",
+    "  mindory token list --project <id> [--limit 20]",
+    "  mindory token revoke <id> --project <id>",
+    "  mindory token rotate <id> --project <id> [--expires-at <iso|null>]",
     "  mindory session create --project <id> [--title <text>] [--peer <id>]",
     "  mindory session get <id> --project <id>",
     "  mindory session list --project <id> [--limit 20]",
@@ -150,6 +164,18 @@ function createToken(parsed: ParsedCliArgs, context: CliCommandContext): Promise
     permissions: requiredCsvFlag(parsed, "permissions"),
     expiresAt: readFlag(parsed.flags, "expires-at")
   });
+}
+
+function rotateToken(args: string[], parsed: ParsedCliArgs, context: CliCommandContext): Promise<unknown> {
+  const body: Record<string, unknown> = {
+    projectId: requiredFlag(parsed, "project")
+  };
+  const expiresAt = readFlag(parsed.flags, "expires-at");
+  if (expiresAt !== undefined) {
+    body.expiresAt = expiresAt === "null" ? null : expiresAt;
+  }
+
+  return context.api.postJson(`/v1/tokens/${encodeURIComponent(requiredArg(args, 0, "token id"))}/rotate`, body);
 }
 
 function createSession(parsed: ParsedCliArgs, context: CliCommandContext): Promise<unknown> {

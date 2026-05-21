@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-29",
+  "current_task_id": "TASK-30",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -236,7 +236,7 @@
     {
       "id": "TASK-29",
       "title": "Add auth token operations",
-      "status": "ready",
+      "status": "done",
       "branch": "task/TASK-29-auth-token-operations",
       "file": "tasks/TASK-29.json"
     },

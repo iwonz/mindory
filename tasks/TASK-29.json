@@ -1,7 +1,7 @@
 {
   "id": "TASK-29",
   "title": "Add auth token operations",
-  "status": "ready",
+  "status": "done",
   "type": "feature",
   "priority": "high",
   "branch": "task/TASK-29-auth-token-operations",
