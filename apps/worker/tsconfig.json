@@ -15,6 +15,7 @@
     { "path": "../../packages/storage/local-fs" },
     { "path": "../../packages/processors/antivirus-clamav" },
     { "path": "../../packages/processors/extractors/builtin-text" },
+    { "path": "../../packages/processors/extractors/docling" },
     { "path": "../../packages/model-runtime" },
     { "path": "../../packages/vector/pgvector" }
   ]

@@ -8,12 +8,25 @@ export interface ExtractTextInput {
   body: Readable;
 }
 
+export interface ExtractedTextPage {
+  pageNumber: number;
+  text: string;
+  startOffset: number;
+  endOffset: number;
+  width?: number | null;
+  height?: number | null;
+  ocr?: boolean;
+  confidence?: number | null;
+  metadata?: Record<string, unknown>;
+}
+
 export interface ExtractedText {
   projectId: string;
   documentId: string;
   text: string;
   mimeType: string;
   metadata: Record<string, unknown>;
+  pages?: ExtractedTextPage[];
 }
 
 export interface TextExtractor {

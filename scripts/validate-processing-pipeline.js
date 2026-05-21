@@ -9,6 +9,7 @@ const requiredFiles = [
   "packages/core/src/document-routing.ts",
   "packages/core/src/recompute.ts",
   "packages/processors/extractors/builtin-text/src/index.ts",
+  "packages/processors/extractors/docling/src/index.ts",
   "packages/processors/embeddings/openai-compatible/src/index.ts",
   "packages/processors/embeddings/ollama/src/index.ts",
   "packages/model-runtime/src/index.ts",
@@ -42,6 +43,8 @@ const rootPackage = readJson("package.json");
 const corePackage = readJson("packages/core/package.json");
 const extractorPackage = readJson("packages/processors/extractors/builtin-text/package.json");
 const extractorTsconfig = readJson("packages/processors/extractors/builtin-text/tsconfig.json");
+const doclingPackage = readJson("packages/processors/extractors/docling/package.json");
+const doclingTsconfig = readJson("packages/processors/extractors/docling/tsconfig.json");
 const openAiPackage = readJson("packages/processors/embeddings/openai-compatible/package.json");
 const openAiTsconfig = readJson("packages/processors/embeddings/openai-compatible/tsconfig.json");
 const ollamaPackage = readJson("packages/processors/embeddings/ollama/package.json");
@@ -58,6 +61,7 @@ const processing = read("packages/core/src/processing.ts");
 const routing = read("packages/core/src/document-routing.ts");
 const recompute = read("packages/core/src/recompute.ts");
 const extractor = read("packages/processors/extractors/builtin-text/src/index.ts");
+const docling = read("packages/processors/extractors/docling/src/index.ts");
 const openAi = read("packages/processors/embeddings/openai-compatible/src/index.ts");
 const ollama = read("packages/processors/embeddings/ollama/src/index.ts");
 const modelRuntime = read("packages/model-runtime/src/index.ts");
@@ -101,6 +105,7 @@ for (const token of [
   "classifyDocumentFile",
   "planDocumentProcessingRoute",
   "routingEnabled",
+  "pdf_extraction",
   "processor_not_implemented"
 ]) {
   assert(routing.includes(token), `@mindory/core document routing module must include ${token}.`);
@@ -123,6 +128,13 @@ assert(extractorPackage.exports?.["."], "Builtin text extractor must export its 
 assert(extractorTsconfig.references?.some((reference) => reference.path === "../../../../packages/core"), "Builtin text extractor must reference @mindory/core.");
 for (const token of ["BuiltinTextExtractor", "supports(", "extract(", "normalizeMarkdown", "\"text/plain\"", "\"text/markdown\"", "\".txt\"", "\".md\"", "\".markdown\""]) {
   assert(extractor.includes(token), `Builtin text extractor must include ${token}.`);
+}
+
+assert(doclingPackage.dependencies?.["@mindory/core"] === "workspace:*", "Docling PDF extractor must depend on @mindory/core.");
+assert(doclingPackage.exports?.["."], "Docling PDF extractor must export its root module.");
+assert(doclingTsconfig.references?.some((reference) => reference.path === "../../../../packages/core"), "Docling PDF extractor must reference @mindory/core.");
+for (const token of ["DoclingPdfExtractor", "extractPdfPageText", "\"application/pdf\"", "\".pdf\"", "native_text_pages", "ocr"]) {
+  assert(docling.includes(token), `Docling PDF extractor must include ${token}.`);
 }
 
 assert(openAiPackage.dependencies?.["@mindory/core"] === "workspace:*", "OpenAI-compatible embedding package must depend on @mindory/core.");
@@ -225,6 +237,10 @@ for (const token of [
   "size_bytes",
   "duration_ms",
   "checksum_sha256",
+  "DoclingPdfExtractor",
+  "pdf_page",
+  "pdf_native_text",
+  "page_artifact_ids",
   "text_artifact_id",
   "artifact_id",
   "ClamAvDocumentScanProcessor",

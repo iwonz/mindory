@@ -33,7 +33,7 @@ export interface DocumentFileClassification {
 export interface DocumentRouteJobPlan {
   type: Extract<ProcessingJobType, "document.extract">;
   processorVersion: string;
-  reason: string;
+  reason: "text_extraction" | "pdf_extraction";
   metadata: Record<string, unknown>;
 }
 
@@ -104,14 +104,15 @@ export function planDocumentProcessingRoute(input: PlanDocumentProcessingRouteIn
     skipped.push({ kind: classification.kind, reason: "unsupported_document_type", required: false });
   } else if (!modalityConfig?.enabled) {
     skipped.push({ kind: classification.kind, reason: "disabled", required: modalityConfig?.required ?? false });
-  } else if (classification.kind === "text") {
+  } else if (classification.kind === "text" || classification.kind === "pdf") {
+    const reason = classification.kind === "pdf" ? "pdf_extraction" : "text_extraction";
     jobs.push({
       type: "document.extract",
       processorVersion: "document-extract-v1",
-      reason: "text_extraction",
+      reason,
       metadata: {
         route_kind: classification.kind,
-        route_reason: "text_extraction",
+        route_reason: reason,
         route_magic_matched: classification.magicMatched
       }
     });
