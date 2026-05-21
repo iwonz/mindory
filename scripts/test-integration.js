@@ -38,6 +38,8 @@ const testEnv = {
   MINDORY_DOCUMENT_PROCESSING_PDF_ENABLED: "true",
   MINDORY_DOCUMENT_PROCESSING_IMAGE_ENABLED: "true",
   MINDORY_DOCUMENT_PROCESSING_AUDIO_ENABLED: "true",
+  MINDORY_DOCUMENT_PROCESSING_VIDEO_ENABLED: "true",
+  MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES: "3",
   MINDORY_MODEL_RUNTIME_ASR_ENABLED: "true",
   MINDORY_MODEL_RUNTIME_ASR_PROVIDER: "local",
   MINDORY_MODEL_RUNTIME_ASR_MODEL: "whisper-tiny-fallback",
@@ -138,6 +140,7 @@ test("MVP runtime integration covers auth, upload, worker jobs and context", { t
     const imageDocument = await uploadAndProcessImageDocument(apiUrl);
     await assertFaceSubsystem(apiUrl, imageDocument.documentId);
     await uploadAndProcessAudioDocument(apiUrl);
+    await uploadAndProcessVideoDocument(apiUrl);
     await assertJobsApi(apiUrl, managementStore, sessionId, routeJobId);
     await assertDocumentRecompute(apiUrl, documentId);
     await assertMemoryAndContext(apiUrl, sessionId, messageId, documentId);
@@ -620,6 +623,78 @@ async function uploadAndProcessAudioDocument(apiUrl) {
   assert.equal(mediaMetadata.media_type, "audio");
   assert.equal(mediaMetadata.codec, "pcm");
   assert.equal(mediaMetadata.duration_ms, 1000);
+}
+
+async function uploadAndProcessVideoDocument(apiUrl) {
+  const video = buildVideoManifestFile({
+    durationMs: 12_000,
+    codec: "manifest-h264",
+    frames: [
+      { timestampMs: 0, description: "opening frame shows a passport in hand at an airport", labels: ["passport", "airport"] },
+      { timestampMs: 3000, description: "second frame shows two dogs near luggage", labels: ["dogs", "luggage"] },
+      { timestampMs: 6000, description: "third frame shows nature through a window", labels: ["nature", "window"] },
+      { timestampMs: 9000, description: "fourth frame should be skipped by max keyframes", labels: ["skipped"] },
+      { timestampMs: 11000, description: "fifth frame should also be skipped", labels: ["skipped"] }
+    ]
+  });
+  const form = new FormData();
+  form.append("projectId", projectId);
+  form.append("title", "Integration video document");
+  form.append("file", new Blob([video], { type: "video/mp4" }), "integration-video-keyframes.mp4");
+
+  const uploadResponse = await fetch(`${apiUrl}/v1/documents`, {
+    method: "POST",
+    headers: {
+      accept: "application/json",
+      authorization: `Bearer ${bootstrapToken}`
+    },
+    body: form
+  });
+  if (uploadResponse.status !== 202) {
+    throw new Error(`video document upload failed ${uploadResponse.status}: ${await uploadResponse.text()}`);
+  }
+  const upload = await uploadResponse.json();
+  const documentId = upload.document.id;
+  const routeJobId = upload.route_job?.id;
+  assert.equal(typeof routeJobId, "string", "video upload should enqueue a route job when scan is disabled");
+
+  await waitFor(async () => {
+    const status = await requestJson(apiUrl, "GET", `/v1/documents/${encodeURIComponent(documentId)}/status?projectId=${encodeURIComponent(projectId)}`);
+    return status.status === "chunked";
+  }, "video document to reach chunked status");
+
+  const routeJob = await waitForJobStatus(apiUrl, routeJobId, "succeeded");
+  assert.equal(routeJob.type, "document.route");
+  const document = await requestJson(apiUrl, "GET", `/v1/documents/${encodeURIComponent(documentId)}?projectId=${encodeURIComponent(projectId)}`);
+  assert.equal(document.metadata.routing.classification.kind, "video");
+  assert.equal(document.metadata.extraction.processing_stage, "video");
+  assert.equal(document.metadata.extraction.video_keyframes, true);
+  assert.equal(document.metadata.extraction.frame_count, 3);
+  assert.equal(document.metadata.extraction.manifest_frame_count, 5);
+  assert.equal(document.metadata.extraction.max_keyframes, 3);
+
+  const search = await requestJson(apiUrl, "POST", "/v1/documents/search", {
+    projectIds: [projectId],
+    query: "passport airport dogs",
+    limit: 5,
+    metadataFilters: [
+      { key: "extension", valueText: "mp4" },
+      { key: "duration_ms", operator: "between", minNumber: 10_000, maxNumber: 15_000, unit: "ms" },
+      { key: "frame_count", operator: "eq", valueNumber: 5, unit: "frames" }
+    ]
+  });
+  const videoHit = search.hits.find((hit) => hit.documentId === documentId);
+  assert.ok(videoHit, "video document search should find keyframe descriptions.");
+  assert.ok(videoHit.sourceRefs.some((ref) => ref.type === "artifact"), "video search should include artifact source refs.");
+  assert.equal(videoHit.metadata.video_keyframe_artifact_ids.length, 3, "video chunk metadata should include capped keyframe artifacts.");
+  assert.ok(videoHit.metadata.semantic_artifact_types.includes("video_keyframe"), "video chunk metadata should include video_keyframe artifact type.");
+
+  assert.equal(await countDocumentArtifacts(projectId, documentId, "video_keyframe", databaseUrl), 3);
+  assert.equal(await countDocumentTextSpans(projectId, documentId, "video_keyframe_description", databaseUrl), 3);
+  const mediaMetadata = await getDocumentMediaMetadata(projectId, documentId, databaseUrl);
+  assert.equal(mediaMetadata.media_type, "video");
+  assert.equal(mediaMetadata.duration_ms, 12_000);
+  assert.equal(mediaMetadata.codec, "manifest-h264");
 }
 
 async function uploadAndIndexDocument(input) {
@@ -1109,6 +1184,10 @@ function buildMinimalWav(input) {
   header.writeUInt32LE(size, 4);
   header.write("WAVE", 8, "latin1");
   return Buffer.concat([header, ...chunks]);
+}
+
+function buildVideoManifestFile(input) {
+  return Buffer.from(`MINDORY_VIDEO_MANIFEST\n${JSON.stringify(input)}`, "utf8");
 }
 
 function riffChunk(id, data) {

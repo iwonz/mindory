@@ -16,6 +16,7 @@ classifies uploaded files and creates only the enabled downstream jobs.
 `TASK-43` adds PDF native text extraction on page-level artifacts.
 `TASK-44` adds the first image semantic extraction path.
 `TASK-46` adds the first audio transcript extraction path.
+`TASK-47` adds the first video keyframe extraction path.
 
 ## MVP Pipeline
 
@@ -31,10 +32,8 @@ index
 derive memory candidates
 ```
 
-Text, Markdown, PDF native text, image semantic extraction and audio transcript
-extraction are the currently implemented routes. Video can be enabled in
-configuration, but its handler intentionally skips as `processor_not_implemented`
-until the corresponding task adds concrete processors.
+Text, Markdown, PDF native text, image semantic extraction, audio transcript
+extraction and video keyframe extraction are the currently implemented routes.
 
 Processing status must be durable in PostgreSQL, not only in BullMQ.
 
@@ -107,7 +106,7 @@ The default route configuration is conservative:
 - PDF: disabled by default, creates `document.extract` when enabled;
 - image: disabled by default, creates `document.extract` when enabled;
 - audio: disabled by default, creates `document.extract` when enabled;
-- video: disabled until its processor exists;
+- video: disabled by default, creates `document.extract` when enabled;
 - video keyframe limit: `10`.
 
 Disabling a modality means no job is created for that file type. Enabling a
@@ -195,6 +194,24 @@ The default runtime records ASR capability state from `@mindory/model-runtime`.
 Real cloud/local ASR execution is deferred to a later adapter; current local
 tests use deterministic embedded transcript fallback text.
 
+## Video Processing
+
+When `MINDORY_DOCUMENT_PROCESSING_VIDEO_ENABLED=true`, routing sends video
+uploads to `document.extract`. The `@mindory/extractor-video-keyframe` MVP
+extractor reads an embedded `MINDORY_VIDEO_MANIFEST` fallback and respects
+`MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES`, default `10`. It writes:
+
+- a top-level extracted text artifact containing keyframe descriptions;
+- one `video_keyframe` artifact per selected frame;
+- one `video_keyframe_description` span per frame with `frame_index` and
+  `timestamp_ms` metadata;
+- chunk metadata and source refs that point back to keyframe artifacts.
+
+The route stage can index fallback video `duration_ms`, `codec` and
+`frame_count` metadata from the manifest. Real ffmpeg keyframe extraction and
+bitmap storage are deferred to a later adapter; current tests use deterministic
+manifest-derived frame descriptions.
+
 ## Recompute Flow
 
 `POST /v1/documents/:id/recompute` creates a durable `document.recompute` job.
@@ -206,8 +223,7 @@ new `processing_run`, marks previous runs for the requested stage as
 The RAW storage key is not changed. Existing derived rows stay attached to their
 old `processing_run`; the current run is the latest non-superseded version.
 Current implemented stages are `all`, `route`, `text`, `pdf`, `image`, `audio`
-and `video`, with `text`, opt-in `pdf`, opt-in `image` and opt-in `audio`
-reaching concrete extractors today.
+and `video`, with all listed stages reaching concrete extractors when enabled.
 
 ## Current Worker Processing
 
@@ -215,13 +231,15 @@ reaching concrete extractors today.
 extractor supports plain text and Markdown inputs, `@mindory/extractor-docling`
 supports native-text PDF inputs, `@mindory/extractor-image-semantic` supports
 image semantic fallback extraction, `@mindory/extractor-audio-transcript`
-supports embedded-transcript audio fallback extraction, and
-`FixedSizeTextChunker` creates
+supports embedded-transcript audio fallback extraction,
+`@mindory/extractor-video-keyframe` supports manifest-derived keyframe
+fallback extraction, and `FixedSizeTextChunker` creates
 deterministic token windows with offset metadata. Text/PDF/image extraction
 writes a `text` artifact plus an `extracted_text` span; PDF extraction also
 writes `pdf_page` artifacts and page-level spans; image extraction also writes
 semantic image artifacts, spans and optional face observation artifacts.
 Audio extraction also writes transcript artifacts and time-coded segment spans.
+Video extraction writes keyframe artifacts and frame description spans.
 Chunking writes one child `text` artifact
 and one `text_chunk` span per chunk. Legacy `chunks` rows remain the
 compatibility table for context and embeddings, but their metadata points back
@@ -244,7 +262,7 @@ artifact and processing run.
 
 `TASK-19` adds `DocumentChunkRepository`, a Drizzle-backed chunk repository and
 the worker processor registry. Clean scans enqueue routing, routing enqueues
-extraction for text/Markdown/PDF/image/audio documents when the modality is enabled,
+extraction for text/Markdown/PDF/image/audio/video documents when the modality is enabled,
 extraction writes derived text objects, chunking replaces durable chunk rows,
 and embedding/index processors write pgvector rows when text embeddings are
 configured. With

@@ -41,6 +41,7 @@ import { AudioTranscriptExtractor } from "@mindory/extractor-audio-transcript";
 import { BuiltinTextExtractor } from "@mindory/extractor-builtin-text";
 import { DoclingPdfExtractor } from "@mindory/extractor-docling";
 import { ImageSemanticExtractor } from "@mindory/extractor-image-semantic";
+import { readVideoManifest, VideoKeyframeExtractor } from "@mindory/extractor-video-keyframe";
 import { buildMindoryTextEmbeddingsProvider } from "@mindory/model-runtime";
 import { ClamAvDocumentScanProcessor, ClamAvScanner } from "@mindory/processor-antivirus-clamav";
 
@@ -80,6 +81,9 @@ export function buildDocumentPipelineProcessors(options: DocumentPipelineProcess
         model: options.config.modelRuntime.asr.model,
         required: options.config.modelRuntime.asr.required
       }
+    }),
+    new VideoKeyframeExtractor({
+      maxKeyframes: options.config.documentProcessing.video.maxKeyframes
     }),
     new DoclingPdfExtractor({
       ocr: {
@@ -428,6 +432,9 @@ class DocumentRouteProcessor implements ProcessingJobProcessor {
     if (indexedMetadata.page_count !== null) {
       metadata.page_count = indexedMetadata.page_count;
     }
+    if (indexedMetadata.frame_count !== null) {
+      metadata.frame_count = indexedMetadata.frame_count;
+    }
     if (indexedMetadata.codec) {
       metadata.codec = indexedMetadata.codec;
     }
@@ -508,7 +515,9 @@ class DocumentExtractProcessor implements ProcessingJobProcessor {
         ? "image"
         : routeKind === "audio" || document.mimeType.toLowerCase().startsWith("audio/")
           ? "audio"
-          : "text";
+          : routeKind === "video" || document.mimeType.toLowerCase().startsWith("video/")
+            ? "video"
+            : "text";
     const processingRunId = incomingProcessingRunId
       ?? deterministicProcessingRunId(document.id, extractionStage, sha256Hex(rawBytes));
     const configFingerprint = buildDocumentRecomputeFingerprint({
@@ -1464,6 +1473,7 @@ interface AttachmentMetadataSnapshot {
   width: number | null;
   height: number | null;
   page_count: number | null;
+  frame_count: number | null;
   codec: string | null;
   magic_matched: boolean;
 }
@@ -1478,6 +1488,7 @@ async function indexAttachmentMetadata(input: IndexAttachmentMetadataInput): Pro
     width: metadata.width,
     height: metadata.height,
     pageCount: metadata.page_count,
+    frameCount: metadata.frame_count,
     codec: metadata.codec,
     container: metadata.container,
     checksumSha256: metadata.checksum_sha256,
@@ -1507,6 +1518,7 @@ async function indexAttachmentMetadata(input: IndexAttachmentMetadataInput): Pro
 function extractAttachmentMetadata(input: IndexAttachmentMetadataInput): AttachmentMetadataSnapshot {
   const imageDimensions = readImageDimensions(input.rawBytes);
   const wavMetadata = readWavMetadata(input.rawBytes);
+  const videoMetadata = readFallbackVideoMetadata(input.rawBytes);
   const extension = normalizeExtension(input.document.originalFilename);
   const container = extension ?? inferContainerFromMime(input.document.mimeType);
 
@@ -1517,11 +1529,12 @@ function extractAttachmentMetadata(input: IndexAttachmentMetadataInput): Attachm
     extension,
     checksum_sha256: sha256Hex(input.rawBytes),
     container,
-    duration_ms: wavMetadata.durationMs,
+    duration_ms: wavMetadata.durationMs ?? videoMetadata.durationMs,
     width: imageDimensions.width,
     height: imageDimensions.height,
     page_count: readPdfPageCount(input.rawBytes),
-    codec: wavMetadata.codec,
+    frame_count: videoMetadata.frameCount,
+    codec: wavMetadata.codec ?? videoMetadata.codec,
     magic_matched: input.magicMatched
   };
 }
@@ -1566,6 +1579,9 @@ function buildAttachmentMetadataIndexEntries(input: {
   }
   if (input.metadata.page_count !== null) {
     entries.push(metadataNumberEntry(base, input.document.id, "page_count", input.metadata.page_count, "pages"));
+  }
+  if (input.metadata.frame_count !== null) {
+    entries.push(metadataNumberEntry(base, input.document.id, "frame_count", input.metadata.frame_count, "frames"));
   }
   if (input.metadata.codec) {
     entries.push(metadataTextEntry(base, input.document.id, "codec", input.metadata.codec));
@@ -1785,6 +1801,15 @@ function readWavMetadata(bytes: Buffer): { durationMs: number | null; codec: str
   return { durationMs, codec };
 }
 
+function readFallbackVideoMetadata(bytes: Buffer): { durationMs: number | null; codec: string | null; frameCount: number | null } {
+  const manifest = readVideoManifest(bytes);
+  return {
+    durationMs: manifest?.durationMs ?? null,
+    codec: manifest?.codec ?? null,
+    frameCount: manifest?.frames.length ?? null
+  };
+}
+
 function matchesAsciiBuffer(bytes: Buffer, offset: number, expected: string): boolean {
   if (offset < 0 || bytes.length < offset + expected.length) {
     return false;
@@ -1865,6 +1890,7 @@ function enrichChunkWithArtifactRefs(
   const textSpanId = deterministicTextSpanId(artifactId, 0);
   const overlappingPages = pageRefsForChunk(chunk, pageRefs);
   const overlappingTranscriptSegments = transcriptRefsForChunk(chunk, transcriptRefs);
+  const keyframeRefs = semanticRefs.filter((artifact) => artifact.artifact_type === "video_keyframe");
   const pageSourceRefs = overlappingPages.map((page) => ({ type: "artifact" as const, id: page.artifact_id }));
   const semanticSourceRefs = semanticRefs.map((artifact) => ({ type: "artifact" as const, id: artifact.artifact_id }));
   const transcriptSourceRefs = uniqueStrings(overlappingTranscriptSegments.map((segment) => segment.artifact_id))
@@ -1882,6 +1908,8 @@ function enrichChunkWithArtifactRefs(
       page_artifact_ids: overlappingPages.map((page) => page.artifact_id),
       semantic_artifact_ids: semanticRefs.map((artifact) => artifact.artifact_id),
       semantic_artifact_types: semanticRefs.map((artifact) => artifact.artifact_type),
+      video_keyframe_artifact_ids: keyframeRefs.map((artifact) => artifact.artifact_id),
+      video_keyframe_count: keyframeRefs.length,
       transcript_artifact_ids: uniqueStrings(overlappingTranscriptSegments.map((segment) => segment.artifact_id)),
       transcript_segment_span_ids: overlappingTranscriptSegments.map((segment) => segment.text_span_id),
       transcript_time_ranges: overlappingTranscriptSegments.map((segment) => ({

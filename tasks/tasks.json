@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-46",
+  "current_task_id": "TASK-47",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -358,6 +358,13 @@
       "status": "done",
       "branch": "task/TASK-46-audio-pipeline",
       "file": "tasks/TASK-46.json"
+    },
+    {
+      "id": "TASK-47",
+      "title": "Add video keyframe pipeline",
+      "status": "done",
+      "branch": "task/TASK-47-video-keyframe-pipeline",
+      "file": "tasks/TASK-47.json"
     }
   ]
 }

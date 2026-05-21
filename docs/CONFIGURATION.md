@@ -85,7 +85,9 @@ disabled by default; set `MINDORY_DOCUMENT_PROCESSING_IMAGE_ENABLED=true` to
 route images into `document.extract`. Audio transcript fallback extraction is
 implemented but disabled by default; set
 `MINDORY_DOCUMENT_PROCESSING_AUDIO_ENABLED=true` to route audio into
-`document.extract`. Video remains disabled until its processor is implemented.
+`document.extract`. Video keyframe fallback extraction is implemented but
+disabled by default; set `MINDORY_DOCUMENT_PROCESSING_VIDEO_ENABLED=true` to
+route video into `document.extract`.
 
 `MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES` sets the future video
 keyframe cap and defaults to `10`.
@@ -106,6 +108,8 @@ the fallback image extractor can also derive face observations from explicit
 people-count signals and match them through the workspace-scoped face subsystem.
 Audio extraction records ASR capability state and can derive transcript segments
 from embedded WAV `INFO/ICMT` text until a concrete ASR adapter is installed.
+Video extraction uses `MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES` to cap
+manifest-derived keyframes; the default remains `10`.
 
 Text embeddings are the only capability used for pgvector indexing today.
 When `MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_ENABLED=true`,

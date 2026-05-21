@@ -72,7 +72,7 @@ assert(documents.includes("type: \"document.route\""), "Upload service must enqu
 assert(documents.includes("idempotencyKey: `document.route:${document.id}:${this.routeProcessorVersion}`"), "Upload service must use deterministic route idempotency key.");
 assert(uploadMethod.includes("scan_pending"), "Async quarantine uploads must use scan_pending status.");
 
-for (const token of ["classifyDocumentFile", "planDocumentProcessingRoute", "\"text\"", "\"pdf\"", "\"image\"", "\"audio\"", "\"video\"", "pdf_extraction", "image_semantic_extraction", "audio_transcription", "processor_not_implemented"]) {
+for (const token of ["classifyDocumentFile", "planDocumentProcessingRoute", "\"text\"", "\"pdf\"", "\"image\"", "\"audio\"", "\"video\"", "pdf_extraction", "image_semantic_extraction", "audio_transcription", "video_keyframes", "processor_not_implemented"]) {
   assert(routing.includes(token), `Document routing module must include ${token}.`);
 }
 for (const token of ["DocumentRecomputeService", "document.recompute", "processing_run_id", "raw_original_unchanged"]) {

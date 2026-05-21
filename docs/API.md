@@ -95,6 +95,9 @@ source refs for the artifact, processing run and chunk. After `TASK-42`, search
 also accepts optional `metadataFilters` over typed attachment metadata. Numeric
 filters support `lt`, `lte`, `gt`, `gte` and `between`; text, boolean and
 timestamp filters support exact `eq` matching.
+Current metadata keys include size, MIME, extension, checksum, media type,
+container, duration, dimensions, page count, frame count and codec when the
+route stage can derive them.
 
 Example document search request:
 

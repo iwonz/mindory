@@ -159,7 +159,7 @@ processing runs.
 `document_metadata_index` rows. The worker route stage upserts
 `document_media_metadata` and replaces raw metadata index rows for filterable
 attachment fields such as `size_bytes`, `mime_type`, `extension`,
-`checksum_sha256`, `duration_ms`, dimensions, page count, codec and container.
+`checksum_sha256`, `duration_ms`, dimensions, page count, frame count, codec and container.
 Document search filters use this table for both full-text fallback and pgvector
 search.
 
