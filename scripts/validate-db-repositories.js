@@ -106,7 +106,7 @@ for (const symbol of ["DocumentChunkRepository", "replaceDocumentChunks", "updat
   assert(processingCore.includes(symbol), `Core processing contracts must include ${symbol}.`);
 }
 
-for (const symbol of ["ProcessingRunRecord", "DocumentArtifactRecord", "DocumentArtifactTextSpanRecord", "DocumentMediaMetadataRecord", "DocumentMetadataIndexRecord", "FaceIdentityRecord", "FaceObservationRecord", "DerivedArtifactRepository"]) {
+for (const symbol of ["ProcessingRunRecord", "DocumentArtifactRecord", "DocumentArtifactTextSpanRecord", "DocumentMediaMetadataRecord", "DocumentMetadataIndexRecord", "ArtifactSearchHit", "SearchArtifactsInput", "FaceIdentityRecord", "FaceObservationRecord", "DerivedArtifactRepository"]) {
   assert(artifactsCore.includes(symbol), `Core artifact contracts must include ${symbol}.`);
 }
 
@@ -114,7 +114,7 @@ for (const symbol of ["FaceService", "recordObservation", "mergeIdentities", "re
   assert(facesCore.includes(symbol), `Core face service must include ${symbol}.`);
 }
 
-for (const symbol of ["DbDerivedArtifactRepository", "createProcessingRun", "listProcessingRuns", "supersedeDocumentProcessingRuns", "createDocumentArtifact", "listDocumentArtifacts", "replaceDocumentArtifactTextSpans", "upsertDocumentMediaMetadata", "replaceDocumentMetadataIndex", "createFaceIdentity", "getFaceIdentity", "listFaceIdentities", "updateFaceIdentity", "createFaceObservation", "listFaceObservations", "reassignFaceObservations"]) {
+for (const symbol of ["DbDerivedArtifactRepository", "createProcessingRun", "listProcessingRuns", "supersedeDocumentProcessingRuns", "createDocumentArtifact", "listDocumentArtifacts", "replaceDocumentArtifactTextSpans", "upsertDocumentMediaMetadata", "replaceDocumentMetadataIndex", "searchArtifacts", "createFaceIdentity", "getFaceIdentity", "listFaceIdentities", "updateFaceIdentity", "createFaceObservation", "listFaceObservations", "reassignFaceObservations"]) {
   assert(artifactRepos.includes(symbol), `Derived artifact repository must include ${symbol}.`);
 }
 

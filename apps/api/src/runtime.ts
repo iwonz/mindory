@@ -28,7 +28,7 @@ import type { BuildApiAppOptions } from "./app.js";
 
 export interface ApiRuntimeDependencies extends Pick<
   BuildApiAppOptions,
-  "auth" | "close" | "context" | "documents" | "faces" | "jobs" | "memories" | "peers" | "projects" | "sessions" | "tokens"
+  "artifacts" | "auth" | "close" | "context" | "documents" | "faces" | "jobs" | "memories" | "peers" | "projects" | "sessions" | "tokens"
 > {}
 
 export function buildApiRuntimeDependencies(config: MindoryConfig): ApiRuntimeDependencies {
@@ -72,6 +72,9 @@ export function buildApiRuntimeDependencies(config: MindoryConfig): ApiRuntimeDe
   });
 
   return {
+    artifacts: {
+      artifactRepository
+    },
     auth: {
       accessTokenRepository
     },

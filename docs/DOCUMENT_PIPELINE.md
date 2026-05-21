@@ -260,6 +260,11 @@ over `document_artifact_text_spans` and ignores artifacts attached to
 `superseded` processing runs. Search hits include source refs for the chunk,
 artifact and processing run.
 
+`POST /v1/artifacts/search` searches the same derived text span store directly
+across artifact types. It is the unified MVP search surface for OCR text,
+transcripts, captions, video keyframe descriptions and face observation spans,
+with source refs and source positions returned per hit.
+
 `TASK-19` adds `DocumentChunkRepository`, a Drizzle-backed chunk repository and
 the worker processor registry. Clean scans enqueue routing, routing enqueues
 extraction for text/Markdown/PDF/image/audio/video documents when the modality is enabled,

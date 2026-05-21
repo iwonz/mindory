@@ -118,6 +118,18 @@ worker creates a new `processing_run`, supersedes older derived runs for the
 same requested stage, keeps the RAW storage key unchanged, then routes the
 document back through the enabled processing graph.
 
+Registered artifact search route:
+
+```text
+POST /v1/artifacts/search
+```
+
+Artifact search scans current non-superseded derived text spans across extracted
+text, OCR, transcripts, captions, video keyframes and face observation spans.
+It supports `artifactTypes`, `spanTypes`, `metadataFilters`, `projectIds`,
+`query` and `limit`, and returns artifact ids, source refs, source positions and
+span metadata. It requires `document:search` for every requested project.
+
 Registered memory route surfaces:
 
 ```text
@@ -218,6 +230,7 @@ placeholders.
 - Peers
 - Sessions and messages
 - Documents and document search
+- Artifact search
 - Face identities and observations
 - Memories and memory search
 - Context builder
@@ -231,3 +244,4 @@ permission checks. `TASK-18` wires document upload storage/queue runtime.
 processing job status/list/retry routes. `TASK-22` wires message-triggered
 summary and conservative memory derivation jobs. `TASK-29` wires token lifecycle
 operations. `TASK-45` wires face identity/observation management.
+`TASK-48` adds unified artifact search across derived artifact text spans.

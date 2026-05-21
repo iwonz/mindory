@@ -1,0 +1,70 @@
+{
+  "id": "TASK-48",
+  "title": "Add unified artifact search API",
+  "status": "done",
+  "type": "chore",
+  "priority": "high",
+  "branch": "task/TASK-48-unified-artifact-search-api",
+  "created_at": "2026-05-21",
+  "updated_at": "2026-05-21",
+  "context": {
+    "summary": "Add a project-scoped artifact search API across derived text, OCR, transcripts, image/video descriptions and face-backed source refs.",
+    "background": "TASK-41 through TASK-47 write rich derived artifacts, but the public search surface still centers on document chunks."
+  },
+  "scope": {
+    "in": [
+      "Add core artifact search input/hit contracts.",
+      "Implement Drizzle artifact text-span search over current non-superseded processing runs.",
+      "Support artifact type filters, span type filters, project scopes, query text, metadata filters and result limits.",
+      "Return source refs and source positions for document/page/frame/time/face-backed artifacts.",
+      "Add POST /v1/artifacts/search and wire API runtime dependencies.",
+      "Add integration coverage for image OCR/caption, audio transcript and video keyframe search.",
+      "Update docs and validators."
+    ],
+    "out": [
+      "New vector storage for image/video/audio artifacts.",
+      "Replacing existing /v1/documents/search.",
+      "CLI, MCP or Hermes artifact search surfaces.",
+      "Changing 0000_initial_schema.sql."
+    ]
+  },
+  "acceptance_criteria": [
+    "Artifact search is project-scoped and enforces authorization.",
+    "Artifact search can filter by artifact type and span type.",
+    "Metadata filters are enforced through document_metadata_index.",
+    "Search results include artifact ids, artifact types, span metadata, source refs and source positions.",
+    "Image, audio and video derived artifacts are searchable through one API.",
+    "Superseded processing runs are excluded.",
+    "No schema changes modify 0000_initial_schema.sql."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "pnpm db:repositories:validate",
+      "pnpm api:runtime:validate",
+      "pnpm processing:validate",
+      "pnpm typecheck",
+      "pnpm lint",
+      "pnpm tasks:validate",
+      "pnpm test",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-48.",
+      "Confirm packages/db/drizzle/0000_initial_schema.sql is unchanged.",
+      "Confirm artifact search returns source refs for image/audio/video derived artifacts."
+    ]
+  },
+  "dependencies": [
+    "TASK-47"
+  ],
+  "risks": [
+    "This task adds full-text artifact search only; vector search for multimodal artifact embeddings remains future work.",
+    "The repository duplicates metadata-filter SQL used by document search until a shared query helper is extracted."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch is committed and merged back into master."
+  ]
+}

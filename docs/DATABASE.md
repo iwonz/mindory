@@ -150,6 +150,11 @@ identity archival for merges. Face observations keep 512-dimensional embeddings
 as derived state so automatic matching can be recomputed from RAW documents and
 artifacts.
 
+`TASK-48` adds repository-level artifact search over
+`document_artifact_text_spans` joined to current processing runs. The search
+path supports artifact type filters, span type filters, metadata filters and
+returns artifact source refs/source positions without reading RAW objects.
+
 `TASK-41` extends that repository with idempotent text span replacement for
 artifact-backed text chunks. The text search path now uses a full-text GIN index
 on `document_artifact_text_spans` and filters out spans from `superseded`
