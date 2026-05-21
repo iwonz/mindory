@@ -1,7 +1,7 @@
 {
   "id": "TASK-32",
   "title": "Package MCP stdio for real client use",
-  "status": "ready",
+  "status": "done",
   "type": "chore",
   "priority": "medium",
   "branch": "task/TASK-32-mcp-client-packaging",

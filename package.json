@@ -24,6 +24,7 @@
     "hermes:smoke": "node scripts/smoke-hermes.js",
     "lint": "node scripts/lint-repo.js",
     "memory:validate": "node scripts/validate-memory-context.js",
+    "mcp:smoke": "node apps/mcp/scripts/smoke-stdio.js",
     "mcp:validate": "node scripts/validate-mcp-server.js",
     "mvp:acceptance": "node scripts/mvp-acceptance.js",
     "mvp:seed": "node scripts/seed-demo.js",

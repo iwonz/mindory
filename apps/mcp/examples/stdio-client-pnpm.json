@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "mindory": {
+      "command": "pnpm",
+      "args": ["--dir", "/absolute/path/to/mindory", "--filter", "@mindory/mcp", "start"],
+      "env": {
+        "MINDORY_MCP_ENABLED": "true",
+        "MINDORY_MCP_TRANSPORT": "stdio",
+        "MINDORY_MCP_API_URL": "http://localhost:3000",
+        "MINDORY_MCP_API_TOKEN": "${MINDORY_MCP_API_TOKEN}"
+      }
+    }
+  }
+}

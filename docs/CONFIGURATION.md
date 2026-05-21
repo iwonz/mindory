@@ -113,6 +113,10 @@ usage it defaults to `http://localhost:3000`; in Docker Compose it defaults to
 the internal API service URL `http://api:3000`. `MINDORY_MCP_API_TOKEN` is an
 optional bearer token used by MCP HTTP calls.
 
+Real MCP clients should launch the stdio process themselves with `node
+apps/mcp/dist/stdio.js` or `pnpm --filter @mindory/mcp start`; see
+`docs/MCP.md` for copyable client configuration examples.
+
 ## CLI
 
 `MINDORY_CLI_API_URL` points the `mindory` CLI at the Mindory HTTP API and

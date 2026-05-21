@@ -193,6 +193,8 @@ Qdrant runtime remains an optional future adapter.
   connects `StdioServerTransport`.
 - Document upload accepts UTF-8 or base64 content and sends multipart
   `POST /v1/documents`.
+- Real MCP clients spawn the stdio process locally. Compose only proves the
+  packaged command starts; it does not expose a network MCP daemon.
 
 The MCP package must not access PostgreSQL, Redis, object storage or vector
 indexes directly.
