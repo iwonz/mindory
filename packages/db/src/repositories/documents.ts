@@ -1,4 +1,5 @@
-import { and, asc, desc, eq, ilike, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, sql } from "drizzle-orm";
+import type { SourceRef } from "@mindory/core/memory";
 import type { CreateDocumentInput, DocumentRecord, DocumentRepository, ListDocumentsInput, UpdateDocumentStatusInput } from "@mindory/core/documents";
 import type { DocumentChunkSearchInput, DocumentChunkSearchHit, DocumentChunkSearchRepository } from "@mindory/core/memory";
 import type { DocumentChunkRecord, DocumentChunkRepository, ReplaceDocumentChunksInput } from "@mindory/core/processing";
@@ -63,6 +64,11 @@ export class DbDocumentChunkSearchRepository implements DocumentChunkSearchRepos
   }
 
   async searchDocumentChunks(input: DocumentChunkSearchInput): Promise<DocumentChunkSearchHit[]> {
+    const artifactHits = await this.searchArtifactTextSpans(input);
+    if (artifactHits.length > 0) {
+      return artifactHits;
+    }
+
     const rows = await this.db.select().from(chunks).where(and(
       inArray(chunks.projectId, input.projectIds),
       ilike(chunks.content, `%${input.query}%`)
@@ -77,6 +83,59 @@ export class DbDocumentChunkSearchRepository implements DocumentChunkSearchRepos
       sourceRefs: [{ type: "chunk", id: row.id }],
       metadata: row.metadata
     }));
+  }
+
+  private async searchArtifactTextSpans(input: DocumentChunkSearchInput): Promise<DocumentChunkSearchHit[]> {
+    if (!input.query || input.projectIds.length === 0) {
+      return [];
+    }
+
+    const projectFilters = sql.join(input.projectIds.map((projectId) => sql`${projectId}`), sql`, `);
+    const result = await this.db.execute(sql`
+      select
+        spans.project_id,
+        spans.document_id,
+        spans.id as span_id,
+        spans.artifact_id,
+        spans.content,
+        spans.metadata,
+        artifacts.processing_run_id,
+        ts_rank_cd(to_tsvector('simple', spans.content), plainto_tsquery('simple', ${input.query})) as score
+      from document_artifact_text_spans spans
+      inner join document_artifacts artifacts on artifacts.id = spans.artifact_id
+      inner join processing_runs runs on runs.id = artifacts.processing_run_id
+      where spans.project_id in (${projectFilters})
+        and spans.span_type = 'text_chunk'
+        and runs.status <> 'superseded'
+        and to_tsvector('simple', spans.content) @@ plainto_tsquery('simple', ${input.query})
+      order by score desc, spans.created_at desc
+      limit ${input.limit}
+    `);
+
+    return readRows(result).map((row) => {
+      const metadata = readMetadata(row.metadata);
+      const chunkId = readMetadataString(metadata, "chunk_id") ?? String(row.artifact_id);
+      const sourceRefs = readSourceRefs(metadata.source_refs, [
+        { type: "artifact", id: String(row.artifact_id) },
+        { type: "processing_run", id: String(row.processing_run_id) },
+        { type: "chunk", id: chunkId }
+      ]);
+      return {
+        projectId: String(row.project_id),
+        documentId: String(row.document_id),
+        chunkId,
+        content: String(row.content),
+        score: Number(row.score),
+        sourceRefs,
+        metadata: {
+          ...metadata,
+          artifact_id: String(row.artifact_id),
+          text_span_id: String(row.span_id),
+          processing_run_id: String(row.processing_run_id),
+          search_backend: "artifact_text_spans_full_text"
+        }
+      };
+    });
   }
 }
 
@@ -161,4 +220,41 @@ function mapChunk(row: typeof chunks.$inferSelect): DocumentChunkRecord {
     },
     createdAt: row.createdAt
   };
+}
+
+type Row = Record<string, unknown>;
+
+function readRows(result: unknown): Row[] {
+  if (Array.isArray(result)) {
+    return result as Row[];
+  }
+  if (typeof result === "object" && result !== null && "rows" in result && Array.isArray(result.rows)) {
+    return result.rows as Row[];
+  }
+  return [];
+}
+
+function readMetadata(value: unknown): Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function readMetadataString(metadata: Record<string, unknown>, key: string): string | undefined {
+  const value = metadata[key];
+  return typeof value === "string" ? value : undefined;
+}
+
+function readSourceRefs(value: unknown, fallback: SourceRef[]): SourceRef[] {
+  if (!Array.isArray(value)) {
+    return fallback;
+  }
+
+  const sourceRefs = value.filter((item): item is SourceRef => (
+    typeof item === "object"
+    && item !== null
+    && "type" in item
+    && "id" in item
+    && typeof item.type === "string"
+    && typeof item.id === "string"
+  ));
+  return sourceRefs.length > 0 ? sourceRefs : fallback;
 }

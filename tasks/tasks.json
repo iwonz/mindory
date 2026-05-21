@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-40",
+  "current_task_id": "TASK-41",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -316,6 +316,13 @@
       "status": "done",
       "branch": "task/TASK-40-recompute-derived-state",
       "file": "tasks/TASK-40.json"
+    },
+    {
+      "id": "TASK-41",
+      "title": "Move text pipeline onto artifact model",
+      "status": "done",
+      "branch": "task/TASK-41-text-pipeline-artifact-model",
+      "file": "tasks/TASK-41.json"
     }
   ]
 }

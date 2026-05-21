@@ -111,7 +111,9 @@ chunker, the `@mindory/model-runtime` provider entrypoint, document routing, and
 explicit pgvector and Qdrant vector index scaffolds. The worker package
 registers scan, recompute, route, extract, chunk, embed and index processors;
 pgvector is the default vector storage/search path when text embeddings are
-configured.
+configured. Text extraction/chunking now writes derived artifact rows and text
+spans, and fallback document search uses PostgreSQL full-text search over those
+spans.
 
 The memory/context packages expose `MemoryService`, `ConservativeMemoryDeriver`
 and `ContextBuilder` contracts plus Fastify route surfaces for `/v1/memories`
