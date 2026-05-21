@@ -92,6 +92,9 @@ importers:
       '@mindory/extractor-docling':
         specifier: workspace:*
         version: link:../../packages/processors/extractors/docling
+      '@mindory/extractor-image-semantic':
+        specifier: workspace:*
+        version: link:../../packages/processors/extractors/image-semantic
       '@mindory/model-runtime':
         specifier: workspace:*
         version: link:../../packages/model-runtime
@@ -171,6 +174,12 @@ importers:
         version: link:../../../core
 
   packages/processors/extractors/docling:
+    dependencies:
+      '@mindory/core':
+        specifier: workspace:*
+        version: link:../../../core
+
+  packages/processors/extractors/image-semantic:
     dependencies:
       '@mindory/core':
         specifier: workspace:*
