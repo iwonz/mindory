@@ -1,7 +1,8 @@
 # MVP Acceptance
 
 `TASK-27` adds local acceptance paths. `TASK-35` adds a one-command Docker demo
-wrapper around the live path.
+wrapper around the live path. `TASK-51` extends the demo to cover multimodal
+derived artifacts and model profiles.
 
 One-command live demo:
 
@@ -9,8 +10,9 @@ One-command live demo:
 pnpm mvp:demo
 ```
 
-This starts Docker Compose with the `clamav` profile, waits for required service
-health/readiness, seeds demo credentials and runs live acceptance.
+This starts Docker Compose with the `clamav` profile, enables local multimodal
+routing, waits for required service health/readiness, seeds demo credentials and
+runs live acceptance.
 
 Start and seed without live acceptance:
 
@@ -50,10 +52,25 @@ The live script uses `MINDORY_E2E_API_URL` or `http://localhost:3000`,
 `mindory-demo-token`.
 
 The live scenario creates project, peer, session and message records, uploads
-`fixtures/demo/mindory-demo.txt`, waits for document processing to reach
-`chunked` or `indexed`, verifies document search returns source-backed chunk
-hits, creates a source-backed memory, builds context, then checks CLI, MCP and
-Hermes flows over the HTTP API.
+text, PDF, image, audio and video fixtures, waits for document processing to
+reach `chunked` or `indexed`, verifies document search, artifact search and
+metadata filters, requests document reprocess, checks job status details,
+creates a source-backed memory, builds context, then checks CLI, MCP and Hermes
+flows over the HTTP API. The default model profile is disabled and non-blocking;
+deterministic fixture metadata is used instead of large local
+model weights.
+
+Optional model profiles:
+
+```bash
+pnpm mvp:demo --model-profile disabled
+pnpm mvp:demo --model-profile local
+pnpm mvp:demo --model-profile ollama
+```
+
+`local` starts the lightweight `local-models` profile placeholder.
+`ollama` starts the Ollama profile; configure a 1536-dimensional embedding model
+before combining it with strict indexed acceptance.
 
 Strict indexed flow:
 

@@ -1,0 +1,68 @@
+{
+  "id": "TASK-51",
+  "title": "Add Docker model profiles and E2E acceptance",
+  "status": "done",
+  "type": "chore",
+  "priority": "high",
+  "branch": "task/TASK-51-docker-model-profiles-e2e-acceptance",
+  "created_at": "2026-05-21",
+  "updated_at": "2026-05-21",
+  "context": {
+    "summary": "Complete local MVP ergonomics with explicit Docker model profiles and multimodal E2E acceptance coverage.",
+    "background": "The runtime supports multimodal derived artifacts, but Compose/demo scripts and dry-run acceptance still mostly document the text MVP path."
+  },
+  "scope": {
+    "in": [
+      "Add Docker Compose profiles for ClamAV and optional local model runners with documented disabled/local/cloud profile behavior.",
+      "Add demo profile/config helpers for text, PDF, image, audio and video E2E scenarios.",
+      "Extend MVP acceptance dry-run/live script to cover text, PDF, image, audio, video, artifact search, metadata filters, reprocess and disabled/non-blocking modes.",
+      "Update seed/demo docs and configuration docs for model profiles.",
+      "Update validators for Compose/model profiles and MVP demo acceptance."
+    ],
+    "out": [
+      "Bundling large local model weights.",
+      "Implementing real OCR/ASR/vision model servers beyond optional profile placeholders.",
+      "Changing 0000_initial_schema.sql.",
+      "Replacing Docker Compose with Kubernetes or release images."
+    ]
+  },
+  "acceptance_criteria": [
+    "Docker Compose defines clear profiles for ClamAV and optional local model runtime services.",
+    "Local disabled mode remains runnable without heavy model services.",
+    "Demo/acceptance scripts document and validate text/PDF/image/audio/video paths.",
+    "E2E acceptance checks metadata filters, artifact search, reprocess and job status details.",
+    "Docker/model profile docs explain disabled, local and cloud provider configuration.",
+    "No schema changes modify 0000_initial_schema.sql."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "pnpm compose:validate",
+      "pnpm model-runtime:validate",
+      "pnpm mvp:demo:validate",
+      "pnpm mvp:acceptance",
+      "pnpm typecheck",
+      "pnpm lint",
+      "pnpm tasks:validate",
+      "pnpm test",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-51.",
+      "Confirm packages/db/drizzle/0000_initial_schema.sql is unchanged.",
+      "Confirm Compose profiles do not require large model downloads by default."
+    ]
+  },
+  "dependencies": [
+    "TASK-50"
+  ],
+  "risks": [
+    "Heavy local model services should stay optional placeholders/profiles so local disabled mode remains fast.",
+    "Live multimodal acceptance uses embedded deterministic fixtures, not real model quality validation."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch is committed and merged back into master."
+  ]
+}

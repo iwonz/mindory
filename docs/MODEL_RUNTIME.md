@@ -24,6 +24,11 @@ The default local model names are examples, not mandatory services:
 - OCR: `ESLAV__PP-OCRv5_mobile`
 - face detection and recognition: `buffalo_l`
 
+Docker Compose keeps local model runners optional. The default MVP demo uses
+disabled/non-blocking model capabilities and deterministic embedded fixtures.
+Use the `local-models` profile for a lightweight local model-runtime placeholder
+or the `ollama` profile for a real Ollama service.
+
 ## Configuration
 
 ```env
@@ -75,3 +80,18 @@ API and worker code call `buildMindoryModelRuntime` or
 `buildMindoryTextEmbeddingsProvider` from `@mindory/model-runtime`.
 Provider-specific packages remain low-level adapters; runtime packages must not
 instantiate them directly.
+
+## Docker Profiles
+
+```bash
+pnpm mvp:demo --model-profile disabled
+pnpm mvp:demo --model-profile local
+pnpm mvp:demo --model-profile ollama
+```
+
+- `disabled`: no heavy model service is started; multimodal demo fixtures still
+  exercise routing, derived artifacts and search.
+- `local`: adds the `local-models` profile and starts a lightweight
+  `model-runtime` placeholder on `MINDORY_MODEL_RUNTIME_LOCAL_BASE_URL`.
+- `ollama`: adds the `ollama` profile for local text embeddings. Configure a
+  1536-dimensional embedding model before using strict indexed acceptance.

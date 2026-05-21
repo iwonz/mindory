@@ -12,10 +12,10 @@ The expected local demo flow is:
 pnpm mvp:demo
 ```
 
-`pnpm mvp:demo` starts Docker Compose with the `clamav` profile, waits for
-Postgres, Redis, migration completion, API, worker and MCP service readiness,
-seeds demo credentials from inside the Compose network, then runs live MVP
-acceptance.
+`pnpm mvp:demo` starts Docker Compose with the `clamav` profile, enables the
+local multimodal document routers, waits for Postgres, Redis, migration
+completion, API, worker and MCP service readiness, seeds demo credentials from
+inside the Compose network, then runs live MVP acceptance.
 
 Use `pnpm mvp:up` to start and seed without live acceptance, `pnpm mvp:down` to
 stop the stack and `pnpm mvp:reset` to remove containers and demo volumes.
@@ -60,6 +60,19 @@ Set `MINDORY_E2E_REQUIRE_INDEXED=true` when embeddings are configured and the
 deployment must prove the document pipeline reaches `indexed` status and serves
 pgvector-backed document search.
 
+Model runner profiles are selected by `--model-profile`:
+
+```bash
+pnpm mvp:demo --model-profile disabled
+pnpm mvp:demo --model-profile local
+pnpm mvp:demo --model-profile ollama
+```
+
+`disabled` is the default and starts no heavy model containers. `local` adds the
+`local-models` profile, which currently runs a lightweight model-runtime
+placeholder for profile wiring checks. `ollama` adds the real Ollama service for
+local model experiments.
+
 ## Base Services
 
 - `postgres`
@@ -96,6 +109,7 @@ Automated down migrations are not part of the MVP deployment path.
 - `qdrant`
 - `docling`
 - `ollama`
+- `local-models`
 
 Example:
 
@@ -103,9 +117,10 @@ Example:
 docker compose --profile minio --profile clamav --profile qdrant up -d
 ```
 
-The `ollama` profile is optional for local text embeddings. The selected
-embedding model must produce 1536-dimensional vectors for the current pgvector
-MVP schema; otherwise keep
+The `local-models` profile is intentionally lightweight and does not download
+model weights. The `ollama` profile is optional for local text embeddings. The
+selected embedding model must produce 1536-dimensional vectors for the current
+pgvector MVP schema; otherwise keep
 `MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_ENABLED=false` for the default chunked
 fallback.
 

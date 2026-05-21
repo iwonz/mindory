@@ -8,7 +8,7 @@ The canonical product and engineering specification is `docs/PRD.md`.
 
 ## Repository Status
 
-This repository is currently bootstrapped through `TASK-35`. The repo has the
+This repository is currently bootstrapped through `TASK-51`. The repo has the
 operating model, documentation skeleton, configuration contract, pnpm monorepo
 layout, Docker Compose base scaffold, MVP database schema, Fastify API skeleton
 object storage abstraction, Redis/BullMQ queue scaffold and document upload/scan
@@ -161,7 +161,15 @@ Base services are `postgres`, `redis`, `migrate`, `api`, `mcp` and `worker`.
 The API, worker and MCP services now use the built workspace image and real
 dist entrypoints. API and worker share the `objects-data` volume for local
 filesystem storage. Optional profiles are `minio`, `clamav`, `qdrant`,
-`docling` and `ollama`.
+`docling`, `ollama` and `local-models`.
+
+The default demo model profile is disabled, so no heavy model service is
+started. For profile wiring checks or local model experiments:
+
+```bash
+pnpm mvp:demo --model-profile local
+pnpm mvp:demo --model-profile ollama
+```
 
 Stop the demo stack with `pnpm mvp:down`. Remove containers and demo volumes
 with `pnpm mvp:reset`.

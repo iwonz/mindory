@@ -43,8 +43,9 @@ by later task-scoped changes.
 image, a `migrate` service running `pnpm db:migrate`, real dist entrypoints and
 local object storage volumes for API/worker.
 
-Optional profiles define MinIO, ClamAV, Qdrant, Docling and Ollama deployment
-slots without making those services mandatory for the base stack.
+Optional profiles define MinIO, ClamAV, Qdrant, Docling, Ollama and a
+lightweight local model-runtime placeholder without making those services
+mandatory for the base stack.
 
 ## Database Schema
 

@@ -25,7 +25,7 @@ for (const service of ["postgres", "redis", "migrate", "api", "mcp", "worker"]) 
   assert(compose.includes(`\n  ${service}:`), `docker-compose.yml must define ${service}.`);
 }
 
-for (const profile of ["minio", "clamav", "qdrant", "docling", "ollama"]) {
+for (const profile of ["minio", "clamav", "qdrant", "docling", "ollama", "local-models"]) {
   assert(compose.includes(`profiles: [\"${profile}\"]`), `docker-compose.yml must define the ${profile} profile.`);
 }
 
@@ -52,6 +52,16 @@ assert(compose.includes("/ready"), "API healthcheck must call /ready.");
 assert(compose.includes("'http://127.0.0.1:'+port+'/ready'"), "API healthcheck must avoid Compose interpolation inside JavaScript.");
 assert(compose.includes("objects-data:/data/mindory/objects"), "API/worker services must mount local object storage volume.");
 assert(compose.includes("MINDORY_CLAMAV_PLATFORM"), "Compose must allow ClamAV platform override for local Docker Desktop compatibility.");
+assert(compose.includes("\n  model-runtime:"), "Compose must define an optional local model runtime service.");
+assert(compose.includes("service:'model-runtime'"), "Local model runtime profile must be a lightweight placeholder by default.");
+for (const envName of [
+  "MINDORY_DOCUMENT_PROCESSING_PDF_ENABLED: ${MINDORY_DOCUMENT_PROCESSING_PDF_ENABLED:-true}",
+  "MINDORY_DOCUMENT_PROCESSING_IMAGE_ENABLED: ${MINDORY_DOCUMENT_PROCESSING_IMAGE_ENABLED:-true}",
+  "MINDORY_DOCUMENT_PROCESSING_AUDIO_ENABLED: ${MINDORY_DOCUMENT_PROCESSING_AUDIO_ENABLED:-true}",
+  "MINDORY_DOCUMENT_PROCESSING_VIDEO_ENABLED: ${MINDORY_DOCUMENT_PROCESSING_VIDEO_ENABLED:-true}"
+]) {
+  assert(compose.includes(envName), `Compose demo defaults must enable multimodal routing: ${envName}.`);
+}
 assert(override.includes("NODE_ENV: development"), "docker-compose.override.yml must set development mode.");
 assert(testCompose.includes("name: mindory-test"), "docker-compose.test.yml must isolate the integration test project.");
 assert(testCompose.includes("MINDORY_TEST_POSTGRES_PORT"), "docker-compose.test.yml must expose configurable PostgreSQL test port.");

@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-50",
+  "current_task_id": "TASK-51",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -386,6 +386,13 @@
       "status": "done",
       "branch": "task/TASK-50-cli-mcp-hermes-surfaces",
       "file": "tasks/TASK-50.json"
+    },
+    {
+      "id": "TASK-51",
+      "title": "Add Docker model profiles and E2E acceptance",
+      "status": "done",
+      "branch": "task/TASK-51-docker-model-profiles-e2e-acceptance",
+      "file": "tasks/TASK-51.json"
     }
   ]
 }

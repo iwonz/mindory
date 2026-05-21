@@ -8,7 +8,7 @@ const args = process.argv.slice(2);
 const command = args[0]?.startsWith("-") ? "up" : args.shift() ?? "up";
 const options = parseOptions(args);
 
-const profiles = options.profiles.length > 0 ? options.profiles : ["clamav"];
+const profiles = resolveProfiles(options);
 const apiUrl = (process.env.MINDORY_E2E_API_URL ?? `http://localhost:${process.env.MINDORY_API_PORT ?? "3000"}`).replace(/\/$/, "");
 const projectId = process.env.MINDORY_DEMO_PROJECT_ID ?? "mindory-demo";
 const demoToken = process.env.MINDORY_DEMO_TOKEN ?? "mindory-demo-token";
@@ -103,7 +103,8 @@ function runLiveAcceptance() {
       MINDORY_E2E_API_URL: apiUrl,
       MINDORY_DEMO_PROJECT_ID: projectId,
       MINDORY_DEMO_TOKEN: demoToken,
-      MINDORY_E2E_REQUIRE_INDEXED: options.requireIndexed ? "true" : process.env.MINDORY_E2E_REQUIRE_INDEXED ?? "false"
+      MINDORY_E2E_REQUIRE_INDEXED: options.requireIndexed ? "true" : process.env.MINDORY_E2E_REQUIRE_INDEXED ?? "false",
+      MINDORY_E2E_MODEL_PROFILE: options.modelProfile
     }
   });
 }
@@ -265,6 +266,10 @@ function resolveDockerBinary() {
 function dockerEnv() {
   return {
     ...process.env,
+    MINDORY_DOCUMENT_PROCESSING_PDF_ENABLED: process.env.MINDORY_DOCUMENT_PROCESSING_PDF_ENABLED ?? "true",
+    MINDORY_DOCUMENT_PROCESSING_IMAGE_ENABLED: process.env.MINDORY_DOCUMENT_PROCESSING_IMAGE_ENABLED ?? "true",
+    MINDORY_DOCUMENT_PROCESSING_AUDIO_ENABLED: process.env.MINDORY_DOCUMENT_PROCESSING_AUDIO_ENABLED ?? "true",
+    MINDORY_DOCUMENT_PROCESSING_VIDEO_ENABLED: process.env.MINDORY_DOCUMENT_PROCESSING_VIDEO_ENABLED ?? "true",
     PATH: [
       "/Applications/Docker.app/Contents/Resources/bin",
       "/usr/local/bin",
@@ -302,9 +307,21 @@ function profileArgs() {
   return profiles.flatMap((profile) => ["--profile", profile]);
 }
 
+function resolveProfiles(parsedOptions) {
+  const selected = parsedOptions.profiles.length > 0 ? [...parsedOptions.profiles] : ["clamav"];
+  if (parsedOptions.modelProfile === "local") {
+    selected.push("local-models");
+  }
+  if (parsedOptions.modelProfile === "ollama") {
+    selected.push("ollama");
+  }
+  return [...new Set(selected)];
+}
+
 function parseOptions(rawArgs) {
   const parsed = {
     build: true,
+    modelProfile: process.env.MINDORY_E2E_MODEL_PROFILE ?? "disabled",
     profiles: [],
     requireIndexed: false,
     runAcceptance: false,
@@ -320,6 +337,13 @@ function parseOptions(rawArgs) {
       parsed.runAcceptance = true;
     } else if (arg === "--no-build") {
       parsed.build = false;
+    } else if (arg === "--model-profile") {
+      const value = rawArgs[index + 1];
+      if (value === undefined || !["disabled", "local", "ollama"].includes(value)) {
+        throw new Error("--model-profile must be one of disabled, local or ollama.");
+      }
+      parsed.modelProfile = value;
+      index += 1;
     } else if (arg === "--profile") {
       const value = rawArgs[index + 1];
       if (value === undefined || value.startsWith("-")) {
@@ -358,6 +382,8 @@ Options for scripts/mvp-demo.js up:
   --acceptance       Run live MVP acceptance after seeding.
   --require-indexed  Require indexed pgvector document status in acceptance.
   --no-build         Skip Docker image rebuild.
+  --model-profile <disabled|local|ollama>
+                     Add optional model runner profiles. Defaults to disabled.
   --profile <name>   Add a Compose profile. Defaults to clamav.
   --timeout-ms <n>   Readiness timeout. Defaults to 240000.
 `);

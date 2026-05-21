@@ -76,18 +76,12 @@ disabled. It defaults to `true`.
 
 Each modality has `MINDORY_DOCUMENT_PROCESSING_<TYPE>_ENABLED` and
 `MINDORY_DOCUMENT_PROCESSING_<TYPE>_REQUIRED` settings. Current types are
-`TEXT`, `PDF`, `IMAGE`, `AUDIO` and `VIDEO`. Text is enabled by default and
-routes to the existing text extraction/chunking/indexing pipeline. PDF is
-implemented for native text streams but remains disabled by default; set
-`MINDORY_DOCUMENT_PROCESSING_PDF_ENABLED=true` to route PDFs into
-`document.extract`. Image semantic fallback extraction is implemented but also
-disabled by default; set `MINDORY_DOCUMENT_PROCESSING_IMAGE_ENABLED=true` to
-route images into `document.extract`. Audio transcript fallback extraction is
-implemented but disabled by default; set
-`MINDORY_DOCUMENT_PROCESSING_AUDIO_ENABLED=true` to route audio into
-`document.extract`. Video keyframe fallback extraction is implemented but
-disabled by default; set `MINDORY_DOCUMENT_PROCESSING_VIDEO_ENABLED=true` to
-route video into `document.extract`.
+`TEXT`, `PDF`, `IMAGE`, `AUDIO` and `VIDEO`. The bare runtime defaults remain
+conservative: text is enabled and PDF/image/audio/video are disabled unless the
+environment enables them. `.env.example`, Docker Compose and `pnpm mvp:demo`
+enable all five modality routers for the local MVP so text, PDF, image, audio
+and video fixtures can flow through derived-artifact processing without large
+model services.
 
 `MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES` sets the future video
 keyframe cap and defaults to `10`.
@@ -171,6 +165,12 @@ MINDORY_MODEL_RUNTIME_OLLAMA_BASE_URL=http://ollama:11434
 `MINDORY_VECTOR_PROVIDER` accepts `pgvector` or `qdrant`. `pgvector` is the
 default MVP runtime after `TASK-20`; Qdrant remains optional and profile-gated
 in Compose.
+
+`MINDORY_E2E_MODEL_PROFILE` controls `pnpm mvp:demo` model profile selection
+when `--model-profile` is not passed. Supported values are `disabled`, `local`
+and `ollama`. `disabled` is the default and starts no heavy model services.
+`local` adds the lightweight `local-models` Compose placeholder. `ollama` adds
+the Ollama profile for a real local model runner.
 
 ## MVP Acceptance
 

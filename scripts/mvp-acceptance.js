@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { deflateSync } from "node:zlib";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -9,6 +10,10 @@ const scenario = [
   "seed demo project and bearer token",
   "api create project peers session and messages",
   "api upload document and poll processing jobs",
+  "api upload PDF image audio and video documents",
+  "artifact search with metadata filters",
+  "document reprocess and job status details",
+  "disabled and non-blocking model modes",
   "strict indexed document search when embeddings are enabled",
   "api create source-backed memory",
   "api build context",
@@ -18,7 +23,7 @@ const scenario = [
 ];
 
 if (process.env.MINDORY_E2E_LIVE !== "true") {
-  for (const required of ["api", "cli", "mcp", "hermes", "upload document", "source-backed memory", "poll processing jobs", "indexed", "document search"]) {
+  for (const required of ["api", "cli", "mcp", "hermes", "upload document", "PDF", "image", "audio", "video", "artifact search", "metadata filters", "reprocess", "job status details", "disabled and non-blocking", "source-backed memory", "poll processing jobs", "indexed", "document search"]) {
     assert(scenario.some((step) => step.includes(required)), `Dry-run scenario must include ${required}.`);
   }
   console.log("MVP acceptance dry-run validated. Set MINDORY_E2E_LIVE=true to run against a live API.");
@@ -72,6 +77,9 @@ const documentId = uploaded.document?.id;
 assert(typeof documentId === "string", "Document upload should return a document id.");
 await waitForDocument(documentId);
 await assertDocumentSearch(documentId);
+const multimodal = await uploadMultimodalDocuments();
+await assertMultimodalSearch(multimodal);
+await assertDocumentReprocess(multimodal.image);
 
 const memory = await requestJson("POST", "/v1/memories", {
   projectId,
@@ -92,6 +100,7 @@ assert(Array.isArray(context.blocks), "Context build should return blocks.");
 
 runCli(["context", "build", "--project", projectId, "--session", sessionId, "--token-budget", "3000", "source-backed context"]);
 runCli(["jobs", "list", "--project", projectId, "--limit", "5"]);
+runCli(["artifact", "search", "--project", projectId, "--metadata-filter", "{\"key\":\"extension\",\"valueText\":\"png\"}", "passport airport"]);
 
 const { MindoryApiClient } = await import("../apps/mcp/dist/http-client.js");
 const { MindoryMcpToolRegistry } = await import("../apps/mcp/dist/tools.js");
@@ -102,6 +111,14 @@ const mcpResult = await mcp.callTool("memory_recall", {
   limit: 5
 });
 assert(mcpResult.content[0]?.text.includes("source-backed"), "MCP recall should return source-backed memory content.");
+const artifactMcpResult = await mcp.callTool("artifact_search", {
+  projectIds: [projectId],
+  query: "passport airport",
+  artifactTypes: ["ocr_text", "image_caption"],
+  metadataFilters: [{ key: "extension", valueText: "png" }],
+  limit: 5
+});
+assert(artifactMcpResult.content[0]?.text.includes(multimodal.image), "MCP artifact search should return the image document.");
 
 const { MindoryHermesAdapter } = await import("../apps/adapters/hermes/dist/adapter.js");
 const { HermesMindoryApiClient } = await import("../apps/adapters/hermes/dist/http-client.js");
@@ -168,6 +185,82 @@ async function uploadDemoDocument() {
   return payload;
 }
 
+async function uploadMultimodalDocuments() {
+  const pdf = await uploadFixtureDocument({
+    filename: "mindory-demo.pdf",
+    mimeType: "application/pdf",
+    title: "Mindory MVP PDF",
+    body: buildMinimalPdf([
+      "Mindory PDF native text source-backed acceptance.",
+      "Second PDF page keeps page artifact refs searchable."
+    ])
+  });
+  const image = await uploadFixtureDocument({
+    filename: "nature-3-people-passport-airport.png",
+    mimeType: "image/png",
+    title: "Mindory MVP image",
+    body: buildMinimalPng({
+      width: 4,
+      height: 3,
+      text: "passport airport nature 3 people"
+    })
+  });
+  const audio = await uploadFixtureDocument({
+    filename: "mindory-demo-audio.wav",
+    mimeType: "audio/wav",
+    title: "Mindory MVP audio",
+    body: buildMinimalWav({
+      sampleRate: 8000,
+      durationMs: 1000,
+      transcript: "Audio transcript keeps durable memory recall searchable."
+    })
+  });
+  const video = await uploadFixtureDocument({
+    filename: "mindory-demo-video.mp4",
+    mimeType: "video/mp4",
+    title: "Mindory MVP video",
+    body: buildVideoManifestFile({
+      durationMs: 12000,
+      codec: "manifest-h264",
+      frames: [
+        { timestampMs: 0, description: "forest path and nature", labels: ["nature"] },
+        { timestampMs: 3000, description: "dogs near airport luggage", labels: ["dogs", "airport"] },
+        { timestampMs: 6000, description: "passport in hand near terminal", labels: ["passport"] }
+      ]
+    })
+  });
+  const documents = {
+    pdf: pdf.document.id,
+    image: image.document.id,
+    audio: audio.document.id,
+    video: video.document.id
+  };
+  for (const documentId of Object.values(documents)) {
+    await waitForDocument(documentId);
+  }
+  return documents;
+}
+
+async function uploadFixtureDocument(input) {
+  const form = new FormData();
+  form.append("projectId", projectId);
+  form.append("title", input.title);
+  form.append("file", new Blob([input.body], { type: input.mimeType }), input.filename);
+  const response = await fetch(`${apiUrl}/v1/documents`, {
+    method: "POST",
+    headers: {
+      accept: "application/json",
+      authorization: `Bearer ${token}`
+    },
+    body: form
+  });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(`document upload failed for ${input.filename}: ${JSON.stringify(payload)}`);
+  }
+  return payload;
+}
+
 async function waitForDocument(documentId) {
   const accepted = requireIndexed ? new Set(["indexed"]) : new Set(["chunked", "indexed"]);
   for (let attempt = 0; attempt < 60; attempt += 1) {
@@ -195,6 +288,71 @@ async function assertDocumentSearch(documentId) {
   assert(search.hits.some((hit) => Array.isArray(hit.sourceRefs) && hit.sourceRefs.some((ref) => ref.type === "chunk")), "Document search hits should include chunk source refs.");
 }
 
+async function assertMultimodalSearch(documents) {
+  const pdfSearch = await requestJson("POST", "/v1/documents/search", {
+    projectIds: [projectId],
+    query: "page artifact refs searchable",
+    metadataFilters: [{ key: "extension", valueText: "pdf" }],
+    limit: 5
+  });
+  assert(pdfSearch.hits.some((hit) => hit.documentId === documents.pdf), "PDF search should return native text hits.");
+
+  const imageArtifacts = await requestJson("POST", "/v1/artifacts/search", {
+    projectIds: [projectId],
+    query: "passport airport",
+    artifactTypes: ["ocr_text", "image_caption", "image_analysis"],
+    metadataFilters: [{ key: "extension", valueText: "png" }],
+    limit: 5
+  });
+  assert(imageArtifacts.hits.some((hit) => hit.document_id === documents.image), "Artifact search should return image OCR/caption hits.");
+
+  const audioArtifacts = await requestJson("POST", "/v1/artifacts/search", {
+    projectIds: [projectId],
+    query: "durable memory recall",
+    artifactTypes: ["transcript"],
+    spanTypes: ["transcript_segment"],
+    metadataFilters: [{ key: "extension", valueText: "wav" }],
+    limit: 5
+  });
+  assert(audioArtifacts.hits.some((hit) => hit.document_id === documents.audio), "Artifact search should return audio transcript hits.");
+
+  const videoArtifacts = await requestJson("POST", "/v1/artifacts/search", {
+    projectIds: [projectId],
+    query: "dogs luggage",
+    artifactTypes: ["video_keyframe"],
+    spanTypes: ["video_keyframe_description"],
+    metadataFilters: [{ key: "duration_ms", operator: "between", minNumber: 10000, maxNumber: 15000, unit: "ms" }],
+    limit: 5
+  });
+  assert(videoArtifacts.hits.some((hit) => hit.document_id === documents.video), "Artifact search should return video keyframe hits.");
+}
+
+async function assertDocumentReprocess(documentId) {
+  const recompute = await requestJson("POST", `/v1/documents/${encodeURIComponent(documentId)}/recompute`, {
+    projectId,
+    stages: ["image"],
+    reason: "mvp_acceptance_reprocess",
+    requestId: `mvp_reprocess_${Date.now()}`
+  });
+  assert(recompute.job?.id, "Reprocess should return a processing job id.");
+  const job = await waitForJob(recompute.job.id, "succeeded");
+  assert(job.details?.stages?.length > 0, "Reprocess job should expose stage graph details.");
+}
+
+async function waitForJob(jobId, expectedStatus) {
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    const job = await requestJson("GET", `/v1/jobs/${encodeURIComponent(jobId)}?projectId=${encodeURIComponent(projectId)}`);
+    if (job.status === expectedStatus) {
+      return job;
+    }
+    if (["failed", "dead"].includes(job.status)) {
+      throw new Error(`job ${jobId} failed: ${JSON.stringify(job.details ?? job)}`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+  }
+  throw new Error(`job ${jobId} did not reach ${expectedStatus} in time`);
+}
+
 function runCli(args) {
   const result = spawnSync(process.execPath, ["apps/cli/dist/index.js", "--api-url", apiUrl, "--token", token, ...args], {
     cwd: root,
@@ -203,6 +361,115 @@ function runCli(args) {
   if ((result.status ?? 1) !== 0) {
     throw new Error(`CLI failed (${args.join(" ")}): ${result.stderr || result.stdout}`);
   }
+}
+
+function buildMinimalPdf(pageTexts) {
+  const objects = [
+    "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj",
+    `2 0 obj\n<< /Type /Pages /Kids [${pageTexts.map((_, index) => `${3 + index * 2} 0 R`).join(" ")}] /Count ${pageTexts.length} >>\nendobj`
+  ];
+  for (const [index, text] of pageTexts.entries()) {
+    const pageObjectId = 3 + index * 2;
+    const contentObjectId = pageObjectId + 1;
+    const content = `BT /F1 12 Tf 72 720 Td (${escapePdfLiteralString(text)}) Tj ET`;
+    objects.push(`${pageObjectId} 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents ${contentObjectId} 0 R >>\nendobj`);
+    objects.push(`${contentObjectId} 0 obj\n<< /Length ${Buffer.byteLength(content, "latin1")} >>\nstream\n${content}\nendstream\nendobj`);
+  }
+  return Buffer.from([
+    "%PDF-1.4",
+    ...objects,
+    "trailer\n<< /Root 1 0 R >>",
+    "%%EOF"
+  ].join("\n"), "latin1");
+}
+
+function escapePdfLiteralString(value) {
+  return value.replace(/[()\\]/g, (match) => `\\${match}`);
+}
+
+function buildMinimalPng(input) {
+  const pixelBytesPerRow = input.width * 3;
+  const rawRows = Buffer.alloc((pixelBytesPerRow + 1) * input.height);
+  for (let y = 0; y < input.height; y += 1) {
+    const rowStart = y * (pixelBytesPerRow + 1);
+    rawRows[rowStart] = 0;
+    for (let x = 0; x < input.width; x += 1) {
+      const pixelStart = rowStart + 1 + x * 3;
+      rawRows[pixelStart] = 0xe8;
+      rawRows[pixelStart + 1] = 0xf3;
+      rawRows[pixelStart + 2] = 0xff;
+    }
+  }
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(input.width, 0);
+  ihdr.writeUInt32BE(input.height, 4);
+  ihdr[8] = 8;
+  ihdr[9] = 2;
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    pngChunk("IHDR", ihdr),
+    pngChunk("tEXt", Buffer.from(`Description\0${input.text}`, "utf8")),
+    pngChunk("IDAT", deflateSync(rawRows)),
+    pngChunk("IEND", Buffer.alloc(0))
+  ]);
+}
+
+function buildMinimalWav(input) {
+  const channels = 1;
+  const bitsPerSample = 16;
+  const bytesPerSample = bitsPerSample / 8;
+  const sampleCount = Math.round((input.sampleRate * input.durationMs) / 1000);
+  const data = Buffer.alloc(sampleCount * channels * bytesPerSample);
+  const fmt = Buffer.alloc(16);
+  fmt.writeUInt16LE(1, 0);
+  fmt.writeUInt16LE(channels, 2);
+  fmt.writeUInt32LE(input.sampleRate, 4);
+  fmt.writeUInt32LE(input.sampleRate * channels * bytesPerSample, 8);
+  fmt.writeUInt16LE(channels * bytesPerSample, 12);
+  fmt.writeUInt16LE(bitsPerSample, 14);
+  const transcript = Buffer.concat([Buffer.from(input.transcript, "utf8"), Buffer.from([0])]);
+  const chunks = [
+    riffChunk("fmt ", fmt),
+    riffChunk("data", data),
+    riffChunk("LIST", Buffer.concat([Buffer.from("INFO", "latin1"), riffChunk("ICMT", transcript)]))
+  ];
+  const size = 4 + chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+  const header = Buffer.alloc(12);
+  header.write("RIFF", 0, "latin1");
+  header.writeUInt32LE(size, 4);
+  header.write("WAVE", 8, "latin1");
+  return Buffer.concat([header, ...chunks]);
+}
+
+function buildVideoManifestFile(input) {
+  return Buffer.from(`MINDORY_VIDEO_MANIFEST\n${JSON.stringify(input)}`, "utf8");
+}
+
+function riffChunk(id, data) {
+  const header = Buffer.alloc(8);
+  header.write(id, 0, "latin1");
+  header.writeUInt32LE(data.length, 4);
+  return Buffer.concat([header, data, data.length % 2 === 1 ? Buffer.from([0]) : Buffer.alloc(0)]);
+}
+
+function pngChunk(type, data) {
+  const typeBytes = Buffer.from(type, "latin1");
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(data.length, 0);
+  const crc = Buffer.alloc(4);
+  crc.writeUInt32BE(crc32(Buffer.concat([typeBytes, data])), 0);
+  return Buffer.concat([length, typeBytes, data, crc]);
+}
+
+function crc32(bytes) {
+  let crc = 0xffffffff;
+  for (const byte of bytes) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) {
+      crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+    }
+  }
+  return (crc ^ 0xffffffff) >>> 0;
 }
 
 function assert(condition, message) {
