@@ -1,4 +1,5 @@
-import { and, asc, desc, eq, ilike, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
+import type { DocumentMetadataFilter } from "@mindory/core/artifacts";
 import type { SourceRef } from "@mindory/core/memory";
 import type { CreateDocumentInput, DocumentRecord, DocumentRepository, ListDocumentsInput, UpdateDocumentStatusInput } from "@mindory/core/documents";
 import type { DocumentChunkSearchInput, DocumentChunkSearchHit, DocumentChunkSearchRepository } from "@mindory/core/memory";
@@ -64,24 +65,38 @@ export class DbDocumentChunkSearchRepository implements DocumentChunkSearchRepos
   }
 
   async searchDocumentChunks(input: DocumentChunkSearchInput): Promise<DocumentChunkSearchHit[]> {
+    if (!input.query || input.projectIds.length === 0) {
+      return [];
+    }
+
     const artifactHits = await this.searchArtifactTextSpans(input);
     if (artifactHits.length > 0) {
       return artifactHits;
     }
 
-    const rows = await this.db.select().from(chunks).where(and(
-      inArray(chunks.projectId, input.projectIds),
-      ilike(chunks.content, `%${input.query}%`)
-    )).limit(input.limit);
+    const projectFilters = sql.join(input.projectIds.map((projectId) => sql`${projectId}`), sql`, `);
+    const legacyHits = await this.db.execute(sql`
+      select
+        chunks.project_id,
+        chunks.document_id,
+        chunks.id as chunk_id,
+        chunks.content,
+        chunks.metadata
+      from chunks
+      where chunks.project_id in (${projectFilters})
+        and chunks.content ilike ${`%${input.query}%`}
+        and ${documentMetadataFiltersSql(sql.raw("chunks.project_id"), sql.raw("chunks.document_id"), input.metadataFilters)}
+      limit ${input.limit}
+    `);
 
-    return rows.map((row) => ({
-      projectId: row.projectId,
-      documentId: row.documentId,
-      chunkId: row.id,
-      content: row.content,
+    return readRows(legacyHits).map((row) => ({
+      projectId: String(row.project_id),
+      documentId: String(row.document_id),
+      chunkId: String(row.chunk_id),
+      content: String(row.content),
       score: 1,
-      sourceRefs: [{ type: "chunk", id: row.id }],
-      metadata: row.metadata
+      sourceRefs: [{ type: "chunk", id: String(row.chunk_id) }],
+      metadata: readMetadata(row.metadata)
     }));
   }
 
@@ -108,6 +123,7 @@ export class DbDocumentChunkSearchRepository implements DocumentChunkSearchRepos
         and spans.span_type = 'text_chunk'
         and runs.status <> 'superseded'
         and to_tsvector('simple', spans.content) @@ plainto_tsquery('simple', ${input.query})
+        and ${documentMetadataFiltersSql(sql.raw("spans.project_id"), sql.raw("spans.document_id"), input.metadataFilters)}
       order by score desc, spans.created_at desc
       limit ${input.limit}
     `);
@@ -257,4 +273,62 @@ function readSourceRefs(value: unknown, fallback: SourceRef[]): SourceRef[] {
     && typeof item.id === "string"
   ));
   return sourceRefs.length > 0 ? sourceRefs : fallback;
+}
+
+function documentMetadataFiltersSql(projectIdExpression: SQL, documentIdExpression: SQL, filters: DocumentMetadataFilter[] | undefined): SQL {
+  if (!filters || filters.length === 0) {
+    return sql`true`;
+  }
+
+  return sql.join(filters.map((filter) => sql`
+    exists (
+      select 1
+      from document_metadata_index metadata_filter
+      where metadata_filter.project_id = ${projectIdExpression}
+        and metadata_filter.document_id = ${documentIdExpression}
+        and metadata_filter.key = ${filter.key}
+        ${filter.unit === undefined ? sql`` : sql`and metadata_filter.unit = ${filter.unit}`}
+        and ${documentMetadataFilterValueSql(filter)}
+    )
+  `), sql` and `);
+}
+
+function documentMetadataFilterValueSql(filter: DocumentMetadataFilter): SQL {
+  const operator = filter.operator ?? "eq";
+
+  if (operator === "between") {
+    return typeof filter.minNumber === "number" && typeof filter.maxNumber === "number"
+      ? sql`metadata_filter.value_number between ${filter.minNumber} and ${filter.maxNumber}`
+      : sql`false`;
+  }
+  if (operator === "lt" || operator === "lte" || operator === "gt" || operator === "gte") {
+    if (typeof filter.valueNumber !== "number") {
+      return sql`false`;
+    }
+    switch (operator) {
+      case "lt":
+        return sql`metadata_filter.value_number < ${filter.valueNumber}`;
+      case "lte":
+        return sql`metadata_filter.value_number <= ${filter.valueNumber}`;
+      case "gt":
+        return sql`metadata_filter.value_number > ${filter.valueNumber}`;
+      case "gte":
+        return sql`metadata_filter.value_number >= ${filter.valueNumber}`;
+    }
+  }
+
+  if (typeof filter.valueNumber === "number") {
+    return sql`metadata_filter.value_number = ${filter.valueNumber}`;
+  }
+  if (typeof filter.valueText === "string") {
+    return sql`metadata_filter.value_text = ${filter.valueText}`;
+  }
+  if (typeof filter.valueBoolean === "boolean") {
+    return sql`metadata_filter.value_boolean = ${filter.valueBoolean}`;
+  }
+  if (typeof filter.valueTimestamp === "string") {
+    return sql`metadata_filter.value_timestamp = ${filter.valueTimestamp}::timestamptz`;
+  }
+
+  return sql`false`;
 }

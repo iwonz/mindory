@@ -210,11 +210,19 @@ test("MVP runtime integration indexes document chunks with configured embeddings
     const search = await requestJson(apiUrl, "POST", "/v1/documents/search", {
       projectIds: [indexedProjectId],
       query: "semantic source-backed retrieval",
-      limit: 5
+      limit: 5,
+      metadataFilters: [{ key: "size_bytes", operator: "gt", valueNumber: 10, unit: "bytes" }]
     }, indexedToken);
     assert.ok(search.hits.some((hit) => hit.documentId === documentId), "semantic search should return the indexed document.");
     assert.ok(search.hits.every((hit) => Array.isArray(hit.sourceRefs) && hit.sourceRefs.some((ref) => ref.type === "chunk")), "semantic search hits must include chunk source refs.");
     assert.ok(search.hits.some((hit) => hit.sourceRefs.some((ref) => ref.type === "artifact")), "semantic search hits must include artifact source refs.");
+    const filteredOutSearch = await requestJson(apiUrl, "POST", "/v1/documents/search", {
+      projectIds: [indexedProjectId],
+      query: "semantic source-backed retrieval",
+      limit: 5,
+      metadataFilters: [{ key: "size_bytes", operator: "lt", valueNumber: 1, unit: "bytes" }]
+    }, indexedToken);
+    assert.ok(!filteredOutSearch.hits.some((hit) => hit.documentId === documentId), "semantic search should enforce metadata filters.");
     assert.ok(fakeEmbeddings.calls.length >= 2, "embedding provider should be called for chunks and query search.");
   } finally {
     if (workerRuntime) {
@@ -356,8 +364,28 @@ async function uploadAndProcessDocument(apiUrl) {
   });
   assert.ok(search.hits.length > 0, "document search should find chunked text");
   assert.ok(search.hits.some((hit) => hit.sourceRefs.some((ref) => ref.type === "artifact")), "document search should return artifact-backed source refs.");
+  const metadataSearch = await requestJson(apiUrl, "POST", "/v1/documents/search", {
+    projectIds: [projectId],
+    query: "source-backed context",
+    limit: 5,
+    metadataFilters: [{ key: "size_bytes", operator: "lte", valueNumber: 1_000_000, unit: "bytes" }]
+  });
+  assert.ok(metadataSearch.hits.some((hit) => hit.documentId === documentId), "document search should allow size metadata filters.");
+  const filteredOutSearch = await requestJson(apiUrl, "POST", "/v1/documents/search", {
+    projectIds: [projectId],
+    query: "source-backed context",
+    limit: 5,
+    metadataFilters: [{ key: "size_bytes", operator: "lt", valueNumber: 1, unit: "bytes" }]
+  });
+  assert.ok(!filteredOutSearch.hits.some((hit) => hit.documentId === documentId), "document search should enforce metadata filter bounds.");
   const textSpans = await countArtifactTextSpans(projectId, documentId, databaseUrl);
   assert.ok(textSpans > 0, "text pipeline should persist artifact text spans.");
+  const metadataIndexRows = await countDocumentMetadataIndexRows(projectId, documentId, databaseUrl);
+  assert.ok(metadataIndexRows >= 5, "route processing should persist typed metadata index rows.");
+  const mediaMetadata = await getDocumentMediaMetadata(projectId, documentId, databaseUrl);
+  assert.equal(mediaMetadata.media_type, "text");
+  assert.equal(mediaMetadata.checksum_sha256.length, 64);
+  assert.equal(mediaMetadata.metadata.raw_original_unchanged, true);
 
   return {
     documentId,
@@ -634,6 +662,35 @@ async function countArtifactTextSpans(id, documentId, connectionString) {
       [id, documentId]
     );
     return Number(result.rows[0]?.count ?? 0);
+  } finally {
+    await client.end();
+  }
+}
+
+async function countDocumentMetadataIndexRows(id, documentId, connectionString) {
+  const client = new Client({ connectionString });
+  await client.connect();
+  try {
+    const result = await client.query(
+      "select count(*)::int as count from document_metadata_index where project_id = $1 and document_id = $2",
+      [id, documentId]
+    );
+    return Number(result.rows[0]?.count ?? 0);
+  } finally {
+    await client.end();
+  }
+}
+
+async function getDocumentMediaMetadata(id, documentId, connectionString) {
+  const client = new Client({ connectionString });
+  await client.connect();
+  try {
+    const result = await client.query(
+      "select media_type, checksum_sha256, metadata from document_media_metadata where project_id = $1 and document_id = $2",
+      [id, documentId]
+    );
+    assert.equal(result.rows.length, 1, "document_media_metadata should contain one row for the document.");
+    return result.rows[0];
   } finally {
     await client.end();
   }

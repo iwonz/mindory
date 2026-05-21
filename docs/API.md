@@ -91,7 +91,24 @@ server runtime is built. Document search uses pgvector semantic search when an
 embeddings provider is configured; otherwise it falls back to text-based chunk
 search for scaffold/local operation. After `TASK-41`, fallback search uses
 PostgreSQL full-text search over derived artifact text spans and returns
-source refs for the artifact, processing run and chunk.
+source refs for the artifact, processing run and chunk. After `TASK-42`, search
+also accepts optional `metadataFilters` over typed attachment metadata. Numeric
+filters support `lt`, `lte`, `gt`, `gte` and `between`; text, boolean and
+timestamp filters support exact `eq` matching.
+
+Example document search request:
+
+```json
+{
+  "projectIds": ["homelab"],
+  "query": "source-backed context",
+  "limit": 5,
+  "metadataFilters": [
+    { "key": "size_bytes", "operator": "lte", "valueNumber": 104857600, "unit": "bytes" },
+    { "key": "duration_ms", "operator": "between", "minNumber": 10000, "maxNumber": 15000, "unit": "ms" }
+  ]
+}
+```
 
 `POST /v1/documents/:id/recompute` enqueues a `document.recompute` job. The
 worker creates a new `processing_run`, supersedes older derived runs for the

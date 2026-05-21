@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Readable } from "node:stream";
+import type { DocumentMetadataFilter } from "./artifacts.js";
 import type { DocumentRecord } from "./documents.js";
 
 export interface ExtractTextInput {
@@ -198,6 +199,7 @@ export interface SearchVectorChunksInput {
   projectIds: string[];
   embedding: number[];
   limit: number;
+  metadataFilters?: DocumentMetadataFilter[];
 }
 
 export interface VectorSearchHit {

@@ -101,11 +101,11 @@ for (const symbol of ["DocumentChunkRepository", "replaceDocumentChunks", "updat
   assert(processingCore.includes(symbol), `Core processing contracts must include ${symbol}.`);
 }
 
-for (const symbol of ["ProcessingRunRecord", "DocumentArtifactRecord", "DocumentArtifactTextSpanRecord", "DocumentMediaMetadataRecord", "FaceIdentityRecord", "FaceObservationRecord", "DerivedArtifactRepository"]) {
+for (const symbol of ["ProcessingRunRecord", "DocumentArtifactRecord", "DocumentArtifactTextSpanRecord", "DocumentMediaMetadataRecord", "DocumentMetadataIndexRecord", "FaceIdentityRecord", "FaceObservationRecord", "DerivedArtifactRepository"]) {
   assert(artifactsCore.includes(symbol), `Core artifact contracts must include ${symbol}.`);
 }
 
-for (const symbol of ["DbDerivedArtifactRepository", "createProcessingRun", "listProcessingRuns", "supersedeDocumentProcessingRuns", "createDocumentArtifact", "listDocumentArtifacts", "replaceDocumentArtifactTextSpans", "upsertDocumentMediaMetadata", "createFaceIdentity", "createFaceObservation"]) {
+for (const symbol of ["DbDerivedArtifactRepository", "createProcessingRun", "listProcessingRuns", "supersedeDocumentProcessingRuns", "createDocumentArtifact", "listDocumentArtifacts", "replaceDocumentArtifactTextSpans", "upsertDocumentMediaMetadata", "replaceDocumentMetadataIndex", "createFaceIdentity", "createFaceObservation"]) {
   assert(artifactRepos.includes(symbol), `Derived artifact repository must include ${symbol}.`);
 }
 
