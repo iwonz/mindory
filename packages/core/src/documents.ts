@@ -112,6 +112,7 @@ export interface UploadDocumentResult {
   document: DocumentRecord;
   storedObject: StoredObject;
   scanJob: EnqueuedProcessingJob | null;
+  routeJob: EnqueuedProcessingJob | null;
 }
 
 export interface DocumentUploadServiceOptions {
@@ -121,6 +122,8 @@ export interface DocumentUploadServiceOptions {
   antivirusPolicy: DocumentAntivirusPolicy;
   idFactory?: () => string;
   scannerVersion?: string;
+  routeAfterUpload?: boolean;
+  routeProcessorVersion?: string;
 }
 
 export class DocumentUploadService {
@@ -130,6 +133,8 @@ export class DocumentUploadService {
   readonly antivirusPolicy: DocumentAntivirusPolicy;
   private readonly idFactory: () => string;
   private readonly scannerVersion: string;
+  private readonly routeAfterUpload: boolean;
+  private readonly routeProcessorVersion: string;
 
   constructor(options: DocumentUploadServiceOptions) {
     this.storage = options.storage;
@@ -138,6 +143,8 @@ export class DocumentUploadService {
     this.antivirusPolicy = options.antivirusPolicy;
     this.idFactory = options.idFactory ?? (() => `doc_${randomUUID()}`);
     this.scannerVersion = options.scannerVersion ?? "clamav-v1";
+    this.routeAfterUpload = options.routeAfterUpload ?? true;
+    this.routeProcessorVersion = options.routeProcessorVersion ?? "document-route-v1";
   }
 
   async upload(input: UploadDocumentInput): Promise<UploadDocumentResult> {
@@ -195,16 +202,34 @@ export class DocumentUploadService {
         }
       })
       : null;
+    const routeJob = !this.requiresAsyncScan() && this.routeAfterUpload
+      ? await this.enqueueRouteJob(document)
+      : null;
 
     return {
       document,
       storedObject,
-      scanJob
+      scanJob,
+      routeJob
     };
   }
 
   private requiresAsyncScan(): boolean {
     return this.antivirusPolicy.enabled && this.antivirusPolicy.mode === "async_quarantine";
+  }
+
+  private async enqueueRouteJob(document: DocumentRecord): Promise<EnqueuedProcessingJob> {
+    return this.jobs.createAndEnqueue({
+      projectId: document.projectId,
+      type: "document.route",
+      targetType: "document",
+      targetId: document.id,
+      idempotencyKey: `document.route:${document.id}:${this.routeProcessorVersion}`,
+      processorVersion: this.routeProcessorVersion,
+      metadata: {
+        storage_key: document.storageKey
+      }
+    });
   }
 }
 

@@ -22,6 +22,10 @@
       "types": "./dist/documents.d.ts",
       "default": "./dist/documents.js"
     },
+    "./document-routing": {
+      "types": "./dist/document-routing.d.ts",
+      "default": "./dist/document-routing.js"
+    },
     "./memory": {
       "types": "./dist/memory.d.ts",
       "default": "./dist/memory.js"

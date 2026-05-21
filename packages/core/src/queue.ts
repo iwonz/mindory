@@ -1,5 +1,6 @@
 export type ProcessingJobType =
   | "document.scan"
+  | "document.route"
   | "document.extract"
   | "document.chunk"
   | "document.embed"

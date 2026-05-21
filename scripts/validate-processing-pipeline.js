@@ -6,6 +6,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 const requiredFiles = [
   "packages/core/src/processing.ts",
+  "packages/core/src/document-routing.ts",
   "packages/processors/extractors/builtin-text/src/index.ts",
   "packages/processors/embeddings/openai-compatible/src/index.ts",
   "packages/processors/embeddings/ollama/src/index.ts",
@@ -53,6 +54,7 @@ const qdrantTsconfig = readJson("packages/vector/qdrant/tsconfig.json");
 
 const coreIndex = read("packages/core/src/index.ts");
 const processing = read("packages/core/src/processing.ts");
+const routing = read("packages/core/src/document-routing.ts");
 const extractor = read("packages/processors/extractors/builtin-text/src/index.ts");
 const openAi = read("packages/processors/embeddings/openai-compatible/src/index.ts");
 const ollama = read("packages/processors/embeddings/ollama/src/index.ts");
@@ -69,7 +71,9 @@ const configurationDocs = read("docs/CONFIGURATION.md");
 
 assert(rootPackage.scripts?.["processing:validate"] === "node scripts/validate-processing-pipeline.js", "Root package must expose processing:validate.");
 assert(corePackage.exports?.["./processing"], "@mindory/core must export ./processing.");
+assert(corePackage.exports?.["./document-routing"], "@mindory/core must export ./document-routing.");
 assert(coreIndex.includes('export * from "./processing.js";'), "@mindory/core root index must export processing contracts.");
+assert(coreIndex.includes('export * from "./document-routing.js";'), "@mindory/core root index must export document routing contracts.");
 
 for (const symbol of [
   "TextExtractor",
@@ -86,6 +90,16 @@ for (const symbol of [
   "ProcessingError"
 ]) {
   assert(processing.includes(symbol), `@mindory/core processing module must define ${symbol}.`);
+}
+
+for (const token of [
+  "DocumentProcessingRouteConfig",
+  "classifyDocumentFile",
+  "planDocumentProcessingRoute",
+  "routingEnabled",
+  "processor_not_implemented"
+]) {
+  assert(routing.includes(token), `@mindory/core document routing module must include ${token}.`);
 }
 
 for (const token of ["maxTokens", "overlapTokens", "start_offset", "end_offset", "tokenCount", "randomUUID"]) {
@@ -186,11 +200,13 @@ for (const token of ["OpenAI-compatible example", "Ollama example", "1536-dimens
 
 for (const token of [
   "DocumentPipelineProcessorRegistry",
+  "DocumentRouteProcessor",
   "DocumentExtractProcessor",
   "DocumentChunkProcessor",
   "DocumentEmbedProcessor",
   "DocumentIndexProcessor",
   "ClamAvDocumentScanProcessor",
+  "document.route",
   "document.extract",
   "document.chunk",
   "document.embed",

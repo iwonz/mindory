@@ -2,6 +2,10 @@ import { Buffer } from "node:buffer";
 import { randomUUID } from "node:crypto";
 import type { Readable } from "node:stream";
 import type { MindoryConfig } from "@mindory/config";
+import {
+  planDocumentProcessingRoute,
+  type DocumentProcessingRouteConfig
+} from "@mindory/core/document-routing";
 import type { DocumentRepository } from "@mindory/core/documents";
 import {
   type ProcessingJobDispatcher,
@@ -35,6 +39,7 @@ export interface DocumentPipelineProcessorOptions {
   vectorIndex?: VectorIndex;
   extractors?: TextExtractor[];
   chunker?: TextChunker;
+  routeConfig?: DocumentProcessingRouteConfig;
 }
 
 export class DocumentPipelineProcessorRegistry implements ProcessingJobProcessorRegistry {
@@ -57,8 +62,17 @@ export function buildDocumentPipelineProcessors(options: DocumentPipelineProcess
     idFactory: () => `chunk_${randomUUID()}`
   });
   const extractProcessorVersion = "document-extract-v1";
+  const routeProcessorVersion = "document-route-v1";
+  const routeConfig = options.routeConfig ?? buildRouteConfig(options.config);
 
   const processors: ProcessingJobProcessor[] = [
+    new DocumentRouteProcessor({
+      storage: options.storage,
+      documents: options.documents,
+      jobs: options.jobs,
+      routeConfig,
+      processorVersion: routeProcessorVersion
+    }),
     new DocumentExtractProcessor({
       storage: options.storage,
       documents: options.documents,
@@ -109,7 +123,7 @@ export function buildDocumentPipelineProcessors(options: DocumentPipelineProcess
         onScanFailure: options.config.antivirus.onScanFailure,
         onInfected: options.config.antivirus.onInfected
       },
-      nextProcessorVersion: extractProcessorVersion
+      nextProcessorVersion: routeProcessorVersion
     }));
   }
 
@@ -118,6 +132,66 @@ export function buildDocumentPipelineProcessors(options: DocumentPipelineProcess
 
 export function buildEmbeddingsProvider(config: MindoryConfig): EmbeddingsProvider | undefined {
   return buildMindoryTextEmbeddingsProvider(config);
+}
+
+class DocumentRouteProcessor implements ProcessingJobProcessor {
+  readonly type = "document.route" as const;
+  readonly processorVersion: string;
+  private readonly storage: ObjectStorage;
+  private readonly documents: DocumentRepository;
+  private readonly jobs: ProcessingJobDispatcher;
+  private readonly routeConfig: DocumentProcessingRouteConfig;
+
+  constructor(options: {
+    storage: ObjectStorage;
+    documents: DocumentRepository;
+    jobs: ProcessingJobDispatcher;
+    routeConfig: DocumentProcessingRouteConfig;
+    processorVersion: string;
+  }) {
+    this.storage = options.storage;
+    this.documents = options.documents;
+    this.jobs = options.jobs;
+    this.routeConfig = options.routeConfig;
+    this.processorVersion = options.processorVersion;
+  }
+
+  async process(context: ProcessingJobProcessorContext): Promise<void> {
+    const document = await this.documents.getDocument(context.payload.projectId, context.payload.targetId);
+    if (["quarantined", "scan_infected"].includes(document.status)) {
+      throw new ProcessingError("document_route_failed", `Document ${document.id} is not safe to route.`);
+    }
+
+    const object = await this.storage.getObject(document.storageKey);
+    const plan = planDocumentProcessingRoute({
+      document,
+      config: this.routeConfig,
+      magicBytes: await readFirstBytes(object.body, 512)
+    });
+    const metadata = {
+      ...document.metadata,
+      ...plan.metadata
+    };
+    const nextStatus = plan.jobs.some((job) => job.type === "document.extract") ? "extract_pending" : "scan_clean";
+    await this.documents.updateDocumentStatus({
+      projectId: document.projectId,
+      documentId: document.id,
+      status: nextStatus,
+      metadata
+    });
+
+    for (const job of plan.jobs) {
+      await this.jobs.createAndEnqueue(nextJob(context, {
+        type: job.type,
+        idempotencyKey: `${job.type}:${document.id}:${job.processorVersion}`,
+        processorVersion: job.processorVersion,
+        metadata: {
+          ...job.metadata,
+          storage_key: document.storageKey
+        }
+      }));
+    }
+  }
 }
 
 class DocumentExtractProcessor implements ProcessingJobProcessor {
@@ -453,6 +527,17 @@ function nextJob(context: ProcessingJobProcessorContext, input: {
   };
 }
 
+function buildRouteConfig(config: MindoryConfig): DocumentProcessingRouteConfig {
+  return {
+    routingEnabled: config.documentProcessing.routingEnabled,
+    text: config.documentProcessing.text,
+    pdf: config.documentProcessing.pdf,
+    image: config.documentProcessing.image,
+    audio: config.documentProcessing.audio,
+    video: config.documentProcessing.video
+  };
+}
+
 function deterministicChunkId(documentId: string, chunk: TextChunk): TextChunk {
   return {
     ...chunk,
@@ -477,4 +562,19 @@ async function readUtf8(stream: Readable): Promise<string> {
     chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
   }
   return Buffer.concat(chunks).toString("utf8");
+}
+
+async function readFirstBytes(stream: Readable, maxBytes: number): Promise<Uint8Array> {
+  const chunks: Buffer[] = [];
+  let totalBytes = 0;
+  for await (const chunk of stream) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    chunks.push(buffer);
+    totalBytes += buffer.length;
+    if (totalBytes >= maxBytes) {
+      break;
+    }
+  }
+
+  return Buffer.concat(chunks, Math.min(totalBytes, maxBytes)).subarray(0, maxBytes);
 }

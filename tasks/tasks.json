@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-38",
+  "current_task_id": "TASK-39",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -302,6 +302,13 @@
       "status": "done",
       "branch": "task/TASK-38-derived-artifact-schema",
       "file": "tasks/TASK-38.json"
+    },
+    {
+      "id": "TASK-39",
+      "title": "Add processing router after upload and antivirus",
+      "status": "done",
+      "branch": "task/TASK-39-processing-router",
+      "file": "tasks/TASK-39.json"
     }
   ]
 }

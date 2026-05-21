@@ -110,7 +110,7 @@ export class ClamAvDocumentScanProcessor implements ProcessingJobProcessor {
     this.scanner = options.scanner;
     this.policy = options.policy;
     this.jobs = options.jobs;
-    this.nextProcessorVersion = options.nextProcessorVersion ?? "document-extract-v1";
+    this.nextProcessorVersion = options.nextProcessorVersion ?? "document-route-v1";
     this.processorVersion = options.processorVersion ?? "clamav-v1";
   }
 
@@ -128,7 +128,7 @@ export class ClamAvDocumentScanProcessor implements ProcessingJobProcessor {
         await this.documents.updateDocumentStatus({
           projectId: document.projectId,
           documentId: document.id,
-          status: this.jobs ? "extract_pending" : "scan_clean",
+          status: "scan_clean",
           metadata: {
             ...document.metadata,
             antivirus: result
@@ -136,14 +136,15 @@ export class ClamAvDocumentScanProcessor implements ProcessingJobProcessor {
         });
         await this.jobs?.createAndEnqueue({
           projectId: document.projectId,
-          type: "document.extract",
+          type: "document.route",
           targetType: "document",
           targetId: document.id,
-          idempotencyKey: `document.extract:${document.id}:${this.nextProcessorVersion}`,
+          idempotencyKey: `document.route:${document.id}:${this.nextProcessorVersion}`,
           processorVersion: this.nextProcessorVersion,
           metadata: {
             previous_job_id: context.payload.jobId,
-            storage_key: document.storageKey
+            storage_key: document.storageKey,
+            antivirus_provider: this.policy.provider
           }
         });
         return;

@@ -101,16 +101,16 @@ worker base runner, document pipeline runtime builder and memory/context worker
 processors.
 
 The document pipeline code stores uploads through `ObjectStorage`, creates
-document metadata through an injected repository and enqueues `document.scan`
-through the queue dispatcher. The API server runtime now wires those dependencies
-for local-fs storage and BullMQ; the bare app factory still returns a structured
-placeholder when dependencies are omitted.
+document metadata through an injected repository and enqueues `document.scan` or
+`document.route` through the queue dispatcher. The API server runtime now wires
+those dependencies for local-fs storage and BullMQ; the bare app factory still
+returns a structured placeholder when dependencies are omitted.
 
 The processing packages expose a built-in text/Markdown extractor, a fixed-size
-chunker, the `@mindory/llm` provider entrypoint, and explicit pgvector and
-Qdrant vector index scaffolds. The worker package registers scan, extract,
-chunk, embed and index processors; pgvector is the default vector storage/search
-path when an LLM provider is configured.
+chunker, the `@mindory/model-runtime` provider entrypoint, document routing, and
+explicit pgvector and Qdrant vector index scaffolds. The worker package
+registers scan, route, extract, chunk, embed and index processors; pgvector is
+the default vector storage/search path when text embeddings are configured.
 
 The memory/context packages expose `MemoryService`, `ConservativeMemoryDeriver`
 and `ContextBuilder` contracts plus Fastify route surfaces for `/v1/memories`

@@ -160,6 +160,13 @@ function toUploadResponse(result: UploadDocumentResult, requestId: string): Reco
         queue_job_id: result.scanJob.queueJobId,
         queue_name: result.scanJob.queueName
       }
+      : null,
+    route_job: result.routeJob
+      ? {
+        id: result.routeJob.processingJobId,
+        queue_job_id: result.routeJob.queueJobId,
+        queue_name: result.routeJob.queueName
+      }
       : null
   };
 }

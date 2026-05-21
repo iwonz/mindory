@@ -95,6 +95,7 @@ export const memoryClaimStatusEnum = pgEnum("memory_claim_status", [
 
 export const processingJobTypeEnum = pgEnum("processing_job_type", [
   "document.scan",
+  "document.route",
   "document.extract",
   "document.chunk",
   "document.embed",

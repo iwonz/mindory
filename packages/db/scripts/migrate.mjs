@@ -40,6 +40,10 @@ const migrations = [
       "face_identities",
       "face_observations"
     ]
+  },
+  {
+    id: "0002_document_route_job",
+    expectedTables: []
   }
 ];
 
@@ -105,7 +109,9 @@ async function applyMigration(client, migration) {
     return;
   }
 
-  const existingTables = await listExistingTables(client, migration.expectedTables);
+  const existingTables = migration.expectedTables.length > 0
+    ? await listExistingTables(client, migration.expectedTables)
+    : new Set();
   if (existingTables.size > 0) {
     const missingTables = migration.expectedTables.filter((tableName) => !existingTables.has(tableName));
     if (missingTables.length > 0) {

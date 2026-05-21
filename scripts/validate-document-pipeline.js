@@ -6,6 +6,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 const requiredFiles = [
   "packages/core/src/documents.ts",
+  "packages/core/src/document-routing.ts",
   "packages/core/src/antivirus.ts",
   "apps/api/src/routes/documents.ts",
   "packages/processors/antivirus-clamav/src/index.ts"
@@ -35,6 +36,7 @@ const apiPackage = readJson("apps/api/package.json");
 const processorPackage = readJson("packages/processors/antivirus-clamav/package.json");
 const processorTsconfig = readJson("packages/processors/antivirus-clamav/tsconfig.json");
 const documents = read("packages/core/src/documents.ts");
+const routing = read("packages/core/src/document-routing.ts");
 const antivirus = read("packages/core/src/antivirus.ts");
 const app = read("apps/api/src/app.ts");
 const runtime = read("apps/api/src/runtime.ts");
@@ -43,6 +45,7 @@ const clamav = read("packages/processors/antivirus-clamav/src/index.ts");
 
 assert(rootPackage.scripts?.["documents:validate"] === "node scripts/validate-document-pipeline.js", "Root package must expose documents:validate.");
 assert(corePackage.exports?.["./documents"], "@mindory/core must export ./documents.");
+assert(corePackage.exports?.["./document-routing"], "@mindory/core must export ./document-routing.");
 assert(corePackage.exports?.["./antivirus"], "@mindory/core must export ./antivirus.");
 assert(apiPackage.dependencies?.["@fastify/multipart"], "@mindory/api must depend on @fastify/multipart.");
 assert(apiPackage.dependencies?.["@mindory/core"] === "workspace:*", "@mindory/api must depend on @mindory/core.");
@@ -62,7 +65,13 @@ assert(uploadMethod.includes("documents.createDocument"), "Upload service must c
 assert(uploadMethod.indexOf("storage.putObject") < uploadMethod.indexOf("documents.createDocument"), "Upload service must store blob before document metadata.");
 assert(uploadMethod.includes("type: \"document.scan\""), "Upload service must enqueue document.scan jobs.");
 assert(uploadMethod.includes("idempotencyKey: `document.scan:${document.id}:${this.scannerVersion}`"), "Upload service must use deterministic scan idempotency key.");
+assert(documents.includes("type: \"document.route\""), "Upload service must enqueue document.route jobs when async scanning is not required.");
+assert(documents.includes("idempotencyKey: `document.route:${document.id}:${this.routeProcessorVersion}`"), "Upload service must use deterministic route idempotency key.");
 assert(uploadMethod.includes("scan_pending"), "Async quarantine uploads must use scan_pending status.");
+
+for (const token of ["classifyDocumentFile", "planDocumentProcessingRoute", "\"text\"", "\"pdf\"", "\"image\"", "\"audio\"", "\"video\"", "processor_not_implemented"]) {
+  assert(routing.includes(token), `Document routing module must include ${token}.`);
+}
 
 for (const symbol of ["AntivirusScanner", "AntivirusScanResult", "AntivirusError"]) {
   assert(antivirus.includes(symbol), `Core antivirus module must define ${symbol}.`);
@@ -72,6 +81,7 @@ assert(app.includes("registerDocumentRoutes"), "API app must register document r
 assert(routes.includes("fastifyMultipart"), "Document routes must register @fastify/multipart.");
 assert(routes.includes('"/v1/documents"'), "Document routes must register POST /v1/documents.");
 assert(routes.includes('"/v1/documents/:id/status"'), "Document routes must register status endpoint.");
+assert(routes.includes("route_job"), "Document upload response must expose route_job.");
 assert(routes.includes("notImplemented"), "Document routes must return explicit placeholder behavior when dependencies are missing.");
 assert(routes.includes("DocumentUploadService"), "Document route dependencies must accept DocumentUploadService.");
 assert(runtime.includes("DocumentUploadService"), "API runtime must construct DocumentUploadService.");
@@ -85,8 +95,8 @@ for (const symbol of ["ClamAvScanner", "ClamAvDocumentScanProcessor", "parseClam
 assert(clamav.includes("zINSTREAM\\0"), "ClamAV scanner must use z-framed INSTREAM.");
 assert(clamav.includes("writeUInt32BE"), "ClamAV scanner must write big-endian chunk lengths.");
 assert(clamav.includes("Buffer.alloc(4)"), "ClamAV scanner must send zero-length terminating chunk.");
-assert(clamav.includes("status: this.jobs ? \"extract_pending\" : \"scan_clean\""), "ClamAV processor must set scan_clean or advance to extract_pending when chaining jobs.");
-assert(clamav.includes("type: \"document.extract\""), "ClamAV processor must enqueue extraction when job chaining is configured.");
+assert(clamav.includes("status: \"scan_clean\""), "ClamAV processor must set scan_clean after a clean verdict.");
+assert(clamav.includes("type: \"document.route\""), "ClamAV processor must enqueue routing when job chaining is configured.");
 assert(clamav.includes("status: this.policy.onInfected === \"quarantine\" ? \"quarantined\" : \"scan_infected\""), "ClamAV processor must handle infected status policy.");
 assert(clamav.includes("status: this.policy.onScanFailure === \"allow_with_warning\" ? \"scan_failed\" : \"quarantined\""), "ClamAV processor must handle scan failure policy.");
 
