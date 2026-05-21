@@ -8,6 +8,7 @@ const relationsPath = path.join(root, "packages/db/src/relations.ts");
 const migrationPath = path.join(root, "packages/db/drizzle/0000_initial_schema.sql");
 const derivedMigrationPath = path.join(root, "packages/db/drizzle/0001_derived_artifact_schema.sql");
 const routeJobMigrationPath = path.join(root, "packages/db/drizzle/0002_document_route_job.sql");
+const recomputeJobMigrationPath = path.join(root, "packages/db/drizzle/0003_document_recompute_job.sql");
 const drizzleConfigPath = path.join(root, "packages/db/drizzle.config.ts");
 
 const requiredTables = [
@@ -137,6 +138,7 @@ assert(fs.existsSync(relationsPath), "packages/db/src/relations.ts is required."
 assert(fs.existsSync(migrationPath), "packages/db/drizzle/0000_initial_schema.sql is required.");
 assert(fs.existsSync(derivedMigrationPath), "packages/db/drizzle/0001_derived_artifact_schema.sql is required.");
 assert(fs.existsSync(routeJobMigrationPath), "packages/db/drizzle/0002_document_route_job.sql is required.");
+assert(fs.existsSync(recomputeJobMigrationPath), "packages/db/drizzle/0003_document_recompute_job.sql is required.");
 assert(fs.existsSync(drizzleConfigPath), "packages/db/drizzle.config.ts is required.");
 
 const rootPackage = JSON.parse(read("package.json"));
@@ -146,7 +148,8 @@ const relations = fs.readFileSync(relationsPath, "utf8");
 const migration = [
   fs.readFileSync(migrationPath, "utf8"),
   fs.readFileSync(derivedMigrationPath, "utf8"),
-  fs.readFileSync(routeJobMigrationPath, "utf8")
+  fs.readFileSync(routeJobMigrationPath, "utf8"),
+  fs.readFileSync(recomputeJobMigrationPath, "utf8")
 ].join("\n");
 const drizzleConfig = fs.readFileSync(drizzleConfigPath, "utf8");
 
@@ -159,7 +162,9 @@ assert(drizzleConfig.includes('out: "./drizzle"'), "Drizzle config must output m
 assert(migration.includes("CREATE EXTENSION IF NOT EXISTS vector"), "Migration must enable pgvector extension.");
 assert(schema.includes("chunkVectorEmbeddings"), "Drizzle schema must define chunkVectorEmbeddings.");
 assert(migration.includes("'document.route'"), "Migration must add document.route to processing_job_type.");
+assert(migration.includes("'document.recompute'"), "Migration must add document.recompute to processing_job_type.");
 assert(schema.includes('"document.route"'), "Drizzle schema must include document.route processing jobs.");
+assert(schema.includes('"document.recompute"'), "Drizzle schema must include document.recompute processing jobs.");
 
 for (const enumName of requiredEnums) {
   assert(migration.includes(`CREATE TYPE ${enumName}`), `Migration must create enum ${enumName}.`);

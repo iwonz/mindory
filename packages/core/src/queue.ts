@@ -5,6 +5,7 @@ export type ProcessingJobType =
   | "document.chunk"
   | "document.embed"
   | "document.index"
+  | "document.recompute"
   | "memory.derive"
   | "session.summarize";
 

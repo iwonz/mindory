@@ -1,7 +1,8 @@
 import { Buffer } from "node:buffer";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { Readable } from "node:stream";
 import type { MindoryConfig } from "@mindory/config";
+import type { DerivedArtifactRepository } from "@mindory/core/artifacts";
 import {
   planDocumentProcessingRoute,
   type DocumentProcessingRouteConfig
@@ -13,6 +14,11 @@ import {
   type ProcessingJobProcessorRegistry,
   type ProcessingJobProcessorContext
 } from "@mindory/core/queue";
+import {
+  buildDocumentRecomputeFingerprint,
+  DOCUMENT_RECOMPUTE_PROCESSOR_VERSION,
+  normalizeDocumentRecomputeStages
+} from "@mindory/core/recompute";
 import {
   FixedSizeTextChunker,
   ProcessingError,
@@ -33,6 +39,7 @@ export interface DocumentPipelineProcessorOptions {
   config: MindoryConfig;
   storage: ObjectStorage;
   documents: DocumentRepository;
+  artifacts: DerivedArtifactRepository;
   chunks: DocumentChunkRepository;
   jobs: ProcessingJobDispatcher;
   embeddings?: EmbeddingsProvider;
@@ -66,6 +73,16 @@ export function buildDocumentPipelineProcessors(options: DocumentPipelineProcess
   const routeConfig = options.routeConfig ?? buildRouteConfig(options.config);
 
   const processors: ProcessingJobProcessor[] = [
+    new DocumentRecomputeProcessor({
+      storage: options.storage,
+      documents: options.documents,
+      artifacts: options.artifacts,
+      jobs: options.jobs,
+      routeConfig,
+      routeProcessorVersion,
+      processorVersion: DOCUMENT_RECOMPUTE_PROCESSOR_VERSION,
+      modelRuntimeFingerprint: buildDocumentRecomputeFingerprint(options.config.modelRuntime)
+    }),
     new DocumentRouteProcessor({
       storage: options.storage,
       documents: options.documents,
@@ -134,6 +151,139 @@ export function buildEmbeddingsProvider(config: MindoryConfig): EmbeddingsProvid
   return buildMindoryTextEmbeddingsProvider(config);
 }
 
+class DocumentRecomputeProcessor implements ProcessingJobProcessor {
+  readonly type = "document.recompute" as const;
+  readonly processorVersion: string;
+  private readonly storage: ObjectStorage;
+  private readonly documents: DocumentRepository;
+  private readonly artifacts: DerivedArtifactRepository;
+  private readonly jobs: ProcessingJobDispatcher;
+  private readonly routeConfig: DocumentProcessingRouteConfig;
+  private readonly routeProcessorVersion: string;
+  private readonly modelRuntimeFingerprint: string;
+
+  constructor(options: {
+    storage: ObjectStorage;
+    documents: DocumentRepository;
+    artifacts: DerivedArtifactRepository;
+    jobs: ProcessingJobDispatcher;
+    routeConfig: DocumentProcessingRouteConfig;
+    routeProcessorVersion: string;
+    processorVersion: string;
+    modelRuntimeFingerprint: string;
+  }) {
+    this.storage = options.storage;
+    this.documents = options.documents;
+    this.artifacts = options.artifacts;
+    this.jobs = options.jobs;
+    this.routeConfig = options.routeConfig;
+    this.routeProcessorVersion = options.routeProcessorVersion;
+    this.processorVersion = options.processorVersion;
+    this.modelRuntimeFingerprint = options.modelRuntimeFingerprint;
+  }
+
+  async process(context: ProcessingJobProcessorContext): Promise<void> {
+    const document = await this.documents.getDocument(context.payload.projectId, context.payload.targetId);
+    if (["quarantined", "scan_infected"].includes(document.status)) {
+      throw new ProcessingError("document_recompute_failed", `Document ${document.id} is not safe to recompute.`);
+    }
+
+    const stages = normalizeDocumentRecomputeStages(readMetadataStringArray(context.payload.metadata, "stages"));
+    const processingRunId = readMetadataString(context.payload.metadata, "processing_run_id") ?? `run_${context.payload.jobId}`;
+    const recomputeRequestId = readMetadataString(context.payload.metadata, "recompute_request_id") ?? context.payload.jobId;
+    const reason = readMetadataString(context.payload.metadata, "reason") ?? "manual_recompute";
+    const rawObject = await this.storage.getObject(document.storageKey);
+    const rawBytes = await readAllBytes(rawObject.body);
+    const stage = stages.length === 1 ? stages[0] : "all";
+    const configFingerprint = buildDocumentRecomputeFingerprint({
+      routeConfig: this.routeConfig,
+      stage,
+      stages
+    });
+    let runCreated = false;
+
+    try {
+      const run = await this.artifacts.createProcessingRun({
+        id: processingRunId,
+        projectId: document.projectId,
+        documentId: document.id,
+        reason,
+        processorVersion: this.processorVersion,
+        configFingerprint,
+        modelRuntimeFingerprint: this.modelRuntimeFingerprint,
+        sourceDocumentStorageKey: document.storageKey,
+        sourceDocumentChecksum: sha256Hex(rawBytes),
+        metadata: {
+          ...context.payload.metadata,
+          stage,
+          stages,
+          recompute_request_id: recomputeRequestId,
+          raw_original_unchanged: true
+        }
+      });
+      runCreated = true;
+
+      const supersededRuns = await this.artifacts.supersedeDocumentProcessingRuns({
+        projectId: document.projectId,
+        documentId: document.id,
+        stages,
+        excludeRunId: run.id,
+        supersededByRunId: run.id,
+        reason: "recompute_replaced_derived_state"
+      });
+      const routeJob = await this.jobs.createAndEnqueue({
+        projectId: document.projectId,
+        type: "document.route",
+        targetType: "document",
+        targetId: document.id,
+        idempotencyKey: `document.route:${document.id}:${this.routeProcessorVersion}:${run.id}`,
+        processorVersion: this.routeProcessorVersion,
+        metadata: {
+          previous_job_id: context.payload.jobId,
+          processing_run_id: run.id,
+          recompute_request_id: recomputeRequestId,
+          stages,
+          storage_key: document.storageKey
+        }
+      });
+
+      await this.artifacts.updateProcessingRunStatus({
+        projectId: document.projectId,
+        runId: run.id,
+        status: "succeeded",
+        finishedAt: new Date(),
+        metadata: {
+          ...run.metadata,
+          superseded_runs: supersededRuns,
+          queued_jobs: [{
+            type: "document.route",
+            processing_job_id: routeJob.processingJobId,
+            queue_job_id: routeJob.queueJobId
+          }],
+          raw_original_unchanged: true
+        }
+      });
+    } catch (error) {
+      if (runCreated) {
+        await this.artifacts.updateProcessingRunStatus({
+          projectId: document.projectId,
+          runId: processingRunId,
+          status: "failed",
+          finishedAt: new Date(),
+          metadata: {
+            failed_error: error instanceof Error ? error.message : String(error),
+            recompute_request_id: recomputeRequestId,
+            stage,
+            stages,
+            raw_original_unchanged: true
+          }
+        });
+      }
+      throw error;
+    }
+  }
+}
+
 class DocumentRouteProcessor implements ProcessingJobProcessor {
   readonly type = "document.route" as const;
   readonly processorVersion: string;
@@ -168,9 +318,17 @@ class DocumentRouteProcessor implements ProcessingJobProcessor {
       config: this.routeConfig,
       magicBytes: await readFirstBytes(object.body, 512)
     });
+    const processingRunId = readMetadataString(context.payload.metadata, "processing_run_id");
+    const routingMetadata = plan.metadata.routing && typeof plan.metadata.routing === "object"
+      ? plan.metadata.routing as Record<string, unknown>
+      : {};
     const metadata = {
       ...document.metadata,
-      ...plan.metadata
+      ...plan.metadata,
+      routing: {
+        ...routingMetadata,
+        ...(processingRunId ? { processing_run_id: processingRunId } : {})
+      }
     };
     const nextStatus = plan.jobs.some((job) => job.type === "document.extract") ? "extract_pending" : "scan_clean";
     await this.documents.updateDocumentStatus({
@@ -183,10 +341,11 @@ class DocumentRouteProcessor implements ProcessingJobProcessor {
     for (const job of plan.jobs) {
       await this.jobs.createAndEnqueue(nextJob(context, {
         type: job.type,
-        idempotencyKey: `${job.type}:${document.id}:${job.processorVersion}`,
+        idempotencyKey: withProcessingRunId(`${job.type}:${document.id}:${job.processorVersion}`, processingRunId),
         processorVersion: job.processorVersion,
         metadata: {
           ...job.metadata,
+          ...(processingRunId ? { processing_run_id: processingRunId } : {}),
           storage_key: document.storageKey
         }
       }));
@@ -265,7 +424,7 @@ class DocumentExtractProcessor implements ProcessingJobProcessor {
 
     await this.jobs.createAndEnqueue(nextJob(context, {
       type: "document.chunk",
-      idempotencyKey: `document.chunk:${document.id}:${this.nextProcessorVersion}`,
+      idempotencyKey: withProcessingRunId(`document.chunk:${document.id}:${this.nextProcessorVersion}`, readMetadataString(context.payload.metadata, "processing_run_id")),
       processorVersion: this.nextProcessorVersion,
       metadata: {
         extracted_text_key: extractedTextKey
@@ -346,7 +505,7 @@ class DocumentChunkProcessor implements ProcessingJobProcessor {
     if (this.enqueueEmbeddings && chunked.length > 0) {
       await this.jobs.createAndEnqueue(nextJob(context, {
         type: "document.embed",
-        idempotencyKey: `document.embed:${document.id}:${this.processorVersion}`,
+        idempotencyKey: withProcessingRunId(`document.embed:${document.id}:${this.processorVersion}`, readMetadataString(context.payload.metadata, "processing_run_id")),
         processorVersion: "document-embed-v1",
         metadata: {
           chunk_count: chunked.length
@@ -433,7 +592,7 @@ class DocumentEmbedProcessor implements ProcessingJobProcessor {
 
     await this.jobs.createAndEnqueue(nextJob(context, {
       type: "document.index",
-      idempotencyKey: `document.index:${document.id}:${this.embeddings.provider}:${this.embeddings.model}`,
+      idempotencyKey: withProcessingRunId(`document.index:${document.id}:${this.embeddings.provider}:${this.embeddings.model}`, readMetadataString(context.payload.metadata, "processing_run_id")),
       processorVersion: "document-index-v1",
       metadata: {
         embeddings_key: embeddingsKey
@@ -513,6 +672,7 @@ function nextJob(context: ProcessingJobProcessorContext, input: {
   processorVersion: string;
   metadata?: Record<string, unknown>;
 }): Parameters<ProcessingJobDispatcher["createAndEnqueue"]>[0] {
+  const processingRunId = readMetadataString(context.payload.metadata, "processing_run_id");
   return {
     projectId: context.payload.projectId,
     type: input.type,
@@ -522,9 +682,14 @@ function nextJob(context: ProcessingJobProcessorContext, input: {
     processorVersion: input.processorVersion,
     metadata: {
       ...(input.metadata ?? {}),
+      ...(processingRunId ? { processing_run_id: processingRunId } : {}),
       previous_job_id: context.payload.jobId
     }
   };
+}
+
+function withProcessingRunId(idempotencyKey: string, processingRunId: string | undefined): string {
+  return processingRunId ? `${idempotencyKey}:${processingRunId}` : idempotencyKey;
 }
 
 function buildRouteConfig(config: MindoryConfig): DocumentProcessingRouteConfig {
@@ -556,12 +721,32 @@ function readMetadataString(metadata: unknown, key: string): string | undefined 
     : undefined;
 }
 
+function readMetadataStringArray(metadata: unknown, key: string): string[] | undefined {
+  const record = typeof metadata === "object" && metadata !== null ? metadata as Record<string, unknown> : null;
+  const value = record?.[key];
+  return Array.isArray(value) && value.every((item) => typeof item === "string")
+    ? value
+    : undefined;
+}
+
 async function readUtf8(stream: Readable): Promise<string> {
   const chunks: Buffer[] = [];
   for await (const chunk of stream) {
     chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
   }
   return Buffer.concat(chunks).toString("utf8");
+}
+
+async function readAllBytes(stream: Readable): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks);
+}
+
+function sha256Hex(bytes: Buffer): string {
+  return createHash("sha256").update(bytes).digest("hex");
 }
 
 async function readFirstBytes(stream: Readable, maxBytes: number): Promise<Uint8Array> {

@@ -7,6 +7,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const requiredFiles = [
   "packages/core/src/documents.ts",
   "packages/core/src/document-routing.ts",
+  "packages/core/src/recompute.ts",
   "packages/core/src/antivirus.ts",
   "apps/api/src/routes/documents.ts",
   "packages/processors/antivirus-clamav/src/index.ts"
@@ -37,6 +38,7 @@ const processorPackage = readJson("packages/processors/antivirus-clamav/package.
 const processorTsconfig = readJson("packages/processors/antivirus-clamav/tsconfig.json");
 const documents = read("packages/core/src/documents.ts");
 const routing = read("packages/core/src/document-routing.ts");
+const recompute = read("packages/core/src/recompute.ts");
 const antivirus = read("packages/core/src/antivirus.ts");
 const app = read("apps/api/src/app.ts");
 const runtime = read("apps/api/src/runtime.ts");
@@ -46,6 +48,7 @@ const clamav = read("packages/processors/antivirus-clamav/src/index.ts");
 assert(rootPackage.scripts?.["documents:validate"] === "node scripts/validate-document-pipeline.js", "Root package must expose documents:validate.");
 assert(corePackage.exports?.["./documents"], "@mindory/core must export ./documents.");
 assert(corePackage.exports?.["./document-routing"], "@mindory/core must export ./document-routing.");
+assert(corePackage.exports?.["./recompute"], "@mindory/core must export ./recompute.");
 assert(corePackage.exports?.["./antivirus"], "@mindory/core must export ./antivirus.");
 assert(apiPackage.dependencies?.["@fastify/multipart"], "@mindory/api must depend on @fastify/multipart.");
 assert(apiPackage.dependencies?.["@mindory/core"] === "workspace:*", "@mindory/api must depend on @mindory/core.");
@@ -72,6 +75,9 @@ assert(uploadMethod.includes("scan_pending"), "Async quarantine uploads must use
 for (const token of ["classifyDocumentFile", "planDocumentProcessingRoute", "\"text\"", "\"pdf\"", "\"image\"", "\"audio\"", "\"video\"", "processor_not_implemented"]) {
   assert(routing.includes(token), `Document routing module must include ${token}.`);
 }
+for (const token of ["DocumentRecomputeService", "document.recompute", "processing_run_id", "raw_original_unchanged"]) {
+  assert(recompute.includes(token), `Document recompute module must include ${token}.`);
+}
 
 for (const symbol of ["AntivirusScanner", "AntivirusScanResult", "AntivirusError"]) {
   assert(antivirus.includes(symbol), `Core antivirus module must define ${symbol}.`);
@@ -82,6 +88,8 @@ assert(routes.includes("fastifyMultipart"), "Document routes must register @fast
 assert(routes.includes('"/v1/documents"'), "Document routes must register POST /v1/documents.");
 assert(routes.includes('"/v1/documents/:id/status"'), "Document routes must register status endpoint.");
 assert(routes.includes("route_job"), "Document upload response must expose route_job.");
+assert(routes.includes('"/v1/documents/:id/recompute"'), "Document routes must register recompute endpoint.");
+assert(routes.includes('"/v1/documents/:id/processing-runs"'), "Document routes must register processing run listing endpoint.");
 assert(routes.includes("notImplemented"), "Document routes must return explicit placeholder behavior when dependencies are missing.");
 assert(routes.includes("DocumentUploadService"), "Document route dependencies must accept DocumentUploadService.");
 assert(runtime.includes("DocumentUploadService"), "API runtime must construct DocumentUploadService.");

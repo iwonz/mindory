@@ -217,6 +217,7 @@ export interface VectorIndex {
 }
 
 export type ProcessingErrorCode =
+  | "document_recompute_failed"
   | "document_route_failed"
   | "embedding_provider_error"
   | "invalid_chunker_config"

@@ -1,5 +1,6 @@
 import type { SourceSnapshot } from "./documents.js";
 import type { SourceRef } from "./memory.js";
+import type { DocumentProcessingRunRepository } from "./recompute.js";
 
 export type ProcessingRunStatus = "running" | "succeeded" | "failed" | "superseded";
 
@@ -186,7 +187,7 @@ export interface CreateFaceObservationInput {
   metadata?: Record<string, unknown>;
 }
 
-export interface DerivedArtifactRepository {
+export interface DerivedArtifactRepository extends DocumentProcessingRunRepository {
   createProcessingRun(input: CreateProcessingRunInput): Promise<ProcessingRunRecord>;
   updateProcessingRunStatus(input: UpdateProcessingRunStatusInput): Promise<ProcessingRunRecord>;
   createDocumentArtifact(input: CreateDocumentArtifactInput): Promise<DocumentArtifactRecord>;

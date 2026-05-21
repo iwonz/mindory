@@ -105,7 +105,7 @@ for (const symbol of ["ProcessingRunRecord", "DocumentArtifactRecord", "Document
   assert(artifactsCore.includes(symbol), `Core artifact contracts must include ${symbol}.`);
 }
 
-for (const symbol of ["DbDerivedArtifactRepository", "createProcessingRun", "createDocumentArtifact", "listDocumentArtifacts", "upsertDocumentMediaMetadata", "createFaceIdentity", "createFaceObservation"]) {
+for (const symbol of ["DbDerivedArtifactRepository", "createProcessingRun", "listProcessingRuns", "supersedeDocumentProcessingRuns", "createDocumentArtifact", "listDocumentArtifacts", "upsertDocumentMediaMetadata", "createFaceIdentity", "createFaceObservation"]) {
   assert(artifactRepos.includes(symbol), `Derived artifact repository must include ${symbol}.`);
 }
 

@@ -5,6 +5,7 @@ import {
   createMindoryDatabaseClient,
   DbDocumentChunkRepository,
   DbDocumentRepository,
+  DbDerivedArtifactRepository,
   DbMemoryRepository,
   DbProcessingJobStore,
   DbSessionRepository
@@ -36,6 +37,7 @@ export function buildWorkerRuntime(config: MindoryConfig = loadMindoryConfig()):
     rootPath: config.storage.localPath
   });
   const documents = new DbDocumentRepository(database.db);
+  const artifacts = new DbDerivedArtifactRepository(database.db);
   const chunks = new DbDocumentChunkRepository(database.db);
   const sessions = new DbSessionRepository(database.db);
   const memories = new DbMemoryRepository(database.db);
@@ -48,6 +50,7 @@ export function buildWorkerRuntime(config: MindoryConfig = loadMindoryConfig()):
     config,
     storage,
     documents,
+    artifacts,
     chunks,
     jobs: dispatcher
   } satisfies Parameters<typeof buildDocumentPipelineProcessors>[0];

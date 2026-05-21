@@ -6,6 +6,7 @@ stateless and horizontally scalable.
 ## Worker Types
 
 - `virus-scan`
+- `recompute`
 - `routing`
 - `extraction`
 - `chunking`
@@ -41,6 +42,9 @@ canonical.
 The document pipeline processors now include:
 
 - `document.scan` via ClamAV, which enqueues routing after a clean scan.
+- `document.recompute`, which creates a new processing run, supersedes older
+  derived runs for the requested stage, and enqueues routing without changing
+  the RAW object.
 - `document.route`, which classifies the file and plans only enabled downstream
   jobs for the file type.
 - `document.extract`, which writes extracted text back to object storage.

@@ -66,6 +66,7 @@ for (const symbol of [
   "DbSessionRepository",
   "DbAccessTokenRepository",
   "DbDocumentRepository",
+  "DbDerivedArtifactRepository",
   "DbDocumentChunkSearchRepository",
   "DbProcessingJobStore",
   "DbMemoryRepository",
@@ -73,6 +74,7 @@ for (const symbol of [
   "BullMqProcessingJobQueue",
   "ProcessingJobDispatcher",
   "DocumentUploadService",
+  "DocumentRecomputeService",
   "PgVectorChunkIndex",
   "PgVectorDocumentChunkSearchRepository",
   "buildMindoryTextEmbeddingsProvider",
@@ -118,10 +120,10 @@ for (const token of ["sessionRepository", "createSession", "appendMessage", "lis
   assert(sessionRoutes.includes(token), `Session routes must use ${token}.`);
 }
 
-for (const route of ['"/v1/documents"', '"/v1/documents/:id"', '"/v1/documents/:id/status"', '"/v1/documents/search"']) {
+for (const route of ['"/v1/documents"', '"/v1/documents/:id"', '"/v1/documents/:id/status"', '"/v1/documents/:id/processing-runs"', '"/v1/documents/:id/recompute"', '"/v1/documents/search"']) {
   assert(documentRoutes.includes(route), `Document routes must include ${route}.`);
 }
-for (const token of ["documentRepository", "chunkSearchRepository", "listDocuments", "searchDocumentChunks"]) {
+for (const token of ["documentRepository", "chunkSearchRepository", "artifactRepository", "recomputeService", "listDocuments", "searchDocumentChunks", "listProcessingRuns", "requestRecompute"]) {
   assert(documentRoutes.includes(token), `Document routes must use ${token}.`);
 }
 
@@ -134,6 +136,7 @@ for (const token of ["jobStore", "jobDispatcher", "getJob", "listJobs", "retry"]
   assert(jobRoutes.includes(token) || runtime.includes(token), `Job API runtime must include ${token}.`);
 }
 assert(runtime.includes("uploadService"), "API runtime must inject DocumentUploadService into document routes.");
+assert(runtime.includes("recomputeService"), "API runtime must inject DocumentRecomputeService into document routes.");
 assert(runtime.includes("buildDocumentChunkSearchRepository"), "API runtime must choose text or pgvector document chunk search.");
 assert(runtime.includes("buildEmbeddingsProvider"), "API runtime must build query embeddings when semantic search is configured.");
 assert(runtime.includes("queue.close()"), "API runtime close hook must close the processing queue.");

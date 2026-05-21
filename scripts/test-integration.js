@@ -126,6 +126,7 @@ test("MVP runtime integration covers auth, upload, worker jobs and context", { t
     const { sessionId, messageId } = await createConversation(apiUrl);
     const { documentId, routeJobId } = await uploadAndProcessDocument(apiUrl);
     await assertJobsApi(apiUrl, managementStore, sessionId, routeJobId);
+    await assertDocumentRecompute(apiUrl, documentId);
     await assertMemoryAndContext(apiUrl, sessionId, messageId, documentId);
     await assertRevokedTokenIsRejected(apiUrl, childToken.id, childToken.rawToken);
   } finally {
@@ -417,6 +418,46 @@ async function assertJobsApi(apiUrl, store, sessionId, routeJobId) {
   });
   assert.equal(retried.retry.processing_job_id, retrySeed.id);
   await waitForJobStatus(apiUrl, retrySeed.id, "succeeded");
+}
+
+async function assertDocumentRecompute(apiUrl, documentId) {
+  const first = await requestJson(apiUrl, "POST", `/v1/documents/${encodeURIComponent(documentId)}/recompute`, {
+    projectId,
+    stages: ["text"],
+    reason: "integration_recompute",
+    requestId: `${testRunId}_recompute_1`
+  });
+  assert.equal(first.job.id.length > 0, true, "recompute response should include a processing job id.");
+  assert.equal(first.stages[0], "text");
+  await waitForJobStatus(apiUrl, first.job.id, "succeeded");
+  await waitForDocumentRun(apiUrl, documentId, first.processing_run_id);
+
+  const second = await requestJson(apiUrl, "POST", `/v1/documents/${encodeURIComponent(documentId)}/recompute`, {
+    projectId,
+    stages: ["text"],
+    reason: "integration_recompute",
+    requestId: `${testRunId}_recompute_2`
+  });
+  await waitForJobStatus(apiUrl, second.job.id, "succeeded");
+  await waitForDocumentRun(apiUrl, documentId, second.processing_run_id);
+
+  const listed = await requestJson(apiUrl, "GET", `/v1/documents/${encodeURIComponent(documentId)}/processing-runs?projectId=${encodeURIComponent(projectId)}`);
+  const firstRun = listed.processing_runs.find((run) => run.id === first.processing_run_id);
+  const secondRun = listed.processing_runs.find((run) => run.id === second.processing_run_id);
+  assert.ok(firstRun, "processing run list should include the first recompute run.");
+  assert.ok(secondRun, "processing run list should include the second recompute run.");
+  assert.equal(firstRun.status, "superseded", "older derived processing run should be superseded by recompute.");
+  assert.equal(firstRun.metadata.superseded_by_run_id, second.processing_run_id);
+  assert.equal(secondRun.status, "succeeded", "latest recompute processing run should succeed.");
+  assert.equal(secondRun.metadata.raw_original_unchanged, true, "recompute must record that RAW original was not mutated.");
+  assert.equal(secondRun.source_document_storage_key, firstRun.source_document_storage_key, "recompute should keep the same RAW storage key.");
+}
+
+async function waitForDocumentRun(apiUrl, documentId, processingRunId) {
+  await waitFor(async () => {
+    const document = await requestJson(apiUrl, "GET", `/v1/documents/${encodeURIComponent(documentId)}?projectId=${encodeURIComponent(projectId)}`);
+    return ["chunked", "indexed"].includes(document.status) && document.metadata?.routing?.processing_run_id === processingRunId;
+  }, `document ${documentId} to finish recompute run ${processingRunId}`, 90);
 }
 
 async function assertMemoryAndContext(apiUrl, sessionId, messageId, documentId) {

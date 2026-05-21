@@ -1,0 +1,72 @@
+{
+  "id": "TASK-40",
+  "title": "Add recompute flow for derived state",
+  "status": "done",
+  "type": "chore",
+  "priority": "high",
+  "branch": "task/TASK-40-recompute-derived-state",
+  "created_at": "2026-05-21",
+  "updated_at": "2026-05-21",
+  "context": {
+    "summary": "Allow derived document state to be recalculated by document or stage without mutating RAW originals.",
+    "background": "TASK-38 introduced processing_runs and artifact tables. TASK-39 introduced document.route. The next step is an explicit recompute entrypoint that creates a new processing run, supersedes old derived runs and re-enters the processing graph."
+  },
+  "scope": {
+    "in": [
+      "Add document.recompute job type and migration.",
+      "Add core recompute request service and stage validation.",
+      "Add API endpoints to request recompute and list document processing runs.",
+      "Add DB repository methods to list and supersede document processing runs.",
+      "Add worker recompute processor that records checksum/source storage key and re-enqueues routing.",
+      "Keep RAW original storage key unchanged and record raw_original_unchanged metadata.",
+      "Update integration tests, validators and documentation."
+    ],
+    "out": [
+      "Delete old derived artifact rows.",
+      "Implement modality-specific artifact regeneration beyond the existing route/text pipeline.",
+      "Expose CLI, MCP or Hermes recompute commands.",
+      "Wait for all downstream route/extract/chunk/embed/index jobs before marking the recompute run succeeded."
+    ]
+  },
+  "acceptance_criteria": [
+    "document.recompute exists in core queue types, Drizzle schema and a forward migration without changing 0000_initial_schema.",
+    "POST /v1/documents/:id/recompute creates a durable recompute job.",
+    "GET /v1/documents/:id/processing-runs lists processing runs for the document.",
+    "The worker creates or reuses a deterministic processing_run for the recompute request.",
+    "Older matching processing runs are marked superseded and reference the new run id.",
+    "The recompute processor preserves source_document_storage_key and records source_document_checksum.",
+    "The recompute processor enqueues document.route with processing_run_id metadata.",
+    "Integration tests prove repeated recompute supersedes the older run while the RAW storage key remains unchanged."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "pnpm db:validate",
+      "pnpm db:repositories:validate",
+      "pnpm documents:validate",
+      "pnpm processing:validate",
+      "pnpm api:runtime:validate",
+      "pnpm typecheck",
+      "pnpm lint",
+      "pnpm test",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-40.",
+      "Confirm packages/db/drizzle/0000_initial_schema.sql is unchanged.",
+      "Confirm recompute reads but does not write or replace RAW original objects."
+    ]
+  },
+  "dependencies": [
+    "TASK-39"
+  ],
+  "risks": [
+    "The current recompute run represents scheduling/replanning, not completion of all downstream modality jobs.",
+    "Future artifact writers must use processing_run_id consistently so superseded runs are ignored by search APIs."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch is committed and merged back into master."
+  ]
+}

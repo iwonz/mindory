@@ -13,6 +13,7 @@ import type {
   UpdateProcessingRunStatusInput,
   UpsertDocumentMediaMetadataInput
 } from "@mindory/core/artifacts";
+import type { DocumentRecomputeStage, SupersedeDocumentProcessingRunsInput } from "@mindory/core/recompute";
 import {
   documentArtifacts,
   documentMediaMetadata,
@@ -30,17 +31,24 @@ export class DbDerivedArtifactRepository implements DerivedArtifactRepository {
   }
 
   async createProcessingRun(input: CreateProcessingRunInput): Promise<ProcessingRunRecord> {
-    const [row] = await this.db.insert(processingRuns).values({
+    const values = {
       id: input.id,
       projectId: input.projectId,
       documentId: input.documentId,
+      status: "running" as const,
       reason: input.reason,
       processorVersion: input.processorVersion,
       configFingerprint: input.configFingerprint,
       modelRuntimeFingerprint: input.modelRuntimeFingerprint ?? null,
       sourceDocumentStorageKey: input.sourceDocumentStorageKey,
       sourceDocumentChecksum: input.sourceDocumentChecksum ?? null,
-      metadata: input.metadata ?? {}
+      metadata: input.metadata ?? {},
+      finishedAt: null,
+      updatedAt: new Date()
+    };
+    const [row] = await this.db.insert(processingRuns).values(values).onConflictDoUpdate({
+      target: processingRuns.id,
+      set: values
     }).returning();
 
     return mapProcessingRun(firstOrThrow(row ? [row] : [], `Processing run ${input.id} was not created.`));
@@ -64,6 +72,45 @@ export class DbDerivedArtifactRepository implements DerivedArtifactRepository {
     )).returning();
 
     return mapProcessingRun(firstOrThrow(row ? [row] : [], `Processing run ${input.runId} was not updated.`));
+  }
+
+  async listProcessingRuns(projectId: string, documentId: string): Promise<ProcessingRunRecord[]> {
+    const rows = await this.db.select().from(processingRuns).where(and(
+      eq(processingRuns.projectId, projectId),
+      eq(processingRuns.documentId, documentId)
+    )).orderBy(asc(processingRuns.createdAt));
+
+    return rows.map(mapProcessingRun);
+  }
+
+  async supersedeDocumentProcessingRuns(input: SupersedeDocumentProcessingRunsInput): Promise<number> {
+    const rows = await this.db.select().from(processingRuns).where(and(
+      eq(processingRuns.projectId, input.projectId),
+      eq(processingRuns.documentId, input.documentId)
+    ));
+    const stages = input.stages?.includes("all") ? undefined : input.stages;
+    const finishedAt = input.finishedAt ?? new Date();
+    const targets = rows.filter((row) =>
+      row.id !== input.excludeRunId
+      && row.status !== "superseded"
+      && (!stages || stages.includes(readProcessingRunStage(row.metadata)))
+    );
+
+    for (const row of targets) {
+      await this.db.update(processingRuns).set({
+        status: "superseded",
+        metadata: {
+          ...row.metadata,
+          superseded_by_run_id: input.supersededByRunId,
+          superseded_at: finishedAt.toISOString(),
+          superseded_reason: input.reason
+        },
+        finishedAt,
+        updatedAt: new Date()
+      }).where(eq(processingRuns.id, row.id));
+    }
+
+    return targets.length;
   }
 
   async createDocumentArtifact(input: CreateDocumentArtifactInput): Promise<DocumentArtifactRecord> {
@@ -177,6 +224,12 @@ function mapProcessingRun(row: typeof processingRuns.$inferSelect): ProcessingRu
     createdAt: row.createdAt,
     updatedAt: row.updatedAt
   };
+}
+
+function readProcessingRunStage(metadata: Record<string, unknown>): DocumentRecomputeStage {
+  return typeof metadata.stage === "string" && ["all", "route", "text", "pdf", "image", "audio", "video"].includes(metadata.stage)
+    ? metadata.stage as DocumentRecomputeStage
+    : "all";
 }
 
 function mapDocumentArtifact(row: typeof documentArtifacts.$inferSelect): DocumentArtifactRecord {

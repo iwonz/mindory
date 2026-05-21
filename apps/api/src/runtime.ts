@@ -5,11 +5,13 @@ import { ContextBuilder, MemoryService } from "@mindory/core/memory";
 import type { DocumentChunkSearchRepository } from "@mindory/core/memory";
 import type { EmbeddingsProvider } from "@mindory/core/processing";
 import { ProcessingJobDispatcher } from "@mindory/core/queue";
+import { DocumentRecomputeService } from "@mindory/core/recompute";
 import {
   DbAccessTokenRepository,
   createMindoryDatabaseClient,
   DbDocumentChunkSearchRepository,
   DbDocumentRepository,
+  DbDerivedArtifactRepository,
   DbMemoryRepository,
   DbPeerRepository,
   DbProcessingJobStore,
@@ -39,6 +41,7 @@ export function buildApiRuntimeDependencies(config: MindoryConfig): ApiRuntimeDe
   const peerRepository = new DbPeerRepository(database.db);
   const sessionRepository = new DbSessionRepository(database.db);
   const documentRepository = new DbDocumentRepository(database.db);
+  const artifactRepository = new DbDerivedArtifactRepository(database.db);
   const chunkSearchRepository = buildDocumentChunkSearchRepository(config, database.db);
   const memoryRepository = new DbMemoryRepository(database.db);
   const processingJobStore = new DbProcessingJobStore(database.db, () => `job_${randomUUID()}`);
@@ -60,6 +63,11 @@ export function buildApiRuntimeDependencies(config: MindoryConfig): ApiRuntimeDe
     },
     routeAfterUpload: config.documentProcessing.routingEnabled,
     routeProcessorVersion: "document-route-v1"
+  });
+  const recomputeService = new DocumentRecomputeService({
+    documents: documentRepository,
+    jobs: jobDispatcher,
+    requestIdFactory: () => `recompute_${randomUUID()}`
   });
 
   return {
@@ -84,7 +92,9 @@ export function buildApiRuntimeDependencies(config: MindoryConfig): ApiRuntimeDe
     documents: {
       uploadService,
       documentRepository,
-      chunkSearchRepository
+      chunkSearchRepository,
+      artifactRepository,
+      recomputeService
     },
     jobs: {
       jobStore: processingJobStore,

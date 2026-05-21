@@ -194,8 +194,8 @@ context_build searches both projects allowed by the token.
    Uploaded files must not be flattened into messages only.
 
 5. **Heavy processing is asynchronous.**  
-   Antivirus scan, file-type routing, extraction, chunking, embeddings and
-   derivation run in workers.
+   Antivirus scan, derived-state recompute, file-type routing, extraction,
+   chunking, embeddings and derivation run in workers.
 
 6. **HTTP API is the source of truth.**  
    MCP, CLI and Hermes adapter are interfaces/adapters over the core API.
@@ -1207,6 +1207,7 @@ document.extract
 document.chunk
 document.embed
 document.index
+document.recompute
 memory.derive
 session.summarize
 ```
@@ -1315,6 +1316,7 @@ Examples of uniqueness/idempotency keys:
 ```text
 document.scan:{document_id}:{scanner_version}
 document.route:{document_id}:{router_version}
+document.recompute:{document_id}:{request_id}
 document.chunk:{document_id}:{chunker_version}
 embedding:{chunk_id}:{embedding_model}:{embedding_version}
 memory.derive:{source_ref_hash}:{deriver_version}

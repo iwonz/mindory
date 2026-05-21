@@ -73,6 +73,8 @@ POST /v1/documents
 GET  /v1/documents
 GET  /v1/documents/:id
 GET  /v1/documents/:id/status
+GET  /v1/documents/:id/processing-runs
+POST /v1/documents/:id/recompute
 POST /v1/documents/search
 ```
 
@@ -88,6 +90,11 @@ Document read/status/list/search routes use document repositories when the API
 server runtime is built. Document search uses pgvector semantic search when an
 embeddings provider is configured; otherwise it falls back to text-based chunk
 search for scaffold/local operation.
+
+`POST /v1/documents/:id/recompute` enqueues a `document.recompute` job. The
+worker creates a new `processing_run`, supersedes older derived runs for the
+same requested stage, keeps the RAW storage key unchanged, then routes the
+document back through the enabled processing graph.
 
 Registered memory route surfaces:
 
