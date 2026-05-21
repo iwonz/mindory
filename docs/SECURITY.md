@@ -10,9 +10,17 @@ project scopes from `access_token_project_scopes`. Protected routes return
 `401` for missing or invalid bearer tokens and `403` when the token lacks the
 required project permission.
 
+`TASK-29` adds token lifecycle operations through the API and CLI. Token create
+and rotate responses return the raw token exactly once; list, revoke and rotate
+metadata responses never expose raw token values or token hashes. Store the raw
+token in a secret manager immediately after creation or rotation. Revoked tokens
+remain in metadata for auditability but cannot authenticate.
+
 ## MVP Permissions
 
 - `project:read`
+- `token:read`
+- `token:write`
 - `session:read`
 - `session:write`
 - `message:read`
@@ -24,6 +32,12 @@ required project permission.
 - `memory:write`
 - `memory:delete`
 - `context:build`
+
+Token lifecycle endpoints are project-scoped. Listing tokens requires
+`token:read`; create, rotate and revoke require `token:write` on the target
+project. The deterministic demo seed grants these permissions to the demo token
+so local acceptance and operational CLI flows can run without direct database
+writes.
 
 ## Antivirus Policy
 

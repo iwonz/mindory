@@ -1,7 +1,9 @@
-import { createHash } from "node:crypto";
+import { createHash, randomBytes as nodeRandomBytes } from "node:crypto";
 
 export const MINDORY_PERMISSIONS = [
   "project:read",
+  "token:read",
+  "token:write",
   "session:read",
   "session:write",
   "message:read",
@@ -34,9 +36,50 @@ export interface VerifiedAccessToken {
   allowedProjects: ProjectAuthorizationScope[];
 }
 
+export type AccessTokenStatus = "active" | "revoked" | "expired";
+
+export interface AccessTokenRecord {
+  id: string;
+  projectId: string;
+  name: string;
+  status: AccessTokenStatus;
+  expiresAt: Date | null;
+  lastUsedAt: Date | null;
+  permissions: MindoryPermission[];
+  metadata: Record<string, unknown>;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CreateAccessTokenInput {
+  id: string;
+  projectId: string;
+  name: string;
+  tokenHash: string;
+  permissions: MindoryPermission[];
+  expiresAt?: Date | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface ListAccessTokensInput {
+  projectId: string;
+  limit: number;
+}
+
+export interface RotateAccessTokenInput {
+  projectId: string;
+  tokenId: string;
+  tokenHash: string;
+  expiresAt?: Date | null;
+}
+
 export interface AccessTokenRepository {
   findActiveTokenByHash(tokenHash: string, now: Date): Promise<VerifiedAccessToken | null>;
   markTokenUsed(tokenId: string, usedAt: Date): Promise<void>;
+  createAccessToken(input: CreateAccessTokenInput): Promise<AccessTokenRecord>;
+  listAccessTokens(input: ListAccessTokensInput): Promise<AccessTokenRecord[]>;
+  revokeAccessToken(projectId: string, tokenId: string): Promise<AccessTokenRecord>;
+  rotateAccessToken(input: RotateAccessTokenInput): Promise<AccessTokenRecord>;
 }
 
 export type AuthErrorCode =
@@ -70,6 +113,10 @@ export function parseBearerToken(header: string | undefined): string | null {
 
 export function hashAccessToken(token: string): string {
   return createHash("sha256").update(token, "utf8").digest("hex");
+}
+
+export function generateAccessTokenSecret(randomBytes: (size: number) => Buffer = defaultRandomBytes): string {
+  return `mindory_${randomBytes(32).toString("base64url")}`;
 }
 
 export async function verifyBearerToken(input: {
@@ -154,4 +201,8 @@ export function authorizedProjectIds(
 
 export function isMindoryPermission(value: string): value is MindoryPermission {
   return (MINDORY_PERMISSIONS as readonly string[]).includes(value);
+}
+
+function defaultRandomBytes(size: number): Buffer {
+  return nodeRandomBytes(size);
 }

@@ -21,6 +21,9 @@ mindory project get <id>
 mindory project list
 
 mindory token create --project <id> --permissions <csv> [--name <name>]
+mindory token list --project <id> [--limit 20]
+mindory token revoke <id> --project <id>
+mindory token rotate <id> --project <id> [--expires-at <iso|null>]
 
 mindory session create --project <id> [--title <text>] [--peer <id>]
 mindory session get <id> --project <id>
@@ -65,8 +68,9 @@ Per-command overrides:
 mindory --api-url http://localhost:3000 --token <token> memory recall --project homelab "workers"
 ```
 
-Token creation still targets a planned HTTP endpoint. The other listed MVP
-commands call implemented API route surfaces when the server runtime is wired.
+Token creation returns the raw bearer token exactly once. Token list/revoke/
+rotate responses expose metadata only, never token hashes. Rotation returns a
+new raw bearer token and preserves the token's project permission scope.
 
 Exit codes:
 

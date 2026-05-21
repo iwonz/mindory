@@ -18,6 +18,9 @@ const expectedCommandTokens = [
   "project:get",
   "project:list",
   "token:create",
+  "token:list",
+  "token:revoke",
+  "token:rotate",
   "session:create",
   "session:get",
   "session:list",
@@ -103,6 +106,9 @@ assert(commands.includes("readProjectIds"), "CLI must support project/project li
 assert(commands.includes("tokenBudget"), "context build must send tokenBudget.");
 assert(commands.includes("jobs retry"), "CLI help must document job retry.");
 assert(commands.includes("jobs get"), "CLI help must document job get.");
+assert(commands.includes("token list --project <id>"), "CLI help must document token list.");
+assert(commands.includes("token revoke <id> --project <id>"), "CLI help must document token revoke.");
+assert(commands.includes("token rotate <id> --project <id>"), "CLI help must document token rotate.");
 assert(commands.includes("projectId: requiredFlag(parsed, \"project\")"), "CLI job retry must send projectId.");
 assert(commands.includes("readPositiveIntegerFlag"), "CLI must validate positive integer flags.");
 assert(commands.includes("message list --session <id> --project <id>"), "CLI help must document message list.");

@@ -11,11 +11,13 @@ import { registerMemoryRoutes, type MemoryRouteDependencies } from "./routes/mem
 import { registerPeerRoutes, type PeerRouteDependencies } from "./routes/peers.js";
 import { registerProjectRoutes, type ProjectRouteDependencies } from "./routes/projects.js";
 import { registerSessionRoutes, type SessionRouteDependencies } from "./routes/sessions.js";
+import { registerTokenRoutes, type TokenRouteDependencies } from "./routes/tokens.js";
 
 export interface BuildApiAppOptions {
   config?: MindoryConfig;
   logger?: FastifyServerOptions["logger"];
   auth?: ApiAuthDependencies;
+  tokens?: TokenRouteDependencies;
   projects?: ProjectRouteDependencies;
   peers?: PeerRouteDependencies;
   sessions?: SessionRouteDependencies;
@@ -54,6 +56,7 @@ export async function buildApiApp(options: BuildApiAppOptions = {}): Promise<Fas
   await registerAuth(app, options.auth);
   registerErrorHandlers(app);
   await registerHealthRoutes(app, config);
+  await registerTokenRoutes(app, options.tokens);
   await registerProjectRoutes(app, options.projects);
   await registerPeerRoutes(app, options.peers);
   await registerSessionRoutes(app, options.sessions);

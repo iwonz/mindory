@@ -10,6 +10,8 @@ const tokenId = process.env.MINDORY_DEMO_TOKEN_ID ?? "tok_mindory_demo";
 
 const permissions = [
   "project:read",
+  "token:read",
+  "token:write",
   "session:read",
   "session:write",
   "message:read",

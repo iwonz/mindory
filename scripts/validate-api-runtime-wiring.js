@@ -6,6 +6,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 const requiredFiles = [
   "apps/api/src/runtime.ts",
+  "apps/api/src/routes/tokens.ts",
   "apps/api/src/routes/peers.ts",
   "apps/api/src/routes/sessions.ts",
   "apps/api/src/routes/jobs.ts",
@@ -38,6 +39,7 @@ const server = read("apps/api/src/server.ts");
 const runtime = read("apps/api/src/runtime.ts");
 const errors = read("apps/api/src/errors.ts");
 const projectRoutes = read("apps/api/src/routes/projects.ts");
+const tokenRoutes = read("apps/api/src/routes/tokens.ts");
 const peerRoutes = read("apps/api/src/routes/peers.ts");
 const sessionRoutes = read("apps/api/src/routes/sessions.ts");
 const documentRoutes = read("apps/api/src/routes/documents.ts");
@@ -82,6 +84,7 @@ for (const symbol of [
 assert(server.includes("buildApiRuntimeDependencies"), "API server must build runtime dependencies.");
 assert(server.includes("buildApiApp({ config, ...runtime })"), "API server must pass runtime dependencies to app builder.");
 assert(app.includes("registerPeerRoutes"), "API app must register peer routes.");
+assert(app.includes("registerTokenRoutes"), "API app must register token routes.");
 assert(app.includes("registerSessionRoutes"), "API app must register session routes.");
 assert(app.includes("options.close"), "API app must close runtime dependencies on shutdown.");
 assert(errors.includes("isRepositoryNotFoundError"), "API error handler must map repository not-found errors.");
@@ -89,6 +92,16 @@ assert(errors.includes("isRepositoryNotFoundError"), "API error handler must map
 for (const token of ["projectRepository", "createProject", "listProjects", "getProject"]) {
   assert(projectRoutes.includes(token), `Project routes must use ${token}.`);
 }
+
+for (const route of ['"/v1/tokens"', '"/v1/tokens/:id/revoke"', '"/v1/tokens/:id/rotate"']) {
+  assert(tokenRoutes.includes(route), `Token routes must include ${route}.`);
+}
+for (const token of ["createAccessToken", "listAccessTokens", "revokeAccessToken", "rotateAccessToken", "hashAccessToken", "generateAccessTokenSecret"]) {
+  assert(tokenRoutes.includes(token), `Token routes must use ${token}.`);
+}
+assert(tokenRoutes.includes('"token:read"'), "Token listing must require token:read permission.");
+assert(tokenRoutes.includes('"token:write"'), "Token mutations must require token:write permission.");
+assert(!tokenRoutes.includes("token_hash"), "Token API responses must not expose token_hash.");
 
 for (const route of ['"/v1/peers"', '"/v1/peers/:id"']) {
   assert(peerRoutes.includes(route), `Peer routes must include ${route}.`);
@@ -125,7 +138,9 @@ assert(runtime.includes("buildEmbeddingsProvider"), "API runtime must build quer
 assert(runtime.includes("queue.close()"), "API runtime close hook must close the processing queue.");
 assert(runtime.includes("database.close()"), "API runtime close hook must close the database pool.");
 assert(runtime.includes("auth:") && runtime.includes("accessTokenRepository"), "API runtime must wire access token repository.");
+assert(runtime.includes("tokens:") && runtime.includes("accessTokenRepository"), "API runtime must wire token operation routes.");
 assert(projectRoutes.includes("requireProjectPermission"), "Project routes must enforce project authorization.");
+assert(tokenRoutes.includes("requireProjectPermission"), "Token routes must enforce project authorization.");
 assert(peerRoutes.includes("requireProjectPermission"), "Peer routes must enforce project authorization.");
 assert(sessionRoutes.includes("requireProjectPermission"), "Session routes must enforce session/message authorization.");
 assert(documentRoutes.includes("requireProjectPermission"), "Document routes must enforce document authorization.");
