@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-31",
+  "current_task_id": "TASK-32",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -250,7 +250,7 @@
     {
       "id": "TASK-31",
       "title": "Enable live embeddings and indexed search acceptance",
-      "status": "ready",
+      "status": "done",
       "branch": "task/TASK-31-live-embeddings-indexed-search",
       "file": "tasks/TASK-31.json"
     },

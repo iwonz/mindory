@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { MindoryConfig } from "@mindory/config";
+import { PGVECTOR_EMBEDDING_DIMENSIONS, type MindoryConfig } from "@mindory/config";
 import { DocumentUploadService } from "@mindory/core/documents";
 import { ContextBuilder, MemoryService } from "@mindory/core/memory";
 import type { DocumentChunkSearchRepository } from "@mindory/core/memory";
@@ -128,7 +128,7 @@ function buildDocumentChunkSearchRepository(config: MindoryConfig, db: MindoryDa
     embeddings,
     vectorIndex: new PgVectorChunkIndex({
       db,
-      dimensions: config.embeddings.dimensions ?? 1536
+      dimensions: config.embeddings.dimensions ?? PGVECTOR_EMBEDDING_DIMENSIONS
     })
   });
 }

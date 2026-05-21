@@ -23,8 +23,19 @@ The live script uses `MINDORY_E2E_API_URL` or `http://localhost:3000`,
 
 The live scenario creates project, peer, session and message records, uploads
 `fixtures/demo/mindory-demo.txt`, waits for document processing to reach
-`chunked` or `indexed`, creates a source-backed memory, builds context, then
-checks CLI, MCP and Hermes flows over the HTTP API.
+`chunked` or `indexed`, verifies document search returns source-backed chunk
+hits, creates a source-backed memory, builds context, then checks CLI, MCP and
+Hermes flows over the HTTP API.
+
+Strict indexed flow:
+
+```bash
+MINDORY_E2E_LIVE=true MINDORY_E2E_REQUIRE_INDEXED=true pnpm mvp:acceptance
+```
+
+Use strict mode only after configuring an embeddings provider whose dimensions
+match the current pgvector MVP schema. Disabled embeddings remain supported and
+should process documents to `chunked` in the default local flow.
 
 Docker is not available in every development environment. In those cases the
 dry-run remains the repository check, and the live command should be run where

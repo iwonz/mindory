@@ -9,6 +9,7 @@ const scenario = [
   "seed demo project and bearer token",
   "api create project peers session and messages",
   "api upload document and poll processing jobs",
+  "strict indexed document search when embeddings are enabled",
   "api create source-backed memory",
   "api build context",
   "cli build context and inspect jobs",
@@ -17,7 +18,7 @@ const scenario = [
 ];
 
 if (process.env.MINDORY_E2E_LIVE !== "true") {
-  for (const required of ["api", "cli", "mcp", "hermes", "upload document", "source-backed memory", "poll processing jobs"]) {
+  for (const required of ["api", "cli", "mcp", "hermes", "upload document", "source-backed memory", "poll processing jobs", "indexed", "document search"]) {
     assert(scenario.some((step) => step.includes(required)), `Dry-run scenario must include ${required}.`);
   }
   console.log("MVP acceptance dry-run validated. Set MINDORY_E2E_LIVE=true to run against a live API.");
@@ -25,6 +26,7 @@ if (process.env.MINDORY_E2E_LIVE !== "true") {
 }
 
 const apiUrl = (process.env.MINDORY_E2E_API_URL ?? "http://localhost:3000").replace(/\/$/, "");
+const requireIndexed = process.env.MINDORY_E2E_REQUIRE_INDEXED === "true";
 const projectId = process.env.MINDORY_DEMO_PROJECT_ID ?? "mindory-demo";
 const token = process.env.MINDORY_DEMO_TOKEN ?? "mindory-demo-token";
 const userPeerId = "peer_demo_user";
@@ -69,6 +71,7 @@ const uploaded = await uploadDemoDocument();
 const documentId = uploaded.document?.id;
 assert(typeof documentId === "string", "Document upload should return a document id.");
 await waitForDocument(documentId);
+await assertDocumentSearch(documentId);
 
 const memory = await requestJson("POST", "/v1/memories", {
   projectId,
@@ -144,7 +147,8 @@ async function requestJson(method, pathname, body = undefined) {
 
 async function uploadDemoDocument() {
   const filePath = path.join(root, "fixtures/demo/mindory-demo.txt");
-  const body = await readFile(filePath);
+  const fixture = await readFile(filePath, "utf8");
+  const body = `${fixture}\nMindory acceptance marker ${sessionId} source-backed context document search.\n`;
   const form = new FormData();
   form.append("projectId", projectId);
   form.append("title", "Mindory MVP demo document");
@@ -165,18 +169,30 @@ async function uploadDemoDocument() {
 }
 
 async function waitForDocument(documentId) {
-  const accepted = new Set(["chunked", "indexed"]);
+  const accepted = requireIndexed ? new Set(["indexed"]) : new Set(["chunked", "indexed"]);
   for (let attempt = 0; attempt < 60; attempt += 1) {
     const status = await requestJson("GET", `/v1/documents/${encodeURIComponent(documentId)}/status?projectId=${encodeURIComponent(projectId)}`);
     if (accepted.has(status.status)) {
-      return;
+      return status;
     }
     if (["failed", "scan_failed", "scan_infected", "quarantined"].includes(status.status)) {
       throw new Error(`document processing failed with status ${status.status}`);
     }
     await new Promise((resolve) => setTimeout(resolve, 2000));
   }
-  throw new Error("document processing did not reach chunked/indexed status in time");
+  const expected = requireIndexed ? "indexed" : "chunked/indexed";
+  throw new Error(`document processing did not reach ${expected} status in time`);
+}
+
+async function assertDocumentSearch(documentId) {
+  const search = await requestJson("POST", "/v1/documents/search", {
+    projectIds: [projectId],
+    query: "acceptance marker source-backed context document search",
+    limit: 5
+  });
+  assert(Array.isArray(search.hits), "Document search should return hits array.");
+  assert(search.hits.some((hit) => hit.documentId === documentId), "Document search should return the uploaded document chunk.");
+  assert(search.hits.some((hit) => Array.isArray(hit.sourceRefs) && hit.sourceRefs.some((ref) => ref.type === "chunk")), "Document search hits should include chunk source refs.");
 }
 
 function runCli(args) {

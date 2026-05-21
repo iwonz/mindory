@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { loadMindoryConfig, type MindoryConfig } from "@mindory/config";
+import { loadMindoryConfig, PGVECTOR_EMBEDDING_DIMENSIONS, type MindoryConfig } from "@mindory/config";
 import { ProcessingJobDispatcher, type ProcessingJobProcessor } from "@mindory/core/queue";
 import {
   createMindoryDatabaseClient,
@@ -56,7 +56,7 @@ export function buildWorkerRuntime(config: MindoryConfig = loadMindoryConfig()):
     processorOptions.embeddings = embeddings;
     processorOptions.vectorIndex = new PgVectorChunkIndex({
       db: database.db,
-      dimensions: config.embeddings.dimensions ?? 1536
+      dimensions: config.embeddings.dimensions ?? PGVECTOR_EMBEDDING_DIMENSIONS
     });
   }
   const documentProcessors = buildDocumentPipelineProcessors(processorOptions);

@@ -1,7 +1,7 @@
 {
   "id": "TASK-31",
   "title": "Enable live embeddings and indexed search acceptance",
-  "status": "ready",
+  "status": "done",
   "type": "feature",
   "priority": "high",
   "branch": "task/TASK-31-live-embeddings-indexed-search",
