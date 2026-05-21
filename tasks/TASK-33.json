@@ -1,7 +1,7 @@
 {
   "id": "TASK-33",
   "title": "Validate Hermes runtime integration",
-  "status": "ready",
+  "status": "done",
   "type": "feature",
   "priority": "medium",
   "branch": "task/TASK-33-hermes-real-runtime-validation",

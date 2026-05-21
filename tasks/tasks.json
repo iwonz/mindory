@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-33",
+  "current_task_id": "TASK-34",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -264,7 +264,7 @@
     {
       "id": "TASK-33",
       "title": "Validate Hermes runtime integration",
-      "status": "ready",
+      "status": "done",
       "branch": "task/TASK-33-hermes-real-runtime-validation",
       "file": "tasks/TASK-33.json"
     },
