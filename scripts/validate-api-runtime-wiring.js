@@ -6,6 +6,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 const requiredFiles = [
   "apps/api/src/runtime.ts",
+  "apps/api/src/routes/artifacts.ts",
   "apps/api/src/routes/tokens.ts",
   "apps/api/src/routes/peers.ts",
   "apps/api/src/routes/sessions.ts",
@@ -39,6 +40,7 @@ const app = read("apps/api/src/app.ts");
 const server = read("apps/api/src/server.ts");
 const runtime = read("apps/api/src/runtime.ts");
 const errors = read("apps/api/src/errors.ts");
+const artifactRoutes = read("apps/api/src/routes/artifacts.ts");
 const projectRoutes = read("apps/api/src/routes/projects.ts");
 const tokenRoutes = read("apps/api/src/routes/tokens.ts");
 const peerRoutes = read("apps/api/src/routes/peers.ts");
@@ -90,6 +92,7 @@ for (const symbol of [
 assert(server.includes("buildApiRuntimeDependencies"), "API server must build runtime dependencies.");
 assert(server.includes("buildApiApp({ config, ...runtime })"), "API server must pass runtime dependencies to app builder.");
 assert(app.includes("registerPeerRoutes"), "API app must register peer routes.");
+assert(app.includes("registerArtifactRoutes"), "API app must register artifact routes.");
 assert(app.includes("registerTokenRoutes"), "API app must register token routes.");
 assert(app.includes("registerSessionRoutes"), "API app must register session routes.");
 assert(app.includes("registerFaceRoutes"), "API app must register face routes.");
@@ -131,6 +134,11 @@ for (const token of ["documentRepository", "chunkSearchRepository", "artifactRep
   assert(documentRoutes.includes(token), `Document routes must use ${token}.`);
 }
 
+assert(artifactRoutes.includes('"/v1/artifacts/search"'), "Artifact routes must include POST /v1/artifacts/search.");
+for (const token of ["artifactRepository", "searchArtifacts", "metadataFilters", "artifactTypes", "spanTypes", "\"document:search\""]) {
+  assert(artifactRoutes.includes(token), `Artifact routes must use ${token}.`);
+}
+
 for (const route of ['"/v1/faces/identities"', '"/v1/faces/identities/:id"', '"/v1/faces/observations"', '"/v1/faces/identities/:id/merge"']) {
   assert(faceRoutes.includes(route), `Face routes must include ${route}.`);
 }
@@ -148,6 +156,7 @@ for (const token of ["jobStore", "jobDispatcher", "getJob", "listJobs", "retry"]
 }
 assert(runtime.includes("uploadService"), "API runtime must inject DocumentUploadService into document routes.");
 assert(runtime.includes("recomputeService"), "API runtime must inject DocumentRecomputeService into document routes.");
+assert(runtime.includes("artifacts:") && runtime.includes("artifactRepository"), "API runtime must inject artifact repository into artifact routes.");
 assert(runtime.includes("faceService"), "API runtime must inject FaceService into face routes.");
 assert(runtime.includes("buildDocumentChunkSearchRepository"), "API runtime must choose text or pgvector document chunk search.");
 assert(runtime.includes("buildEmbeddingsProvider"), "API runtime must build query embeddings when semantic search is configured.");
@@ -160,6 +169,7 @@ assert(tokenRoutes.includes("requireProjectPermission"), "Token routes must enfo
 assert(peerRoutes.includes("requireProjectPermission"), "Peer routes must enforce project authorization.");
 assert(sessionRoutes.includes("requireProjectPermission"), "Session routes must enforce session/message authorization.");
 assert(documentRoutes.includes("requireProjectPermission"), "Document routes must enforce document authorization.");
+assert(artifactRoutes.includes("requireProjectPermissionForEach"), "Artifact routes must enforce artifact search authorization.");
 assert(faceRoutes.includes("requireProjectPermission"), "Face routes must enforce face authorization.");
 assert(jobRoutes.includes("requireProjectPermission"), "Job routes must enforce project authorization.");
 assert(memoryRoutes.includes("requireProjectPermission"), "Memory routes must enforce memory authorization.");

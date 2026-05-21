@@ -1,5 +1,6 @@
-import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql, type SQL } from "drizzle-orm";
 import type {
+  ArtifactSearchHit,
   CreateDocumentArtifactInput,
   CreateDocumentArtifactTextSpanInput,
   CreateDocumentMetadataIndexInput,
@@ -19,6 +20,7 @@ import type {
   ReassignFaceObservationsInput,
   ReplaceDocumentMetadataIndexInput,
   ReplaceDocumentArtifactTextSpansInput,
+  SearchArtifactsInput,
   UpdateFaceIdentityInput,
   UpdateProcessingRunStatusInput,
   UpsertDocumentMediaMetadataInput
@@ -224,6 +226,87 @@ export class DbDerivedArtifactRepository implements DerivedArtifactRepository {
     )).returning();
 
     return rows.map(mapDocumentMetadataIndex);
+  }
+
+  async searchArtifacts(input: SearchArtifactsInput): Promise<ArtifactSearchHit[]> {
+    if (input.projectIds.length === 0 || !input.query || input.query.trim() === "") {
+      return [];
+    }
+
+    const projectFilters = sql.join(input.projectIds.map((projectId) => sql`${projectId}`), sql`, `);
+    const artifactTypeFilter = input.artifactTypes && input.artifactTypes.length > 0
+      ? sql`and artifacts.artifact_type in (${sql.join(input.artifactTypes.map((type) => sql`${type}`), sql`, `)})`
+      : sql``;
+    const spanTypeFilter = input.spanTypes && input.spanTypes.length > 0
+      ? sql`and spans.span_type in (${sql.join(input.spanTypes.map((type) => sql`${type}`), sql`, `)})`
+      : sql``;
+    const result = await this.db.execute(sql`
+      select
+        spans.project_id,
+        spans.document_id,
+        spans.id as span_id,
+        spans.span_type,
+        spans.content,
+        spans.metadata as span_metadata,
+        spans.page_number,
+        spans.frame_index,
+        spans.timestamp_ms,
+        spans.bounding_box,
+        spans.confidence,
+        artifacts.id as artifact_id,
+        artifacts.artifact_type,
+        artifacts.source_refs,
+        artifacts.source_position,
+        artifacts.metadata as artifact_metadata,
+        ts_rank_cd(to_tsvector('simple', spans.content), plainto_tsquery('simple', ${input.query})) as score
+      from document_artifact_text_spans spans
+      inner join document_artifacts artifacts
+        on artifacts.id = spans.artifact_id
+        and artifacts.project_id = spans.project_id
+        and artifacts.document_id = spans.document_id
+      inner join processing_runs runs
+        on runs.id = artifacts.processing_run_id
+        and runs.project_id = artifacts.project_id
+        and runs.document_id = artifacts.document_id
+      where spans.project_id in (${projectFilters})
+        and runs.status <> 'superseded'
+        ${artifactTypeFilter}
+        ${spanTypeFilter}
+        and to_tsvector('simple', spans.content) @@ plainto_tsquery('simple', ${input.query})
+        and ${artifactMetadataFiltersSql(sql.raw("spans.project_id"), sql.raw("spans.document_id"), input.metadataFilters)}
+      order by score desc, spans.created_at desc
+      limit ${input.limit}
+    `);
+
+    return readRows(result).map((row) => {
+      const spanMetadata = readMetadata(row.span_metadata);
+      const artifactMetadata = readMetadata(row.artifact_metadata);
+      const sourceRefs = readSourceRefs(spanMetadata.source_refs, readSourceRefs(row.source_refs, [
+        { type: "artifact", id: String(row.artifact_id) }
+      ]));
+      return {
+        projectId: String(row.project_id),
+        documentId: String(row.document_id),
+        artifactId: String(row.artifact_id),
+        artifactType: String(row.artifact_type) as ArtifactSearchHit["artifactType"],
+        spanId: String(row.span_id),
+        spanType: String(row.span_type),
+        content: String(row.content),
+        score: Number(row.score),
+        sourceRefs,
+        sourcePosition: readSearchSourcePosition(row),
+        metadata: {
+          ...artifactMetadata,
+          ...spanMetadata,
+          page_number: row.page_number === null ? null : Number(row.page_number),
+          frame_index: row.frame_index === null ? null : Number(row.frame_index),
+          timestamp_ms: row.timestamp_ms === null ? null : Number(row.timestamp_ms),
+          bounding_box: readNullableMetadata(row.bounding_box),
+          confidence: row.confidence === null ? null : Number(row.confidence),
+          search_backend: "artifact_text_spans_full_text"
+        }
+      };
+    });
   }
 
   async createFaceIdentity(input: CreateFaceIdentityInput): Promise<FaceIdentityRecord> {
@@ -515,4 +598,116 @@ function mapFaceObservation(row: typeof faceObservations.$inferSelect): FaceObse
     metadata: row.metadata,
     createdAt: row.createdAt
   };
+}
+
+type Row = Record<string, unknown>;
+
+function readRows(result: unknown): Row[] {
+  if (typeof result === "object" && result !== null && "rows" in result && Array.isArray((result as { rows: unknown }).rows)) {
+    return (result as { rows: Row[] }).rows;
+  }
+  return [];
+}
+
+function readMetadata(value: unknown): Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function readNullableMetadata(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function readSourceRefs(value: unknown, fallback: ArtifactSearchHit["sourceRefs"]): ArtifactSearchHit["sourceRefs"] {
+  if (!Array.isArray(value)) {
+    return fallback;
+  }
+  const refs = value.filter((item): item is { type: ArtifactSearchHit["sourceRefs"][number]["type"]; id: string } =>
+    typeof item === "object"
+    && item !== null
+    && typeof (item as { type?: unknown }).type === "string"
+    && typeof (item as { id?: unknown }).id === "string"
+  );
+  return refs.length > 0 ? refs : fallback;
+}
+
+function readSearchSourcePosition(row: Row): Record<string, unknown> {
+  const sourcePosition = readMetadata(row.source_position);
+  if (row.page_number !== null && row.page_number !== undefined) {
+    sourcePosition.page_number = Number(row.page_number);
+  }
+  if (row.frame_index !== null && row.frame_index !== undefined) {
+    sourcePosition.frame_index = Number(row.frame_index);
+  }
+  if (row.timestamp_ms !== null && row.timestamp_ms !== undefined) {
+    sourcePosition.timestamp_ms = Number(row.timestamp_ms);
+  }
+  const boundingBox = readNullableMetadata(row.bounding_box);
+  if (boundingBox) {
+    sourcePosition.bounding_box = boundingBox;
+  }
+  if (row.confidence !== null && row.confidence !== undefined) {
+    sourcePosition.confidence = Number(row.confidence);
+  }
+  return sourcePosition;
+}
+
+function artifactMetadataFiltersSql(projectIdExpression: SQL, documentIdExpression: SQL, filters: SearchArtifactsInput["metadataFilters"]): SQL {
+  if (!filters || filters.length === 0) {
+    return sql`true`;
+  }
+
+  return sql.join(filters.map((filter) => sql`
+    exists (
+      select 1
+      from document_metadata_index metadata_filter
+      where metadata_filter.project_id = ${projectIdExpression}
+        and metadata_filter.document_id = ${documentIdExpression}
+        and metadata_filter.key = ${filter.key}
+        ${filter.unit === undefined ? sql`` : sql`and metadata_filter.unit = ${filter.unit}`}
+        and ${artifactMetadataFilterValueSql(filter)}
+    )
+  `), sql` and `);
+}
+
+function artifactMetadataFilterValueSql(filter: NonNullable<SearchArtifactsInput["metadataFilters"]>[number]): SQL {
+  const operator = filter.operator ?? "eq";
+
+  if (operator === "between") {
+    return typeof filter.minNumber === "number" && typeof filter.maxNumber === "number"
+      ? sql`metadata_filter.value_number between ${filter.minNumber} and ${filter.maxNumber}`
+      : sql`false`;
+  }
+  if (operator === "lt" || operator === "lte" || operator === "gt" || operator === "gte") {
+    if (typeof filter.valueNumber !== "number") {
+      return sql`false`;
+    }
+    switch (operator) {
+      case "lt":
+        return sql`metadata_filter.value_number < ${filter.valueNumber}`;
+      case "lte":
+        return sql`metadata_filter.value_number <= ${filter.valueNumber}`;
+      case "gt":
+        return sql`metadata_filter.value_number > ${filter.valueNumber}`;
+      case "gte":
+        return sql`metadata_filter.value_number >= ${filter.valueNumber}`;
+    }
+  }
+
+  if (typeof filter.valueNumber === "number") {
+    return sql`metadata_filter.value_number = ${filter.valueNumber}`;
+  }
+  if (typeof filter.valueText === "string") {
+    return sql`metadata_filter.value_text = ${filter.valueText}`;
+  }
+  if (typeof filter.valueBoolean === "boolean") {
+    return sql`metadata_filter.value_boolean = ${filter.valueBoolean}`;
+  }
+  if (typeof filter.valueTimestamp === "string") {
+    return sql`metadata_filter.value_timestamp = ${filter.valueTimestamp}`;
+  }
+  return sql`false`;
 }

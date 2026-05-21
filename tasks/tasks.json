@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-47",
+  "current_task_id": "TASK-48",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -365,6 +365,13 @@
       "status": "done",
       "branch": "task/TASK-47-video-keyframe-pipeline",
       "file": "tasks/TASK-47.json"
+    },
+    {
+      "id": "TASK-48",
+      "title": "Add unified artifact search API",
+      "status": "done",
+      "branch": "task/TASK-48-unified-artifact-search-api",
+      "file": "tasks/TASK-48.json"
     }
   ]
 }

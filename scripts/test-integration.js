@@ -139,8 +139,13 @@ test("MVP runtime integration covers auth, upload, worker jobs and context", { t
     await uploadAndProcessPdfDocument(apiUrl);
     const imageDocument = await uploadAndProcessImageDocument(apiUrl);
     await assertFaceSubsystem(apiUrl, imageDocument.documentId);
-    await uploadAndProcessAudioDocument(apiUrl);
-    await uploadAndProcessVideoDocument(apiUrl);
+    const audioDocument = await uploadAndProcessAudioDocument(apiUrl);
+    const videoDocument = await uploadAndProcessVideoDocument(apiUrl);
+    await assertUnifiedArtifactSearch(apiUrl, {
+      imageDocumentId: imageDocument.documentId,
+      audioDocumentId: audioDocument.documentId,
+      videoDocumentId: videoDocument.documentId
+    });
     await assertJobsApi(apiUrl, managementStore, sessionId, routeJobId);
     await assertDocumentRecompute(apiUrl, documentId);
     await assertMemoryAndContext(apiUrl, sessionId, messageId, documentId);
@@ -623,6 +628,11 @@ async function uploadAndProcessAudioDocument(apiUrl) {
   assert.equal(mediaMetadata.media_type, "audio");
   assert.equal(mediaMetadata.codec, "pcm");
   assert.equal(mediaMetadata.duration_ms, 1000);
+
+  return {
+    documentId,
+    routeJobId
+  };
 }
 
 async function uploadAndProcessVideoDocument(apiUrl) {
@@ -695,6 +705,61 @@ async function uploadAndProcessVideoDocument(apiUrl) {
   assert.equal(mediaMetadata.media_type, "video");
   assert.equal(mediaMetadata.duration_ms, 12_000);
   assert.equal(mediaMetadata.codec, "manifest-h264");
+
+  return {
+    documentId,
+    routeJobId
+  };
+}
+
+async function assertUnifiedArtifactSearch(apiUrl, input) {
+  const imageSearch = await requestJson(apiUrl, "POST", "/v1/artifacts/search", {
+    projectIds: [projectId],
+    query: "passport airport",
+    artifactTypes: ["ocr_text", "image_caption", "image_analysis"],
+    limit: 10,
+    metadataFilters: [{ key: "extension", valueText: "png" }]
+  });
+  assert.ok(imageSearch.hits.some((hit) => hit.document_id === input.imageDocumentId), "artifact search should find image OCR/caption artifacts.");
+  assert.ok(imageSearch.hits.every((hit) => hit.source_refs.some((ref) => ref.type === "artifact")), "artifact search hits should include artifact source refs.");
+
+  const faceSearch = await requestJson(apiUrl, "POST", "/v1/artifacts/search", {
+    projectIds: [projectId],
+    query: "face observation",
+    artifactTypes: ["face_observation"],
+    spanTypes: ["face_observation"],
+    limit: 10,
+    metadataFilters: [{ key: "extension", valueText: "png" }]
+  });
+  const faceHit = faceSearch.hits.find((hit) => hit.document_id === input.imageDocumentId);
+  assert.ok(faceHit, "artifact search should find face observation spans.");
+  assert.ok(faceHit.source_refs.some((ref) => ref.type === "face_identity"), "face artifact search hits should include face identity source refs.");
+
+  const audioSearch = await requestJson(apiUrl, "POST", "/v1/artifacts/search", {
+    projectIds: [projectId],
+    query: "durable memory recall",
+    artifactTypes: ["transcript"],
+    spanTypes: ["transcript_segment"],
+    limit: 10,
+    metadataFilters: [{ key: "extension", valueText: "wav" }]
+  });
+  const audioHit = audioSearch.hits.find((hit) => hit.document_id === input.audioDocumentId);
+  assert.ok(audioHit, "artifact search should find audio transcript spans.");
+  assert.equal(audioHit.metadata.start_ms, 0);
+  assert.equal(audioHit.metadata.end_ms, 1000);
+
+  const videoSearch = await requestJson(apiUrl, "POST", "/v1/artifacts/search", {
+    projectIds: [projectId],
+    query: "dogs luggage",
+    artifactTypes: ["video_keyframe"],
+    spanTypes: ["video_keyframe_description"],
+    limit: 10,
+    metadataFilters: [{ key: "frame_count", operator: "eq", valueNumber: 5, unit: "frames" }]
+  });
+  const videoHit = videoSearch.hits.find((hit) => hit.document_id === input.videoDocumentId);
+  assert.ok(videoHit, "artifact search should find video keyframe spans.");
+  assert.equal(videoHit.metadata.timestamp_ms, 3000);
+  assert.equal(videoHit.source_position.timestamp_ms, 3000);
 }
 
 async function uploadAndIndexDocument(input) {

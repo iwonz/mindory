@@ -1197,6 +1197,7 @@ async function createExtractedSemanticArtifacts(input: {
     const artifactId = deterministicArtifactId(input.processingRunId, semanticArtifact.artifactType, artifactIndex);
     const textSpanId = deterministicTextSpanId(artifactId, 0);
     const spanType = semanticArtifact.spanType ?? semanticArtifact.artifactType;
+    const sourcePosition = semanticArtifact.sourcePosition ?? {};
     await input.artifacts.createDocumentArtifact({
       id: artifactId,
       projectId: input.document.projectId,
@@ -1213,7 +1214,7 @@ async function createExtractedSemanticArtifacts(input: {
         { type: "artifact", id: input.textArtifactId }
       ],
       source: input.document.source,
-      sourcePosition: semanticArtifact.sourcePosition ?? {},
+      sourcePosition,
       modelProvider: semanticArtifact.modelProvider ?? null,
       modelName: semanticArtifact.modelName ?? null,
       modelVersion: semanticArtifact.modelVersion ?? null,
@@ -1236,6 +1237,10 @@ async function createExtractedSemanticArtifacts(input: {
         artifactId,
         spanType,
         content: semanticArtifact.content,
+        pageNumber: readNumberFromRecord(sourcePosition, "page_number"),
+        frameIndex: readNumberFromRecord(sourcePosition, "frame_index"),
+        timestampMs: readNumberFromRecord(sourcePosition, "timestamp_ms"),
+        boundingBox: readRecordFromRecord(sourcePosition, "bounding_box"),
         confidence: semanticArtifact.confidence ?? null,
         metadata: {
           ...(semanticArtifact.metadata ?? {}),
@@ -1440,6 +1445,38 @@ async function createExtractedFaceObservations(input: {
         face_observation_id: result.observation.id,
         auto_match: result.match
       }
+    });
+    await input.artifacts.replaceDocumentArtifactTextSpans({
+      projectId: input.document.projectId,
+      documentId: input.document.id,
+      artifactId,
+      spans: [{
+        id: deterministicTextSpanId(artifactId, 0),
+        projectId: input.document.projectId,
+        documentId: input.document.id,
+        artifactId,
+        spanType: "face_observation",
+        content,
+        boundingBox: faceObservation.boundingBox,
+        confidence: faceObservation.confidence ?? null,
+        metadata: {
+          ...baseMetadata,
+          processing_run_id: input.processingRunId,
+          artifact_id: artifactId,
+          text_artifact_id: input.textArtifactId,
+          face_identity_id: result.identity.id,
+          face_observation_id: result.observation.id,
+          auto_match: result.match,
+          source_refs: [
+            { type: "document", id: input.document.id },
+            { type: "processing_run", id: input.processingRunId },
+            { type: "artifact", id: input.textArtifactId },
+            { type: "artifact", id: artifactId },
+            { type: "face_identity", id: result.identity.id },
+            { type: "face_observation", id: result.observation.id }
+          ]
+        }
+      }]
     });
     refs.push({
       artifact_id: artifactId,
@@ -2004,6 +2041,17 @@ function readMetadataStringArray(metadata: unknown, key: string): string[] | und
   return Array.isArray(value) && value.every((item) => typeof item === "string")
     ? value
     : undefined;
+}
+
+function readNumberFromRecord(record: Record<string, unknown>, key: string): number | null {
+  return typeof record[key] === "number" ? record[key] : null;
+}
+
+function readRecordFromRecord(record: Record<string, unknown>, key: string): Record<string, unknown> | null {
+  const value = record[key];
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
 }
 
 function readExtractionPageRefs(metadata: unknown): ExtractedPageArtifactRef[] {

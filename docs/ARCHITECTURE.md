@@ -165,6 +165,9 @@ returns explicit `not_implemented` responses when dependencies are omitted.
 - `@mindory/core/artifacts` and `DbDerivedArtifactRepository` define the
   derived artifact boundary for processing runs, artifact records, media
   metadata and workspace-scoped face observations.
+- `POST /v1/artifacts/search` queries that derived artifact boundary across
+  current text spans, metadata filters and source positions without reading RAW
+  objects.
 - `@mindory/core/faces` owns face identity operations, automatic observation
   matching by same-project embeddings, rename and merge semantics.
 - Audio transcript extraction writes derived transcript artifacts and time-coded

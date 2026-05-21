@@ -232,6 +232,29 @@ export interface ReplaceDocumentMetadataIndexInput {
   entries: CreateDocumentMetadataIndexInput[];
 }
 
+export interface SearchArtifactsInput {
+  projectIds: string[];
+  query?: string;
+  artifactTypes?: DocumentArtifactType[];
+  spanTypes?: string[];
+  metadataFilters?: DocumentMetadataFilter[];
+  limit: number;
+}
+
+export interface ArtifactSearchHit {
+  projectId: string;
+  documentId: string;
+  artifactId: string;
+  artifactType: DocumentArtifactType;
+  spanId: string;
+  spanType: string;
+  content: string;
+  score: number;
+  sourceRefs: SourceRef[];
+  sourcePosition: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+}
+
 export interface FaceIdentityRecord {
   id: string;
   projectId: string;
@@ -319,6 +342,7 @@ export interface DerivedArtifactRepository extends DocumentProcessingRunReposito
   replaceDocumentArtifactTextSpans(input: ReplaceDocumentArtifactTextSpansInput): Promise<DocumentArtifactTextSpanRecord[]>;
   upsertDocumentMediaMetadata(input: UpsertDocumentMediaMetadataInput): Promise<DocumentMediaMetadataRecord>;
   replaceDocumentMetadataIndex(input: ReplaceDocumentMetadataIndexInput): Promise<DocumentMetadataIndexRecord[]>;
+  searchArtifacts(input: SearchArtifactsInput): Promise<ArtifactSearchHit[]>;
   createFaceIdentity(input: CreateFaceIdentityInput): Promise<FaceIdentityRecord>;
   getFaceIdentity(projectId: string, identityId: string): Promise<FaceIdentityRecord>;
   listFaceIdentities(input: ListFaceIdentitiesInput): Promise<FaceIdentityRecord[]>;
