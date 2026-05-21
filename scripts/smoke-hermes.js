@@ -33,6 +33,11 @@ class RecordingHermesApi {
     return { ok: true };
   }
 
+  async patchJson(path, body) {
+    this.calls.push({ method: "PATCH", path, body });
+    return { ok: true };
+  }
+
   async deleteJson(path) {
     this.calls.push({ method: "DELETE", path });
     return { ok: true };
@@ -112,8 +117,30 @@ await tools.memor_recall({
   externalSessionId: "tool-session",
   query: "source-backed"
 });
+await tools.memor_artifact_search({
+  projectId: "p1",
+  externalSessionId: "tool-session",
+  query: "passport airport",
+  artifactTypes: ["ocr_text"],
+  metadataFilters: [{ key: "extension", valueText: "png" }]
+});
+await tools.memor_document_reprocess({
+  projectId: "p1",
+  externalSessionId: "tool-session",
+  documentId: "doc_1",
+  stages: ["image"]
+});
+await tools.memor_face_rename({
+  projectId: "p1",
+  externalSessionId: "tool-session",
+  faceIdentityId: "face_1",
+  label: "Ivan"
+});
 const toolCalls = api.calls.slice(beforeToolCalls);
 assert(toolCalls.some((call) => call.path === "/v1/sessions"), "Hermes tools must ensure identity before API calls.");
 assert(toolCalls.some((call) => call.path === "/v1/memories/search"), "Hermes recall tool must call memory search.");
+assert(toolCalls.some((call) => call.path === "/v1/artifacts/search"), "Hermes artifact tool must call artifact search.");
+assert(toolCalls.some((call) => call.path === "/v1/documents/doc_1/recompute"), "Hermes reprocess tool must call document recompute.");
+assert(toolCalls.some((call) => call.method === "PATCH" && call.path === "/v1/faces/identities/face_1"), "Hermes face rename tool must call face identity PATCH.");
 
 console.log("Hermes runtime smoke scenario passed.");

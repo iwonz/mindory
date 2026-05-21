@@ -69,6 +69,18 @@ try {
   });
   assert.ok(JSON.stringify(toolResult).includes("source-backed Hermes answers"), "Hermes recall tool must call memory search through the API.");
 
+  const artifactToolResult = await bridge.tools().memor_artifact_search({
+    projectId: "hermes-contract-project",
+    externalUserId: "hermes-user-1",
+    agentId: "hermes-agent-1",
+    externalSessionId: "hermes-session-2",
+    query: "passport airport",
+    artifactTypes: ["ocr_text"],
+    metadataFilters: [{ key: "extension", valueText: "png" }],
+    limit: 2
+  });
+  assert.ok(JSON.stringify(artifactToolResult).includes("artifact_hermes_contract"), "Hermes artifact tool must call artifact search through the API.");
+
   for (const request of api.requests) {
     assert.equal(request.authorization, `Bearer ${token}`, `Hermes API request ${request.path} must include bearer auth.`);
   }
@@ -128,6 +140,20 @@ function startFakeMindoryApi() {
             id: "mem_hermes_contract",
             text: "source-backed Hermes answers",
             sourceRefs: [{ type: "message", id: "msg_hermes_contract_user" }]
+          }
+        ]
+      });
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/v1/artifacts/search") {
+      json(response, {
+        hits: [
+          {
+            artifact_id: "artifact_hermes_contract",
+            artifact_type: "ocr_text",
+            content: "passport at airport",
+            source_refs: [{ type: "document", id: "doc_hermes_contract" }]
           }
         ]
       });

@@ -61,6 +61,11 @@ export async function dispatchCliCommand(parsed: ParsedCliArgs, context: CliComm
       return uploadDocument(args, parsed, context);
     case "document:status":
       return context.api.getJson(`/v1/documents/${encodeURIComponent(requiredArg(args, 0, "document id"))}/status?${projectQuery(parsed)}`);
+    case "document:reprocess":
+    case "document:recompute":
+      return reprocessDocument(args, parsed, context);
+    case "document:runs":
+      return context.api.getJson(`/v1/documents/${encodeURIComponent(requiredArg(args, 0, "document id"))}/processing-runs?${projectQuery(parsed)}`);
     case "document:search":
       return searchDocuments(args, parsed, context);
     case "document:read":
@@ -71,6 +76,33 @@ export async function dispatchCliCommand(parsed: ParsedCliArgs, context: CliComm
         status: readFlag(parsed.flags, "status"),
         limit: readPositiveIntegerFlag(parsed, "limit")
       })}`);
+    case "artifact:search":
+      return searchArtifacts(args, parsed, context);
+    case "face:identities":
+      return context.api.getJson(`/v1/faces/identities?${queryString({
+        projectId: requiredFlag(parsed, "project"),
+        status: readFlag(parsed.flags, "status"),
+        limit: readPositiveIntegerFlag(parsed, "limit")
+      })}`);
+    case "face:identity":
+      return context.api.getJson(`/v1/faces/identities/${encodeURIComponent(requiredArg(args, 0, "face identity id"))}?${projectQuery(parsed)}`);
+    case "face:observations":
+      return context.api.getJson(`/v1/faces/observations?${queryString({
+        projectId: requiredFlag(parsed, "project"),
+        identityId: readFlag(parsed.flags, "identity"),
+        documentId: readFlag(parsed.flags, "document"),
+        limit: readPositiveIntegerFlag(parsed, "limit")
+      })}`);
+    case "face:rename":
+      return context.api.patchJson(`/v1/faces/identities/${encodeURIComponent(requiredArg(args, 0, "face identity id"))}`, {
+        projectId: requiredFlag(parsed, "project"),
+        label: readNullableLabel(parsed)
+      });
+    case "face:merge":
+      return context.api.postJson(`/v1/faces/identities/${encodeURIComponent(requiredArg(args, 0, "source face identity id"))}/merge`, {
+        projectId: requiredFlag(parsed, "project"),
+        targetIdentityId: requiredFlag(parsed, "target")
+      });
     case "memory:remember":
       return rememberMemory(args, parsed, context);
     case "memory:recall":
@@ -127,9 +159,17 @@ export function helpText(): string {
     "  mindory message list --session <id> --project <id> [--limit 50]",
     "  mindory document upload <path> --project <id> [--mime-type <type>] [--title <text>]",
     "  mindory document status <id> --project <id>",
-    "  mindory document search --project <id> <query> [--limit 10]",
+    "  mindory document reprocess <id> --project <id> [--stages text,pdf,image,audio,video]",
+    "  mindory document runs <id> --project <id>",
+    "  mindory document search --project <id> <query> [--limit 10] [--metadata-filter <json>]",
     "  mindory document read <id> --project <id>",
     "  mindory document list --project <id> [--status <status>] [--limit 20]",
+    "  mindory artifact search --project <id> <query> [--artifact-type <csv>] [--span-type <csv>] [--metadata-filter <json>]",
+    "  mindory face identities --project <id> [--status candidate] [--limit 20]",
+    "  mindory face identity <id> --project <id>",
+    "  mindory face observations --project <id> [--identity <id>] [--document <id>]",
+    "  mindory face rename <id> --project <id> --label <text|null>",
+    "  mindory face merge <source-id> --project <id> --target <target-id>",
     "  mindory memory remember --project <id> --source-ref <type:id> <text>",
     "  mindory memory recall --project <id> <query> [--limit 10]",
     "  mindory memory explain <id> --project <id>",
@@ -209,10 +249,31 @@ function uploadDocument(args: string[], parsed: ParsedCliArgs, context: CliComma
   });
 }
 
+function reprocessDocument(args: string[], parsed: ParsedCliArgs, context: CliCommandContext): Promise<unknown> {
+  return context.api.postJson(`/v1/documents/${encodeURIComponent(requiredArg(args, 0, "document id"))}/recompute`, {
+    projectId: requiredFlag(parsed, "project"),
+    stages: optionalCsvFlag(parsed, "stages"),
+    reason: readFlag(parsed.flags, "reason"),
+    requestId: readFlag(parsed.flags, "request-id")
+  });
+}
+
 function searchDocuments(args: string[], parsed: ParsedCliArgs, context: CliCommandContext): Promise<unknown> {
   return context.api.postJson("/v1/documents/search", {
     projectIds: readProjectIds(parsed),
     query: requiredQuery(args),
+    limit: readPositiveIntegerFlag(parsed, "limit") ?? 10,
+    metadataFilters: readMetadataFilters(parsed)
+  });
+}
+
+function searchArtifacts(args: string[], parsed: ParsedCliArgs, context: CliCommandContext): Promise<unknown> {
+  return context.api.postJson("/v1/artifacts/search", {
+    projectIds: readProjectIds(parsed),
+    query: requiredQuery(args),
+    artifactTypes: optionalCsvFlag(parsed, "artifact-type"),
+    spanTypes: optionalCsvFlag(parsed, "span-type"),
+    metadataFilters: readMetadataFilters(parsed),
     limit: readPositiveIntegerFlag(parsed, "limit") ?? 10
   });
 }
@@ -353,6 +414,25 @@ function readJsonFlag(parsed: ParsedCliArgs, name: string): Record<string, unkno
     throw new CliError(`--${name} must be a JSON object.`, 2);
   }
   return parsedValue as Record<string, unknown>;
+}
+
+function readMetadataFilters(parsed: ParsedCliArgs): Record<string, unknown>[] | undefined {
+  const values = readFlagValues(parsed.flags, "metadata-filter");
+  if (values.length === 0) {
+    return undefined;
+  }
+  return values.map((value) => {
+    const parsedValue = JSON.parse(value) as unknown;
+    if (typeof parsedValue !== "object" || parsedValue === null || Array.isArray(parsedValue)) {
+      throw new CliError("--metadata-filter must be a JSON object.", 2);
+    }
+    return parsedValue as Record<string, unknown>;
+  });
+}
+
+function readNullableLabel(parsed: ParsedCliArgs): string | null {
+  const label = requiredFlag(parsed, "label");
+  return label === "null" ? null : label;
 }
 
 function projectQuery(parsed: ParsedCliArgs): string {

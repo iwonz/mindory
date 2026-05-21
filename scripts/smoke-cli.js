@@ -23,6 +23,10 @@ class RecordingApi {
     return this.record("POST", path, body);
   }
 
+  async patchJson(path, body) {
+    return this.record("PATCH", path, body);
+  }
+
   async deleteJson(path) {
     return this.record("DELETE", path);
   }
@@ -97,6 +101,38 @@ const routeCases = [
   {
     argv: ["document", "status", "d1", "--project", "p1"],
     expected: { method: "GET", path: "/v1/documents/d1/status?projectId=p1" }
+  },
+  {
+    argv: ["document", "reprocess", "d1", "--project", "p1", "--stages", "image,video"],
+    expected: { method: "POST", path: "/v1/documents/d1/recompute" }
+  },
+  {
+    argv: ["document", "runs", "d1", "--project", "p1"],
+    expected: { method: "GET", path: "/v1/documents/d1/processing-runs?projectId=p1" }
+  },
+  {
+    argv: ["document", "search", "--project", "p1", "--metadata-filter", "{\"key\":\"extension\",\"valueText\":\"pdf\"}", "source refs"],
+    expected: { method: "POST", path: "/v1/documents/search" }
+  },
+  {
+    argv: ["artifact", "search", "--project", "p1", "--artifact-type", "ocr_text,image_caption", "--metadata-filter", "{\"key\":\"extension\",\"valueText\":\"png\"}", "passport airport"],
+    expected: { method: "POST", path: "/v1/artifacts/search" }
+  },
+  {
+    argv: ["face", "identities", "--project", "p1"],
+    expected: { method: "GET", path: "/v1/faces/identities?projectId=p1" }
+  },
+  {
+    argv: ["face", "observations", "--project", "p1", "--document", "d1"],
+    expected: { method: "GET", path: "/v1/faces/observations?projectId=p1&documentId=d1" }
+  },
+  {
+    argv: ["face", "rename", "face1", "--project", "p1", "--label", "Ivan"],
+    expected: { method: "PATCH", path: "/v1/faces/identities/face1" }
+  },
+  {
+    argv: ["face", "merge", "face1", "--project", "p1", "--target", "face2"],
+    expected: { method: "POST", path: "/v1/faces/identities/face1/merge" }
   },
   {
     argv: ["memory", "remember", "--project", "p1", "--source-ref", "message:m1", "Remember this source-backed fact"],

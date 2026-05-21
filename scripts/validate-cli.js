@@ -28,9 +28,18 @@ const expectedCommandTokens = [
   "message:list",
   "document:upload",
   "document:status",
+  "document:reprocess",
+  "document:recompute",
+  "document:runs",
   "document:search",
   "document:read",
   "document:list",
+  "artifact:search",
+  "face:identities",
+  "face:identity",
+  "face:observations",
+  "face:rename",
+  "face:merge",
   "memory:remember",
   "memory:recall",
   "memory:explain",
@@ -91,7 +100,12 @@ for (const route of [
   "/v1/tokens",
   "/v1/sessions",
   "/v1/documents",
+  "/processing-runs",
+  "/recompute",
   "/v1/documents/search",
+  "/v1/artifacts/search",
+  "/v1/faces/identities",
+  "/v1/faces/observations",
   "/v1/memories",
   "/v1/memories/search",
   "/v1/context/build",
@@ -106,14 +120,20 @@ assert(commands.includes("readProjectIds"), "CLI must support project/project li
 assert(commands.includes("tokenBudget"), "context build must send tokenBudget.");
 assert(commands.includes("jobs retry"), "CLI help must document job retry.");
 assert(commands.includes("jobs get"), "CLI help must document job get.");
+assert(commands.includes("artifact search"), "CLI help must document artifact search.");
+assert(commands.includes("document reprocess"), "CLI help must document document reprocess.");
+assert(commands.includes("document runs"), "CLI help must document document processing runs.");
+assert(commands.includes("face identities"), "CLI help must document face identities.");
 assert(commands.includes("token list --project <id>"), "CLI help must document token list.");
 assert(commands.includes("token revoke <id> --project <id>"), "CLI help must document token revoke.");
 assert(commands.includes("token rotate <id> --project <id>"), "CLI help must document token rotate.");
 assert(commands.includes("projectId: requiredFlag(parsed, \"project\")"), "CLI job retry must send projectId.");
 assert(commands.includes("readPositiveIntegerFlag"), "CLI must validate positive integer flags.");
 assert(commands.includes("message list --session <id> --project <id>"), "CLI help must document message list.");
+assert(commands.includes("readMetadataFilters"), "CLI search commands must pass metadata filters.");
+assert(commands.includes("patchJson"), "CLI commands must support PATCH routes.");
 
-for (const symbol of ["MindoryCliApiClient", "requestJson", "uploadDocument", "readFile", "FormData", "authorization", "Bearer", "MindoryCliApiError", "MindoryCliNetworkError"]) {
+for (const symbol of ["MindoryCliApiClient", "requestJson", "patchJson", "uploadDocument", "readFile", "FormData", "authorization", "Bearer", "MindoryCliApiError", "MindoryCliNetworkError"]) {
   assert(httpClient.includes(symbol), `CLI HTTP client must include ${symbol}.`);
 }
 assert(httpClient.includes("fetchImpl"), "CLI HTTP client must support injectable fetch.");
@@ -130,6 +150,8 @@ for (const token of [
   "runMindoryCli",
   "RecordingApi",
   "jobs\", \"get\"",
+  "artifact\", \"search\"",
+  "face\", \"rename\"",
   "context\", \"build\"",
   "document\", \"upload\"",
   "Missing project id should exit 2",

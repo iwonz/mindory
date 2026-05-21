@@ -1,0 +1,71 @@
+{
+  "id": "TASK-50",
+  "title": "Update CLI MCP and Hermes surfaces",
+  "status": "done",
+  "type": "chore",
+  "priority": "high",
+  "branch": "task/TASK-50-cli-mcp-hermes-surfaces",
+  "created_at": "2026-05-21",
+  "updated_at": "2026-05-21",
+  "context": {
+    "summary": "Expose the multimodal document pipeline through CLI, MCP and Hermes adapter HTTP-facing surfaces.",
+    "background": "TASK-37 through TASK-49 add model runtime, derived artifacts, routing, recompute, artifact search, faces and richer job status. Existing adapter surfaces still mostly cover the earlier text MVP."
+  },
+  "scope": {
+    "in": [
+      "Add CLI commands for artifact search, document artifact listing/reprocess/status flows, metadata filters and face identity operations where API support already exists.",
+      "Add MCP tools for artifact search, document artifacts/status/reprocess, metadata filters and face identity operations without direct DB/Redis/storage access.",
+      "Extend Hermes adapter surface helpers for artifact search, document reprocess/status and face identity operations through HTTP API calls.",
+      "Update smoke tests/validators for CLI, MCP and Hermes command/tool surfaces.",
+      "Update docs for CLI, MCP and Hermes adapter usage."
+    ],
+    "out": [
+      "Adding new backend APIs beyond thin surface wiring.",
+      "Changing artifact schema or worker pipeline behavior.",
+      "Changing 0000_initial_schema.sql.",
+      "Full external Hermes runtime certification."
+    ]
+  },
+  "acceptance_criteria": [
+    "CLI exposes upload/status/reprocess/job/artifact search and face operations over HTTP API.",
+    "MCP exposes upload/search/memory/context/job plus artifact search, reprocess/status and face tools over HTTP API.",
+    "Hermes adapter has HTTP-facing helpers for artifact search, document status/reprocess and face identity operations.",
+    "Metadata filters can be passed through CLI and MCP search surfaces.",
+    "Smoke tests cover representative CLI, MCP and Hermes calls.",
+    "No surface bypasses API by reading DB, Redis or storage directly."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "pnpm cli:validate",
+      "pnpm cli:smoke",
+      "pnpm mcp:validate",
+      "pnpm mcp:smoke",
+      "pnpm hermes:validate",
+      "pnpm hermes:smoke",
+      "pnpm hermes:contract",
+      "pnpm typecheck",
+      "pnpm lint",
+      "pnpm tasks:validate",
+      "pnpm test",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-50.",
+      "Confirm packages/db/drizzle/0000_initial_schema.sql is unchanged.",
+      "Confirm CLI/MCP/Hermes surfaces use HTTP API clients only."
+    ]
+  },
+  "dependencies": [
+    "TASK-49"
+  ],
+  "risks": [
+    "The backend has artifact search but not a dedicated artifact list API; document artifact listing may need to remain status/processing-run metadata until a backend task adds it.",
+    "Hermes real runtime behavior still depends on external Hermes hooks beyond this repository smoke surface."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch is committed and merged back into master."
+  ]
+}
