@@ -1,0 +1,70 @@
+{
+  "id": "TASK-47",
+  "title": "Add video keyframe pipeline",
+  "status": "done",
+  "type": "chore",
+  "priority": "high",
+  "branch": "task/TASK-47-video-keyframe-pipeline",
+  "created_at": "2026-05-21",
+  "updated_at": "2026-05-21",
+  "context": {
+    "summary": "Add a video keyframe processing path that creates derived frame artifacts and searchable frame descriptions with configurable max keyframes.",
+    "background": "TASK-44 added image semantic artifacts and TASK-46 added modality extractors with fallback manifests. Video routing still skips because no processor exists."
+  },
+  "scope": {
+    "in": [
+      "Route enabled video uploads to document.extract.",
+      "Add a dedicated video keyframe extractor with deterministic embedded-manifest fallback behavior.",
+      "Respect MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES with default 10.",
+      "Create video_keyframe derived artifacts and keyframe description spans.",
+      "Propagate keyframe artifact refs into chunk metadata and search source refs.",
+      "Index fallback video duration, codec and frame count metadata when available.",
+      "Add integration coverage for video upload, keyframe cap and frame phrase search.",
+      "Update docs, validators and workspace wiring."
+    ],
+    "out": [
+      "Real ffmpeg/video decoding.",
+      "Storing extracted bitmap keyframe files.",
+      "Running real image/OCR/face model adapters on frames.",
+      "Changing 0000_initial_schema.sql."
+    ]
+  },
+  "acceptance_criteria": [
+    "Enabled video routing creates a document.extract job.",
+    "Video extraction writes no more than the configured max keyframe artifacts.",
+    "Keyframe artifacts include frame index and timestamp source positions.",
+    "Chunk metadata/source refs include keyframe artifacts.",
+    "Video document search returns source-backed hits for keyframe descriptions.",
+    "Video metadata filters can use fallback duration and frame count when present.",
+    "No schema changes modify 0000_initial_schema.sql."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "pnpm documents:validate",
+      "pnpm processing:validate",
+      "pnpm typecheck",
+      "pnpm lint",
+      "pnpm tasks:validate",
+      "pnpm test",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-47.",
+      "Confirm packages/db/drizzle/0000_initial_schema.sql is unchanged.",
+      "Confirm video search hits include keyframe artifact metadata."
+    ]
+  },
+  "dependencies": [
+    "TASK-46"
+  ],
+  "risks": [
+    "The MVP video extractor uses an embedded manifest fallback until a real ffmpeg/local model adapter is installed.",
+    "Frame descriptions are derived text, not stored bitmap keyframes yet."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch is committed and merged back into master."
+  ]
+}

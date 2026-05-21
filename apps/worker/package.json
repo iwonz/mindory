@@ -27,6 +27,7 @@
     "@mindory/extractor-builtin-text": "workspace:*",
     "@mindory/extractor-docling": "workspace:*",
     "@mindory/extractor-image-semantic": "workspace:*",
+    "@mindory/extractor-video-keyframe": "workspace:*",
     "@mindory/model-runtime": "workspace:*",
     "@mindory/processor-antivirus-clamav": "workspace:*",
     "@mindory/queue-bullmq": "workspace:*",

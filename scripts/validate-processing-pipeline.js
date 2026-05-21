@@ -13,6 +13,7 @@ const requiredFiles = [
   "packages/processors/extractors/audio-transcript/src/index.ts",
   "packages/processors/extractors/docling/src/index.ts",
   "packages/processors/extractors/image-semantic/src/index.ts",
+  "packages/processors/extractors/video-keyframe/src/index.ts",
   "packages/processors/embeddings/openai-compatible/src/index.ts",
   "packages/processors/embeddings/ollama/src/index.ts",
   "packages/model-runtime/src/index.ts",
@@ -52,6 +53,8 @@ const doclingPackage = readJson("packages/processors/extractors/docling/package.
 const doclingTsconfig = readJson("packages/processors/extractors/docling/tsconfig.json");
 const imageSemanticPackage = readJson("packages/processors/extractors/image-semantic/package.json");
 const imageSemanticTsconfig = readJson("packages/processors/extractors/image-semantic/tsconfig.json");
+const videoKeyframePackage = readJson("packages/processors/extractors/video-keyframe/package.json");
+const videoKeyframeTsconfig = readJson("packages/processors/extractors/video-keyframe/tsconfig.json");
 const openAiPackage = readJson("packages/processors/embeddings/openai-compatible/package.json");
 const openAiTsconfig = readJson("packages/processors/embeddings/openai-compatible/tsconfig.json");
 const ollamaPackage = readJson("packages/processors/embeddings/ollama/package.json");
@@ -72,6 +75,7 @@ const extractor = read("packages/processors/extractors/builtin-text/src/index.ts
 const audioTranscript = read("packages/processors/extractors/audio-transcript/src/index.ts");
 const docling = read("packages/processors/extractors/docling/src/index.ts");
 const imageSemantic = read("packages/processors/extractors/image-semantic/src/index.ts");
+const videoKeyframe = read("packages/processors/extractors/video-keyframe/src/index.ts");
 const openAi = read("packages/processors/embeddings/openai-compatible/src/index.ts");
 const ollama = read("packages/processors/embeddings/ollama/src/index.ts");
 const modelRuntime = read("packages/model-runtime/src/index.ts");
@@ -125,6 +129,7 @@ for (const token of [
   "pdf_extraction",
   "image_semantic_extraction",
   "audio_transcription",
+  "video_keyframes",
   "processor_not_implemented"
 ]) {
   assert(routing.includes(token), `@mindory/core document routing module must include ${token}.`);
@@ -168,6 +173,13 @@ assert(imageSemanticPackage.exports?.["."], "Image semantic extractor must expor
 assert(imageSemanticTsconfig.references?.some((reference) => reference.path === "../../../../packages/core"), "Image semantic extractor must reference @mindory/core.");
 for (const token of ["ImageSemanticExtractor", "image_caption", "image_analysis", "ocr_text", "image_embedding", "faceObservations", "face_detection", "deterministicFaceEmbedding", "extractEmbeddedImageText"]) {
   assert(imageSemantic.includes(token), `Image semantic extractor must include ${token}.`);
+}
+
+assert(videoKeyframePackage.dependencies?.["@mindory/core"] === "workspace:*", "Video keyframe extractor must depend on @mindory/core.");
+assert(videoKeyframePackage.exports?.["."], "Video keyframe extractor must export its root module.");
+assert(videoKeyframeTsconfig.references?.some((reference) => reference.path === "../../../../packages/core"), "Video keyframe extractor must reference @mindory/core.");
+for (const token of ["VideoKeyframeExtractor", "video_keyframe", "video_keyframe_description", "maxKeyframes", "MINDORY_VIDEO_MANIFEST", "readVideoManifest"]) {
+  assert(videoKeyframe.includes(token), `Video keyframe extractor must include ${token}.`);
 }
 
 assert(openAiPackage.dependencies?.["@mindory/core"] === "workspace:*", "OpenAI-compatible embedding package must depend on @mindory/core.");
@@ -273,16 +285,19 @@ for (const token of [
   "DoclingPdfExtractor",
   "ImageSemanticExtractor",
   "AudioTranscriptExtractor",
+  "VideoKeyframeExtractor",
   "FaceService",
   "pdf_page",
   "pdf_native_text",
   "transcript_segment",
+  "video_keyframe",
   "face_observation",
   "page_artifact_ids",
   "semantic_artifact_ids",
   "semantic_artifact_types",
   "transcript_artifact_ids",
   "transcript_time_ranges",
+  "video_keyframe_artifact_ids",
   "face_observation_artifact_ids",
   "text_artifact_id",
   "artifact_id",

@@ -18,6 +18,7 @@
     { "path": "../../packages/processors/extractors/builtin-text" },
     { "path": "../../packages/processors/extractors/docling" },
     { "path": "../../packages/processors/extractors/image-semantic" },
+    { "path": "../../packages/processors/extractors/video-keyframe" },
     { "path": "../../packages/model-runtime" },
     { "path": "../../packages/vector/pgvector" }
   ]

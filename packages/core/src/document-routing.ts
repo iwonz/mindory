@@ -33,7 +33,7 @@ export interface DocumentFileClassification {
 export interface DocumentRouteJobPlan {
   type: Extract<ProcessingJobType, "document.extract">;
   processorVersion: string;
-  reason: "text_extraction" | "pdf_extraction" | "image_semantic_extraction" | "audio_transcription";
+  reason: "text_extraction" | "pdf_extraction" | "image_semantic_extraction" | "audio_transcription" | "video_keyframes";
   metadata: Record<string, unknown>;
 }
 
@@ -104,7 +104,7 @@ export function planDocumentProcessingRoute(input: PlanDocumentProcessingRouteIn
     skipped.push({ kind: classification.kind, reason: "unsupported_document_type", required: false });
   } else if (!modalityConfig?.enabled) {
     skipped.push({ kind: classification.kind, reason: "disabled", required: modalityConfig?.required ?? false });
-  } else if (classification.kind === "text" || classification.kind === "pdf" || classification.kind === "image" || classification.kind === "audio") {
+  } else if (classification.kind === "text" || classification.kind === "pdf" || classification.kind === "image" || classification.kind === "audio" || classification.kind === "video") {
     const reason = routeReasonForKind(classification.kind);
     jobs.push({
       type: "document.extract",
@@ -156,7 +156,7 @@ function configForKind(config: DocumentProcessingRouteConfig, kind: DocumentFile
   }
 }
 
-function routeReasonForKind(kind: Extract<DocumentFileKind, "text" | "pdf" | "image" | "audio">): DocumentRouteJobPlan["reason"] {
+function routeReasonForKind(kind: Extract<DocumentFileKind, "text" | "pdf" | "image" | "audio" | "video">): DocumentRouteJobPlan["reason"] {
   if (kind === "pdf") {
     return "pdf_extraction";
   }
@@ -165,6 +165,9 @@ function routeReasonForKind(kind: Extract<DocumentFileKind, "text" | "pdf" | "im
   }
   if (kind === "audio") {
     return "audio_transcription";
+  }
+  if (kind === "video") {
+    return "video_keyframes";
   }
   return "text_extraction";
 }

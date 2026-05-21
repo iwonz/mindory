@@ -98,6 +98,9 @@ importers:
       '@mindory/extractor-image-semantic':
         specifier: workspace:*
         version: link:../../packages/processors/extractors/image-semantic
+      '@mindory/extractor-video-keyframe':
+        specifier: workspace:*
+        version: link:../../packages/processors/extractors/video-keyframe
       '@mindory/model-runtime':
         specifier: workspace:*
         version: link:../../packages/model-runtime
@@ -189,6 +192,12 @@ importers:
         version: link:../../../core
 
   packages/processors/extractors/image-semantic:
+    dependencies:
+      '@mindory/core':
+        specifier: workspace:*
+        version: link:../../../core
+
+  packages/processors/extractors/video-keyframe:
     dependencies:
       '@mindory/core':
         specifier: workspace:*

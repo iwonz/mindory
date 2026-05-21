@@ -169,6 +169,8 @@ returns explicit `not_implemented` responses when dependencies are omitted.
   matching by same-project embeddings, rename and merge semantics.
 - Audio transcript extraction writes derived transcript artifacts and time-coded
   spans through the same artifact boundary.
+- Video keyframe extraction writes derived `video_keyframe` artifacts and frame
+  description spans through the same artifact boundary.
 - The text pipeline writes extracted text and chunk spans through that artifact
   boundary before updating legacy chunk rows, so context/search hits can carry
   artifact and processing-run source refs.
