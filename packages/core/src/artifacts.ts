@@ -144,6 +144,20 @@ export interface ReplaceDocumentArtifactTextSpansInput {
   spans: CreateDocumentArtifactTextSpanInput[];
 }
 
+export type DocumentMetadataFilterOperator = "eq" | "lt" | "lte" | "gt" | "gte" | "between";
+
+export interface DocumentMetadataFilter {
+  key: string;
+  operator?: DocumentMetadataFilterOperator;
+  valueText?: string;
+  valueNumber?: number;
+  valueBoolean?: boolean;
+  valueTimestamp?: string;
+  minNumber?: number;
+  maxNumber?: number;
+  unit?: string;
+}
+
 export interface DocumentMediaMetadataRecord {
   documentId: string;
   projectId: string;
@@ -176,6 +190,46 @@ export interface UpsertDocumentMediaMetadataInput {
   language?: string | null;
   checksumSha256?: string | null;
   metadata?: Record<string, unknown>;
+}
+
+export interface DocumentMetadataIndexRecord {
+  id: string;
+  projectId: string;
+  documentId: string;
+  processingRunId: string | null;
+  artifactId: string | null;
+  key: string;
+  valueText: string | null;
+  valueNumber: number | null;
+  valueBoolean: boolean | null;
+  valueTimestamp: Date | null;
+  unit: string | null;
+  source: string;
+  metadata: Record<string, unknown>;
+  createdAt: Date;
+}
+
+export interface CreateDocumentMetadataIndexInput {
+  id: string;
+  projectId: string;
+  documentId: string;
+  key: string;
+  processingRunId?: string | null;
+  artifactId?: string | null;
+  valueText?: string | null;
+  valueNumber?: number | null;
+  valueBoolean?: boolean | null;
+  valueTimestamp?: Date | null;
+  unit?: string | null;
+  source?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface ReplaceDocumentMetadataIndexInput {
+  projectId: string;
+  documentId: string;
+  source: string;
+  entries: CreateDocumentMetadataIndexInput[];
 }
 
 export interface FaceIdentityRecord {
@@ -236,6 +290,7 @@ export interface DerivedArtifactRepository extends DocumentProcessingRunReposito
   listDocumentArtifacts(projectId: string, documentId: string): Promise<DocumentArtifactRecord[]>;
   replaceDocumentArtifactTextSpans(input: ReplaceDocumentArtifactTextSpansInput): Promise<DocumentArtifactTextSpanRecord[]>;
   upsertDocumentMediaMetadata(input: UpsertDocumentMediaMetadataInput): Promise<DocumentMediaMetadataRecord>;
+  replaceDocumentMetadataIndex(input: ReplaceDocumentMetadataIndexInput): Promise<DocumentMetadataIndexRecord[]>;
   createFaceIdentity(input: CreateFaceIdentityInput): Promise<FaceIdentityRecord>;
   createFaceObservation(input: CreateFaceObservationInput): Promise<FaceObservationRecord>;
 }

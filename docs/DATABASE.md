@@ -149,6 +149,14 @@ artifact-backed text chunks. The text search path now uses a full-text GIN index
 on `document_artifact_text_spans` and filters out spans from `superseded`
 processing runs.
 
+`TASK-42` extends it with idempotent replacement of typed
+`document_metadata_index` rows. The worker route stage upserts
+`document_media_metadata` and replaces raw metadata index rows for filterable
+attachment fields such as `size_bytes`, `mime_type`, `extension`,
+`checksum_sha256`, `duration_ms`, dimensions, page count, codec and container.
+Document search filters use this table for both full-text fallback and pgvector
+search.
+
 `TASK-22` extends `DbSessionRepository` with `updateSessionSummary` so
 `session.summarize` jobs can refresh `sessions.summary` and metadata. It also
 uses `DbMemoryRepository` from workers to write derived memory candidates with

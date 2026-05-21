@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { sql } from "drizzle-orm";
+import { sql, type SQL } from "drizzle-orm";
+import type { DocumentMetadataFilter } from "@mindory/core/artifacts";
 import {
   ProcessingError,
   type EmbeddingsProvider,
@@ -94,15 +95,17 @@ export class PgVectorChunkIndex implements VectorIndex {
     const projectFilters = sql.join(input.projectIds.map((projectId) => sql`${projectId}`), sql`, `);
     const result = await this.db.execute(sql`
       select
-        project_id,
-        document_id,
-        chunk_id,
-        content,
-        metadata,
-        1 - (embedding <=> ${toPgVectorLiteral(input.embedding)}::vector) as score
+        vectors.project_id,
+        vectors.document_id,
+        vectors.chunk_id,
+        vectors.content,
+        vectors.metadata,
+        1 - (vectors.embedding <=> ${toPgVectorLiteral(input.embedding)}::vector) as score
       from ${sql.identifier(this.tableName)}
-      where project_id in (${projectFilters})
-      order by embedding <=> ${toPgVectorLiteral(input.embedding)}::vector
+        as vectors
+      where vectors.project_id in (${projectFilters})
+        and ${documentMetadataFiltersSql(sql.raw("vectors.project_id"), sql.raw("vectors.document_id"), input.metadataFilters)}
+      order by vectors.embedding <=> ${toPgVectorLiteral(input.embedding)}::vector
       limit ${input.limit}
     `);
 
@@ -161,11 +164,16 @@ export class PgVectorDocumentChunkSearchRepository implements DocumentChunkSearc
       throw new ProcessingError("embedding_provider_error", "Embedding provider returned no query embedding.");
     }
 
-    return (await this.vectorIndex.searchDocumentChunks({
+    const searchInput: SearchVectorChunksInput = {
       projectIds: input.projectIds,
       embedding: embedding.embedding,
       limit: input.limit
-    })).map((hit) => {
+    };
+    if (input.metadataFilters !== undefined) {
+      searchInput.metadataFilters = input.metadataFilters;
+    }
+
+    return (await this.vectorIndex.searchDocumentChunks(searchInput)).map((hit) => {
       const sourceRefs = readSourceRefs(hit.metadata.source_refs, [{ type: "chunk", id: hit.chunkId }]);
       return {
         projectId: hit.projectId,
@@ -227,4 +235,62 @@ function readSourceRefs(value: unknown, fallback: SourceRef[]): SourceRef[] {
     && typeof item.id === "string"
   ));
   return sourceRefs.length > 0 ? sourceRefs : fallback;
+}
+
+function documentMetadataFiltersSql(projectIdExpression: SQL, documentIdExpression: SQL, filters: DocumentMetadataFilter[] | undefined): SQL {
+  if (!filters || filters.length === 0) {
+    return sql`true`;
+  }
+
+  return sql.join(filters.map((filter) => sql`
+    exists (
+      select 1
+      from document_metadata_index metadata_filter
+      where metadata_filter.project_id = ${projectIdExpression}
+        and metadata_filter.document_id = ${documentIdExpression}
+        and metadata_filter.key = ${filter.key}
+        ${filter.unit === undefined ? sql`` : sql`and metadata_filter.unit = ${filter.unit}`}
+        and ${documentMetadataFilterValueSql(filter)}
+    )
+  `), sql` and `);
+}
+
+function documentMetadataFilterValueSql(filter: DocumentMetadataFilter): SQL {
+  const operator = filter.operator ?? "eq";
+
+  if (operator === "between") {
+    return typeof filter.minNumber === "number" && typeof filter.maxNumber === "number"
+      ? sql`metadata_filter.value_number between ${filter.minNumber} and ${filter.maxNumber}`
+      : sql`false`;
+  }
+  if (operator === "lt" || operator === "lte" || operator === "gt" || operator === "gte") {
+    if (typeof filter.valueNumber !== "number") {
+      return sql`false`;
+    }
+    switch (operator) {
+      case "lt":
+        return sql`metadata_filter.value_number < ${filter.valueNumber}`;
+      case "lte":
+        return sql`metadata_filter.value_number <= ${filter.valueNumber}`;
+      case "gt":
+        return sql`metadata_filter.value_number > ${filter.valueNumber}`;
+      case "gte":
+        return sql`metadata_filter.value_number >= ${filter.valueNumber}`;
+    }
+  }
+
+  if (typeof filter.valueNumber === "number") {
+    return sql`metadata_filter.value_number = ${filter.valueNumber}`;
+  }
+  if (typeof filter.valueText === "string") {
+    return sql`metadata_filter.value_text = ${filter.valueText}`;
+  }
+  if (typeof filter.valueBoolean === "boolean") {
+    return sql`metadata_filter.value_boolean = ${filter.valueBoolean}`;
+  }
+  if (typeof filter.valueTimestamp === "string") {
+    return sql`metadata_filter.value_timestamp = ${filter.valueTimestamp}::timestamptz`;
+  }
+
+  return sql`false`;
 }

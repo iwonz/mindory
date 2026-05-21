@@ -1,13 +1,14 @@
 import { Buffer } from "node:buffer";
 import { createHash, randomUUID } from "node:crypto";
+import path from "node:path";
 import { Readable } from "node:stream";
 import type { MindoryConfig } from "@mindory/config";
-import type { DerivedArtifactRepository } from "@mindory/core/artifacts";
+import type { CreateDocumentMetadataIndexInput, DerivedArtifactRepository } from "@mindory/core/artifacts";
 import {
   planDocumentProcessingRoute,
   type DocumentProcessingRouteConfig
 } from "@mindory/core/document-routing";
-import type { DocumentRepository } from "@mindory/core/documents";
+import type { DocumentRecord, DocumentRepository } from "@mindory/core/documents";
 import {
   type ProcessingJobDispatcher,
   type ProcessingJobProcessor,
@@ -86,6 +87,7 @@ export function buildDocumentPipelineProcessors(options: DocumentPipelineProcess
     new DocumentRouteProcessor({
       storage: options.storage,
       documents: options.documents,
+      artifacts: options.artifacts,
       jobs: options.jobs,
       routeConfig,
       processorVersion: routeProcessorVersion
@@ -292,18 +294,21 @@ class DocumentRouteProcessor implements ProcessingJobProcessor {
   readonly processorVersion: string;
   private readonly storage: ObjectStorage;
   private readonly documents: DocumentRepository;
+  private readonly artifacts: DerivedArtifactRepository;
   private readonly jobs: ProcessingJobDispatcher;
   private readonly routeConfig: DocumentProcessingRouteConfig;
 
   constructor(options: {
     storage: ObjectStorage;
     documents: DocumentRepository;
+    artifacts: DerivedArtifactRepository;
     jobs: ProcessingJobDispatcher;
     routeConfig: DocumentProcessingRouteConfig;
     processorVersion: string;
   }) {
     this.storage = options.storage;
     this.documents = options.documents;
+    this.artifacts = options.artifacts;
     this.jobs = options.jobs;
     this.routeConfig = options.routeConfig;
     this.processorVersion = options.processorVersion;
@@ -316,23 +321,59 @@ class DocumentRouteProcessor implements ProcessingJobProcessor {
     }
 
     const object = await this.storage.getObject(document.storageKey);
+    const rawBytes = await readAllBytes(object.body);
     const plan = planDocumentProcessingRoute({
       document,
       config: this.routeConfig,
-      magicBytes: await readFirstBytes(object.body, 512)
+      magicBytes: rawBytes.subarray(0, 512)
     });
     const processingRunId = readMetadataString(context.payload.metadata, "processing_run_id");
+    const indexedMetadata = await indexAttachmentMetadata({
+      artifacts: this.artifacts,
+      document,
+      rawBytes,
+      processingRunId,
+      mediaType: plan.classification.kind,
+      magicMatched: plan.classification.magicMatched
+    });
     const routingMetadata = plan.metadata.routing && typeof plan.metadata.routing === "object"
       ? plan.metadata.routing as Record<string, unknown>
       : {};
-    const metadata = {
+    const metadata: Record<string, unknown> = {
       ...document.metadata,
       ...plan.metadata,
       routing: {
         ...routingMetadata,
-        ...(processingRunId ? { processing_run_id: processingRunId } : {})
-      }
+        ...(processingRunId ? { processing_run_id: processingRunId } : {}),
+        metadata_indexed: true
+      },
+      attachment_metadata: indexedMetadata
     };
+    if (indexedMetadata.checksum_sha256) {
+      metadata.checksum_sha256 = indexedMetadata.checksum_sha256;
+    }
+    if (indexedMetadata.container) {
+      metadata.container = indexedMetadata.container;
+    }
+    if (indexedMetadata.extension) {
+      metadata.extension = indexedMetadata.extension;
+    }
+    if (indexedMetadata.duration_ms !== null) {
+      metadata.duration_ms = indexedMetadata.duration_ms;
+    }
+    if (indexedMetadata.width !== null) {
+      metadata.width = indexedMetadata.width;
+    }
+    if (indexedMetadata.height !== null) {
+      metadata.height = indexedMetadata.height;
+    }
+    if (indexedMetadata.page_count !== null) {
+      metadata.page_count = indexedMetadata.page_count;
+    }
+    if (indexedMetadata.codec) {
+      metadata.codec = indexedMetadata.codec;
+    }
+
     const nextStatus = plan.jobs.some((job) => job.type === "document.extract") ? "extract_pending" : "scan_clean";
     await this.documents.updateDocumentStatus({
       projectId: document.projectId,
@@ -867,6 +908,370 @@ class DocumentIndexProcessor implements ProcessingJobProcessor {
   }
 }
 
+interface IndexAttachmentMetadataInput {
+  artifacts: DerivedArtifactRepository;
+  document: DocumentRecord;
+  rawBytes: Buffer;
+  processingRunId: string | undefined;
+  mediaType: string;
+  magicMatched: boolean;
+}
+
+interface AttachmentMetadataSnapshot {
+  media_type: string;
+  mime_type: string;
+  size_bytes: number;
+  extension: string | null;
+  checksum_sha256: string;
+  container: string | null;
+  duration_ms: number | null;
+  width: number | null;
+  height: number | null;
+  page_count: number | null;
+  codec: string | null;
+  magic_matched: boolean;
+}
+
+async function indexAttachmentMetadata(input: IndexAttachmentMetadataInput): Promise<AttachmentMetadataSnapshot> {
+  const metadata = extractAttachmentMetadata(input);
+  await input.artifacts.upsertDocumentMediaMetadata({
+    projectId: input.document.projectId,
+    documentId: input.document.id,
+    mediaType: metadata.media_type,
+    durationMs: metadata.duration_ms,
+    width: metadata.width,
+    height: metadata.height,
+    pageCount: metadata.page_count,
+    codec: metadata.codec,
+    container: metadata.container,
+    checksumSha256: metadata.checksum_sha256,
+    metadata: {
+      mime_type: metadata.mime_type,
+      extension: metadata.extension,
+      size_bytes: metadata.size_bytes,
+      magic_matched: metadata.magic_matched,
+      source: "document.route",
+      raw_original_unchanged: true
+    }
+  });
+  await input.artifacts.replaceDocumentMetadataIndex({
+    projectId: input.document.projectId,
+    documentId: input.document.id,
+    source: "raw",
+    entries: buildAttachmentMetadataIndexEntries({
+      document: input.document,
+      metadata,
+      processingRunId: input.processingRunId
+    })
+  });
+
+  return metadata;
+}
+
+function extractAttachmentMetadata(input: IndexAttachmentMetadataInput): AttachmentMetadataSnapshot {
+  const imageDimensions = readImageDimensions(input.rawBytes);
+  const wavMetadata = readWavMetadata(input.rawBytes);
+  const extension = normalizeExtension(input.document.originalFilename);
+  const container = extension ?? inferContainerFromMime(input.document.mimeType);
+
+  return {
+    media_type: input.mediaType,
+    mime_type: input.document.mimeType.toLowerCase(),
+    size_bytes: input.document.sizeBytes,
+    extension,
+    checksum_sha256: sha256Hex(input.rawBytes),
+    container,
+    duration_ms: wavMetadata.durationMs,
+    width: imageDimensions.width,
+    height: imageDimensions.height,
+    page_count: readPdfPageCount(input.rawBytes),
+    codec: wavMetadata.codec,
+    magic_matched: input.magicMatched
+  };
+}
+
+function buildAttachmentMetadataIndexEntries(input: {
+  document: DocumentRecord;
+  metadata: AttachmentMetadataSnapshot;
+  processingRunId: string | undefined;
+}): CreateDocumentMetadataIndexInput[] {
+  const base = {
+    projectId: input.document.projectId,
+    documentId: input.document.id,
+    processingRunId: input.processingRunId ?? null,
+    source: "raw",
+    metadata: {
+      source: "document.route",
+      raw_original_unchanged: true
+    }
+  };
+  const entries: CreateDocumentMetadataIndexInput[] = [
+    metadataNumberEntry(base, input.document.id, "size_bytes", input.metadata.size_bytes, "bytes"),
+    metadataTextEntry(base, input.document.id, "mime_type", input.metadata.mime_type),
+    metadataTextEntry(base, input.document.id, "checksum_sha256", input.metadata.checksum_sha256),
+    metadataTextEntry(base, input.document.id, "media_type", input.metadata.media_type),
+    metadataBooleanEntry(base, input.document.id, "magic_matched", input.metadata.magic_matched)
+  ];
+
+  if (input.metadata.extension) {
+    entries.push(metadataTextEntry(base, input.document.id, "extension", input.metadata.extension));
+  }
+  if (input.metadata.container) {
+    entries.push(metadataTextEntry(base, input.document.id, "container", input.metadata.container));
+  }
+  if (input.metadata.duration_ms !== null) {
+    entries.push(metadataNumberEntry(base, input.document.id, "duration_ms", input.metadata.duration_ms, "ms"));
+  }
+  if (input.metadata.width !== null) {
+    entries.push(metadataNumberEntry(base, input.document.id, "width", input.metadata.width, "px"));
+  }
+  if (input.metadata.height !== null) {
+    entries.push(metadataNumberEntry(base, input.document.id, "height", input.metadata.height, "px"));
+  }
+  if (input.metadata.page_count !== null) {
+    entries.push(metadataNumberEntry(base, input.document.id, "page_count", input.metadata.page_count, "pages"));
+  }
+  if (input.metadata.codec) {
+    entries.push(metadataTextEntry(base, input.document.id, "codec", input.metadata.codec));
+  }
+
+  return entries;
+}
+
+function metadataTextEntry(
+  base: Omit<CreateDocumentMetadataIndexInput, "id" | "key" | "valueText">,
+  documentId: string,
+  key: string,
+  valueText: string
+): CreateDocumentMetadataIndexInput {
+  return {
+    ...base,
+    id: deterministicMetadataIndexId(documentId, "raw", key),
+    key,
+    valueText
+  };
+}
+
+function metadataNumberEntry(
+  base: Omit<CreateDocumentMetadataIndexInput, "id" | "key" | "valueNumber" | "unit">,
+  documentId: string,
+  key: string,
+  valueNumber: number,
+  unit: string
+): CreateDocumentMetadataIndexInput {
+  return {
+    ...base,
+    id: deterministicMetadataIndexId(documentId, "raw", key),
+    key,
+    valueNumber,
+    unit
+  };
+}
+
+function metadataBooleanEntry(
+  base: Omit<CreateDocumentMetadataIndexInput, "id" | "key" | "valueBoolean">,
+  documentId: string,
+  key: string,
+  valueBoolean: boolean
+): CreateDocumentMetadataIndexInput {
+  return {
+    ...base,
+    id: deterministicMetadataIndexId(documentId, "raw", key),
+    key,
+    valueBoolean
+  };
+}
+
+function deterministicMetadataIndexId(documentId: string, source: string, key: string): string {
+  return `metadata_${hashIdentifier(`${documentId}:${source}:${key}`).slice(0, 32)}`;
+}
+
+function normalizeExtension(filename: string): string | null {
+  const extension = path.extname(filename).toLowerCase();
+  return extension.length > 1 ? extension.slice(1) : null;
+}
+
+function inferContainerFromMime(mimeType: string): string | null {
+  const parts = mimeType.toLowerCase().split("/");
+  const subtype = parts[1];
+  return subtype && subtype.length > 0 ? subtype : null;
+}
+
+function readImageDimensions(bytes: Buffer): { width: number | null; height: number | null } {
+  if (bytes.length >= 24 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
+    return {
+      width: bytes.readUInt32BE(16),
+      height: bytes.readUInt32BE(20)
+    };
+  }
+  if (bytes.length >= 10 && (matchesAsciiBuffer(bytes, 0, "GIF87a") || matchesAsciiBuffer(bytes, 0, "GIF89a"))) {
+    return {
+      width: bytes.readUInt16LE(6),
+      height: bytes.readUInt16LE(8)
+    };
+  }
+  const webpDimensions = readWebpDimensions(bytes);
+  if (webpDimensions.width !== null && webpDimensions.height !== null) {
+    return webpDimensions;
+  }
+
+  return readJpegDimensions(bytes);
+}
+
+function readWebpDimensions(bytes: Buffer): { width: number | null; height: number | null } {
+  if (bytes.length < 16 || !matchesAsciiBuffer(bytes, 0, "RIFF") || !matchesAsciiBuffer(bytes, 8, "WEBP")) {
+    return { width: null, height: null };
+  }
+
+  let offset = 12;
+  while (offset + 8 <= bytes.length) {
+    const chunkId = bytes.toString("ascii", offset, offset + 4);
+    const chunkSize = bytes.readUInt32LE(offset + 4);
+    const payloadOffset = offset + 8;
+    if (chunkId === "VP8X" && chunkSize >= 10 && payloadOffset + 10 <= bytes.length) {
+      return {
+        width: 1 + readUInt24LE(bytes, payloadOffset + 4),
+        height: 1 + readUInt24LE(bytes, payloadOffset + 7)
+      };
+    }
+    if (chunkId === "VP8 " && chunkSize >= 10 && payloadOffset + 10 <= bytes.length && matchesBytesBuffer(bytes, payloadOffset + 3, [0x9d, 0x01, 0x2a])) {
+      return {
+        width: bytes.readUInt16LE(payloadOffset + 6) & 0x3fff,
+        height: bytes.readUInt16LE(payloadOffset + 8) & 0x3fff
+      };
+    }
+    if (chunkId === "VP8L" && chunkSize >= 5 && payloadOffset + 5 <= bytes.length && bytes[payloadOffset] === 0x2f) {
+      const byte1 = bytes[payloadOffset + 1] ?? 0;
+      const byte2 = bytes[payloadOffset + 2] ?? 0;
+      const byte3 = bytes[payloadOffset + 3] ?? 0;
+      const byte4 = bytes[payloadOffset + 4] ?? 0;
+      return {
+        width: 1 + byte1 + ((byte2 & 0x3f) << 8),
+        height: 1 + ((byte2 & 0xc0) >> 6) + (byte3 << 2) + ((byte4 & 0x0f) << 10)
+      };
+    }
+    offset = payloadOffset + chunkSize + (chunkSize % 2);
+  }
+
+  return { width: null, height: null };
+}
+
+function readJpegDimensions(bytes: Buffer): { width: number | null; height: number | null } {
+  if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) {
+    return { width: null, height: null };
+  }
+
+  let offset = 2;
+  while (offset + 9 <= bytes.length) {
+    if (bytes[offset] !== 0xff) {
+      offset += 1;
+      continue;
+    }
+    const marker = bytes[offset + 1];
+    if (marker === undefined || marker === 0xd9 || marker === 0xda) {
+      break;
+    }
+    if (offset + 4 > bytes.length) {
+      break;
+    }
+    const segmentLength = bytes.readUInt16BE(offset + 2);
+    if (segmentLength < 2 || offset + 2 + segmentLength > bytes.length) {
+      break;
+    }
+    if (isJpegStartOfFrame(marker) && offset + 8 < bytes.length) {
+      return {
+        height: bytes.readUInt16BE(offset + 5),
+        width: bytes.readUInt16BE(offset + 7)
+      };
+    }
+    offset += 2 + segmentLength;
+  }
+
+  return { width: null, height: null };
+}
+
+function isJpegStartOfFrame(marker: number): boolean {
+  return [
+    0xc0,
+    0xc1,
+    0xc2,
+    0xc3,
+    0xc5,
+    0xc6,
+    0xc7,
+    0xc9,
+    0xca,
+    0xcb,
+    0xcd,
+    0xce,
+    0xcf
+  ].includes(marker);
+}
+
+function readPdfPageCount(bytes: Buffer): number | null {
+  if (!matchesAsciiBuffer(bytes, 0, "%PDF")) {
+    return null;
+  }
+  return bytes.toString("latin1").match(/\/Type\s*\/Page\b/g)?.length ?? null;
+}
+
+function readWavMetadata(bytes: Buffer): { durationMs: number | null; codec: string | null } {
+  if (bytes.length < 12 || !matchesAsciiBuffer(bytes, 0, "RIFF") || !matchesAsciiBuffer(bytes, 8, "WAVE")) {
+    return { durationMs: null, codec: null };
+  }
+
+  let offset = 12;
+  let byteRate: number | null = null;
+  let dataSize: number | null = null;
+  let audioFormat: number | null = null;
+  while (offset + 8 <= bytes.length) {
+    const chunkId = bytes.toString("ascii", offset, offset + 4);
+    const chunkSize = bytes.readUInt32LE(offset + 4);
+    const payloadOffset = offset + 8;
+    if (chunkId === "fmt " && chunkSize >= 16 && payloadOffset + 16 <= bytes.length) {
+      audioFormat = bytes.readUInt16LE(payloadOffset);
+      byteRate = bytes.readUInt32LE(payloadOffset + 8);
+    } else if (chunkId === "data") {
+      dataSize = chunkSize;
+    }
+    offset = payloadOffset + chunkSize + (chunkSize % 2);
+  }
+
+  const durationMs = byteRate && dataSize !== null
+    ? Math.round((dataSize / byteRate) * 1000)
+    : null;
+  const codec = audioFormat === null
+    ? null
+    : audioFormat === 1
+      ? "pcm"
+      : `wav_format_${audioFormat}`;
+
+  return { durationMs, codec };
+}
+
+function matchesAsciiBuffer(bytes: Buffer, offset: number, expected: string): boolean {
+  if (offset < 0 || bytes.length < offset + expected.length) {
+    return false;
+  }
+  for (let index = 0; index < expected.length; index += 1) {
+    if (bytes[offset + index] !== expected.charCodeAt(index)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function matchesBytesBuffer(bytes: Buffer, offset: number, expected: number[]): boolean {
+  if (offset < 0 || bytes.length < offset + expected.length) {
+    return false;
+  }
+  return expected.every((value, index) => bytes[offset + index] === value);
+}
+
+function readUInt24LE(bytes: Buffer, offset: number): number {
+  return (bytes[offset] ?? 0) + ((bytes[offset + 1] ?? 0) << 8) + ((bytes[offset + 2] ?? 0) << 16);
+}
+
 function nextJob(context: ProcessingJobProcessorContext, input: {
   type: "document.extract" | "document.chunk" | "document.embed" | "document.index";
   idempotencyKey: string;
@@ -986,19 +1391,4 @@ async function readAllBytes(stream: Readable): Promise<Buffer> {
 
 function sha256Hex(bytes: Buffer): string {
   return createHash("sha256").update(bytes).digest("hex");
-}
-
-async function readFirstBytes(stream: Readable, maxBytes: number): Promise<Uint8Array> {
-  const chunks: Buffer[] = [];
-  let totalBytes = 0;
-  for await (const chunk of stream) {
-    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-    chunks.push(buffer);
-    totalBytes += buffer.length;
-    if (totalBytes >= maxBytes) {
-      break;
-    }
-  }
-
-  return Buffer.concat(chunks, Math.min(totalBytes, maxBytes)).subarray(0, maxBytes);
 }

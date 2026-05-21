@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { DocumentMetadataFilter } from "./artifacts.js";
 import type { SourceSnapshot } from "./documents.js";
 
 export type SourceRefType =
@@ -316,6 +317,7 @@ export interface DocumentChunkSearchInput {
   projectIds: string[];
   query: string;
   limit: number;
+  metadataFilters?: DocumentMetadataFilter[];
 }
 
 export interface DocumentChunkSearchHit {

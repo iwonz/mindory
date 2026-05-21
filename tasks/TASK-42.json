@@ -1,0 +1,69 @@
+{
+  "id": "TASK-42",
+  "title": "Add attachment metadata index",
+  "status": "done",
+  "type": "chore",
+  "priority": "high",
+  "branch": "task/TASK-42-attachment-metadata-index",
+  "created_at": "2026-05-21",
+  "updated_at": "2026-05-21",
+  "context": {
+    "summary": "Persist searchable attachment metadata as derived state immediately after upload routing.",
+    "background": "TASK-38 introduced document_media_metadata and document_metadata_index, but upload processing did not yet populate them or use them for search filters."
+  },
+  "scope": {
+    "in": [
+      "Extract base attachment metadata from RAW bytes during document.route without mutating the original object.",
+      "Persist size, MIME, extension, checksum, media type, container and available duration/dimension/page metadata to document_media_metadata.",
+      "Populate typed document_metadata_index rows for metadata filters.",
+      "Support structured metadata filters on document search for numeric and exact-value lookups.",
+      "Apply metadata filters to PostgreSQL full-text search and pgvector search paths.",
+      "Update integration tests, validators and documentation."
+    ],
+    "out": [
+      "Full OCR, ASR, image captioning, face recognition or video keyframe processing.",
+      "Deep media probing through ffmpeg or heavyweight local model runtimes.",
+      "Changing the immutable RAW storage object.",
+      "Replacing the legacy chunks or chunk_vector_embeddings projections."
+    ]
+  },
+  "acceptance_criteria": [
+    "document.route writes document_media_metadata for routed uploads.",
+    "document.route writes typed document_metadata_index entries for size, MIME, extension, checksum and media attributes.",
+    "Text, PDF, common image formats and WAV files get best-effort metadata from headers when available.",
+    "Document search accepts metadataFilters such as size_bytes <= 100MB and duration_ms between 10000 and 15000.",
+    "Metadata filters are enforced for artifact full-text search and pgvector search.",
+    "The RAW original storage object remains unchanged.",
+    "No schema changes modify 0000_initial_schema.sql."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "pnpm db:repositories:validate",
+      "pnpm documents:validate",
+      "pnpm processing:validate",
+      "pnpm typecheck",
+      "pnpm lint",
+      "pnpm tasks:validate",
+      "pnpm test",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-42.",
+      "Confirm packages/db/drizzle/0000_initial_schema.sql is unchanged.",
+      "Confirm document search filters exclude documents outside metadata bounds."
+    ]
+  },
+  "dependencies": [
+    "TASK-41"
+  ],
+  "risks": [
+    "Header-only media parsing is intentionally best-effort; heavier media inspection belongs in later modality tasks.",
+    "Metadata filters are exact/range primitives for MVP and do not yet include a full query language."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch is committed and merged back into master."
+  ]
+}

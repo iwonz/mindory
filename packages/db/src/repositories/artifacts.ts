@@ -2,16 +2,19 @@ import { and, asc, eq } from "drizzle-orm";
 import type {
   CreateDocumentArtifactInput,
   CreateDocumentArtifactTextSpanInput,
+  CreateDocumentMetadataIndexInput,
   CreateFaceIdentityInput,
   CreateFaceObservationInput,
   CreateProcessingRunInput,
   DerivedArtifactRepository,
   DocumentArtifactRecord,
   DocumentArtifactTextSpanRecord,
+  DocumentMetadataIndexRecord,
   DocumentMediaMetadataRecord,
   FaceIdentityRecord,
   FaceObservationRecord,
   ProcessingRunRecord,
+  ReplaceDocumentMetadataIndexInput,
   ReplaceDocumentArtifactTextSpansInput,
   UpdateProcessingRunStatusInput,
   UpsertDocumentMediaMetadataInput
@@ -21,6 +24,7 @@ import {
   documentArtifacts,
   documentArtifactTextSpans,
   documentMediaMetadata,
+  documentMetadataIndex,
   faceIdentities,
   faceObservations,
   processingRuns
@@ -197,6 +201,27 @@ export class DbDerivedArtifactRepository implements DerivedArtifactRepository {
     return mapDocumentMediaMetadata(firstOrThrow(row ? [row] : [], `Document media metadata ${input.documentId} was not upserted.`));
   }
 
+  async replaceDocumentMetadataIndex(input: ReplaceDocumentMetadataIndexInput): Promise<DocumentMetadataIndexRecord[]> {
+    await this.db.delete(documentMetadataIndex).where(and(
+      eq(documentMetadataIndex.projectId, input.projectId),
+      eq(documentMetadataIndex.documentId, input.documentId),
+      eq(documentMetadataIndex.source, input.source)
+    ));
+
+    if (input.entries.length === 0) {
+      return [];
+    }
+
+    const rows = await this.db.insert(documentMetadataIndex).values(input.entries.map((entry) =>
+      mapMetadataIndexInsert({
+        ...entry,
+        source: entry.source ?? input.source
+      })
+    )).returning();
+
+    return rows.map(mapDocumentMetadataIndex);
+  }
+
   async createFaceIdentity(input: CreateFaceIdentityInput): Promise<FaceIdentityRecord> {
     const [row] = await this.db.insert(faceIdentities).values({
       id: input.id,
@@ -337,6 +362,43 @@ function mapDocumentMediaMetadata(row: typeof documentMediaMetadata.$inferSelect
     metadata: row.metadata,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt
+  };
+}
+
+function mapMetadataIndexInsert(input: CreateDocumentMetadataIndexInput): typeof documentMetadataIndex.$inferInsert {
+  return {
+    id: input.id,
+    projectId: input.projectId,
+    documentId: input.documentId,
+    processingRunId: input.processingRunId ?? null,
+    artifactId: input.artifactId ?? null,
+    key: input.key,
+    valueText: input.valueText ?? null,
+    valueNumber: input.valueNumber ?? null,
+    valueBoolean: input.valueBoolean ?? null,
+    valueTimestamp: input.valueTimestamp ?? null,
+    unit: input.unit ?? null,
+    source: input.source ?? "derived",
+    metadata: input.metadata ?? {}
+  };
+}
+
+function mapDocumentMetadataIndex(row: typeof documentMetadataIndex.$inferSelect): DocumentMetadataIndexRecord {
+  return {
+    id: row.id,
+    projectId: row.projectId,
+    documentId: row.documentId,
+    processingRunId: row.processingRunId,
+    artifactId: row.artifactId,
+    key: row.key,
+    valueText: row.valueText,
+    valueNumber: row.valueNumber,
+    valueBoolean: row.valueBoolean,
+    valueTimestamp: row.valueTimestamp,
+    unit: row.unit,
+    source: row.source,
+    metadata: row.metadata,
+    createdAt: row.createdAt
   };
 }
 

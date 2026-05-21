@@ -152,7 +152,7 @@ assert(pgvectorPackage.dependencies?.["@mindory/db"] === "workspace:*", "pgvecto
 assert(pgvectorPackage.exports?.["."], "pgvector package must export its root module.");
 assert(pgvectorTsconfig.references?.some((reference) => reference.path === "../../../packages/core"), "pgvector package must reference @mindory/core.");
 assert(pgvectorTsconfig.references?.some((reference) => reference.path === "../../../packages/db"), "pgvector package must reference @mindory/db.");
-for (const token of ["PgVectorChunkIndex", "PgVectorDocumentChunkSearchRepository", "createTableSql", "vector(", "upsertDocumentChunks", "deleteDocumentChunks", "searchDocumentChunks", "<=>"]) {
+for (const token of ["PgVectorChunkIndex", "PgVectorDocumentChunkSearchRepository", "createTableSql", "vector(", "upsertDocumentChunks", "deleteDocumentChunks", "searchDocumentChunks", "metadataFilters", "<=>"]) {
   assert(pgvector.includes(token), `pgvector package must include ${token}.`);
 }
 assert(!pgvector.includes("vector_index_not_implemented"), "pgvector package must no longer be a not-implemented placeholder.");
@@ -220,6 +220,11 @@ for (const token of [
   "DocumentIndexProcessor",
   "createDocumentArtifact",
   "replaceDocumentArtifactTextSpans",
+  "upsertDocumentMediaMetadata",
+  "replaceDocumentMetadataIndex",
+  "size_bytes",
+  "duration_ms",
+  "checksum_sha256",
   "text_artifact_id",
   "artifact_id",
   "ClamAvDocumentScanProcessor",

@@ -12,6 +12,7 @@ multimodal processors will write to. `TASK-39` adds the routing stage that
 classifies uploaded files and creates only the enabled downstream jobs.
 `TASK-40` adds recompute flow for derived state.
 `TASK-41` moves the text pipeline onto the derived artifact model.
+`TASK-42` adds typed attachment metadata indexing for search filters.
 
 ## MVP Pipeline
 
@@ -106,6 +107,28 @@ The default route configuration is conservative:
 Disabling a modality means no job is created for that file type. Enabling a
 future modality before its processor exists records a skipped route with
 `processor_not_implemented`; it does not enqueue a missing processor.
+
+## Attachment Metadata Index
+
+`document.route` reads the RAW object only to classify and derive metadata. It
+does not rewrite or replace the original storage object. The route stage writes:
+
+- `document_media_metadata` for media type, MIME, extension, checksum, container
+  and best-effort header metadata such as image dimensions, PDF page count and
+  WAV duration/codec.
+- `document_metadata_index` typed rows for filterable fields including
+  `size_bytes`, `mime_type`, `extension`, `checksum_sha256`, `media_type`,
+  `container`, `duration_ms`, `width`, `height`, `page_count` and `codec`.
+
+Search accepts structured metadata filters. Examples:
+
+```json
+{ "key": "size_bytes", "operator": "lte", "valueNumber": 104857600, "unit": "bytes" }
+{ "key": "duration_ms", "operator": "between", "minNumber": 10000, "maxNumber": 15000, "unit": "ms" }
+```
+
+The PostgreSQL full-text fallback and pgvector search both enforce these
+filters through `document_metadata_index`.
 
 ## Recompute Flow
 

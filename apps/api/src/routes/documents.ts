@@ -1,6 +1,6 @@
 import fastifyMultipart, { type MultipartFile } from "@fastify/multipart";
 import type { FastifyInstance } from "fastify";
-import type { DerivedArtifactRepository, ProcessingRunRecord } from "@mindory/core/artifacts";
+import type { DerivedArtifactRepository, DocumentMetadataFilter, ProcessingRunRecord } from "@mindory/core/artifacts";
 import { DocumentUploadService, type DocumentRecord, type DocumentRepository, type DocumentStatus, type ListDocumentsInput, type UploadDocumentInput, type UploadDocumentResult } from "@mindory/core/documents";
 import type { DocumentChunkSearchRepository } from "@mindory/core/memory";
 import { DocumentRecomputeError, DocumentRecomputeService } from "@mindory/core/recompute";
@@ -24,6 +24,13 @@ interface RecomputeDocumentBody {
   stages?: string[];
   reason?: string;
   requestId?: string;
+}
+
+interface SearchDocumentsBody {
+  projectIds: string[];
+  query: string;
+  limit: number;
+  metadataFilters?: DocumentMetadataFilter[];
 }
 
 export async function registerDocumentRoutes(app: FastifyInstance, dependencies: DocumentRouteDependencies = {}): Promise<void> {
@@ -212,7 +219,7 @@ export async function registerDocumentRoutes(app: FastifyInstance, dependencies:
     }
   });
 
-  app.post<{ Body: { projectIds: string[]; query: string; limit: number } }>("/v1/documents/search", async (request) => {
+  app.post<{ Body: SearchDocumentsBody }>("/v1/documents/search", async (request) => {
     if (!dependencies.chunkSearchRepository) {
       throw notImplemented("Document search requires chunk search repositories from a later task.");
     }
