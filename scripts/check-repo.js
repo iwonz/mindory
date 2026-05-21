@@ -8,7 +8,7 @@ const checks = [
   ["typecheck", "scripts/typecheck-workspaces.js"],
   ["compose:validate", "scripts/validate-compose.js"],
   ["production:validate", "scripts/validate-production-hardening.js"],
-  ["llm:validate", "scripts/validate-llm-adapter.js"],
+  ["model-runtime:validate", "scripts/validate-model-runtime.js"],
   ["db:validate", "scripts/validate-db-schema.js"],
   ["db:repositories:validate", "scripts/validate-db-repositories.js"],
   ["api:validate", "scripts/validate-api-skeleton.js"],

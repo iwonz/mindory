@@ -9,7 +9,7 @@ const requiredFiles = [
   "packages/processors/extractors/builtin-text/src/index.ts",
   "packages/processors/embeddings/openai-compatible/src/index.ts",
   "packages/processors/embeddings/ollama/src/index.ts",
-  "packages/llm/src/index.ts",
+  "packages/model-runtime/src/index.ts",
   "packages/vector/pgvector/src/index.ts",
   "packages/vector/qdrant/src/index.ts",
   "apps/worker/src/document-pipeline.ts",
@@ -44,8 +44,8 @@ const openAiPackage = readJson("packages/processors/embeddings/openai-compatible
 const openAiTsconfig = readJson("packages/processors/embeddings/openai-compatible/tsconfig.json");
 const ollamaPackage = readJson("packages/processors/embeddings/ollama/package.json");
 const ollamaTsconfig = readJson("packages/processors/embeddings/ollama/tsconfig.json");
-const llmPackage = readJson("packages/llm/package.json");
-const llmTsconfig = readJson("packages/llm/tsconfig.json");
+const modelRuntimePackage = readJson("packages/model-runtime/package.json");
+const modelRuntimeTsconfig = readJson("packages/model-runtime/tsconfig.json");
 const pgvectorPackage = readJson("packages/vector/pgvector/package.json");
 const pgvectorTsconfig = readJson("packages/vector/pgvector/tsconfig.json");
 const qdrantPackage = readJson("packages/vector/qdrant/package.json");
@@ -56,7 +56,7 @@ const processing = read("packages/core/src/processing.ts");
 const extractor = read("packages/processors/extractors/builtin-text/src/index.ts");
 const openAi = read("packages/processors/embeddings/openai-compatible/src/index.ts");
 const ollama = read("packages/processors/embeddings/ollama/src/index.ts");
-const llm = read("packages/llm/src/index.ts");
+const modelRuntime = read("packages/model-runtime/src/index.ts");
 const pgvector = read("packages/vector/pgvector/src/index.ts");
 const qdrant = read("packages/vector/qdrant/src/index.ts");
 const workerPipeline = read("apps/worker/src/document-pipeline.ts");
@@ -113,12 +113,12 @@ for (const token of ["OllamaEmbeddingsProvider", "/api/embed", "embeddings", "fe
   assert(ollama.includes(token), `Ollama embedding provider must include ${token}.`);
 }
 
-assert(llmPackage.dependencies?.["@mindory/config"] === "workspace:*", "Unified LLM package must depend on @mindory/config.");
-assert(llmPackage.dependencies?.["@mindory/core"] === "workspace:*", "Unified LLM package must depend on @mindory/core.");
-assert(llmPackage.exports?.["."], "Unified LLM package must export its root module.");
-assert(llmTsconfig.references?.some((reference) => reference.path === "../config"), "Unified LLM package must reference @mindory/config.");
-for (const token of ["buildMindoryLlmRuntime", "buildMindoryEmbeddingsProvider", "oauth-bearer", "OpenAICompatibleEmbeddingsProvider", "OllamaEmbeddingsProvider"]) {
-  assert(llm.includes(token), `Unified LLM adapter must include ${token}.`);
+assert(modelRuntimePackage.dependencies?.["@mindory/config"] === "workspace:*", "Model runtime package must depend on @mindory/config.");
+assert(modelRuntimePackage.dependencies?.["@mindory/core"] === "workspace:*", "Model runtime package must depend on @mindory/core.");
+assert(modelRuntimePackage.exports?.["."], "Model runtime package must export its root module.");
+assert(modelRuntimeTsconfig.references?.some((reference) => reference.path === "../config"), "Model runtime package must reference @mindory/config.");
+for (const token of ["buildMindoryModelRuntime", "buildMindoryTextEmbeddingsProvider", "ModelCapabilityRegistry", "oauth-bearer", "OpenAICompatibleEmbeddingsProvider", "OllamaEmbeddingsProvider"]) {
+  assert(modelRuntime.includes(token), `Model runtime adapter must include ${token}.`);
 }
 
 assert(pgvectorPackage.dependencies?.["@mindory/core"] === "workspace:*", "pgvector package must depend on @mindory/core.");
@@ -138,26 +138,36 @@ for (const token of ["QdrantVectorIndex", "vector_index_not_implemented", "upser
   assert(qdrant.includes(token), `Qdrant package must include ${token}.`);
 }
 
-for (const envName of [
-  "MINDORY_LLM_PROVIDER",
-  "MINDORY_LLM_EMBEDDING_MODEL",
-  "MINDORY_LLM_CHAT_MODEL",
-  "MINDORY_LLM_EMBEDDING_DIMENSIONS",
-  "MINDORY_LLM_OPENAI_COMPATIBLE_BASE_URL",
-  "MINDORY_LLM_OPENAI_COMPATIBLE_AUTH_MODE",
-  "MINDORY_LLM_OPENAI_COMPATIBLE_API_KEY",
-  "MINDORY_LLM_OPENAI_OAUTH_ACCESS_TOKEN",
-  "MINDORY_LLM_OLLAMA_BASE_URL"
+for (const token of [
+  "\"TEXT_EMBEDDING\"",
+  "readModelEmbeddingCapabilityConfig",
+  "MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_BASE_URL",
+  "MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_AUTH_MODE",
+  "MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_API_KEY",
+  "MINDORY_MODEL_RUNTIME_OPENAI_OAUTH_ACCESS_TOKEN",
+  "MINDORY_MODEL_RUNTIME_OLLAMA_BASE_URL"
 ]) {
-  assert(config.includes(envName), `Config loader must read ${envName}.`);
+  assert(config.includes(token), `Config loader must read ${token}.`);
+}
+for (const envName of [
+  "MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_ENABLED",
+  "MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_PROVIDER",
+  "MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_MODEL",
+  "MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_DIMENSIONS",
+  "MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_BASE_URL",
+  "MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_AUTH_MODE",
+  "MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_API_KEY",
+  "MINDORY_MODEL_RUNTIME_OPENAI_OAUTH_ACCESS_TOKEN",
+  "MINDORY_MODEL_RUNTIME_OLLAMA_BASE_URL"
+]) {
   assert(envExample.includes(envName), `.env.example must include ${envName}.`);
 }
 for (const token of [
   "PGVECTOR_EMBEDDING_DIMENSIONS",
   "validateMindoryConfig",
-  "MINDORY_LLM_EMBEDDING_MODEL is required",
-  "MINDORY_LLM_OPENAI_COMPATIBLE_BASE_URL is required",
-  "MINDORY_LLM_OLLAMA_BASE_URL is required"
+  "MODEL is required when the capability is enabled",
+  "MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_BASE_URL is required",
+  "MINDORY_MODEL_RUNTIME_OLLAMA_BASE_URL is required"
 ]) {
   assert(config.includes(token), `Config loader must validate embeddings setting ${token}.`);
 }

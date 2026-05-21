@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-36",
+  "current_task_id": "TASK-37",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -288,6 +288,13 @@
       "status": "done",
       "branch": "task/TASK-36-unified-llm-adapter",
       "file": "tasks/TASK-36.json"
+    },
+    {
+      "id": "TASK-37",
+      "title": "Add model runtime module",
+      "status": "done",
+      "branch": "task/TASK-37-model-runtime-module",
+      "file": "tasks/TASK-37.json"
     }
   ]
 }

@@ -1,0 +1,67 @@
+{
+  "id": "TASK-37",
+  "title": "Add model runtime module",
+  "status": "done",
+  "type": "chore",
+  "priority": "high",
+  "branch": "task/TASK-37-model-runtime-module",
+  "created_at": "2026-05-21",
+  "updated_at": "2026-05-21",
+  "context": {
+    "summary": "Replace the narrow LLM adapter with a model runtime boundary that can own embeddings, OCR, ASR, vision and face capabilities.",
+    "background": "TASK-36 centralized text embeddings behind @mindory/llm. The multimodal derived pipeline needs one broader runtime module with per-capability provider config, disabled capabilities and adapter contracts for both local and cloud model solutions."
+  },
+  "scope": {
+    "in": [
+      "Add @mindory/model-runtime as the shared runtime construction point for model-backed capabilities.",
+      "Move current text embedding construction from @mindory/llm to @mindory/model-runtime.",
+      "Represent text embedding, image embedding, image captioning, OCR, ASR, face detection and face recognition capability descriptors.",
+      "Replace active MINDORY_LLM_* configuration with MINDORY_MODEL_RUNTIME_* configuration.",
+      "Expose disabled, OpenAI-compatible, Ollama and local provider choices at the model runtime boundary.",
+      "Document local/free default model names for CLIP, OCR and face capabilities."
+    ],
+    "out": [
+      "Implement OCR, ASR, image, video or face processors.",
+      "Add derived artifact database schema.",
+      "Add local model server images or heavy model downloads.",
+      "Maintain compatibility with old MINDORY_LLM_* environment variables."
+    ]
+  },
+  "acceptance_criteria": [
+    "@mindory/model-runtime is a workspace package and is referenced by API and worker runtime code.",
+    "API and worker no longer import or depend on @mindory/llm.",
+    "Current text embedding behavior still works through @mindory/model-runtime.",
+    "Config exposes per-capability model runtime settings and validates enabled capabilities.",
+    "Old MINDORY_LLM_* env names are removed from active runtime configuration.",
+    "Docs and validation scripts describe the model runtime boundary.",
+    "All repository checks pass."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "pnpm model-runtime:validate",
+      "pnpm processing:validate",
+      "pnpm typecheck",
+      "pnpm lint",
+      "pnpm test",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-37.",
+      "Confirm no active API or worker import points at @mindory/llm.",
+      "Confirm .env.example contains model runtime capability switches and local defaults."
+    ]
+  },
+  "dependencies": [
+    "TASK-36"
+  ],
+  "risks": [
+    "Renaming runtime config affects integration tests, Compose defaults and documentation together.",
+    "Local model names are descriptors only until future tasks wire local processor runtimes."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch is committed and merged back into master."
+  ]
+}

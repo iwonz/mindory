@@ -22,7 +22,7 @@ import {
 } from "@mindory/core/processing";
 import type { ObjectStorage } from "@mindory/core/storage";
 import { BuiltinTextExtractor } from "@mindory/extractor-builtin-text";
-import { buildMindoryEmbeddingsProvider } from "@mindory/llm";
+import { buildMindoryTextEmbeddingsProvider } from "@mindory/model-runtime";
 import { ClamAvDocumentScanProcessor, ClamAvScanner } from "@mindory/processor-antivirus-clamav";
 
 export interface DocumentPipelineProcessorOptions {
@@ -117,7 +117,7 @@ export function buildDocumentPipelineProcessors(options: DocumentPipelineProcess
 }
 
 export function buildEmbeddingsProvider(config: MindoryConfig): EmbeddingsProvider | undefined {
-  return buildMindoryEmbeddingsProvider(config);
+  return buildMindoryTextEmbeddingsProvider(config);
 }
 
 class DocumentExtractProcessor implements ProcessingJobProcessor {

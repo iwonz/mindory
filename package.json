@@ -24,7 +24,7 @@
     "hermes:validate": "node scripts/validate-hermes-adapter.js",
     "hermes:smoke": "node scripts/smoke-hermes.js",
     "lint": "node scripts/lint-repo.js",
-    "llm:validate": "node scripts/validate-llm-adapter.js",
+    "model-runtime:validate": "node scripts/validate-model-runtime.js",
     "memory:validate": "node scripts/validate-memory-context.js",
     "mcp:smoke": "node apps/mcp/scripts/smoke-stdio.js",
     "mcp:validate": "node scripts/validate-mcp-server.js",

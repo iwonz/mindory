@@ -67,19 +67,21 @@ document status:
 extractor supports plain text and Markdown inputs, and `FixedSizeTextChunker`
 creates deterministic token windows with offset metadata.
 
-Embedding providers are selected through the shared `@mindory/llm` module.
-Low-level adapters exist for OpenAI-compatible `/embeddings` APIs and Ollama
-`/api/embed`. `TASK-20` makes pgvector the default MVP vector runtime: worker
-indexing upserts chunk embeddings into `chunk_vector_embeddings`, and API
-document search uses query embeddings plus pgvector when an LLM provider is
-configured. Qdrant remains an optional future adapter.
+Text embedding providers are selected through the shared
+`@mindory/model-runtime` module. Low-level adapters exist for
+OpenAI-compatible `/embeddings` APIs and Ollama `/api/embed`. `TASK-20` makes
+pgvector the default MVP vector runtime: worker indexing upserts chunk
+embeddings into `chunk_vector_embeddings`, and API document search uses query
+embeddings plus pgvector when text embeddings are configured. Qdrant remains an
+optional future adapter.
 
 `TASK-19` adds `DocumentChunkRepository`, a Drizzle-backed chunk repository and
 the worker processor registry. Clean scans enqueue extraction, extraction writes
 derived text objects, chunking replaces durable chunk rows, and embedding/index
-processors write pgvector rows when embeddings are configured. With
-`MINDORY_LLM_PROVIDER=disabled`, the pipeline intentionally stops at
-`chunked` and API document search falls back to text chunk search.
+processors write pgvector rows when text embeddings are configured. With
+`MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_ENABLED=false`, the pipeline
+intentionally stops at `chunked` and API document search falls back to text
+chunk search.
 
 `TASK-31` adds strict indexed acceptance: with
 `MINDORY_E2E_REQUIRE_INDEXED=true`, the live acceptance script waits for

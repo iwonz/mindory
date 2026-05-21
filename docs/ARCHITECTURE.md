@@ -151,8 +151,9 @@ returns explicit `not_implemented` responses when dependencies are omitted.
   `start_offset`, `end_offset` and token count metadata.
 - `@mindory/extractor-builtin-text` handles UTF-8 plain text and simple Markdown
   normalization for `.txt`, `.md` and `.markdown` inputs.
-- `@mindory/llm` is the runtime adapter entrypoint for OpenAI-compatible and
-  Ollama embeddings, including OpenAI-compatible API key or OAuth bearer auth.
+- `@mindory/model-runtime` is the runtime adapter entrypoint for text
+  embeddings and future OCR, ASR, vision and face capabilities, including
+  OpenAI-compatible API key or OAuth bearer auth.
 - `@mindory/vector-pgvector` implements the default PostgreSQL vector index.
 - `@mindory/vector-qdrant` remains an optional future vector adapter.
 

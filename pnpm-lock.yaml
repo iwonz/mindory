@@ -44,9 +44,9 @@ importers:
       '@mindory/db':
         specifier: workspace:*
         version: link:../../packages/db
-      '@mindory/llm':
+      '@mindory/model-runtime':
         specifier: workspace:*
-        version: link:../../packages/llm
+        version: link:../../packages/model-runtime
       '@mindory/queue-bullmq':
         specifier: workspace:*
         version: link:../../packages/queue/bullmq
@@ -89,9 +89,9 @@ importers:
       '@mindory/extractor-builtin-text':
         specifier: workspace:*
         version: link:../../packages/processors/extractors/builtin-text
-      '@mindory/llm':
+      '@mindory/model-runtime':
         specifier: workspace:*
-        version: link:../../packages/llm
+        version: link:../../packages/model-runtime
       '@mindory/processor-antivirus-clamav':
         specifier: workspace:*
         version: link:../../packages/processors/antivirus-clamav
@@ -126,7 +126,7 @@ importers:
         specifier: ^8.13.0
         version: 8.21.0
 
-  packages/llm:
+  packages/model-runtime:
     dependencies:
       '@mindory/config':
         specifier: workspace:*

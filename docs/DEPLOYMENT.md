@@ -103,9 +103,10 @@ Example:
 docker compose --profile minio --profile clamav --profile qdrant up -d
 ```
 
-The `ollama` profile is optional for local embeddings. The selected embedding
-model must produce 1536-dimensional vectors for the current pgvector MVP schema;
-otherwise keep `MINDORY_LLM_PROVIDER=disabled` for the default chunked
+The `ollama` profile is optional for local text embeddings. The selected
+embedding model must produce 1536-dimensional vectors for the current pgvector
+MVP schema; otherwise keep
+`MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_ENABLED=false` for the default chunked
 fallback.
 
 `docling` is still a profile skeleton. Running Compose may require network

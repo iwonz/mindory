@@ -34,7 +34,8 @@ const testEnv = {
   MINDORY_AV_ENABLED: "false",
   MINDORY_AV_PROVIDER: "disabled",
   MINDORY_AV_MODE: "disabled",
-  MINDORY_LLM_PROVIDER: "disabled",
+  MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_ENABLED: "false",
+  MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_PROVIDER: "disabled",
   MINDORY_WORKER_CONCURRENCY: "1"
 };
 
@@ -162,12 +163,13 @@ test("MVP runtime integration indexes document chunks with configured embeddings
     MINDORY_QUEUE_PREFIX: indexedQueuePrefix,
     MINDORY_CACHE_PREFIX: `mindory:test-cache:${indexedRunId}`,
     MINDORY_STORAGE_LOCAL_PATH: indexedStoragePath,
-    MINDORY_LLM_PROVIDER: "openai-compatible",
-    MINDORY_LLM_EMBEDDING_MODEL: "mindory-test-embedding",
-    MINDORY_LLM_EMBEDDING_DIMENSIONS: "1536",
-    MINDORY_LLM_OPENAI_COMPATIBLE_BASE_URL: fakeEmbeddings.baseUrl,
-    MINDORY_LLM_OPENAI_COMPATIBLE_AUTH_MODE: "api-key",
-    MINDORY_LLM_OPENAI_COMPATIBLE_API_KEY: "test-key"
+    MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_ENABLED: "true",
+    MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_PROVIDER: "openai-compatible",
+    MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_MODEL: "mindory-test-embedding",
+    MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_DIMENSIONS: "1536",
+    MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_BASE_URL: fakeEmbeddings.baseUrl,
+    MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_AUTH_MODE: "api-key",
+    MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_API_KEY: "test-key"
   };
   const config = modules.loadMindoryConfig(indexedEnv);
   let apiApp = null;
