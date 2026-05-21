@@ -17,7 +17,7 @@ import {
   DbSessionRepository,
   type MindoryDatabase
 } from "@mindory/db";
-import { buildMindoryEmbeddingsProvider } from "@mindory/llm";
+import { buildMindoryTextEmbeddingsProvider } from "@mindory/model-runtime";
 import { BullMqProcessingJobQueue } from "@mindory/queue-bullmq";
 import { LocalFsObjectStorage } from "@mindory/storage-local-fs";
 import { PgVectorChunkIndex, PgVectorDocumentChunkSearchRepository } from "@mindory/vector-pgvector";
@@ -127,11 +127,11 @@ function buildDocumentChunkSearchRepository(config: MindoryConfig, db: MindoryDa
     embeddings,
     vectorIndex: new PgVectorChunkIndex({
       db,
-      dimensions: config.llm.embeddingDimensions ?? PGVECTOR_EMBEDDING_DIMENSIONS
+      dimensions: config.modelRuntime.textEmbedding.dimensions ?? PGVECTOR_EMBEDDING_DIMENSIONS
     })
   });
 }
 
 function buildEmbeddingsProvider(config: MindoryConfig): EmbeddingsProvider | undefined {
-  return buildMindoryEmbeddingsProvider(config);
+  return buildMindoryTextEmbeddingsProvider(config);
 }

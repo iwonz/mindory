@@ -24,7 +24,7 @@
     "@mindory/config": "workspace:*",
     "@mindory/core": "workspace:*",
     "@mindory/db": "workspace:*",
-    "@mindory/llm": "workspace:*",
+    "@mindory/model-runtime": "workspace:*",
     "@mindory/queue-bullmq": "workspace:*",
     "@mindory/storage-local-fs": "workspace:*",
     "@mindory/vector-pgvector": "workspace:*",

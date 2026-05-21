@@ -1,11 +1,22 @@
 export type StorageProvider = "local-fs" | "s3";
 export type VectorProvider = "pgvector" | "qdrant";
 export type AntivirusMode = "disabled" | "async_quarantine" | "sync_scan";
-export type LlmProvider = "openai-compatible" | "ollama" | "disabled";
-export type LlmOpenAiAuthMode = "none" | "api-key" | "oauth-bearer";
+export type ModelRuntimeProvider = "disabled" | "openai-compatible" | "ollama" | "local";
+export type ModelRuntimeOpenAiAuthMode = "none" | "api-key" | "oauth-bearer";
 export type McpTransport = "stdio";
 
 export const PGVECTOR_EMBEDDING_DIMENSIONS = 1536;
+
+export interface ModelRuntimeCapabilityConfig {
+  enabled: boolean;
+  provider: ModelRuntimeProvider;
+  model: string;
+  required: boolean;
+}
+
+export interface ModelRuntimeEmbeddingCapabilityConfig extends ModelRuntimeCapabilityConfig {
+  dimensions: number | null;
+}
 
 export interface MindoryConfig {
   log: {
@@ -62,18 +73,24 @@ export interface MindoryConfig {
     type: string;
     concurrency: number;
   };
-  llm: {
-    provider: LlmProvider;
-    embeddingModel: string;
-    chatModel: string;
-    embeddingDimensions: number | null;
+  modelRuntime: {
+    textEmbedding: ModelRuntimeEmbeddingCapabilityConfig;
+    imageEmbedding: ModelRuntimeEmbeddingCapabilityConfig;
+    imageCaptioning: ModelRuntimeCapabilityConfig;
+    ocr: ModelRuntimeCapabilityConfig;
+    asr: ModelRuntimeCapabilityConfig;
+    faceDetection: ModelRuntimeCapabilityConfig;
+    faceRecognition: ModelRuntimeCapabilityConfig;
     openaiCompatible: {
       baseUrl: string;
-      authMode: LlmOpenAiAuthMode;
+      authMode: ModelRuntimeOpenAiAuthMode;
       apiKey: string;
       oauthAccessToken: string;
     };
     ollama: {
+      baseUrl: string;
+    };
+    local: {
       baseUrl: string;
     };
   };
@@ -149,6 +166,43 @@ function readEnum<T extends string>(env: EnvSource, name: string, defaultValue: 
   throw new Error(`${name} must be one of: ${values.join(", ")}.`);
 }
 
+function readModelCapabilityConfig(
+  env: EnvSource,
+  key: string,
+  defaults: {
+    enabled?: boolean;
+    provider?: ModelRuntimeProvider;
+    model?: string;
+    required?: boolean;
+  } = {}
+): ModelRuntimeCapabilityConfig {
+  const prefix = `MINDORY_MODEL_RUNTIME_${key}`;
+  return {
+    enabled: readBoolean(env, `${prefix}_ENABLED`, defaults.enabled ?? false),
+    provider: readEnum(env, `${prefix}_PROVIDER`, defaults.provider ?? "disabled", ["disabled", "openai-compatible", "ollama", "local"]),
+    model: readString(env, `${prefix}_MODEL`, defaults.model ?? ""),
+    required: readBoolean(env, `${prefix}_REQUIRED`, defaults.required ?? false)
+  };
+}
+
+function readModelEmbeddingCapabilityConfig(
+  env: EnvSource,
+  key: string,
+  defaults: {
+    enabled?: boolean;
+    provider?: ModelRuntimeProvider;
+    model?: string;
+    dimensions?: number | null;
+    required?: boolean;
+  } = {}
+): ModelRuntimeEmbeddingCapabilityConfig {
+  const capability = readModelCapabilityConfig(env, key, defaults);
+  return {
+    ...capability,
+    dimensions: readNullableNumber(env, `MINDORY_MODEL_RUNTIME_${key}_DIMENSIONS`) ?? defaults.dimensions ?? null
+  };
+}
+
 export function loadMindoryConfig(env: EnvSource = process.env): MindoryConfig {
   const config: MindoryConfig = {
     log: {
@@ -205,19 +259,37 @@ export function loadMindoryConfig(env: EnvSource = process.env): MindoryConfig {
       type: readString(env, "MINDORY_WORKER_TYPE", "all"),
       concurrency: readNumber(env, "MINDORY_WORKER_CONCURRENCY", 2)
     },
-    llm: {
-      provider: readEnum(env, "MINDORY_LLM_PROVIDER", "disabled", ["openai-compatible", "ollama", "disabled"]),
-      embeddingModel: readString(env, "MINDORY_LLM_EMBEDDING_MODEL", ""),
-      chatModel: readString(env, "MINDORY_LLM_CHAT_MODEL", ""),
-      embeddingDimensions: readNullableNumber(env, "MINDORY_LLM_EMBEDDING_DIMENSIONS"),
+    modelRuntime: {
+      textEmbedding: readModelEmbeddingCapabilityConfig(env, "TEXT_EMBEDDING"),
+      imageEmbedding: readModelEmbeddingCapabilityConfig(env, "IMAGE_EMBEDDING", {
+        provider: "local",
+        model: "CLIP ViT-L-16-SigLIP2-256__webli"
+      }),
+      imageCaptioning: readModelCapabilityConfig(env, "IMAGE_CAPTIONING"),
+      ocr: readModelCapabilityConfig(env, "OCR", {
+        provider: "local",
+        model: "ESLAV__PP-OCRv5_mobile"
+      }),
+      asr: readModelCapabilityConfig(env, "ASR"),
+      faceDetection: readModelCapabilityConfig(env, "FACE_DETECTION", {
+        provider: "local",
+        model: "buffalo_l"
+      }),
+      faceRecognition: readModelCapabilityConfig(env, "FACE_RECOGNITION", {
+        provider: "local",
+        model: "buffalo_l"
+      }),
       openaiCompatible: {
-        baseUrl: readString(env, "MINDORY_LLM_OPENAI_COMPATIBLE_BASE_URL", ""),
-        authMode: readEnum(env, "MINDORY_LLM_OPENAI_COMPATIBLE_AUTH_MODE", "none", ["none", "api-key", "oauth-bearer"]),
-        apiKey: readString(env, "MINDORY_LLM_OPENAI_COMPATIBLE_API_KEY", ""),
-        oauthAccessToken: readString(env, "MINDORY_LLM_OPENAI_OAUTH_ACCESS_TOKEN", "")
+        baseUrl: readString(env, "MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_BASE_URL", ""),
+        authMode: readEnum(env, "MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_AUTH_MODE", "none", ["none", "api-key", "oauth-bearer"]),
+        apiKey: readString(env, "MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_API_KEY", ""),
+        oauthAccessToken: readString(env, "MINDORY_MODEL_RUNTIME_OPENAI_OAUTH_ACCESS_TOKEN", "")
       },
       ollama: {
-        baseUrl: readString(env, "MINDORY_LLM_OLLAMA_BASE_URL", "http://ollama:11434")
+        baseUrl: readString(env, "MINDORY_MODEL_RUNTIME_OLLAMA_BASE_URL", "http://ollama:11434")
+      },
+      local: {
+        baseUrl: readString(env, "MINDORY_MODEL_RUNTIME_LOCAL_BASE_URL", "http://model-runtime:8080")
       }
     },
     mcp: {
@@ -247,7 +319,7 @@ export function loadMindoryConfig(env: EnvSource = process.env): MindoryConfig {
 
 export function validateMindoryConfig(config: MindoryConfig): void {
   validateApiConfig(config);
-  validateLlmConfig(config);
+  validateModelRuntimeConfig(config);
 }
 
 function validateApiConfig(config: MindoryConfig): void {
@@ -264,35 +336,61 @@ function validateApiConfig(config: MindoryConfig): void {
   }
 }
 
-function validateLlmConfig(config: MindoryConfig): void {
-  if (config.llm.provider === "disabled") {
-    return;
+function validateModelRuntimeConfig(config: MindoryConfig): void {
+  const capabilities = [
+    ["TEXT_EMBEDDING", config.modelRuntime.textEmbedding],
+    ["IMAGE_EMBEDDING", config.modelRuntime.imageEmbedding],
+    ["IMAGE_CAPTIONING", config.modelRuntime.imageCaptioning],
+    ["OCR", config.modelRuntime.ocr],
+    ["ASR", config.modelRuntime.asr],
+    ["FACE_DETECTION", config.modelRuntime.faceDetection],
+    ["FACE_RECOGNITION", config.modelRuntime.faceRecognition]
+  ] as const;
+
+  for (const [envKey, capability] of capabilities) {
+    if (!capability.enabled) {
+      continue;
+    }
+    if (capability.provider === "disabled") {
+      throw new Error(`MINDORY_MODEL_RUNTIME_${envKey}_PROVIDER cannot be disabled when the capability is enabled.`);
+    }
+    if (capability.model.trim() === "") {
+      throw new Error(`MINDORY_MODEL_RUNTIME_${envKey}_MODEL is required when the capability is enabled.`);
+    }
   }
 
-  if (config.llm.embeddingModel.trim() === "") {
-    throw new Error("MINDORY_LLM_EMBEDDING_MODEL is required when LLM embeddings are enabled.");
-  }
-
-  if (config.vector.provider === "pgvector") {
-    const dimensions = config.llm.embeddingDimensions ?? PGVECTOR_EMBEDDING_DIMENSIONS;
+  if (config.modelRuntime.textEmbedding.enabled && config.vector.provider === "pgvector") {
+    const dimensions = config.modelRuntime.textEmbedding.dimensions ?? PGVECTOR_EMBEDDING_DIMENSIONS;
     if (dimensions !== PGVECTOR_EMBEDDING_DIMENSIONS) {
-      throw new Error(`MINDORY_LLM_EMBEDDING_DIMENSIONS must be ${PGVECTOR_EMBEDDING_DIMENSIONS} for the current pgvector MVP schema.`);
+      throw new Error(`MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_DIMENSIONS must be ${PGVECTOR_EMBEDDING_DIMENSIONS} for the current pgvector MVP schema.`);
     }
   }
 
-  if (config.llm.provider === "openai-compatible") {
-    if (config.llm.openaiCompatible.baseUrl.trim() === "") {
-      throw new Error("MINDORY_LLM_OPENAI_COMPATIBLE_BASE_URL is required when MINDORY_LLM_PROVIDER=openai-compatible.");
+  if (usesModelRuntimeProvider(config, "openai-compatible")) {
+    if (config.modelRuntime.openaiCompatible.baseUrl.trim() === "") {
+      throw new Error("MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_BASE_URL is required when an OpenAI-compatible capability is enabled.");
     }
-    if (config.llm.openaiCompatible.authMode === "api-key" && config.llm.openaiCompatible.apiKey.trim() === "") {
-      throw new Error("MINDORY_LLM_OPENAI_COMPATIBLE_API_KEY is required when MINDORY_LLM_OPENAI_COMPATIBLE_AUTH_MODE=api-key.");
+    if (config.modelRuntime.openaiCompatible.authMode === "api-key" && config.modelRuntime.openaiCompatible.apiKey.trim() === "") {
+      throw new Error("MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_API_KEY is required when MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_AUTH_MODE=api-key.");
     }
-    if (config.llm.openaiCompatible.authMode === "oauth-bearer" && config.llm.openaiCompatible.oauthAccessToken.trim() === "") {
-      throw new Error("MINDORY_LLM_OPENAI_OAUTH_ACCESS_TOKEN is required when MINDORY_LLM_OPENAI_COMPATIBLE_AUTH_MODE=oauth-bearer.");
+    if (config.modelRuntime.openaiCompatible.authMode === "oauth-bearer" && config.modelRuntime.openaiCompatible.oauthAccessToken.trim() === "") {
+      throw new Error("MINDORY_MODEL_RUNTIME_OPENAI_OAUTH_ACCESS_TOKEN is required when MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_AUTH_MODE=oauth-bearer.");
     }
   }
 
-  if (config.llm.provider === "ollama" && config.llm.ollama.baseUrl.trim() === "") {
-    throw new Error("MINDORY_LLM_OLLAMA_BASE_URL is required when MINDORY_LLM_PROVIDER=ollama.");
+  if (usesModelRuntimeProvider(config, "ollama") && config.modelRuntime.ollama.baseUrl.trim() === "") {
+    throw new Error("MINDORY_MODEL_RUNTIME_OLLAMA_BASE_URL is required when an Ollama capability is enabled.");
   }
+}
+
+function usesModelRuntimeProvider(config: MindoryConfig, provider: ModelRuntimeProvider): boolean {
+  return [
+    config.modelRuntime.textEmbedding,
+    config.modelRuntime.imageEmbedding,
+    config.modelRuntime.imageCaptioning,
+    config.modelRuntime.ocr,
+    config.modelRuntime.asr,
+    config.modelRuntime.faceDetection,
+    config.modelRuntime.faceRecognition
+  ].some((capability) => capability.enabled && capability.provider === provider);
 }

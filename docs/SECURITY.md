@@ -61,7 +61,7 @@ at the reverse proxy or load balancer.
 
 Production deployments must override demo values from `.env.example`. Required
 secret-bearing values include database and Redis URLs, S3 credentials when S3 is
-used, LLM provider keys or OAuth bearer tokens, MCP/CLI/Hermes bearer tokens and
+used, model provider keys or OAuth bearer tokens, MCP/CLI/Hermes bearer tokens and
 all access tokens issued by Mindory. Store them in a secret manager or
 deployment secret store, not in git.
 
