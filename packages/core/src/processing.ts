@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Readable } from "node:stream";
-import type { DocumentMetadataFilter } from "./artifacts.js";
+import type { DocumentArtifactType, DocumentMetadataFilter } from "./artifacts.js";
 import type { DocumentRecord } from "./documents.js";
 
 export interface ExtractTextInput {
@@ -20,6 +20,19 @@ export interface ExtractedTextPage {
   metadata?: Record<string, unknown>;
 }
 
+export interface ExtractedSemanticArtifact {
+  artifactType: DocumentArtifactType;
+  content: string;
+  spanType?: string;
+  artifactIndex?: number;
+  sourcePosition?: Record<string, unknown>;
+  modelProvider?: string | null;
+  modelName?: string | null;
+  modelVersion?: string | null;
+  confidence?: number | null;
+  metadata?: Record<string, unknown>;
+}
+
 export interface ExtractedText {
   projectId: string;
   documentId: string;
@@ -27,6 +40,7 @@ export interface ExtractedText {
   mimeType: string;
   metadata: Record<string, unknown>;
   pages?: ExtractedTextPage[];
+  semanticArtifacts?: ExtractedSemanticArtifact[];
 }
 
 export interface TextExtractor {

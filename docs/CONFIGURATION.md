@@ -80,8 +80,10 @@ Each modality has `MINDORY_DOCUMENT_PROCESSING_<TYPE>_ENABLED` and
 routes to the existing text extraction/chunking/indexing pipeline. PDF is
 implemented for native text streams but remains disabled by default; set
 `MINDORY_DOCUMENT_PROCESSING_PDF_ENABLED=true` to route PDFs into
-`document.extract`. Image, audio and video default to disabled until their
-processors are implemented.
+`document.extract`. Image semantic fallback extraction is implemented but also
+disabled by default; set `MINDORY_DOCUMENT_PROCESSING_IMAGE_ENABLED=true` to
+route images into `document.extract`. Audio and video default to disabled until
+their processors are implemented.
 
 `MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES` sets the future video
 keyframe cap and defaults to `10`.
@@ -93,7 +95,13 @@ independent `MINDORY_MODEL_RUNTIME_*_ENABLED`, `*_PROVIDER`, `*_MODEL` and
 `*_REQUIRED` setting. Providers are `disabled`, `openai-compatible`, `ollama` or
 `local`.
 
-Text embeddings are currently the only capability used by the runtime pipeline.
+Text embeddings are currently the only capability that performs live model
+calls. The image pipeline records OCR, image-captioning and image-embedding
+capability state in derived artifacts, but the current MVP extractor uses a
+deterministic metadata and embedded PNG text fallback until concrete vision/OCR
+adapters are added.
+
+Text embeddings are the only capability used for pgvector indexing today.
 When `MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_ENABLED=true`,
 `MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_MODEL` is required. The current MVP
 pgvector schema stores `vector(1536)`, so

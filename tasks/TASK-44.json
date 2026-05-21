@@ -1,0 +1,70 @@
+{
+  "id": "TASK-44",
+  "title": "Add image semantic pipeline",
+  "status": "done",
+  "type": "chore",
+  "priority": "high",
+  "branch": "task/TASK-44-image-semantic-pipeline",
+  "created_at": "2026-05-21",
+  "updated_at": "2026-05-21",
+  "context": {
+    "summary": "Add an image semantic processing path that produces derived caption, analysis and OCR-ready artifacts searchable through the existing document search.",
+    "background": "TASK-42 indexes attachment metadata and TASK-43 proved modality extraction can create artifact-backed semantic text. Image routing still skipped as processor_not_implemented."
+  },
+  "scope": {
+    "in": [
+      "Route enabled image uploads to document.extract.",
+      "Add a dedicated image semantic extractor module with deterministic metadata/OCR-ready fallback behavior.",
+      "Create image_caption, image_analysis, ocr_text and image_embedding derived artifacts when image extraction runs.",
+      "Propagate semantic artifact refs into chunk metadata and search source refs.",
+      "Record configured model-runtime capability state for OCR, image captioning and image embeddings.",
+      "Add integration coverage for PNG upload, semantic extraction and phrase search.",
+      "Update docs, validators and workspace wiring."
+    ],
+    "out": [
+      "Real cloud/local vision model execution.",
+      "Face detection or identity matching.",
+      "Standalone visual vector search over image embeddings.",
+      "Changing 0000_initial_schema.sql."
+    ]
+  },
+  "acceptance_criteria": [
+    "Enabled image routing creates a document.extract job.",
+    "Image extraction writes image_caption and image_analysis artifacts with text spans.",
+    "Image OCR state is represented as derived metadata and OCR text artifacts are created when embedded image text is available.",
+    "Chunk metadata/source refs include image semantic artifacts.",
+    "Image document search returns source-backed hits for semantic description and OCR text.",
+    "Configured OCR, image-captioning and image-embedding capability state is recorded without mutating RAW originals.",
+    "No schema changes modify 0000_initial_schema.sql."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "pnpm db:repositories:validate",
+      "pnpm documents:validate",
+      "pnpm processing:validate",
+      "pnpm typecheck",
+      "pnpm lint",
+      "pnpm tasks:validate",
+      "pnpm test",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-44.",
+      "Confirm packages/db/drizzle/0000_initial_schema.sql is unchanged.",
+      "Confirm image search hits include semantic artifact metadata."
+    ]
+  },
+  "dependencies": [
+    "TASK-43"
+  ],
+  "risks": [
+    "The MVP image extractor uses deterministic metadata and embedded text fallback until a real vision/OCR adapter is installed.",
+    "Image embedding artifacts record capability state but do not yet store visual vectors."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch is committed and merged back into master."
+  ]
+}

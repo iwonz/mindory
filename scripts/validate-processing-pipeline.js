@@ -10,6 +10,7 @@ const requiredFiles = [
   "packages/core/src/recompute.ts",
   "packages/processors/extractors/builtin-text/src/index.ts",
   "packages/processors/extractors/docling/src/index.ts",
+  "packages/processors/extractors/image-semantic/src/index.ts",
   "packages/processors/embeddings/openai-compatible/src/index.ts",
   "packages/processors/embeddings/ollama/src/index.ts",
   "packages/model-runtime/src/index.ts",
@@ -45,6 +46,8 @@ const extractorPackage = readJson("packages/processors/extractors/builtin-text/p
 const extractorTsconfig = readJson("packages/processors/extractors/builtin-text/tsconfig.json");
 const doclingPackage = readJson("packages/processors/extractors/docling/package.json");
 const doclingTsconfig = readJson("packages/processors/extractors/docling/tsconfig.json");
+const imageSemanticPackage = readJson("packages/processors/extractors/image-semantic/package.json");
+const imageSemanticTsconfig = readJson("packages/processors/extractors/image-semantic/tsconfig.json");
 const openAiPackage = readJson("packages/processors/embeddings/openai-compatible/package.json");
 const openAiTsconfig = readJson("packages/processors/embeddings/openai-compatible/tsconfig.json");
 const ollamaPackage = readJson("packages/processors/embeddings/ollama/package.json");
@@ -62,6 +65,7 @@ const routing = read("packages/core/src/document-routing.ts");
 const recompute = read("packages/core/src/recompute.ts");
 const extractor = read("packages/processors/extractors/builtin-text/src/index.ts");
 const docling = read("packages/processors/extractors/docling/src/index.ts");
+const imageSemantic = read("packages/processors/extractors/image-semantic/src/index.ts");
 const openAi = read("packages/processors/embeddings/openai-compatible/src/index.ts");
 const ollama = read("packages/processors/embeddings/ollama/src/index.ts");
 const modelRuntime = read("packages/model-runtime/src/index.ts");
@@ -106,6 +110,7 @@ for (const token of [
   "planDocumentProcessingRoute",
   "routingEnabled",
   "pdf_extraction",
+  "image_semantic_extraction",
   "processor_not_implemented"
 ]) {
   assert(routing.includes(token), `@mindory/core document routing module must include ${token}.`);
@@ -135,6 +140,13 @@ assert(doclingPackage.exports?.["."], "Docling PDF extractor must export its roo
 assert(doclingTsconfig.references?.some((reference) => reference.path === "../../../../packages/core"), "Docling PDF extractor must reference @mindory/core.");
 for (const token of ["DoclingPdfExtractor", "extractPdfPageText", "\"application/pdf\"", "\".pdf\"", "native_text_pages", "ocr"]) {
   assert(docling.includes(token), `Docling PDF extractor must include ${token}.`);
+}
+
+assert(imageSemanticPackage.dependencies?.["@mindory/core"] === "workspace:*", "Image semantic extractor must depend on @mindory/core.");
+assert(imageSemanticPackage.exports?.["."], "Image semantic extractor must export its root module.");
+assert(imageSemanticTsconfig.references?.some((reference) => reference.path === "../../../../packages/core"), "Image semantic extractor must reference @mindory/core.");
+for (const token of ["ImageSemanticExtractor", "image_caption", "image_analysis", "ocr_text", "image_embedding", "extractEmbeddedImageText"]) {
+  assert(imageSemantic.includes(token), `Image semantic extractor must include ${token}.`);
 }
 
 assert(openAiPackage.dependencies?.["@mindory/core"] === "workspace:*", "OpenAI-compatible embedding package must depend on @mindory/core.");
@@ -238,11 +250,15 @@ for (const token of [
   "duration_ms",
   "checksum_sha256",
   "DoclingPdfExtractor",
+  "ImageSemanticExtractor",
   "pdf_page",
   "pdf_native_text",
   "page_artifact_ids",
+  "semantic_artifact_ids",
+  "semantic_artifact_types",
   "text_artifact_id",
   "artifact_id",
+  "createExtractedSemanticArtifacts",
   "ClamAvDocumentScanProcessor",
   "document.recompute",
   "document.route",

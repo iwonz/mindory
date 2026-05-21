@@ -8,6 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { deflateSync } from "node:zlib";
 import pg from "../packages/db/node_modules/pg/lib/index.js";
 
 const { Client } = pg;
@@ -35,6 +36,7 @@ const testEnv = {
   MINDORY_AV_PROVIDER: "disabled",
   MINDORY_AV_MODE: "disabled",
   MINDORY_DOCUMENT_PROCESSING_PDF_ENABLED: "true",
+  MINDORY_DOCUMENT_PROCESSING_IMAGE_ENABLED: "true",
   MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_ENABLED: "false",
   MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_PROVIDER: "disabled",
   MINDORY_WORKER_CONCURRENCY: "1"
@@ -127,6 +129,7 @@ test("MVP runtime integration covers auth, upload, worker jobs and context", { t
     const { sessionId, messageId } = await createConversation(apiUrl);
     const { documentId, routeJobId } = await uploadAndProcessDocument(apiUrl);
     await uploadAndProcessPdfDocument(apiUrl);
+    await uploadAndProcessImageDocument(apiUrl);
     await assertJobsApi(apiUrl, managementStore, sessionId, routeJobId);
     await assertDocumentRecompute(apiUrl, documentId);
     await assertMemoryAndContext(apiUrl, sessionId, messageId, documentId);
@@ -449,6 +452,66 @@ async function uploadAndProcessPdfDocument(apiUrl) {
   assert.equal(pageArtifacts, 2, "PDF extraction should persist one pdf_page artifact per page.");
   const pageSpans = await countDocumentTextSpans(projectId, documentId, "pdf_native_text", databaseUrl);
   assert.equal(pageSpans, 2, "PDF extraction should persist page-level native text spans.");
+}
+
+async function uploadAndProcessImageDocument(apiUrl) {
+  const image = buildMinimalPng({
+    width: 16,
+    height: 10,
+    text: "passport in hand at airport with nature and 3 people"
+  });
+  const form = new FormData();
+  form.append("projectId", projectId);
+  form.append("title", "Integration image document");
+  form.append("file", new Blob([image], { type: "image/png" }), "nature-3-people-passport-airport.png");
+
+  const uploadResponse = await fetch(`${apiUrl}/v1/documents`, {
+    method: "POST",
+    headers: {
+      accept: "application/json",
+      authorization: `Bearer ${bootstrapToken}`
+    },
+    body: form
+  });
+  if (uploadResponse.status !== 202) {
+    throw new Error(`image document upload failed ${uploadResponse.status}: ${await uploadResponse.text()}`);
+  }
+  const upload = await uploadResponse.json();
+  const documentId = upload.document.id;
+  const routeJobId = upload.route_job?.id;
+  assert.equal(typeof routeJobId, "string", "image upload should enqueue a route job when scan is disabled");
+
+  await waitFor(async () => {
+    const status = await requestJson(apiUrl, "GET", `/v1/documents/${encodeURIComponent(documentId)}/status?projectId=${encodeURIComponent(projectId)}`);
+    return status.status === "chunked";
+  }, "image document to reach chunked status");
+
+  const routeJob = await waitForJobStatus(apiUrl, routeJobId, "succeeded");
+  assert.equal(routeJob.type, "document.route");
+  const document = await requestJson(apiUrl, "GET", `/v1/documents/${encodeURIComponent(documentId)}?projectId=${encodeURIComponent(projectId)}`);
+  assert.equal(document.metadata.routing.classification.kind, "image");
+  assert.equal(document.metadata.extraction.processing_stage, "image");
+  assert.equal(document.metadata.extraction.image_semantic, true);
+
+  const search = await requestJson(apiUrl, "POST", "/v1/documents/search", {
+    projectIds: [projectId],
+    query: "passport airport nature 3 people",
+    limit: 5,
+    metadataFilters: [{ key: "extension", valueText: "png" }]
+  });
+  const imageHit = search.hits.find((hit) => hit.documentId === documentId);
+  assert.ok(imageHit, "image document search should find semantic image text.");
+  assert.ok(imageHit.sourceRefs.some((ref) => ref.type === "artifact"), "image search should include artifact source refs.");
+  assert.ok(imageHit.metadata.semantic_artifact_ids.length >= 3, "image chunk metadata should include semantic artifact ids.");
+  assert.ok(imageHit.metadata.semantic_artifact_types.includes("image_caption"), "image chunk metadata should include caption artifact type.");
+
+  assert.equal(await countDocumentArtifacts(projectId, documentId, "image_caption", databaseUrl), 1);
+  assert.equal(await countDocumentArtifacts(projectId, documentId, "image_analysis", databaseUrl), 1);
+  assert.equal(await countDocumentArtifacts(projectId, documentId, "image_embedding", databaseUrl), 1);
+  assert.equal(await countDocumentArtifacts(projectId, documentId, "ocr_text", databaseUrl), 1);
+  assert.equal(await countDocumentTextSpans(projectId, documentId, "image_caption", databaseUrl), 1);
+  assert.equal(await countDocumentTextSpans(projectId, documentId, "image_analysis", databaseUrl), 1);
+  assert.equal(await countDocumentTextSpans(projectId, documentId, "ocr_text", databaseUrl), 1);
 }
 
 async function uploadAndIndexDocument(input) {
@@ -872,6 +935,58 @@ function buildMinimalPdf(pageTexts) {
 
 function escapePdfLiteralString(value) {
   return value.replace(/[()\\]/g, (match) => `\\${match}`);
+}
+
+function buildMinimalPng(input) {
+  const pixelBytesPerRow = input.width * 3;
+  const rawRows = Buffer.alloc((pixelBytesPerRow + 1) * input.height);
+  for (let y = 0; y < input.height; y += 1) {
+    const rowStart = y * (pixelBytesPerRow + 1);
+    rawRows[rowStart] = 0;
+    for (let x = 0; x < input.width; x += 1) {
+      const pixelStart = rowStart + 1 + x * 3;
+      rawRows[pixelStart] = 0xe8;
+      rawRows[pixelStart + 1] = 0xf3;
+      rawRows[pixelStart + 2] = 0xff;
+    }
+  }
+
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(input.width, 0);
+  ihdr.writeUInt32BE(input.height, 4);
+  ihdr[8] = 8;
+  ihdr[9] = 2;
+  ihdr[10] = 0;
+  ihdr[11] = 0;
+  ihdr[12] = 0;
+
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    pngChunk("IHDR", ihdr),
+    pngChunk("tEXt", Buffer.from(`Description\0${input.text}`, "utf8")),
+    pngChunk("IDAT", deflateSync(rawRows)),
+    pngChunk("IEND", Buffer.alloc(0))
+  ]);
+}
+
+function pngChunk(type, data) {
+  const typeBytes = Buffer.from(type, "latin1");
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(data.length, 0);
+  const crc = Buffer.alloc(4);
+  crc.writeUInt32BE(crc32(Buffer.concat([typeBytes, data])), 0);
+  return Buffer.concat([length, typeBytes, data, crc]);
+}
+
+function crc32(bytes) {
+  let crc = 0xffffffff;
+  for (const byte of bytes) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) {
+      crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+    }
+  }
+  return (crc ^ 0xffffffff) >>> 0;
 }
 
 function hashAccessToken(value) {

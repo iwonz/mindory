@@ -25,6 +25,7 @@ import {
   ProcessingError,
   type DocumentChunkRepository,
   type EmbeddingsProvider,
+  type ExtractedSemanticArtifact,
   type ExtractedTextPage,
   type TextChunk,
   type TextChunker,
@@ -35,6 +36,7 @@ import {
 import type { ObjectStorage } from "@mindory/core/storage";
 import { BuiltinTextExtractor } from "@mindory/extractor-builtin-text";
 import { DoclingPdfExtractor } from "@mindory/extractor-docling";
+import { ImageSemanticExtractor } from "@mindory/extractor-image-semantic";
 import { buildMindoryTextEmbeddingsProvider } from "@mindory/model-runtime";
 import { ClamAvDocumentScanProcessor, ClamAvScanner } from "@mindory/processor-antivirus-clamav";
 
@@ -68,6 +70,26 @@ export function buildDocumentPipelineProcessors(options: DocumentPipelineProcess
   const extractors = options.extractors ?? [
     new BuiltinTextExtractor(),
     new DoclingPdfExtractor({
+      ocr: {
+        enabled: options.config.modelRuntime.ocr.enabled,
+        provider: options.config.modelRuntime.ocr.provider,
+        model: options.config.modelRuntime.ocr.model,
+        required: options.config.modelRuntime.ocr.required
+      }
+    }),
+    new ImageSemanticExtractor({
+      imageCaptioning: {
+        enabled: options.config.modelRuntime.imageCaptioning.enabled,
+        provider: options.config.modelRuntime.imageCaptioning.provider,
+        model: options.config.modelRuntime.imageCaptioning.model,
+        required: options.config.modelRuntime.imageCaptioning.required
+      },
+      imageEmbedding: {
+        enabled: options.config.modelRuntime.imageEmbedding.enabled,
+        provider: options.config.modelRuntime.imageEmbedding.provider,
+        model: options.config.modelRuntime.imageEmbedding.model,
+        required: options.config.modelRuntime.imageEmbedding.required
+      },
       ocr: {
         enabled: options.config.modelRuntime.ocr.enabled,
         provider: options.config.modelRuntime.ocr.provider,
@@ -455,9 +477,12 @@ class DocumentExtractProcessor implements ProcessingJobProcessor {
       body: Readable.from(rawBytes)
     });
     const incomingProcessingRunId = readMetadataString(context.payload.metadata, "processing_run_id");
-    const extractionStage = readMetadataString(context.payload.metadata, "route_kind") === "pdf" || document.mimeType.toLowerCase().startsWith("application/pdf")
+    const routeKind = readMetadataString(context.payload.metadata, "route_kind");
+    const extractionStage = routeKind === "pdf" || document.mimeType.toLowerCase().startsWith("application/pdf")
       ? "pdf"
-      : "text";
+      : routeKind === "image" || document.mimeType.toLowerCase().startsWith("image/")
+        ? "image"
+        : "text";
     const processingRunId = incomingProcessingRunId
       ?? deterministicProcessingRunId(document.id, extractionStage, sha256Hex(rawBytes));
     const configFingerprint = buildDocumentRecomputeFingerprint({
@@ -534,6 +559,16 @@ class DocumentExtractProcessor implements ProcessingJobProcessor {
       extractorVersion: extractor.version,
       configFingerprint
     });
+    const semanticArtifacts = await createExtractedSemanticArtifacts({
+      artifacts: this.artifacts,
+      document,
+      processingRunId,
+      textArtifactId,
+      semanticArtifacts: extracted.semanticArtifacts ?? [],
+      extractorName: extractor.name,
+      extractorVersion: extractor.version,
+      configFingerprint
+    });
     await this.artifacts.replaceDocumentArtifactTextSpans({
       projectId: document.projectId,
       documentId: document.id,
@@ -553,11 +588,12 @@ class DocumentExtractProcessor implements ProcessingJobProcessor {
           extractor: extractor.name,
           extractor_version: extractor.version,
           page_artifacts: pageArtifacts,
+          semantic_artifacts: semanticArtifacts,
           source_refs: [
             { type: "document", id: document.id },
             { type: "processing_run", id: processingRunId },
             { type: "artifact", id: textArtifactId }
-          ]
+          ].concat(semanticArtifacts.map((artifact) => ({ type: "artifact", id: artifact.artifact_id })))
         }
       }]
     });
@@ -576,6 +612,7 @@ class DocumentExtractProcessor implements ProcessingJobProcessor {
           text_artifact_id: textArtifactId,
           processing_stage: extractionStage,
           page_artifacts: pageArtifacts,
+          semantic_artifacts: semanticArtifacts,
           page_count: extracted.pages?.length ?? 0,
           ...extracted.metadata
         }
@@ -640,6 +677,7 @@ class DocumentChunkProcessor implements ProcessingJobProcessor {
       throw new ProcessingError("text_extraction_failed", `Document ${document.id} is missing text artifact metadata.`);
     }
     const pageRefs = readExtractionPageRefs(document.metadata.extraction);
+    const semanticRefs = readExtractionSemanticArtifactRefs(document.metadata.extraction);
 
     const extractedObject = await this.storage.getObject(extractedTextKey);
     const text = await readUtf8(extractedObject.body);
@@ -655,7 +693,7 @@ class DocumentChunkProcessor implements ProcessingJobProcessor {
         text_artifact_id: textArtifactId
       }
     }).map((chunk) => deterministicChunkId(document.id, chunk))
-      .map((chunk) => enrichChunkWithArtifactRefs(chunk, processingRunId, textArtifactId, pageRefs));
+      .map((chunk) => enrichChunkWithArtifactRefs(chunk, processingRunId, textArtifactId, pageRefs, semanticRefs));
 
     await this.chunks.replaceDocumentChunks({
       projectId: document.projectId,
@@ -949,6 +987,13 @@ interface ExtractedPageArtifactRef {
   ocr: boolean;
 }
 
+interface ExtractedSemanticArtifactRef {
+  artifact_id: string;
+  text_span_id?: string;
+  artifact_type: string;
+  span_type: string;
+}
+
 async function createExtractedPageArtifacts(input: {
   artifacts: DerivedArtifactRepository;
   document: DocumentRecord;
@@ -1049,6 +1094,89 @@ async function createExtractedPageArtifacts(input: {
       ref.text_span_id = textSpanId;
     }
     refs.push(ref);
+  }
+
+  return refs;
+}
+
+async function createExtractedSemanticArtifacts(input: {
+  artifacts: DerivedArtifactRepository;
+  document: DocumentRecord;
+  processingRunId: string;
+  textArtifactId: string;
+  semanticArtifacts: ExtractedSemanticArtifact[];
+  extractorName: string;
+  extractorVersion: string;
+  configFingerprint: string;
+}): Promise<ExtractedSemanticArtifactRef[]> {
+  const refs: ExtractedSemanticArtifactRef[] = [];
+  for (const [index, semanticArtifact] of input.semanticArtifacts.entries()) {
+    const artifactIndex = semanticArtifact.artifactIndex ?? index;
+    const artifactId = deterministicArtifactId(input.processingRunId, semanticArtifact.artifactType, artifactIndex);
+    const textSpanId = deterministicTextSpanId(artifactId, 0);
+    const spanType = semanticArtifact.spanType ?? semanticArtifact.artifactType;
+    await input.artifacts.createDocumentArtifact({
+      id: artifactId,
+      projectId: input.document.projectId,
+      documentId: input.document.id,
+      processingRunId: input.processingRunId,
+      parentArtifactId: input.textArtifactId,
+      artifactType: semanticArtifact.artifactType,
+      artifactIndex,
+      content: semanticArtifact.content,
+      contentHash: sha256Hex(Buffer.from(semanticArtifact.content, "utf8")),
+      sourceRefs: [
+        { type: "document", id: input.document.id },
+        { type: "processing_run", id: input.processingRunId },
+        { type: "artifact", id: input.textArtifactId }
+      ],
+      source: input.document.source,
+      sourcePosition: semanticArtifact.sourcePosition ?? {},
+      modelProvider: semanticArtifact.modelProvider ?? null,
+      modelName: semanticArtifact.modelName ?? null,
+      modelVersion: semanticArtifact.modelVersion ?? null,
+      configFingerprint: input.configFingerprint,
+      metadata: {
+        ...(semanticArtifact.metadata ?? {}),
+        extractor: input.extractorName,
+        extractor_version: input.extractorVersion,
+        text_artifact_id: input.textArtifactId
+      }
+    });
+    await input.artifacts.replaceDocumentArtifactTextSpans({
+      projectId: input.document.projectId,
+      documentId: input.document.id,
+      artifactId,
+      spans: [{
+        id: textSpanId,
+        projectId: input.document.projectId,
+        documentId: input.document.id,
+        artifactId,
+        spanType,
+        content: semanticArtifact.content,
+        confidence: semanticArtifact.confidence ?? null,
+        metadata: {
+          ...(semanticArtifact.metadata ?? {}),
+          processing_run_id: input.processingRunId,
+          artifact_id: artifactId,
+          text_artifact_id: input.textArtifactId,
+          extractor: input.extractorName,
+          extractor_version: input.extractorVersion,
+          source_refs: [
+            { type: "document", id: input.document.id },
+            { type: "processing_run", id: input.processingRunId },
+            { type: "artifact", id: input.textArtifactId },
+            { type: "artifact", id: artifactId }
+          ]
+        }
+      }]
+    });
+    refs.push({
+      artifact_id: artifactId,
+      text_span_id: textSpanId,
+      artifact_type: semanticArtifact.artifactType,
+      span_type: spanType
+    });
   }
 
   return refs;
@@ -1466,12 +1594,14 @@ function enrichChunkWithArtifactRefs(
   chunk: TextChunk,
   processingRunId: string,
   textArtifactId: string,
-  pageRefs: ExtractedPageArtifactRef[]
+  pageRefs: ExtractedPageArtifactRef[],
+  semanticRefs: ExtractedSemanticArtifactRef[]
 ): TextChunk {
   const artifactId = deterministicArtifactId(processingRunId, "text_chunk", chunk.index);
   const textSpanId = deterministicTextSpanId(artifactId, 0);
   const overlappingPages = pageRefsForChunk(chunk, pageRefs);
   const pageSourceRefs = overlappingPages.map((page) => ({ type: "artifact" as const, id: page.artifact_id }));
+  const semanticSourceRefs = semanticRefs.map((artifact) => ({ type: "artifact" as const, id: artifact.artifact_id }));
   return {
     ...chunk,
     metadata: {
@@ -1482,11 +1612,14 @@ function enrichChunkWithArtifactRefs(
       text_span_id: textSpanId,
       page_numbers: overlappingPages.map((page) => page.page_number),
       page_artifact_ids: overlappingPages.map((page) => page.artifact_id),
+      semantic_artifact_ids: semanticRefs.map((artifact) => artifact.artifact_id),
+      semantic_artifact_types: semanticRefs.map((artifact) => artifact.artifact_type),
       source_refs: [
         { type: "document", id: chunk.documentId },
         { type: "processing_run", id: processingRunId },
         { type: "artifact", id: textArtifactId },
         ...pageSourceRefs,
+        ...semanticSourceRefs,
         { type: "artifact", id: artifactId },
         { type: "chunk", id: chunk.id }
       ]
@@ -1557,6 +1690,23 @@ function readExtractionPageRefs(metadata: unknown): ExtractedPageArtifactRef[] {
       && typeof recordItem.page_number === "number"
       && typeof recordItem.start_offset === "number"
       && typeof recordItem.end_offset === "number";
+  });
+}
+
+function readExtractionSemanticArtifactRefs(metadata: unknown): ExtractedSemanticArtifactRef[] {
+  const record = typeof metadata === "object" && metadata !== null ? metadata as Record<string, unknown> : null;
+  const value = record?.semantic_artifacts;
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter((item): item is ExtractedSemanticArtifactRef => {
+    if (typeof item !== "object" || item === null) {
+      return false;
+    }
+    const recordItem = item as Record<string, unknown>;
+    return typeof recordItem.artifact_id === "string"
+      && typeof recordItem.artifact_type === "string"
+      && typeof recordItem.span_type === "string";
   });
 }
 

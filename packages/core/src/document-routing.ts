@@ -33,7 +33,7 @@ export interface DocumentFileClassification {
 export interface DocumentRouteJobPlan {
   type: Extract<ProcessingJobType, "document.extract">;
   processorVersion: string;
-  reason: "text_extraction" | "pdf_extraction";
+  reason: "text_extraction" | "pdf_extraction" | "image_semantic_extraction";
   metadata: Record<string, unknown>;
 }
 
@@ -104,8 +104,8 @@ export function planDocumentProcessingRoute(input: PlanDocumentProcessingRouteIn
     skipped.push({ kind: classification.kind, reason: "unsupported_document_type", required: false });
   } else if (!modalityConfig?.enabled) {
     skipped.push({ kind: classification.kind, reason: "disabled", required: modalityConfig?.required ?? false });
-  } else if (classification.kind === "text" || classification.kind === "pdf") {
-    const reason = classification.kind === "pdf" ? "pdf_extraction" : "text_extraction";
+  } else if (classification.kind === "text" || classification.kind === "pdf" || classification.kind === "image") {
+    const reason = routeReasonForKind(classification.kind);
     jobs.push({
       type: "document.extract",
       processorVersion: "document-extract-v1",
@@ -154,6 +154,16 @@ function configForKind(config: DocumentProcessingRouteConfig, kind: DocumentFile
     case "unknown":
       return undefined;
   }
+}
+
+function routeReasonForKind(kind: Extract<DocumentFileKind, "text" | "pdf" | "image">): DocumentRouteJobPlan["reason"] {
+  if (kind === "pdf") {
+    return "pdf_extraction";
+  }
+  if (kind === "image") {
+    return "image_semantic_extraction";
+  }
+  return "text_extraction";
 }
 
 function buildClassification(kind: DocumentFileKind, mimeType: string, extension: string, magicMatched: boolean): DocumentFileClassification {

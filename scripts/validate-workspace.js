@@ -24,6 +24,7 @@ const workspaces = [
   ["packages/processors/antivirus-clamav", "@mindory/processor-antivirus-clamav"],
   ["packages/processors/extractors/builtin-text", "@mindory/extractor-builtin-text"],
   ["packages/processors/extractors/docling", "@mindory/extractor-docling"],
+  ["packages/processors/extractors/image-semantic", "@mindory/extractor-image-semantic"],
   ["packages/processors/embeddings/openai-compatible", "@mindory/embeddings-openai-compatible"],
   ["packages/processors/embeddings/ollama", "@mindory/embeddings-ollama"],
   ["packages/observability", "@mindory/observability"]
