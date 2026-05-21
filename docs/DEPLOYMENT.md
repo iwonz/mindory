@@ -21,11 +21,17 @@ The startup path is:
 3. Run the `migrate` service with `pnpm db:migrate`.
 4. Start API with `node apps/api/dist/server.js`.
 5. Start worker with `node apps/worker/dist/server.js`.
-6. Start MCP stdio with `node apps/mcp/dist/stdio.js`.
+6. Optionally start the MCP stdio command with `node apps/mcp/dist/stdio.js`
+   as a process smoke check.
 
 The API healthcheck calls `/ready`. API and worker mount the `objects-data`
 volume at `/data/mindory/objects` for the default local filesystem storage
 provider.
+
+MCP stdio is normally launched by an MCP client, not exposed as a Compose
+network service. The Compose `mcp` service is a packaging artifact that proves
+the command starts inside the image; real clients should use the examples in
+`docs/MCP.md` and point `MINDORY_MCP_API_URL` at a reachable API URL.
 
 On Apple Silicon, the `clamav/clamav:stable` image may need amd64 emulation.
 The Compose profile uses `MINDORY_CLAMAV_PLATFORM=linux/amd64` by default for

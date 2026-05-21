@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "mindory": {
+      "command": "node",
+      "args": ["/absolute/path/to/mindory/apps/mcp/dist/stdio.js"],
+      "env": {
+        "MINDORY_MCP_ENABLED": "true",
+        "MINDORY_MCP_TRANSPORT": "stdio",
+        "MINDORY_MCP_API_URL": "http://localhost:3000",
+        "MINDORY_MCP_API_TOKEN": "${MINDORY_MCP_API_TOKEN}"
+      }
+    }
+  }
+}

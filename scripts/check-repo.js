@@ -17,6 +17,7 @@ const checks = [
   ["processing:validate", "scripts/validate-processing-pipeline.js"],
   ["memory:validate", "scripts/validate-memory-context.js"],
   ["mcp:validate", "scripts/validate-mcp-server.js"],
+  ["mcp:smoke", "apps/mcp/scripts/smoke-stdio.js"],
   ["cli:validate", "scripts/validate-cli.js"],
   ["cli:smoke", "scripts/smoke-cli.js"],
   ["hermes:validate", "scripts/validate-hermes-adapter.js"],

@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-32",
+  "current_task_id": "TASK-33",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -257,7 +257,7 @@
     {
       "id": "TASK-32",
       "title": "Package MCP stdio for real client use",
-      "status": "ready",
+      "status": "done",
       "branch": "task/TASK-32-mcp-client-packaging",
       "file": "tasks/TASK-32.json"
     },
