@@ -809,14 +809,18 @@ MINDORY_WORKER_TYPE=all
 MINDORY_WORKER_CONCURRENCY=2
 
 # -----------------------------------------------------------------------------
-# Embeddings
+# Unified LLM Adapter
 # openai-compatible | ollama | disabled
 # -----------------------------------------------------------------------------
-MINDORY_EMBEDDINGS_PROVIDER=disabled
-MINDORY_EMBEDDINGS_MODEL=
-MINDORY_EMBEDDINGS_DIMENSIONS=
-MINDORY_OPENAI_COMPATIBLE_BASE_URL=
-MINDORY_OPENAI_COMPATIBLE_API_KEY=
+MINDORY_LLM_PROVIDER=disabled
+MINDORY_LLM_EMBEDDING_MODEL=
+MINDORY_LLM_CHAT_MODEL=
+MINDORY_LLM_EMBEDDING_DIMENSIONS=
+MINDORY_LLM_OPENAI_COMPATIBLE_BASE_URL=
+MINDORY_LLM_OPENAI_COMPATIBLE_AUTH_MODE=none
+MINDORY_LLM_OPENAI_COMPATIBLE_API_KEY=
+MINDORY_LLM_OPENAI_OAUTH_ACCESS_TOKEN=
+MINDORY_LLM_OLLAMA_BASE_URL=http://ollama:11434
 
 # -----------------------------------------------------------------------------
 # MCP

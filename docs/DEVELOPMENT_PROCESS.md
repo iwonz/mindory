@@ -95,6 +95,7 @@ pnpm typecheck
 pnpm test
 pnpm tasks:validate
 pnpm workspace:validate
+pnpm llm:validate
 pnpm db:validate
 pnpm db:repositories:validate
 pnpm api:validate

@@ -1,0 +1,23 @@
+{
+  "name": "@mindory/llm",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "@mindory/config": "workspace:*",
+    "@mindory/core": "workspace:*",
+    "@mindory/embeddings-ollama": "workspace:*",
+    "@mindory/embeddings-openai-compatible": "workspace:*"
+  }
+}
