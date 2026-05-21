@@ -11,6 +11,7 @@ worker document pipeline. `TASK-38` adds the derived artifact schema that later
 multimodal processors will write to. `TASK-39` adds the routing stage that
 classifies uploaded files and creates only the enabled downstream jobs.
 `TASK-40` adds recompute flow for derived state.
+`TASK-41` moves the text pipeline onto the derived artifact model.
 
 ## MVP Pipeline
 
@@ -123,7 +124,12 @@ and `video`, with only `text` reaching a concrete extractor today.
 
 `@mindory/core/processing` defines the processing contracts. The built-in text
 extractor supports plain text and Markdown inputs, and `FixedSizeTextChunker`
-creates deterministic token windows with offset metadata.
+creates deterministic token windows with offset metadata. Text extraction now
+writes a `text` artifact plus an `extracted_text` span; chunking writes one
+child `text` artifact and one `text_chunk` span per chunk. Legacy `chunks` rows
+remain the compatibility table for context and embeddings, but their metadata
+points back to `processing_run_id`, `text_artifact_id`, chunk `artifact_id` and
+artifact source refs.
 
 Text embedding providers are selected through the shared
 `@mindory/model-runtime` module. Low-level adapters exist for
@@ -132,6 +138,11 @@ pgvector the default MVP vector runtime: worker indexing upserts chunk
 embeddings into `chunk_vector_embeddings`, and API document search uses query
 embeddings plus pgvector when text embeddings are configured. Qdrant remains an
 optional future adapter.
+
+When embeddings are disabled, document search uses PostgreSQL full-text search
+over `document_artifact_text_spans` and ignores artifacts attached to
+`superseded` processing runs. Search hits include source refs for the chunk,
+artifact and processing run.
 
 `TASK-19` adds `DocumentChunkRepository`, a Drizzle-backed chunk repository and
 the worker processor registry. Clean scans enqueue routing, routing enqueues

@@ -144,6 +144,11 @@ write document artifacts, store media metadata and record face identities or
 observations. Later modality processors should use this repository rather than
 writing derived artifact tables directly.
 
+`TASK-41` extends that repository with idempotent text span replacement for
+artifact-backed text chunks. The text search path now uses a full-text GIN index
+on `document_artifact_text_spans` and filters out spans from `superseded`
+processing runs.
+
 `TASK-22` extends `DbSessionRepository` with `updateSessionSummary` so
 `session.summarize` jobs can refresh `sessions.summary` and metadata. It also
 uses `DbMemoryRepository` from workers to write derived memory candidates with

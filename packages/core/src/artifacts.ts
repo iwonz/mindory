@@ -102,6 +102,48 @@ export interface CreateDocumentArtifactInput {
   metadata?: Record<string, unknown>;
 }
 
+export interface DocumentArtifactTextSpanRecord {
+  id: string;
+  projectId: string;
+  documentId: string;
+  artifactId: string;
+  spanType: string;
+  content: string;
+  startOffset: number | null;
+  endOffset: number | null;
+  pageNumber: number | null;
+  frameIndex: number | null;
+  timestampMs: number | null;
+  boundingBox: Record<string, unknown> | null;
+  confidence: number | null;
+  metadata: Record<string, unknown>;
+  createdAt: Date;
+}
+
+export interface CreateDocumentArtifactTextSpanInput {
+  id: string;
+  projectId: string;
+  documentId: string;
+  artifactId: string;
+  spanType: string;
+  content: string;
+  startOffset?: number | null;
+  endOffset?: number | null;
+  pageNumber?: number | null;
+  frameIndex?: number | null;
+  timestampMs?: number | null;
+  boundingBox?: Record<string, unknown> | null;
+  confidence?: number | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface ReplaceDocumentArtifactTextSpansInput {
+  projectId: string;
+  documentId: string;
+  artifactId: string;
+  spans: CreateDocumentArtifactTextSpanInput[];
+}
+
 export interface DocumentMediaMetadataRecord {
   documentId: string;
   projectId: string;
@@ -192,6 +234,7 @@ export interface DerivedArtifactRepository extends DocumentProcessingRunReposito
   updateProcessingRunStatus(input: UpdateProcessingRunStatusInput): Promise<ProcessingRunRecord>;
   createDocumentArtifact(input: CreateDocumentArtifactInput): Promise<DocumentArtifactRecord>;
   listDocumentArtifacts(projectId: string, documentId: string): Promise<DocumentArtifactRecord[]>;
+  replaceDocumentArtifactTextSpans(input: ReplaceDocumentArtifactTextSpansInput): Promise<DocumentArtifactTextSpanRecord[]>;
   upsertDocumentMediaMetadata(input: UpsertDocumentMediaMetadataInput): Promise<DocumentMediaMetadataRecord>;
   createFaceIdentity(input: CreateFaceIdentityInput): Promise<FaceIdentityRecord>;
   createFaceObservation(input: CreateFaceObservationInput): Promise<FaceObservationRecord>;

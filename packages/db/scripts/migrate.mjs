@@ -48,6 +48,10 @@ const migrations = [
   {
     id: "0003_document_recompute_job",
     expectedTables: []
+  },
+  {
+    id: "0004_artifact_text_search",
+    expectedTables: []
   }
 ];
 

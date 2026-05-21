@@ -1212,6 +1212,10 @@ memory.derive
 session.summarize
 ```
 
+Text extraction and chunking produce derived artifact rows and text spans before
+search/index projections are updated. Search results should carry source refs
+for the chunk, artifact and processing run.
+
 Fields:
 
 ```text

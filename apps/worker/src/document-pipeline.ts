@@ -1,6 +1,6 @@
 import { Buffer } from "node:buffer";
 import { createHash, randomUUID } from "node:crypto";
-import type { Readable } from "node:stream";
+import { Readable } from "node:stream";
 import type { MindoryConfig } from "@mindory/config";
 import type { DerivedArtifactRepository } from "@mindory/core/artifacts";
 import {
@@ -93,6 +93,7 @@ export function buildDocumentPipelineProcessors(options: DocumentPipelineProcess
     new DocumentExtractProcessor({
       storage: options.storage,
       documents: options.documents,
+      artifacts: options.artifacts,
       jobs: options.jobs,
       extractors,
       nextProcessorVersion: chunker.version,
@@ -101,6 +102,7 @@ export function buildDocumentPipelineProcessors(options: DocumentPipelineProcess
     new DocumentChunkProcessor({
       storage: options.storage,
       documents: options.documents,
+      artifacts: options.artifacts,
       chunks: options.chunks,
       jobs: options.jobs,
       chunker,
@@ -118,6 +120,7 @@ export function buildDocumentPipelineProcessors(options: DocumentPipelineProcess
     new DocumentIndexProcessor({
       storage: options.storage,
       documents: options.documents,
+      artifacts: options.artifacts,
       chunks: options.chunks,
       vectorIndex: options.vectorIndex,
       processorVersion: options.vectorIndex ? `document-index:${options.vectorIndex.provider}` : "document-index-disabled"
@@ -358,6 +361,7 @@ class DocumentExtractProcessor implements ProcessingJobProcessor {
   readonly processorVersion: string;
   private readonly storage: ObjectStorage;
   private readonly documents: DocumentRepository;
+  private readonly artifacts: DerivedArtifactRepository;
   private readonly jobs: ProcessingJobDispatcher;
   private readonly extractors: TextExtractor[];
   private readonly nextProcessorVersion: string;
@@ -365,6 +369,7 @@ class DocumentExtractProcessor implements ProcessingJobProcessor {
   constructor(options: {
     storage: ObjectStorage;
     documents: DocumentRepository;
+    artifacts: DerivedArtifactRepository;
     jobs: ProcessingJobDispatcher;
     extractors: TextExtractor[];
     nextProcessorVersion: string;
@@ -372,6 +377,7 @@ class DocumentExtractProcessor implements ProcessingJobProcessor {
   }) {
     this.storage = options.storage;
     this.documents = options.documents;
+    this.artifacts = options.artifacts;
     this.jobs = options.jobs;
     this.extractors = options.extractors;
     this.nextProcessorVersion = options.nextProcessorVersion;
@@ -390,10 +396,38 @@ class DocumentExtractProcessor implements ProcessingJobProcessor {
     }
 
     const object = await this.storage.getObject(document.storageKey);
+    const rawBytes = await readAllBytes(object.body);
     const extracted = await extractor.extract({
       document,
-      body: object.body
+      body: Readable.from(rawBytes)
     });
+    const incomingProcessingRunId = readMetadataString(context.payload.metadata, "processing_run_id");
+    const processingRunId = incomingProcessingRunId
+      ?? deterministicProcessingRunId(document.id, "text", sha256Hex(rawBytes));
+    const configFingerprint = buildDocumentRecomputeFingerprint({
+      extractor: extractor.name,
+      extractorVersion: extractor.version,
+      processorVersion: this.processorVersion,
+      stage: "text"
+    });
+    if (!incomingProcessingRunId) {
+      await this.artifacts.createProcessingRun({
+        id: processingRunId,
+        projectId: document.projectId,
+        documentId: document.id,
+        reason: "text_pipeline",
+        processorVersion: this.processorVersion,
+        configFingerprint,
+        sourceDocumentStorageKey: document.storageKey,
+        sourceDocumentChecksum: sha256Hex(rawBytes),
+        metadata: {
+          stage: "text",
+          extractor: extractor.name,
+          extractor_version: extractor.version,
+          created_by: "document.extract"
+        }
+      });
+    }
     const extractedTextKey = derivedObjectKey(document.storageKey, "extracted.txt");
     await this.storage.putObject({
       key: extractedTextKey,
@@ -406,6 +440,60 @@ class DocumentExtractProcessor implements ProcessingJobProcessor {
         extractor_version: extractor.version
       }
     });
+    const textArtifactId = deterministicArtifactId(processingRunId, "text", 0);
+    const textSpanId = deterministicTextSpanId(textArtifactId, 0);
+    await this.artifacts.createDocumentArtifact({
+      id: textArtifactId,
+      projectId: document.projectId,
+      documentId: document.id,
+      processingRunId,
+      artifactType: "text",
+      artifactIndex: 0,
+      storageKey: extractedTextKey,
+      contentHash: sha256Hex(Buffer.from(extracted.text, "utf8")),
+      sourceRefs: [
+        { type: "document", id: document.id },
+        { type: "processing_run", id: processingRunId }
+      ],
+      source: document.source,
+      sourcePosition: {
+        start_offset: 0,
+        end_offset: extracted.text.length
+      },
+      configFingerprint,
+      metadata: {
+        extractor: extractor.name,
+        extractor_version: extractor.version,
+        extracted_text_key: extractedTextKey,
+        ...extracted.metadata
+      }
+    });
+    await this.artifacts.replaceDocumentArtifactTextSpans({
+      projectId: document.projectId,
+      documentId: document.id,
+      artifactId: textArtifactId,
+      spans: [{
+        id: textSpanId,
+        projectId: document.projectId,
+        documentId: document.id,
+        artifactId: textArtifactId,
+        spanType: "extracted_text",
+        content: extracted.text,
+        startOffset: 0,
+        endOffset: extracted.text.length,
+        metadata: {
+          processing_run_id: processingRunId,
+          artifact_id: textArtifactId,
+          extractor: extractor.name,
+          extractor_version: extractor.version,
+          source_refs: [
+            { type: "document", id: document.id },
+            { type: "processing_run", id: processingRunId },
+            { type: "artifact", id: textArtifactId }
+          ]
+        }
+      }]
+    });
 
     await this.documents.updateDocumentStatus({
       projectId: document.projectId,
@@ -417,6 +505,8 @@ class DocumentExtractProcessor implements ProcessingJobProcessor {
           extractor: extractor.name,
           extractor_version: extractor.version,
           extracted_text_key: extractedTextKey,
+          processing_run_id: processingRunId,
+          text_artifact_id: textArtifactId,
           ...extracted.metadata
         }
       }
@@ -427,7 +517,8 @@ class DocumentExtractProcessor implements ProcessingJobProcessor {
       idempotencyKey: withProcessingRunId(`document.chunk:${document.id}:${this.nextProcessorVersion}`, readMetadataString(context.payload.metadata, "processing_run_id")),
       processorVersion: this.nextProcessorVersion,
       metadata: {
-        extracted_text_key: extractedTextKey
+        extracted_text_key: extractedTextKey,
+        text_artifact_id: textArtifactId
       }
     }));
   }
@@ -438,6 +529,7 @@ class DocumentChunkProcessor implements ProcessingJobProcessor {
   readonly processorVersion: string;
   private readonly storage: ObjectStorage;
   private readonly documents: DocumentRepository;
+  private readonly artifacts: DerivedArtifactRepository;
   private readonly chunks: DocumentChunkRepository;
   private readonly jobs: ProcessingJobDispatcher;
   private readonly chunker: TextChunker;
@@ -446,6 +538,7 @@ class DocumentChunkProcessor implements ProcessingJobProcessor {
   constructor(options: {
     storage: ObjectStorage;
     documents: DocumentRepository;
+    artifacts: DerivedArtifactRepository;
     chunks: DocumentChunkRepository;
     jobs: ProcessingJobDispatcher;
     chunker: TextChunker;
@@ -454,6 +547,7 @@ class DocumentChunkProcessor implements ProcessingJobProcessor {
   }) {
     this.storage = options.storage;
     this.documents = options.documents;
+    this.artifacts = options.artifacts;
     this.chunks = options.chunks;
     this.jobs = options.jobs;
     this.chunker = options.chunker;
@@ -465,8 +559,15 @@ class DocumentChunkProcessor implements ProcessingJobProcessor {
     const document = await this.documents.getDocument(context.payload.projectId, context.payload.targetId);
     const extractedTextKey = readMetadataString(context.payload.metadata, "extracted_text_key")
       ?? readMetadataString(document.metadata.extraction, "extracted_text_key");
+    const processingRunId = readMetadataString(context.payload.metadata, "processing_run_id")
+      ?? readMetadataString(document.metadata.extraction, "processing_run_id");
+    const textArtifactId = readMetadataString(context.payload.metadata, "text_artifact_id")
+      ?? readMetadataString(document.metadata.extraction, "text_artifact_id");
     if (!extractedTextKey) {
       throw new ProcessingError("text_extraction_failed", `Document ${document.id} is missing extracted text metadata.`);
+    }
+    if (!processingRunId || !textArtifactId) {
+      throw new ProcessingError("text_extraction_failed", `Document ${document.id} is missing text artifact metadata.`);
     }
 
     const extractedObject = await this.storage.getObject(extractedTextKey);
@@ -478,15 +579,79 @@ class DocumentChunkProcessor implements ProcessingJobProcessor {
       metadata: {
         chunker: this.chunker.name,
         chunker_version: this.chunker.version,
-        extracted_text_key: extractedTextKey
+        extracted_text_key: extractedTextKey,
+        processing_run_id: processingRunId,
+        text_artifact_id: textArtifactId
       }
-    }).map((chunk) => deterministicChunkId(document.id, chunk));
+    }).map((chunk) => deterministicChunkId(document.id, chunk))
+      .map((chunk) => enrichChunkWithArtifactRefs(chunk, processingRunId, textArtifactId));
 
     await this.chunks.replaceDocumentChunks({
       projectId: document.projectId,
       documentId: document.id,
       chunks: chunked
     });
+    for (const chunk of chunked) {
+      const artifactId = readMetadataString(chunk.metadata, "artifact_id");
+      const spanId = readMetadataString(chunk.metadata, "text_span_id");
+      if (!artifactId || !spanId) {
+        throw new ProcessingError("text_extraction_failed", `Chunk ${chunk.id} is missing artifact metadata.`);
+      }
+      await this.artifacts.createDocumentArtifact({
+        id: artifactId,
+        projectId: chunk.projectId,
+        documentId: chunk.documentId,
+        processingRunId,
+        parentArtifactId: textArtifactId,
+        artifactType: "text",
+        artifactIndex: chunk.index + 1,
+        content: chunk.content,
+        contentHash: sha256Hex(Buffer.from(chunk.content, "utf8")),
+        sourceRefs: [
+          { type: "document", id: document.id },
+          { type: "processing_run", id: processingRunId },
+          { type: "artifact", id: textArtifactId },
+          { type: "chunk", id: chunk.id }
+        ],
+        source: document.source,
+        sourcePosition: {
+          start_offset: chunk.metadata.start_offset,
+          end_offset: chunk.metadata.end_offset
+        },
+        configFingerprint: buildDocumentRecomputeFingerprint({
+          chunker: this.chunker.name,
+          chunkerVersion: this.chunker.version,
+          stage: "text"
+        }),
+        metadata: {
+          ...chunk.metadata,
+          chunk_id: chunk.id,
+          token_count: chunk.tokenCount
+        }
+      });
+      await this.artifacts.replaceDocumentArtifactTextSpans({
+        projectId: chunk.projectId,
+        documentId: chunk.documentId,
+        artifactId,
+        spans: [{
+          id: spanId,
+          projectId: chunk.projectId,
+          documentId: chunk.documentId,
+          artifactId,
+          spanType: "text_chunk",
+          content: chunk.content,
+          startOffset: chunk.metadata.start_offset,
+          endOffset: chunk.metadata.end_offset,
+          metadata: {
+            ...chunk.metadata,
+            chunk_id: chunk.id,
+            artifact_id: artifactId,
+            text_artifact_id: textArtifactId,
+            processing_run_id: processingRunId
+          }
+        }]
+      });
+    }
 
     await this.documents.updateDocumentStatus({
       projectId: document.projectId,
@@ -497,7 +662,10 @@ class DocumentChunkProcessor implements ProcessingJobProcessor {
         chunking: {
           chunker: this.chunker.name,
           chunker_version: this.chunker.version,
-          chunk_count: chunked.length
+          chunk_count: chunked.length,
+          processing_run_id: processingRunId,
+          text_artifact_id: textArtifactId,
+          artifact_model: "document_artifacts_v1"
         }
       }
     });
@@ -511,6 +679,20 @@ class DocumentChunkProcessor implements ProcessingJobProcessor {
           chunk_count: chunked.length
         }
       }));
+    } else {
+      await this.artifacts.updateProcessingRunStatus({
+        projectId: document.projectId,
+        runId: processingRunId,
+        status: "succeeded",
+        finishedAt: new Date(),
+        metadata: {
+          stage: "text",
+          chunk_count: chunked.length,
+          text_artifact_id: textArtifactId,
+          completed_by: "document.chunk",
+          raw_original_unchanged: true
+        }
+      });
     }
   }
 }
@@ -606,18 +788,21 @@ class DocumentIndexProcessor implements ProcessingJobProcessor {
   readonly processorVersion: string;
   private readonly storage: ObjectStorage;
   private readonly documents: DocumentRepository;
+  private readonly artifacts: DerivedArtifactRepository;
   private readonly chunks: DocumentChunkRepository;
   private readonly vectorIndex: VectorIndex | undefined;
 
   constructor(options: {
     storage: ObjectStorage;
     documents: DocumentRepository;
+    artifacts: DerivedArtifactRepository;
     chunks: DocumentChunkRepository;
     vectorIndex: VectorIndex | undefined;
     processorVersion: string;
   }) {
     this.storage = options.storage;
     this.documents = options.documents;
+    this.artifacts = options.artifacts;
     this.chunks = options.chunks;
     this.vectorIndex = options.vectorIndex;
     this.processorVersion = options.processorVersion;
@@ -663,6 +848,22 @@ class DocumentIndexProcessor implements ProcessingJobProcessor {
         }
       }
     });
+    const processingRunId = readMetadataString(context.payload.metadata, "processing_run_id");
+    if (processingRunId) {
+      await this.artifacts.updateProcessingRunStatus({
+        projectId: document.projectId,
+        runId: processingRunId,
+        status: "succeeded",
+        finishedAt: new Date(),
+        metadata: {
+          stage: "text",
+          indexed_chunks: indexed.length,
+          completed_by: "document.index",
+          vector_index_provider: this.vectorIndex.provider,
+          raw_original_unchanged: true
+        }
+      });
+    }
   }
 }
 
@@ -708,6 +909,44 @@ function deterministicChunkId(documentId: string, chunk: TextChunk): TextChunk {
     ...chunk,
     id: `chunk_${documentId}_${chunk.index}`
   };
+}
+
+function enrichChunkWithArtifactRefs(chunk: TextChunk, processingRunId: string, textArtifactId: string): TextChunk {
+  const artifactId = deterministicArtifactId(processingRunId, "text_chunk", chunk.index);
+  const textSpanId = deterministicTextSpanId(artifactId, 0);
+  return {
+    ...chunk,
+    metadata: {
+      ...chunk.metadata,
+      processing_run_id: processingRunId,
+      text_artifact_id: textArtifactId,
+      artifact_id: artifactId,
+      text_span_id: textSpanId,
+      source_refs: [
+        { type: "document", id: chunk.documentId },
+        { type: "processing_run", id: processingRunId },
+        { type: "artifact", id: textArtifactId },
+        { type: "artifact", id: artifactId },
+        { type: "chunk", id: chunk.id }
+      ]
+    }
+  };
+}
+
+function deterministicProcessingRunId(documentId: string, stage: string, checksum: string): string {
+  return `run_${hashIdentifier(`${documentId}:${stage}:${checksum}`).slice(0, 32)}`;
+}
+
+function deterministicArtifactId(processingRunId: string, artifactType: string, artifactIndex: number): string {
+  return `artifact_${hashIdentifier(`${processingRunId}:${artifactType}:${artifactIndex}`).slice(0, 32)}`;
+}
+
+function deterministicTextSpanId(artifactId: string, spanIndex: number): string {
+  return `span_${hashIdentifier(`${artifactId}:${spanIndex}`).slice(0, 32)}`;
+}
+
+function hashIdentifier(value: string): string {
+  return createHash("sha256").update(value, "utf8").digest("hex");
 }
 
 function derivedObjectKey(storageKey: string, suffix: string): string {

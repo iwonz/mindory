@@ -1,0 +1,72 @@
+{
+  "id": "TASK-41",
+  "title": "Move text pipeline onto artifact model",
+  "status": "done",
+  "type": "chore",
+  "priority": "high",
+  "branch": "task/TASK-41-text-pipeline-artifact-model",
+  "created_at": "2026-05-21",
+  "updated_at": "2026-05-21",
+  "context": {
+    "summary": "Persist extracted text and text chunks as derived artifacts with source refs while keeping existing chunk/index APIs working.",
+    "background": "TASK-38 added the derived artifact schema, TASK-39 added routing and TASK-40 added recompute runs. The existing text path still wrote only legacy extracted text objects, chunks and pgvector rows."
+  },
+  "scope": {
+    "in": [
+      "Create text processing runs for ordinary upload processing when recompute has not supplied one.",
+      "Write extracted text as a document_artifacts text artifact plus an extracted_text span.",
+      "Write each text chunk as a child text artifact plus a text_chunk span.",
+      "Preserve legacy chunks rows and pgvector indexing as compatibility/search projections.",
+      "Propagate processing_run_id, artifact ids and source_refs into chunk and vector metadata.",
+      "Add full-text search over document_artifact_text_spans, excluding superseded processing runs.",
+      "Add a forward migration for the text span full-text GIN index.",
+      "Update integration tests, validators and documentation."
+    ],
+    "out": [
+      "Move PDF/OCR/image/audio/video handlers onto artifacts.",
+      "Store embeddings in document_artifact_vectors instead of chunk_vector_embeddings.",
+      "Remove legacy chunks table usage.",
+      "Expose artifact list/search APIs beyond existing document search."
+    ]
+  },
+  "acceptance_criteria": [
+    "Text extraction creates or reuses a processing_run and writes a text artifact.",
+    "Chunking creates child text artifacts and text_chunk spans with source offsets.",
+    "Legacy chunk rows include artifact/source-ref metadata so existing context and vector paths keep working.",
+    "Document fallback search uses PostgreSQL full-text search over artifact text spans.",
+    "Search excludes spans attached to superseded processing runs.",
+    "Semantic search hits include artifact source refs when vectors are enabled.",
+    "The RAW original storage object remains unchanged.",
+    "A migration adds the full-text search index without changing 0000_initial_schema."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "pnpm db:validate",
+      "pnpm db:repositories:validate",
+      "pnpm documents:validate",
+      "pnpm processing:validate",
+      "pnpm typecheck",
+      "pnpm lint",
+      "pnpm test",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-41.",
+      "Confirm packages/db/drizzle/0000_initial_schema.sql is unchanged.",
+      "Confirm search results include artifact source refs."
+    ]
+  },
+  "dependencies": [
+    "TASK-40"
+  ],
+  "risks": [
+    "The task keeps legacy chunks and chunk_vector_embeddings as projections; a later task can move vectors to document_artifact_vectors.",
+    "PostgreSQL full-text search uses the simple configuration for MVP portability."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch is committed and merged back into master."
+  ]
+}

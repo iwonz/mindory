@@ -214,6 +214,7 @@ test("MVP runtime integration indexes document chunks with configured embeddings
     }, indexedToken);
     assert.ok(search.hits.some((hit) => hit.documentId === documentId), "semantic search should return the indexed document.");
     assert.ok(search.hits.every((hit) => Array.isArray(hit.sourceRefs) && hit.sourceRefs.some((ref) => ref.type === "chunk")), "semantic search hits must include chunk source refs.");
+    assert.ok(search.hits.some((hit) => hit.sourceRefs.some((ref) => ref.type === "artifact")), "semantic search hits must include artifact source refs.");
     assert.ok(fakeEmbeddings.calls.length >= 2, "embedding provider should be called for chunks and query search.");
   } finally {
     if (workerRuntime) {
@@ -354,6 +355,9 @@ async function uploadAndProcessDocument(apiUrl) {
     limit: 5
   });
   assert.ok(search.hits.length > 0, "document search should find chunked text");
+  assert.ok(search.hits.some((hit) => hit.sourceRefs.some((ref) => ref.type === "artifact")), "document search should return artifact-backed source refs.");
+  const textSpans = await countArtifactTextSpans(projectId, documentId, databaseUrl);
+  assert.ok(textSpans > 0, "text pipeline should persist artifact text spans.");
 
   return {
     documentId,
@@ -613,6 +617,20 @@ async function countLinkedDocumentChunks(id, documentId, connectionString) {
   try {
     const result = await client.query(
       "select count(*)::int as count from chunks where project_id = $1 and document_id = $2 and embedding_id is not null",
+      [id, documentId]
+    );
+    return Number(result.rows[0]?.count ?? 0);
+  } finally {
+    await client.end();
+  }
+}
+
+async function countArtifactTextSpans(id, documentId, connectionString) {
+  const client = new Client({ connectionString });
+  await client.connect();
+  try {
+    const result = await client.query(
+      "select count(*)::int as count from document_artifact_text_spans where project_id = $1 and document_id = $2",
       [id, documentId]
     );
     return Number(result.rows[0]?.count ?? 0);

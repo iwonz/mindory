@@ -1,21 +1,25 @@
 import { and, asc, eq } from "drizzle-orm";
 import type {
   CreateDocumentArtifactInput,
+  CreateDocumentArtifactTextSpanInput,
   CreateFaceIdentityInput,
   CreateFaceObservationInput,
   CreateProcessingRunInput,
   DerivedArtifactRepository,
   DocumentArtifactRecord,
+  DocumentArtifactTextSpanRecord,
   DocumentMediaMetadataRecord,
   FaceIdentityRecord,
   FaceObservationRecord,
   ProcessingRunRecord,
+  ReplaceDocumentArtifactTextSpansInput,
   UpdateProcessingRunStatusInput,
   UpsertDocumentMediaMetadataInput
 } from "@mindory/core/artifacts";
 import type { DocumentRecomputeStage, SupersedeDocumentProcessingRunsInput } from "@mindory/core/recompute";
 import {
   documentArtifacts,
+  documentArtifactTextSpans,
   documentMediaMetadata,
   faceIdentities,
   faceObservations,
@@ -114,7 +118,7 @@ export class DbDerivedArtifactRepository implements DerivedArtifactRepository {
   }
 
   async createDocumentArtifact(input: CreateDocumentArtifactInput): Promise<DocumentArtifactRecord> {
-    const [row] = await this.db.insert(documentArtifacts).values({
+    const values = {
       id: input.id,
       projectId: input.projectId,
       documentId: input.documentId,
@@ -132,7 +136,12 @@ export class DbDerivedArtifactRepository implements DerivedArtifactRepository {
       modelName: input.modelName ?? null,
       modelVersion: input.modelVersion ?? null,
       configFingerprint: input.configFingerprint ?? null,
-      metadata: input.metadata ?? {}
+      metadata: input.metadata ?? {},
+      updatedAt: new Date()
+    };
+    const [row] = await this.db.insert(documentArtifacts).values(values).onConflictDoUpdate({
+      target: documentArtifacts.id,
+      set: values
     }).returning();
 
     return mapDocumentArtifact(firstOrThrow(row ? [row] : [], `Document artifact ${input.id} was not created.`));
@@ -145,6 +154,21 @@ export class DbDerivedArtifactRepository implements DerivedArtifactRepository {
     )).orderBy(asc(documentArtifacts.artifactIndex), asc(documentArtifacts.createdAt));
 
     return rows.map(mapDocumentArtifact);
+  }
+
+  async replaceDocumentArtifactTextSpans(input: ReplaceDocumentArtifactTextSpansInput): Promise<DocumentArtifactTextSpanRecord[]> {
+    await this.db.delete(documentArtifactTextSpans).where(and(
+      eq(documentArtifactTextSpans.projectId, input.projectId),
+      eq(documentArtifactTextSpans.documentId, input.documentId),
+      eq(documentArtifactTextSpans.artifactId, input.artifactId)
+    ));
+
+    if (input.spans.length === 0) {
+      return [];
+    }
+
+    const rows = await this.db.insert(documentArtifactTextSpans).values(input.spans.map(mapTextSpanInsert)).returning();
+    return rows.map(mapDocumentArtifactTextSpan);
   }
 
   async upsertDocumentMediaMetadata(input: UpsertDocumentMediaMetadataInput): Promise<DocumentMediaMetadataRecord> {
@@ -254,6 +278,45 @@ function mapDocumentArtifact(row: typeof documentArtifacts.$inferSelect): Docume
     metadata: row.metadata,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt
+  };
+}
+
+function mapTextSpanInsert(input: CreateDocumentArtifactTextSpanInput): typeof documentArtifactTextSpans.$inferInsert {
+  return {
+    id: input.id,
+    projectId: input.projectId,
+    documentId: input.documentId,
+    artifactId: input.artifactId,
+    spanType: input.spanType,
+    content: input.content,
+    startOffset: input.startOffset ?? null,
+    endOffset: input.endOffset ?? null,
+    pageNumber: input.pageNumber ?? null,
+    frameIndex: input.frameIndex ?? null,
+    timestampMs: input.timestampMs ?? null,
+    boundingBox: input.boundingBox ?? null,
+    confidence: input.confidence ?? null,
+    metadata: input.metadata ?? {}
+  };
+}
+
+function mapDocumentArtifactTextSpan(row: typeof documentArtifactTextSpans.$inferSelect): DocumentArtifactTextSpanRecord {
+  return {
+    id: row.id,
+    projectId: row.projectId,
+    documentId: row.documentId,
+    artifactId: row.artifactId,
+    spanType: row.spanType,
+    content: row.content,
+    startOffset: row.startOffset,
+    endOffset: row.endOffset,
+    pageNumber: row.pageNumber,
+    frameIndex: row.frameIndex,
+    timestampMs: row.timestampMs,
+    boundingBox: row.boundingBox,
+    confidence: row.confidence,
+    metadata: row.metadata,
+    createdAt: row.createdAt
   };
 }
 

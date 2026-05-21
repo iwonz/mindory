@@ -9,6 +9,7 @@ const migrationPath = path.join(root, "packages/db/drizzle/0000_initial_schema.s
 const derivedMigrationPath = path.join(root, "packages/db/drizzle/0001_derived_artifact_schema.sql");
 const routeJobMigrationPath = path.join(root, "packages/db/drizzle/0002_document_route_job.sql");
 const recomputeJobMigrationPath = path.join(root, "packages/db/drizzle/0003_document_recompute_job.sql");
+const artifactTextSearchMigrationPath = path.join(root, "packages/db/drizzle/0004_artifact_text_search.sql");
 const drizzleConfigPath = path.join(root, "packages/db/drizzle.config.ts");
 
 const requiredTables = [
@@ -96,6 +97,7 @@ const requiredIndexes = [
   "document_artifacts_source_refs_idx",
   "document_artifact_vectors_embedding_hnsw_idx",
   "document_artifact_text_spans_project_type_idx",
+  "document_artifact_text_spans_content_fts_idx",
   "document_media_metadata_duration_idx",
   "document_metadata_index_key_number_idx",
   "face_identities_project_status_idx",
@@ -139,6 +141,7 @@ assert(fs.existsSync(migrationPath), "packages/db/drizzle/0000_initial_schema.sq
 assert(fs.existsSync(derivedMigrationPath), "packages/db/drizzle/0001_derived_artifact_schema.sql is required.");
 assert(fs.existsSync(routeJobMigrationPath), "packages/db/drizzle/0002_document_route_job.sql is required.");
 assert(fs.existsSync(recomputeJobMigrationPath), "packages/db/drizzle/0003_document_recompute_job.sql is required.");
+assert(fs.existsSync(artifactTextSearchMigrationPath), "packages/db/drizzle/0004_artifact_text_search.sql is required.");
 assert(fs.existsSync(drizzleConfigPath), "packages/db/drizzle.config.ts is required.");
 
 const rootPackage = JSON.parse(read("package.json"));
@@ -149,7 +152,8 @@ const migration = [
   fs.readFileSync(migrationPath, "utf8"),
   fs.readFileSync(derivedMigrationPath, "utf8"),
   fs.readFileSync(routeJobMigrationPath, "utf8"),
-  fs.readFileSync(recomputeJobMigrationPath, "utf8")
+  fs.readFileSync(recomputeJobMigrationPath, "utf8"),
+  fs.readFileSync(artifactTextSearchMigrationPath, "utf8")
 ].join("\n");
 const drizzleConfig = fs.readFileSync(drizzleConfigPath, "utf8");
 
@@ -198,6 +202,7 @@ assert(migration.includes("USING hnsw (embedding vector_cosine_ops)"), "Chunk ve
 assert(migration.includes("embedding vector(512)"), "Face observations must support 512-dimensional face embeddings.");
 assert(migration.includes("document_artifacts_has_payload"), "Document artifacts must require content, storage or source refs.");
 assert(migration.includes("document_metadata_index_has_value"), "Document metadata index rows must require a typed value.");
+assert(migration.includes("to_tsvector('simple', content)"), "Artifact text spans must have a full-text search index.");
 assert(schema.includes("SourceRef"), "Schema must type SourceRef.");
 assert(schema.includes("SourceSnapshot"), "Schema must type SourceSnapshot.");
 assert(schema.includes("processingRuns"), "Schema must define processingRuns.");

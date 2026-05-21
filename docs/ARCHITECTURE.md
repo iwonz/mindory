@@ -165,6 +165,9 @@ returns explicit `not_implemented` responses when dependencies are omitted.
 - `@mindory/core/artifacts` and `DbDerivedArtifactRepository` define the
   derived artifact boundary for processing runs, artifact records, media
   metadata and workspace-scoped face observations.
+- The text pipeline writes extracted text and chunk spans through that artifact
+  boundary before updating legacy chunk rows, so context/search hits can carry
+  artifact and processing-run source refs.
 - `@mindory/core/recompute` defines the document recompute request boundary.
   Recompute jobs create a new `processing_run`, supersede older runs by stage
   and enqueue routing while preserving the original document storage key.

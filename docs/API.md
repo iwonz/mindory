@@ -89,7 +89,9 @@ dependencies, it still returns `501 not_implemented`.
 Document read/status/list/search routes use document repositories when the API
 server runtime is built. Document search uses pgvector semantic search when an
 embeddings provider is configured; otherwise it falls back to text-based chunk
-search for scaffold/local operation.
+search for scaffold/local operation. After `TASK-41`, fallback search uses
+PostgreSQL full-text search over derived artifact text spans and returns
+source refs for the artifact, processing run and chunk.
 
 `POST /v1/documents/:id/recompute` enqueues a `document.recompute` job. The
 worker creates a new `processing_run`, supersedes older derived runs for the

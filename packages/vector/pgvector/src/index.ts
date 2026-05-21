@@ -9,7 +9,7 @@ import {
   type VectorIndexResult,
   type VectorSearchHit
 } from "@mindory/core/processing";
-import type { DocumentChunkSearchHit, DocumentChunkSearchInput, DocumentChunkSearchRepository } from "@mindory/core/memory";
+import type { DocumentChunkSearchHit, DocumentChunkSearchInput, DocumentChunkSearchRepository, SourceRef } from "@mindory/core/memory";
 import type { MindoryDatabase } from "@mindory/db/repositories";
 
 export interface PgVectorIndexOptions {
@@ -165,15 +165,22 @@ export class PgVectorDocumentChunkSearchRepository implements DocumentChunkSearc
       projectIds: input.projectIds,
       embedding: embedding.embedding,
       limit: input.limit
-    })).map((hit) => ({
-      projectId: hit.projectId,
-      documentId: hit.documentId,
-      chunkId: hit.chunkId,
-      content: hit.content,
-      score: hit.score,
-      sourceRefs: [{ type: "chunk", id: hit.chunkId }],
-      metadata: hit.metadata
-    }));
+    })).map((hit) => {
+      const sourceRefs = readSourceRefs(hit.metadata.source_refs, [{ type: "chunk", id: hit.chunkId }]);
+      return {
+        projectId: hit.projectId,
+        documentId: hit.documentId,
+        chunkId: hit.chunkId,
+        content: hit.content,
+        score: hit.score,
+        sourceRefs,
+        metadata: {
+          ...hit.metadata,
+          search_backend: "chunk_vector_embeddings",
+          source_refs: sourceRefs
+        }
+      };
+    });
   }
 }
 
@@ -204,4 +211,20 @@ function readRows(result: unknown): Row[] {
 
 function readMetadata(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function readSourceRefs(value: unknown, fallback: SourceRef[]): SourceRef[] {
+  if (!Array.isArray(value)) {
+    return fallback;
+  }
+
+  const sourceRefs = value.filter((item): item is SourceRef => (
+    typeof item === "object"
+    && item !== null
+    && "type" in item
+    && "id" in item
+    && typeof item.type === "string"
+    && typeof item.id === "string"
+  ));
+  return sourceRefs.length > 0 ? sourceRefs : fallback;
 }
