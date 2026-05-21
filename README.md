@@ -8,7 +8,7 @@ The canonical product and engineering specification is `docs/PRD.md`.
 
 ## Repository Status
 
-This repository is currently bootstrapped through `TASK-22`. The repo has the
+This repository is currently bootstrapped through `TASK-34`. The repo has the
 operating model, documentation skeleton, configuration contract, pnpm monorepo
 layout, Docker Compose base scaffold, MVP database schema, Fastify API skeleton
 object storage abstraction, Redis/BullMQ queue scaffold and document upload/scan
@@ -25,7 +25,11 @@ are wired in the worker package, and pgvector is wired for document chunk
 embeddings/search. Jobs HTTP routes are wired. Message append now enqueues
 session summary and conservative memory derivation jobs; automatic derivation
 creates only candidate memories with source refs. The MCP stdio SDK transport is
-wired; Docker runtime commands remain later tasks.
+wired. Docker runtime commands, integration tests, indexed-search acceptance,
+MCP client packaging, Hermes runtime contract validation and the production
+hardening baseline are now present. The API includes a configurable in-process
+rate-limit guard, and CI runs `pnpm check` for pushes and pull requests to
+`master`.
 
 ## Development Process
 
@@ -71,6 +75,9 @@ The intended package manager is pnpm. In an environment with pnpm installed,
 standard scripts are available through `pnpm check`, `pnpm lint`,
 `pnpm typecheck`, `pnpm test`, `pnpm tasks:validate` and
 `pnpm workspace:validate`.
+
+Production hardening guidance for CI, release images, backups, rollback,
+secrets, rate limits and structured logs is in `docs/PRODUCTION_HARDENING.md`.
 
 `pnpm test` runs the real MVP integration suite. It starts the separate
 `mindory-test` Docker Compose project for PostgreSQL and Redis, applies

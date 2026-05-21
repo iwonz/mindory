@@ -14,6 +14,11 @@ export interface MindoryConfig {
     host: string;
     port: number;
     publicUrl: string;
+    rateLimit: {
+      enabled: boolean;
+      windowMs: number;
+      maxRequests: number;
+    };
   };
   database: {
     url: string;
@@ -144,7 +149,12 @@ export function loadMindoryConfig(env: EnvSource = process.env): MindoryConfig {
     api: {
       host: readString(env, "MINDORY_API_HOST", "0.0.0.0"),
       port: readNumber(env, "MINDORY_API_PORT", 3000),
-      publicUrl: readString(env, "MINDORY_PUBLIC_URL", "http://localhost:3000")
+      publicUrl: readString(env, "MINDORY_PUBLIC_URL", "http://localhost:3000"),
+      rateLimit: {
+        enabled: readBoolean(env, "MINDORY_API_RATE_LIMIT_ENABLED", true),
+        windowMs: readNumber(env, "MINDORY_API_RATE_LIMIT_WINDOW_MS", 60000),
+        maxRequests: readNumber(env, "MINDORY_API_RATE_LIMIT_MAX", 600)
+      }
     },
     database: {
       url: readString(env, "MINDORY_DATABASE_URL", "postgresql://mindory:mindory@postgres:5432/mindory")
@@ -221,7 +231,22 @@ export function loadMindoryConfig(env: EnvSource = process.env): MindoryConfig {
 }
 
 export function validateMindoryConfig(config: MindoryConfig): void {
+  validateApiConfig(config);
   validateEmbeddingsConfig(config);
+}
+
+function validateApiConfig(config: MindoryConfig): void {
+  if (!config.api.rateLimit.enabled) {
+    return;
+  }
+
+  if (config.api.rateLimit.windowMs <= 0) {
+    throw new Error("MINDORY_API_RATE_LIMIT_WINDOW_MS must be greater than zero when rate limits are enabled.");
+  }
+
+  if (config.api.rateLimit.maxRequests <= 0) {
+    throw new Error("MINDORY_API_RATE_LIMIT_MAX must be greater than zero when rate limits are enabled.");
+  }
 }
 
 function validateEmbeddingsConfig(config: MindoryConfig): void {

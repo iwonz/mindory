@@ -2,6 +2,10 @@
 
 Mindory targets self-hosted Docker Compose deployment.
 
+Production hardening expectations for CI, release images, backups, rollback,
+secrets, rate limits and structured logs are maintained in
+`docs/PRODUCTION_HARDENING.md`.
+
 The expected flow is:
 
 ```bash
@@ -38,8 +42,8 @@ The Compose profile uses `MINDORY_CLAMAV_PLATFORM=linux/amd64` by default for
 that reason.
 
 `pnpm mvp:seed` creates a deterministic demo project and bearer token directly
-in PostgreSQL. This is intentionally a local demo path because token management
-HTTP endpoints are not part of the MVP surface yet.
+in PostgreSQL. This remains a local demo shortcut; non-demo tokens should be
+created, rotated and revoked through the token API or CLI added in `TASK-29`.
 
 `pnpm mvp:acceptance` runs in dry-run mode by default and validates that the
 scenario covers API, CLI, MCP, Hermes, document upload, job polling,
@@ -60,6 +64,23 @@ pgvector-backed document search.
 
 Postgres uses a pgvector-capable image and the initial migration enables the
 `vector` extension for document chunk embeddings.
+
+## Release Images And Migrations
+
+The reproducible release image path is:
+
+```bash
+docker build -t ghcr.io/<org>/mindory:<git-sha> .
+```
+
+Tag and push release images only after `pnpm check` passes on the target commit.
+Run `pnpm db:migrate` through the Compose `migrate` service before API and
+worker traffic starts.
+
+Before production migrations, take a PostgreSQL backup and verify the restore
+path. Rollback for the MVP means stopping API and worker traffic, restoring the
+backup, redeploying the previous known-good image and rerunning acceptance.
+Automated down migrations are not part of the MVP deployment path.
 
 ## Optional Profiles
 

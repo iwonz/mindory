@@ -30,6 +30,7 @@
     "mvp:acceptance": "node scripts/mvp-acceptance.js",
     "mvp:seed": "node scripts/seed-demo.js",
     "processing:validate": "node scripts/validate-processing-pipeline.js",
+    "production:validate": "node scripts/validate-production-hardening.js",
     "queue:validate": "node scripts/validate-queue.js",
     "storage:validate": "node scripts/validate-storage-adapters.js",
     "typecheck": "node scripts/typecheck-workspaces.js",

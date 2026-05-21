@@ -48,6 +48,47 @@ await mkdir(storagePath, { recursive: true });
 
 const modules = await loadRuntimeModules();
 
+test("API request guard rate-limits non-health requests", async () => {
+  const config = modules.loadMindoryConfig({
+    ...testEnv,
+    MINDORY_API_RATE_LIMIT_ENABLED: "true",
+    MINDORY_API_RATE_LIMIT_WINDOW_MS: "60000",
+    MINDORY_API_RATE_LIMIT_MAX: "1"
+  });
+  const apiApp = await modules.buildApiApp({ config, logger: false });
+
+  try {
+    const firstHealth = await apiApp.inject({ method: "GET", url: "/health" });
+    const secondHealth = await apiApp.inject({ method: "GET", url: "/health" });
+    assert.equal(firstHealth.statusCode, 200);
+    assert.equal(secondHealth.statusCode, 200);
+
+    const firstApiResponse = await apiApp.inject({
+      method: "GET",
+      url: `/v1/projects/${encodeURIComponent(projectId)}`,
+      headers: {
+        authorization: "Bearer request-guard-test"
+      }
+    });
+    assert.notEqual(firstApiResponse.statusCode, 429);
+    assert.equal(firstApiResponse.headers["x-ratelimit-limit"], "1");
+    assert.equal(firstApiResponse.headers["x-ratelimit-remaining"], "0");
+
+    const secondApiResponse = await apiApp.inject({
+      method: "GET",
+      url: `/v1/projects/${encodeURIComponent(projectId)}`,
+      headers: {
+        authorization: "Bearer request-guard-test"
+      }
+    });
+    const body = JSON.parse(secondApiResponse.body);
+    assert.equal(secondApiResponse.statusCode, 429);
+    assert.equal(body.error.code, "rate_limited");
+  } finally {
+    await apiApp.close();
+  }
+});
+
 test("MVP runtime integration covers auth, upload, worker jobs and context", { timeout: 120_000 }, async () => {
   const config = modules.loadMindoryConfig(testEnv);
   let apiApp = null;

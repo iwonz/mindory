@@ -1,0 +1,77 @@
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+function assert(condition, message) {
+  if (!condition) {
+    throw new Error(message);
+  }
+}
+
+function read(relativePath) {
+  return fs.readFileSync(path.join(root, relativePath), "utf8");
+}
+
+function readJson(relativePath) {
+  return JSON.parse(read(relativePath));
+}
+
+function assertIncludes(content, token, label) {
+  assert(content.includes(token), `${label} must include ${token}.`);
+}
+
+const rootPackage = readJson("package.json");
+const ci = read(".github/workflows/ci.yml");
+const envExample = read(".env.example");
+const compose = read("docker-compose.yml");
+const app = read("apps/api/src/app.ts");
+const config = read("packages/config/src/index.ts");
+const requestGuard = read("apps/api/src/request-guard.ts");
+const productionHardening = read("docs/PRODUCTION_HARDENING.md");
+const productionHardeningLower = productionHardening.toLowerCase();
+const deployment = read("docs/DEPLOYMENT.md");
+const security = read("docs/SECURITY.md");
+const configuration = read("docs/CONFIGURATION.md");
+
+assert(rootPackage.scripts?.["production:validate"] === "node scripts/validate-production-hardening.js", "Root package must expose production:validate.");
+
+for (const token of ["pull_request:", "push:", "node-version: 24", "pnpm install --frozen-lockfile", "docker compose version", "pnpm check"]) {
+  assertIncludes(ci, token, ".github/workflows/ci.yml");
+}
+
+for (const token of ["MINDORY_API_RATE_LIMIT_ENABLED", "MINDORY_API_RATE_LIMIT_WINDOW_MS", "MINDORY_API_RATE_LIMIT_MAX"]) {
+  assertIncludes(envExample, token, ".env.example");
+  assertIncludes(compose, token, "docker-compose.yml");
+  assertIncludes(config, token, "packages/config/src/index.ts");
+  assertIncludes(configuration, token, "docs/CONFIGURATION.md");
+}
+
+for (const token of ["registerRequestGuards", "rateLimit", "ApiError(429", "x-ratelimit-limit", "createHash"]) {
+  assertIncludes(requestGuard, token, "apps/api/src/request-guard.ts");
+}
+assertIncludes(app, "registerRequestGuards(app, config)", "apps/api/src/app.ts");
+
+for (const token of [
+  "docker build",
+  "pnpm check",
+  "backup",
+  "rollback",
+  "secret manager",
+  "rate limit",
+  "distributed rate limiting",
+  "deferred",
+  "structured logs",
+  "request_id",
+  "job_id"
+]) {
+  assertIncludes(productionHardeningLower, token, "docs/PRODUCTION_HARDENING.md");
+}
+
+assertIncludes(deployment, "docs/PRODUCTION_HARDENING.md", "docs/DEPLOYMENT.md");
+assertIncludes(security, "Rate Limits", "docs/SECURITY.md");
+assertIncludes(security, "Production Secret Handling", "docs/SECURITY.md");
+assertIncludes(configuration, "API Request Guards", "docs/CONFIGURATION.md");
+
+console.log("Production hardening baseline validated.");

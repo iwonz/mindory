@@ -6,7 +6,7 @@ environment variable is added, renamed or removed, update this document and
 
 ## Sections
 
-- Mindory API log level, host, port and public URL.
+- Mindory API log level, host, port, public URL and request guards.
 - PostgreSQL database URL.
 - Redis/BullMQ URL and prefixes.
 - Object storage provider and local/S3 settings.
@@ -31,6 +31,22 @@ introduced in a later task when the database package exists.
 `MINDORY_LOG_LEVEL` controls Fastify structured logging in the API skeleton.
 Sensitive request headers such as `authorization` are redacted by the logger
 configuration.
+
+## API Request Guards
+
+`MINDORY_API_RATE_LIMIT_ENABLED` enables the API rate-limit guard. It defaults
+to `true`.
+
+`MINDORY_API_RATE_LIMIT_WINDOW_MS` controls the fixed window length in
+milliseconds and defaults to `60000`.
+
+`MINDORY_API_RATE_LIMIT_MAX` controls the maximum requests allowed per key in a
+window and defaults to `600`.
+
+The guard exempts `/health` and `/ready`, emits `x-ratelimit-*` headers and
+returns structured `429 rate_limited` responses when the limit is exceeded. It
+is intentionally in-process for the MVP; use a reverse proxy or load balancer
+for global production limits.
 
 ## Object Storage
 
@@ -156,3 +172,8 @@ outputs. `MINDORY_TEST_DOCKER_BIN` can override the Docker binary path.
 
 `.env.example` must remain safe to commit. It may contain non-secret defaults and
 obvious placeholders, but never real credentials.
+
+Production deployments must override all demo defaults that grant access or
+protect state, including database credentials, Redis URLs, S3 credentials,
+embedding provider keys, MCP/CLI/Hermes API tokens and Mindory bearer tokens.
+Store production values in a secret manager or deployment secret store.

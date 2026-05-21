@@ -1,7 +1,7 @@
 {
   "id": "TASK-34",
   "title": "Add production hardening baseline",
-  "status": "ready",
+  "status": "done",
   "type": "chore",
   "priority": "medium",
   "branch": "task/TASK-34-production-hardening-baseline",

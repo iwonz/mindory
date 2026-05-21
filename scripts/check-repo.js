@@ -7,6 +7,7 @@ const checks = [
   ["lint", "scripts/lint-repo.js"],
   ["typecheck", "scripts/typecheck-workspaces.js"],
   ["compose:validate", "scripts/validate-compose.js"],
+  ["production:validate", "scripts/validate-production-hardening.js"],
   ["db:validate", "scripts/validate-db-schema.js"],
   ["db:repositories:validate", "scripts/validate-db-repositories.js"],
   ["api:validate", "scripts/validate-api-skeleton.js"],

@@ -39,6 +39,36 @@ project. The deterministic demo seed grants these permissions to the demo token
 so local acceptance and operational CLI flows can run without direct database
 writes.
 
+## Rate Limits
+
+The API enables a lightweight in-process rate limit by default. Configure it
+with:
+
+```env
+MINDORY_API_RATE_LIMIT_ENABLED=true
+MINDORY_API_RATE_LIMIT_WINDOW_MS=60000
+MINDORY_API_RATE_LIMIT_MAX=600
+```
+
+The guard exempts `/health` and `/ready`, hashes authorization headers before
+using them as rate-limit keys, falls back to client IP for unauthenticated
+requests and returns structured `429 rate_limited` responses with
+`x-ratelimit-*` headers. Distributed rate limiting remains deferred for the MVP;
+production deployments should enforce global limits and trusted proxy behavior
+at the reverse proxy or load balancer.
+
+## Production Secret Handling
+
+Production deployments must override demo values from `.env.example`. Required
+secret-bearing values include database and Redis URLs, S3 credentials when S3 is
+used, embedding provider keys, MCP/CLI/Hermes bearer tokens and all access
+tokens issued by Mindory. Store them in a secret manager or deployment secret
+store, not in git.
+
+Token create and rotate responses expose raw tokens once. Capture those values
+immediately, then rely on token metadata APIs for audit and lifecycle operations.
+See `docs/PRODUCTION_HARDENING.md` for the release checklist.
+
 ## Antivirus Policy
 
 ClamAV support is required by the PRD. The recommended default mode is
