@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-34",
+  "current_task_id": "TASK-35",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -271,7 +271,7 @@
     {
       "id": "TASK-34",
       "title": "Add production hardening baseline",
-      "status": "ready",
+      "status": "done",
       "branch": "task/TASK-34-production-hardening-baseline",
       "file": "tasks/TASK-34.json"
     },

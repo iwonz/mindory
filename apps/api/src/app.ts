@@ -3,6 +3,7 @@ import Fastify, { type FastifyBaseLogger, type FastifyInstance, type FastifyServ
 import { loadMindoryConfig, type MindoryConfig } from "@mindory/config";
 import { registerAuth, type ApiAuthDependencies } from "./auth.js";
 import { registerErrorHandlers } from "./errors.js";
+import { registerRequestGuards } from "./request-guard.js";
 import { registerContextRoutes, type ContextRouteDependencies } from "./routes/context.js";
 import { registerDocumentRoutes, type DocumentRouteDependencies } from "./routes/documents.js";
 import { registerHealthRoutes } from "./routes/health.js";
@@ -53,8 +54,9 @@ export async function buildApiApp(options: BuildApiAppOptions = {}): Promise<Fas
 
   app.decorate("mindoryConfig", config);
 
-  await registerAuth(app, options.auth);
   registerErrorHandlers(app);
+  registerRequestGuards(app, config);
+  await registerAuth(app, options.auth);
   await registerHealthRoutes(app, config);
   await registerTokenRoutes(app, options.tokens);
   await registerProjectRoutes(app, options.projects);
