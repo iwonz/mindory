@@ -1,0 +1,67 @@
+{
+  "id": "TASK-23",
+  "title": "Wire MCP stdio server",
+  "status": "done",
+  "type": "feat",
+  "priority": "high",
+  "branch": "task/TASK-23-mcp-stdio-server",
+  "created_at": "2026-05-21",
+  "updated_at": "2026-05-21",
+  "context": {
+    "summary": "Replace the MCP stdio placeholder with a runnable MCP SDK server that exposes Mindory tools over the HTTP API boundary.",
+    "background": "TASK-21 and TASK-22 completed the HTTP job and memory/context surfaces. MCP now needs to be a real stdio server for agent clients without bypassing API authorization or persistence boundaries."
+  },
+  "scope": {
+    "in": [
+      "Add @modelcontextprotocol/sdk to the MCP workspace.",
+      "Implement stdio transport using the MCP SDK server and StdioServerTransport.",
+      "Register all Mindory tools through tools/list and tools/call handlers over the existing HTTP API client.",
+      "Expose a runnable MCP package start/bin entrypoint.",
+      "Update docs and validation scripts for real stdio behavior."
+    ],
+    "out": [
+      "Add direct database, Redis, storage or vector access from MCP.",
+      "Add resources/prompts beyond the MVP tool list.",
+      "Add OAuth or token management through MCP.",
+      "Change API route behavior."
+    ]
+  },
+  "acceptance_criteria": [
+    "@mindory/mcp depends on @modelcontextprotocol/sdk.",
+    "runMindoryMcpStdio creates an MCP SDK Server with tool capabilities.",
+    "StdioServerTransport is connected to the SDK server.",
+    "tools/list returns all Mindory tool definitions.",
+    "tools/call delegates to MindoryMcpToolRegistry and returns text content.",
+    "MCP code continues to call only the HTTP API client and does not import database, queue, storage or vector internals.",
+    "Docs and validations describe the runnable stdio server."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "pnpm typecheck",
+      "pnpm lint",
+      "pnpm test",
+      "pnpm mcp:validate",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-23.",
+      "Confirm stdio placeholder error was removed.",
+      "Confirm MCP tool execution uses HTTP API client only.",
+      "Confirm no DB/Redis/storage/vector imports exist in apps/mcp."
+    ]
+  },
+  "dependencies": [
+    "TASK-22"
+  ],
+  "risks": [
+    "The stdio server can be structurally validated, but complete tool execution still requires a running API and bearer token.",
+    "MCP SDK APIs can change; package version is locked in pnpm-lock.yaml for reproducibility."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch can be merged into master without unrelated changes."
+  ]
+}

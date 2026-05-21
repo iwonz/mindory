@@ -1,0 +1,44 @@
+{
+  "name": "mindory",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.0.0",
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=10.0.0"
+  },
+  "scripts": {
+    "api:validate": "node scripts/validate-api-skeleton.js",
+    "api:runtime:validate": "node scripts/validate-api-runtime-wiring.js",
+    "check": "node scripts/check-repo.js",
+    "cli:smoke": "node scripts/smoke-cli.js",
+    "cli:validate": "node scripts/validate-cli.js",
+    "compose:validate": "node scripts/validate-compose.js",
+    "db:generate": "pnpm --filter @mindory/db db:generate",
+    "db:migrate": "pnpm --filter @mindory/db db:migrate",
+    "db:repositories:validate": "node scripts/validate-db-repositories.js",
+    "db:validate": "node scripts/validate-db-schema.js",
+    "documents:validate": "node scripts/validate-document-pipeline.js",
+    "hermes:validate": "node scripts/validate-hermes-adapter.js",
+    "hermes:smoke": "node scripts/smoke-hermes.js",
+    "lint": "node scripts/lint-repo.js",
+    "memory:validate": "node scripts/validate-memory-context.js",
+    "mcp:validate": "node scripts/validate-mcp-server.js",
+    "mvp:acceptance": "node scripts/mvp-acceptance.js",
+    "mvp:seed": "node scripts/seed-demo.js",
+    "processing:validate": "node scripts/validate-processing-pipeline.js",
+    "queue:validate": "node scripts/validate-queue.js",
+    "storage:validate": "node scripts/validate-storage-adapters.js",
+    "typecheck": "node scripts/typecheck-workspaces.js",
+    "test": "node scripts/test-placeholder.js",
+    "tasks:validate": "node scripts/validate-tasks.js",
+    "workspace:validate": "node scripts/validate-workspace.js"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.11.0",
+    "@types/node": "^24.0.0",
+    "drizzle-kit": "^0.31.5",
+    "typescript": "^5.8.0"
+  }
+}

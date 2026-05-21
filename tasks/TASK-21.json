@@ -1,0 +1,71 @@
+{
+  "id": "TASK-21",
+  "title": "Add Jobs API",
+  "status": "done",
+  "type": "feat",
+  "priority": "high",
+  "branch": "task/TASK-21-add-jobs-api",
+  "created_at": "2026-05-21",
+  "updated_at": "2026-05-21",
+  "context": {
+    "summary": "Expose processing job status, listing and retry through the HTTP API, CLI and MCP tools.",
+    "background": "Upload and worker tasks create durable processing jobs, but users and adapters need HTTP visibility and retry operations for MVP acceptance."
+  },
+  "scope": {
+    "in": [
+      "Extend ProcessingJobStore with get/list/reset-for-retry operations.",
+      "Implement DbProcessingJobStore get/list/retry support.",
+      "Add GET /v1/jobs/:id, GET /v1/jobs and POST /v1/jobs/:id/retry.",
+      "Wire jobs routes to the API runtime job store and dispatcher.",
+      "Update CLI job retry to include project id and expose MCP job tools.",
+      "Update docs and validation scripts for jobs API behavior."
+    ],
+    "out": [
+      "Add token management endpoints.",
+      "Change worker processor behavior.",
+      "Add dashboard/UI job views.",
+      "Implement scheduled retries or dead-letter policy beyond manual retry."
+    ]
+  },
+  "acceptance_criteria": [
+    "ProcessingJobStore supports getJob, listJobs and resetJobForRetry.",
+    "DbProcessingJobStore implements project-scoped job get/list/retry operations.",
+    "API runtime registers and wires processing job routes.",
+    "Job routes enforce project authorization and return structured job responses.",
+    "Retry resets a job to pending and re-enqueues it through BullMQ.",
+    "CLI and MCP can call job list/get/retry through HTTP.",
+    "Docs and validations describe job status visibility."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "pnpm typecheck",
+      "pnpm lint",
+      "pnpm test",
+      "pnpm api:runtime:validate",
+      "pnpm queue:validate",
+      "pnpm cli:validate",
+      "pnpm mcp:validate",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-21.",
+      "Confirm retry requires projectId.",
+      "Confirm no token management endpoints were added.",
+      "Confirm worker processing behavior is unchanged."
+    ]
+  },
+  "dependencies": [
+    "TASK-20"
+  ],
+  "risks": [
+    "Retry is manual and project-scoped; automated dead-letter handling remains future work.",
+    "Job API behavior is structurally validated but not exercised against live PostgreSQL/Redis in this task."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch can be merged into master without unrelated changes."
+  ]
+}

@@ -1,0 +1,68 @@
+{
+  "id": "TASK-27",
+  "title": "End-to-end MVP acceptance hardening",
+  "status": "done",
+  "type": "test",
+  "priority": "high",
+  "branch": "task/TASK-27-e2e-mvp-acceptance-hardening",
+  "created_at": "2026-05-21",
+  "updated_at": "2026-05-21",
+  "context": {
+    "summary": "Add demo seed and MVP acceptance scripts that exercise the planned API, CLI, MCP and Hermes flows.",
+    "background": "TASK-26 made Docker Compose runnable. The final MVP task needs a repeatable acceptance path for project/session/message/document/memory/context flows across interfaces."
+  },
+  "scope": {
+    "in": [
+      "Add demo seed fixtures and script for local MVP credentials/input data.",
+      "Add an MVP acceptance script with live mode for API/CLI/MCP/Hermes flows.",
+      "Add a dry-run acceptance mode that validates scenario coverage in environments without Docker.",
+      "Cover document upload, job polling, source-backed memory, context build, CLI, MCP and Hermes adapter calls.",
+      "Document how to run live acceptance against Docker Compose.",
+      "Update validation and task registry."
+    ],
+    "out": [
+      "Guarantee live Docker execution in environments without Docker.",
+      "Add a UI dashboard or browser flow.",
+      "Add production-grade test data management.",
+      "Implement token management API endpoints."
+    ]
+  },
+  "acceptance_criteria": [
+    "A demo seed script can create a deterministic local MVP bearer token.",
+    "A demo document fixture is present for upload/indexing acceptance.",
+    "The MVP acceptance script defines API, CLI, MCP and Hermes phases.",
+    "Live mode can create project, peers, session/messages, upload a document, poll jobs/status, remember source-backed memory and build context.",
+    "Dry-run mode passes in this repository without Docker and verifies scenario coverage.",
+    "Docs explain Docker/live prerequisites and commands.",
+    "All repository checks pass."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "pnpm mvp:acceptance",
+      "pnpm typecheck",
+      "pnpm lint",
+      "pnpm test",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-27.",
+      "Confirm live E2E command is documented.",
+      "Confirm dry-run clearly states it did not hit live Docker services.",
+      "Confirm Docker unavailability in this environment is recorded."
+    ]
+  },
+  "dependencies": [
+    "TASK-26"
+  ],
+  "risks": [
+    "Docker is not available in the current execution environment, so live E2E cannot be run here.",
+    "Live acceptance requires an explicit demo seed because token management API endpoints remain post-MVP."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch can be merged into master without unrelated changes."
+  ]
+}

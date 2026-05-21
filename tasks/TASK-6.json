@@ -1,0 +1,69 @@
+{
+  "id": "TASK-6",
+  "title": "Add object storage adapters",
+  "status": "done",
+  "type": "chore",
+  "priority": "high",
+  "branch": "task/TASK-6-add-object-storage-adapters",
+  "created_at": "2026-05-21",
+  "updated_at": "2026-05-21",
+  "context": {
+    "summary": "Create the object storage interface, local filesystem adapter and S3/MinIO adapter skeleton.",
+    "background": "TASK-5 established the API skeleton. TASK-6 adds the storage abstraction needed before document upload stores original files."
+  },
+  "scope": {
+    "in": [
+      "Define ObjectStorage interface and storage errors in @mindory/core.",
+      "Implement local-fs object storage adapter using the configured root directory.",
+      "Add S3/MinIO adapter skeleton with config shape and explicit not-implemented failures.",
+      "Wire package exports and workspace references for storage packages.",
+      "Add object storage validation to repository checks.",
+      "Update storage-related documentation."
+    ],
+    "out": [
+      "Implement document upload API.",
+      "Persist Document rows to PostgreSQL.",
+      "Add S3 SDK dependency or real S3 network calls.",
+      "Integrate storage adapters into API runtime.",
+      "Change Docker Compose app runtime placeholders.",
+      "Install dependencies if pnpm is unavailable in the local environment."
+    ]
+  },
+  "acceptance_criteria": [
+    "@mindory/core exports ObjectStorage, storage metadata types and StorageError.",
+    "@mindory/storage-local-fs exports a local filesystem adapter that can put, read, stat, check and delete objects.",
+    "The local filesystem adapter prevents absolute keys and path traversal outside its root.",
+    "@mindory/storage-s3 exports S3/MinIO configuration and a skeleton adapter with explicit not-implemented behavior.",
+    "Storage packages depend on @mindory/core and expose their public modules.",
+    "Repository checks include object storage validation.",
+    "Documentation explains the storage abstraction, local-fs behavior and S3 skeleton status.",
+    "No document upload API, database persistence integration or real S3 network behavior is implemented."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "ls packages/core/src/storage.ts packages/storage/local-fs/src/index.ts packages/storage/s3/src/index.ts",
+      "node scripts/validate-storage-adapters.js",
+      "node scripts/validate-tasks.js",
+      "node scripts/check-repo.js"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-6.",
+      "Confirm local-fs storage rejects path traversal.",
+      "Confirm S3 adapter is clearly a skeleton and does not perform network calls.",
+      "Confirm no document upload API or database persistence integration was added."
+    ]
+  },
+  "dependencies": [
+    "TASK-5"
+  ],
+  "risks": [
+    "The S3/MinIO adapter is intentionally a skeleton until a later task adds the SDK dependency and integration tests.",
+    "Local pnpm is unavailable in the current environment, so TypeScript execution may need to wait until dependencies are installed."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch can be merged into master without unrelated changes."
+  ]
+}

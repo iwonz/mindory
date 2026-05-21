@@ -1,0 +1,75 @@
+{
+  "id": "TASK-13",
+  "title": "Add Hermes adapter MVP",
+  "status": "done",
+  "type": "chore",
+  "priority": "high",
+  "branch": "task/TASK-13-add-hermes-adapter-mvp",
+  "created_at": "2026-05-21",
+  "updated_at": "2026-05-21",
+  "context": {
+    "summary": "Create the Hermes adapter package boundary that maps Hermes lifecycle events to Mindory HTTP API calls.",
+    "background": "TASK-12 added an HTTP-backed CLI. TASK-13 adds the MVP deep runtime adapter, preserving external identity mappings while keeping the API as source of truth."
+  },
+  "scope": {
+    "in": [
+      "Add @mindory/adapter-hermes exports for adapter, HTTP client, identity mapping and optional tools.",
+      "Map Hermes user, session and agent identities to stable Mindory project, peer and session ids.",
+      "Implement prompt-context preparation through /v1/context/build.",
+      "Implement user/assistant turn saving through session message HTTP paths.",
+      "Implement attachment upload through multipart /v1/documents calls.",
+      "Expose optional memor_recall, memor_remember, memor_document_search, memor_document_read and memor_explain tools.",
+      "Add Hermes API URL/token/context configuration to config, .env.example and Docker Compose.",
+      "Add Hermes validation to repository checks.",
+      "Update Hermes, architecture, API, configuration and README docs."
+    ],
+    "out": [
+      "Install or import a real Hermes SDK/runtime.",
+      "Implement API endpoints that are still future tasks.",
+      "Add direct database, queue, vector or storage access from the adapter.",
+      "Implement a daemon process or Docker runtime for Hermes.",
+      "Implement MCP or CLI behavior.",
+      "Install dependencies if pnpm is unavailable in the local environment."
+    ]
+  },
+  "acceptance_criteria": [
+    "@mindory/adapter-hermes exports an adapter builder, HTTP client, identity mapper and optional tools.",
+    "Hermes identity mapping preserves external user, session and agent identities as stable Mindory ids.",
+    "Adapter preparePromptContext calls /v1/context/build and returns prompt-ready context text.",
+    "Adapter saveTurn persists user and assistant messages through HTTP API paths.",
+    "Adapter uploadAttachments sends multipart document uploads.",
+    "Optional memor_* tools call memory and document HTTP API paths.",
+    "Hermes config includes API URL, optional API token and context token budget in config, .env.example and Docker Compose.",
+    "Repository checks include Hermes validation.",
+    "Documentation describes the current Hermes boundary.",
+    "No Hermes SDK dependency, direct persistence access, daemon runtime, MCP or CLI behavior is implemented."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "ls apps/adapters/hermes/src/adapter.ts apps/adapters/hermes/src/http-client.ts apps/adapters/hermes/src/identity.ts apps/adapters/hermes/src/tools.ts scripts/validate-hermes-adapter.js",
+      "node scripts/validate-hermes-adapter.js",
+      "node scripts/validate-tasks.js",
+      "node scripts/check-repo.js"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-13.",
+      "Confirm Hermes code calls HTTP paths and does not import @mindory/db or Drizzle.",
+      "Confirm external user/session/agent ids are mapped to stable Mindory ids.",
+      "Confirm no Hermes SDK/runtime, MCP or CLI behavior was added."
+    ]
+  },
+  "dependencies": [
+    "TASK-12"
+  ],
+  "risks": [
+    "Local pnpm is unavailable in the current environment, so TypeScript execution may need to wait until dependencies are installed.",
+    "Several Hermes adapter calls target planned HTTP endpoints that are not implemented by the API skeleton yet.",
+    "The adapter is runtime-agnostic and does not import a real Hermes SDK in this task."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch can be merged into master without unrelated changes."
+  ]
+}

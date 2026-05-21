@@ -1,0 +1,230 @@
+{
+  "project": "mindory",
+  "process": "mindory-ralph-cycle",
+  "current_task_id": "TASK-27",
+  "task_id_prefix": "TASK",
+  "main_branch": "master",
+  "release_strategy": "git-tags",
+  "branch_naming": {
+    "feature": "task/{TASK_ID}-{short-slug}",
+    "fix": "fix/{TASK_ID}-{short-slug}",
+    "chore": "chore/{TASK_ID}-{short-slug}",
+    "docs": "docs/{TASK_ID}-{short-slug}",
+    "hotfix": "hotfix/{TASK_ID}-{short-slug}"
+  },
+  "statuses": [
+    "draft",
+    "ready",
+    "in_progress",
+    "blocked",
+    "review",
+    "accepted",
+    "done",
+    "cancelled"
+  ],
+  "global_acceptance_criteria": [
+    "The task has a dedicated tasks/{TASK_ID}.json file.",
+    "The implementation satisfies all task-specific acceptance criteria.",
+    "The codebase remains consistent with AGENTS.md and docs/ARCHITECTURE.md.",
+    "Relevant documentation is updated without duplication.",
+    ".env.example is updated if configuration changes.",
+    "Database migrations are included if schema changes.",
+    "Tests, typecheck and lint pass where applicable.",
+    "No unrelated changes are included.",
+    "The task branch starts from the current master branch.",
+    "The task has a clear task-scoped commit before merge.",
+    "The task status is updated before merge.",
+    "The accepted task branch is merged back into master before the next task starts."
+  ],
+  "tasks": [
+    {
+      "id": "TASK-1",
+      "title": "Bootstrap Mindory repository operating model",
+      "status": "done",
+      "branch": "task/TASK-1-bootstrap-repository-operating-model",
+      "file": "tasks/TASK-1.json"
+    },
+    {
+      "id": "TASK-2",
+      "title": "Bootstrap pnpm monorepo",
+      "status": "done",
+      "branch": "task/TASK-2-bootstrap-pnpm-monorepo",
+      "file": "tasks/TASK-2.json"
+    },
+    {
+      "id": "TASK-3",
+      "title": "Add Docker Compose base services",
+      "status": "done",
+      "branch": "task/TASK-3-add-base-docker-compose",
+      "file": "tasks/TASK-3.json"
+    },
+    {
+      "id": "TASK-4",
+      "title": "Add database schema MVP",
+      "status": "done",
+      "branch": "task/TASK-4-add-database-schema-mvp",
+      "file": "tasks/TASK-4.json"
+    },
+    {
+      "id": "TASK-5",
+      "title": "Add API skeleton",
+      "status": "done",
+      "branch": "task/TASK-5-add-api-skeleton",
+      "file": "tasks/TASK-5.json"
+    },
+    {
+      "id": "TASK-6",
+      "title": "Add object storage adapters",
+      "status": "done",
+      "branch": "task/TASK-6-add-object-storage-adapters",
+      "file": "tasks/TASK-6.json"
+    },
+    {
+      "id": "TASK-7",
+      "title": "Add Redis/BullMQ queue",
+      "status": "done",
+      "branch": "task/TASK-7-add-redis-bullmq-queue",
+      "file": "tasks/TASK-7.json"
+    },
+    {
+      "id": "TASK-8",
+      "title": "Add document upload and scan pipeline",
+      "status": "done",
+      "branch": "task/TASK-8-add-document-upload-scan-pipeline",
+      "file": "tasks/TASK-8.json"
+    },
+    {
+      "id": "TASK-9",
+      "title": "Add extraction/chunking/indexing",
+      "status": "done",
+      "branch": "task/TASK-9-add-extraction-chunking-indexing",
+      "file": "tasks/TASK-9.json"
+    },
+    {
+      "id": "TASK-10",
+      "title": "Add MemoryClaim and ContextBuilder",
+      "status": "done",
+      "branch": "task/TASK-10-add-memory-claim-context-builder",
+      "file": "tasks/TASK-10.json"
+    },
+    {
+      "id": "TASK-11",
+      "title": "Add MCP server",
+      "status": "done",
+      "branch": "task/TASK-11-add-mcp-server",
+      "file": "tasks/TASK-11.json"
+    },
+    {
+      "id": "TASK-12",
+      "title": "Add CLI",
+      "status": "done",
+      "branch": "task/TASK-12-add-cli",
+      "file": "tasks/TASK-12.json"
+    },
+    {
+      "id": "TASK-13",
+      "title": "Add Hermes adapter MVP",
+      "status": "done",
+      "branch": "task/TASK-13-add-hermes-adapter-mvp",
+      "file": "tasks/TASK-13.json"
+    },
+    {
+      "id": "TASK-14",
+      "title": "Add PostgreSQL repository skeleton",
+      "status": "done",
+      "branch": "task/TASK-14-add-postgres-repository-skeleton",
+      "file": "tasks/TASK-14.json"
+    },
+    {
+      "id": "TASK-15",
+      "title": "Wire API repositories",
+      "status": "done",
+      "branch": "task/TASK-15-wire-api-repositories",
+      "file": "tasks/TASK-15.json"
+    },
+    {
+      "id": "TASK-16",
+      "title": "Stabilize toolchain and build",
+      "status": "done",
+      "branch": "task/TASK-16-stabilize-toolchain-build",
+      "file": "tasks/TASK-16.json"
+    },
+    {
+      "id": "TASK-17",
+      "title": "Add auth access control MVP",
+      "status": "done",
+      "branch": "task/TASK-17-auth-access-control-mvp",
+      "file": "tasks/TASK-17.json"
+    },
+    {
+      "id": "TASK-18",
+      "title": "Wire document upload runtime",
+      "status": "done",
+      "branch": "task/TASK-18-wire-document-upload-runtime",
+      "file": "tasks/TASK-18.json"
+    },
+    {
+      "id": "TASK-19",
+      "title": "Wire worker document pipeline",
+      "status": "done",
+      "branch": "task/TASK-19-wire-worker-document-pipeline",
+      "file": "tasks/TASK-19.json"
+    },
+    {
+      "id": "TASK-20",
+      "title": "Add pgvector search",
+      "status": "done",
+      "branch": "task/TASK-20-add-pgvector-search",
+      "file": "tasks/TASK-20.json"
+    },
+    {
+      "id": "TASK-21",
+      "title": "Add Jobs API",
+      "status": "done",
+      "branch": "task/TASK-21-add-jobs-api",
+      "file": "tasks/TASK-21.json"
+    },
+    {
+      "id": "TASK-22",
+      "title": "Complete memory/context runtime",
+      "status": "done",
+      "branch": "task/TASK-22-memory-context-runtime",
+      "file": "tasks/TASK-22.json"
+    },
+    {
+      "id": "TASK-23",
+      "title": "Wire MCP stdio server",
+      "status": "done",
+      "branch": "task/TASK-23-mcp-stdio-server",
+      "file": "tasks/TASK-23.json"
+    },
+    {
+      "id": "TASK-24",
+      "title": "Harden CLI MVP acceptance",
+      "status": "done",
+      "branch": "task/TASK-24-cli-mvp-acceptance",
+      "file": "tasks/TASK-24.json"
+    },
+    {
+      "id": "TASK-25",
+      "title": "Integrate Hermes adapter with runtime",
+      "status": "done",
+      "branch": "task/TASK-25-hermes-runtime-integration",
+      "file": "tasks/TASK-25.json"
+    },
+    {
+      "id": "TASK-26",
+      "title": "Make Docker Compose runnable",
+      "status": "done",
+      "branch": "task/TASK-26-docker-compose-runnable-deployment",
+      "file": "tasks/TASK-26.json"
+    },
+    {
+      "id": "TASK-27",
+      "title": "End-to-end MVP acceptance hardening",
+      "status": "done",
+      "branch": "task/TASK-27-e2e-mvp-acceptance-hardening",
+      "file": "tasks/TASK-27.json"
+    }
+  ]
+}

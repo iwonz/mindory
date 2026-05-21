@@ -1,0 +1,26 @@
+{
+  "files": [],
+  "references": [
+    { "path": "apps/api" },
+    { "path": "apps/mcp" },
+    { "path": "apps/cli" },
+    { "path": "apps/worker" },
+    { "path": "apps/adapters/hermes" },
+    { "path": "packages/core" },
+    { "path": "packages/db" },
+    { "path": "packages/sdk" },
+    { "path": "packages/config" },
+    { "path": "packages/auth" },
+    { "path": "packages/storage/local-fs" },
+    { "path": "packages/storage/s3" },
+    { "path": "packages/queue/bullmq" },
+    { "path": "packages/vector/pgvector" },
+    { "path": "packages/vector/qdrant" },
+    { "path": "packages/processors/antivirus-clamav" },
+    { "path": "packages/processors/extractors/builtin-text" },
+    { "path": "packages/processors/extractors/docling" },
+    { "path": "packages/processors/embeddings/openai-compatible" },
+    { "path": "packages/processors/embeddings/ollama" },
+    { "path": "packages/observability" }
+  ]
+}

@@ -1,0 +1,72 @@
+{
+  "id": "TASK-10",
+  "title": "Add MemoryClaim and ContextBuilder",
+  "status": "done",
+  "type": "chore",
+  "priority": "high",
+  "branch": "task/TASK-10-add-memory-claim-context-builder",
+  "created_at": "2026-05-21",
+  "updated_at": "2026-05-21",
+  "context": {
+    "summary": "Add the core memory claim and context building contracts, plus API route surfaces for manual memory remember, search, explain and context build.",
+    "background": "TASK-9 added extraction, chunking, embeddings and vector index scaffolding. TASK-10 exposes the memory/context domain boundary while avoiding concrete persistence and vector runtime wiring."
+  },
+  "scope": {
+    "in": [
+      "Define SourceRef, MemoryClaim, MemoryRepository, MemoryService and ContextBuilder contracts in @mindory/core.",
+      "Implement manual memory remember defaults and validation in the core service.",
+      "Implement memory search and explain service methods over repository interfaces.",
+      "Implement prompt-ready context assembly over injected session, memory and document chunk repositories.",
+      "Add Fastify route surfaces for /v1/memories and /v1/context/build.",
+      "Add memory/context validation to repository checks.",
+      "Update architecture, API, memory model and README documentation."
+    ],
+    "out": [
+      "Implement concrete PostgreSQL repositories.",
+      "Implement vector-powered memory or document search.",
+      "Implement MemoryClaim derivation workers.",
+      "Implement session/message persistence endpoints.",
+      "Implement MCP, CLI or Hermes calls to the new endpoints.",
+      "Install dependencies if pnpm is unavailable in the local environment."
+    ]
+  },
+  "acceptance_criteria": [
+    "@mindory/core exports memory claim, source reference, memory repository and context builder contracts.",
+    "Manual memory remember requires source references and defaults remembered claims to active status.",
+    "Memory search defaults to active memory claims unless statuses are provided.",
+    "Memory explain returns the memory claim source references and creation metadata.",
+    "ContextBuilder can assemble session summary, recent message, memory and document chunk blocks within a token budget.",
+    "The API app registers /v1/memories and /v1/context/build route surfaces.",
+    "Default API build returns explicit not_implemented errors until runtime dependencies are injected.",
+    "Repository checks include memory/context validation.",
+    "Documentation describes the current memory/context boundary.",
+    "No concrete database repository, vector search, memory derivation worker, MCP, CLI or Hermes integration is implemented."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "ls packages/core/src/memory.ts apps/api/src/routes/memories.ts apps/api/src/routes/context.ts scripts/validate-memory-context.js",
+      "node scripts/validate-memory-context.js",
+      "node scripts/validate-tasks.js",
+      "node scripts/check-repo.js"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-10.",
+      "Confirm MemoryClaim source refs are required for manual remember.",
+      "Confirm ContextBuilder is repository-injected and not tied to concrete persistence.",
+      "Confirm no PostgreSQL repository, vector search runtime, MCP, CLI or Hermes behavior was added."
+    ]
+  },
+  "dependencies": [
+    "TASK-9"
+  ],
+  "risks": [
+    "Local pnpm is unavailable in the current environment, so TypeScript execution may need to wait until dependencies are installed.",
+    "Memory and context behavior is structurally validated but not exercised against a live database or vector index in this task."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch can be merged into master without unrelated changes."
+  ]
+}

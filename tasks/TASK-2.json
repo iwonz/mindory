@@ -1,0 +1,72 @@
+{
+  "id": "TASK-2",
+  "title": "Bootstrap pnpm monorepo",
+  "status": "done",
+  "type": "chore",
+  "priority": "high",
+  "branch": "task/TASK-2-bootstrap-pnpm-monorepo",
+  "created_at": "2026-05-21",
+  "updated_at": "2026-05-21",
+  "context": {
+    "summary": "Create pnpm workspace configuration, TypeScript base configuration, workspace app/package skeletons and basic repository validation scripts.",
+    "background": "TASK-1 established the operating model. TASK-2 prepares the monorepo structure required before adding services, schemas or runtime implementation."
+  },
+  "scope": {
+    "in": [
+      "Initialize git metadata and create the TASK-2 task branch.",
+      "Create root package manager configuration for pnpm.",
+      "Create TypeScript base and root project reference configuration.",
+      "Create app and package workspace skeletons from the PRD target structure.",
+      "Create minimal placeholder TypeScript entrypoints without product behavior.",
+      "Create basic lint, typecheck, test, task validation and workspace validation scripts.",
+      "Update README and docs for the monorepo bootstrap."
+    ],
+    "out": [
+      "Install third-party dependencies if pnpm is unavailable in the local environment.",
+      "Implement API endpoints.",
+      "Implement database schema or migrations.",
+      "Implement workers or queues.",
+      "Implement MCP server behavior.",
+      "Implement CLI commands.",
+      "Implement Hermes adapter behavior.",
+      "Add Docker Compose services."
+    ]
+  },
+  "acceptance_criteria": [
+    "Repository is initialized as a git repository and the active branch is task/TASK-2-bootstrap-pnpm-monorepo.",
+    "tasks/tasks.json sets current_task_id to TASK-2 and registers tasks/TASK-2.json.",
+    "Root package manager config exists for pnpm.",
+    "Root TypeScript base config and project references exist.",
+    "Workspace skeletons exist for API, MCP, CLI, worker, Hermes adapter and all PRD packages.",
+    "Each workspace has package.json, tsconfig.json and a minimal src/index.ts placeholder.",
+    "Root scripts exist for check, lint, typecheck, test, tasks:validate and workspace:validate.",
+    "Documentation reflects the monorepo bootstrap without duplicating the PRD.",
+    "No runtime product implementation is added."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "ls package.json pnpm-workspace.yaml tsconfig.base.json tsconfig.json",
+      "node scripts/validate-tasks.js",
+      "node scripts/validate-workspace.js",
+      "node scripts/check-repo.js",
+      "find apps packages -name package.json | wc -l"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-2.",
+      "Confirm workspace placeholders contain no product behavior.",
+      "Confirm no Docker Compose, API, database, worker, MCP, CLI or Hermes runtime implementation was added."
+    ]
+  },
+  "dependencies": [
+    "TASK-1"
+  ],
+  "risks": [
+    "Local pnpm is not available in the current environment, so dependency installation and real tsc execution may need to wait until pnpm is installed."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch can be merged into master without unrelated changes."
+  ]
+}

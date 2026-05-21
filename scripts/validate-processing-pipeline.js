@@ -1,0 +1,161 @@
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+const requiredFiles = [
+  "packages/core/src/processing.ts",
+  "packages/processors/extractors/builtin-text/src/index.ts",
+  "packages/processors/embeddings/openai-compatible/src/index.ts",
+  "packages/processors/embeddings/ollama/src/index.ts",
+  "packages/vector/pgvector/src/index.ts",
+  "packages/vector/qdrant/src/index.ts",
+  "apps/worker/src/document-pipeline.ts",
+  "apps/worker/src/memory-pipeline.ts",
+  "apps/worker/src/runtime.ts"
+];
+
+function assert(condition, message) {
+  if (!condition) {
+    throw new Error(message);
+  }
+}
+
+function read(relativePath) {
+  return fs.readFileSync(path.join(root, relativePath), "utf8");
+}
+
+function readJson(relativePath) {
+  return JSON.parse(read(relativePath));
+}
+
+for (const file of requiredFiles) {
+  assert(fs.existsSync(path.join(root, file)), `${file} is required.`);
+}
+
+const rootPackage = readJson("package.json");
+const corePackage = readJson("packages/core/package.json");
+const extractorPackage = readJson("packages/processors/extractors/builtin-text/package.json");
+const extractorTsconfig = readJson("packages/processors/extractors/builtin-text/tsconfig.json");
+const openAiPackage = readJson("packages/processors/embeddings/openai-compatible/package.json");
+const openAiTsconfig = readJson("packages/processors/embeddings/openai-compatible/tsconfig.json");
+const ollamaPackage = readJson("packages/processors/embeddings/ollama/package.json");
+const ollamaTsconfig = readJson("packages/processors/embeddings/ollama/tsconfig.json");
+const pgvectorPackage = readJson("packages/vector/pgvector/package.json");
+const pgvectorTsconfig = readJson("packages/vector/pgvector/tsconfig.json");
+const qdrantPackage = readJson("packages/vector/qdrant/package.json");
+const qdrantTsconfig = readJson("packages/vector/qdrant/tsconfig.json");
+
+const coreIndex = read("packages/core/src/index.ts");
+const processing = read("packages/core/src/processing.ts");
+const extractor = read("packages/processors/extractors/builtin-text/src/index.ts");
+const openAi = read("packages/processors/embeddings/openai-compatible/src/index.ts");
+const ollama = read("packages/processors/embeddings/ollama/src/index.ts");
+const pgvector = read("packages/vector/pgvector/src/index.ts");
+const qdrant = read("packages/vector/qdrant/src/index.ts");
+const workerPipeline = read("apps/worker/src/document-pipeline.ts");
+const memoryPipeline = read("apps/worker/src/memory-pipeline.ts");
+const workerRuntime = read("apps/worker/src/runtime.ts");
+const config = read("packages/config/src/index.ts");
+const envExample = read(".env.example");
+
+assert(rootPackage.scripts?.["processing:validate"] === "node scripts/validate-processing-pipeline.js", "Root package must expose processing:validate.");
+assert(corePackage.exports?.["./processing"], "@mindory/core must export ./processing.");
+assert(coreIndex.includes('export * from "./processing.js";'), "@mindory/core root index must export processing contracts.");
+
+for (const symbol of [
+  "TextExtractor",
+  "ExtractTextInput",
+  "ExtractedText",
+  "TextChunker",
+  "FixedSizeTextChunker",
+  "TextChunk",
+  "DocumentChunkRepository",
+  "EmbeddingsProvider",
+  "EmbeddingResult",
+  "VectorIndex",
+  "VectorChunkEmbedding",
+  "ProcessingError"
+]) {
+  assert(processing.includes(symbol), `@mindory/core processing module must define ${symbol}.`);
+}
+
+for (const token of ["maxTokens", "overlapTokens", "start_offset", "end_offset", "tokenCount", "randomUUID"]) {
+  assert(processing.includes(token), `FixedSizeTextChunker must include ${token}.`);
+}
+
+assert(extractorPackage.dependencies?.["@mindory/core"] === "workspace:*", "Builtin text extractor must depend on @mindory/core.");
+assert(extractorPackage.exports?.["."], "Builtin text extractor must export its root module.");
+assert(extractorTsconfig.references?.some((reference) => reference.path === "../../../../packages/core"), "Builtin text extractor must reference @mindory/core.");
+for (const token of ["BuiltinTextExtractor", "supports(", "extract(", "normalizeMarkdown", "\"text/plain\"", "\"text/markdown\"", "\".txt\"", "\".md\"", "\".markdown\""]) {
+  assert(extractor.includes(token), `Builtin text extractor must include ${token}.`);
+}
+
+assert(openAiPackage.dependencies?.["@mindory/core"] === "workspace:*", "OpenAI-compatible embedding package must depend on @mindory/core.");
+assert(openAiPackage.exports?.["."], "OpenAI-compatible embedding package must export its root module.");
+assert(openAiTsconfig.references?.some((reference) => reference.path === "../../../../packages/core"), "OpenAI-compatible embedding package must reference @mindory/core.");
+for (const token of ["OpenAICompatibleEmbeddingsProvider", "/embeddings", "Bearer", "fetch", "dimensions"]) {
+  assert(openAi.includes(token), `OpenAI-compatible embedding provider must include ${token}.`);
+}
+
+assert(ollamaPackage.dependencies?.["@mindory/core"] === "workspace:*", "Ollama embedding package must depend on @mindory/core.");
+assert(ollamaPackage.exports?.["."], "Ollama embedding package must export its root module.");
+assert(ollamaTsconfig.references?.some((reference) => reference.path === "../../../../packages/core"), "Ollama embedding package must reference @mindory/core.");
+for (const token of ["OllamaEmbeddingsProvider", "/api/embed", "embeddings", "fetch"]) {
+  assert(ollama.includes(token), `Ollama embedding provider must include ${token}.`);
+}
+
+assert(pgvectorPackage.dependencies?.["@mindory/core"] === "workspace:*", "pgvector package must depend on @mindory/core.");
+assert(pgvectorPackage.dependencies?.["@mindory/db"] === "workspace:*", "pgvector package must depend on @mindory/db.");
+assert(pgvectorPackage.exports?.["."], "pgvector package must export its root module.");
+assert(pgvectorTsconfig.references?.some((reference) => reference.path === "../../../packages/core"), "pgvector package must reference @mindory/core.");
+assert(pgvectorTsconfig.references?.some((reference) => reference.path === "../../../packages/db"), "pgvector package must reference @mindory/db.");
+for (const token of ["PgVectorChunkIndex", "PgVectorDocumentChunkSearchRepository", "createTableSql", "vector(", "upsertDocumentChunks", "deleteDocumentChunks", "searchDocumentChunks", "<=>"]) {
+  assert(pgvector.includes(token), `pgvector package must include ${token}.`);
+}
+assert(!pgvector.includes("vector_index_not_implemented"), "pgvector package must no longer be a not-implemented placeholder.");
+
+assert(qdrantPackage.dependencies?.["@mindory/core"] === "workspace:*", "Qdrant package must depend on @mindory/core.");
+assert(qdrantPackage.exports?.["."], "Qdrant package must export its root module.");
+assert(qdrantTsconfig.references?.some((reference) => reference.path === "../../../packages/core"), "Qdrant package must reference @mindory/core.");
+for (const token of ["QdrantVectorIndex", "vector_index_not_implemented", "upsertDocumentChunks", "searchDocumentChunks"]) {
+  assert(qdrant.includes(token), `Qdrant package must include ${token}.`);
+}
+
+for (const envName of [
+  "MINDORY_EMBEDDINGS_PROVIDER",
+  "MINDORY_EMBEDDINGS_MODEL",
+  "MINDORY_EMBEDDINGS_DIMENSIONS",
+  "MINDORY_OPENAI_COMPATIBLE_BASE_URL",
+  "MINDORY_OPENAI_COMPATIBLE_API_KEY",
+  "MINDORY_OLLAMA_BASE_URL"
+]) {
+  assert(config.includes(envName), `Config loader must read ${envName}.`);
+  assert(envExample.includes(envName), `.env.example must include ${envName}.`);
+}
+
+for (const token of [
+  "DocumentPipelineProcessorRegistry",
+  "DocumentExtractProcessor",
+  "DocumentChunkProcessor",
+  "DocumentEmbedProcessor",
+  "DocumentIndexProcessor",
+  "ClamAvDocumentScanProcessor",
+  "document.extract",
+  "document.chunk",
+  "document.embed",
+  "document.index",
+  "replaceDocumentChunks"
+]) {
+  assert(workerPipeline.includes(token), `Worker document pipeline must include ${token}.`);
+}
+for (const token of ["buildWorkerRuntime", "DbDocumentChunkRepository", "ProcessingJobDispatcher", "buildDocumentPipelineProcessors"]) {
+  assert(workerRuntime.includes(token), `Worker runtime must include ${token}.`);
+}
+for (const token of ["SessionSummaryProcessor", "MemoryDerivationProcessor", "session.summarize", "memory.derive"]) {
+  assert(memoryPipeline.includes(token), `Worker memory pipeline must include ${token}.`);
+}
+assert(workerRuntime.includes("buildMemoryRuntimeProcessors"), "Worker runtime must register memory/context processors.");
+
+console.log("Processing extraction, chunking, embeddings and worker pipeline validated.");

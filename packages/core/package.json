@@ -1,0 +1,49 @@
+{
+  "name": "@mindory/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./antivirus": {
+      "types": "./dist/antivirus.d.ts",
+      "default": "./dist/antivirus.js"
+    },
+    "./documents": {
+      "types": "./dist/documents.d.ts",
+      "default": "./dist/documents.js"
+    },
+    "./memory": {
+      "types": "./dist/memory.d.ts",
+      "default": "./dist/memory.js"
+    },
+    "./processing": {
+      "types": "./dist/processing.d.ts",
+      "default": "./dist/processing.js"
+    },
+    "./projects": {
+      "types": "./dist/projects.d.ts",
+      "default": "./dist/projects.js"
+    },
+    "./storage": {
+      "types": "./dist/storage.d.ts",
+      "default": "./dist/storage.js"
+    },
+    "./sessions": {
+      "types": "./dist/sessions.d.ts",
+      "default": "./dist/sessions.js"
+    },
+    "./queue": {
+      "types": "./dist/queue.d.ts",
+      "default": "./dist/queue.js"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc -b"
+  }
+}

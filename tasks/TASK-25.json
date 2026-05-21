@@ -1,0 +1,72 @@
+{
+  "id": "TASK-25",
+  "title": "Integrate Hermes adapter with runtime",
+  "status": "done",
+  "type": "feat",
+  "priority": "high",
+  "branch": "task/TASK-25-hermes-runtime-integration",
+  "created_at": "2026-05-21",
+  "updated_at": "2026-05-21",
+  "context": {
+    "summary": "Make the Hermes adapter lifecycle usable against the real Mindory HTTP runtime.",
+    "background": "TASK-24 hardened the CLI. Hermes now needs an end-to-end adapter surface that ensures identity, builds context, saves turns, uploads attachments and can recall source-backed context in later sessions."
+  },
+  "scope": {
+    "in": [
+      "Keep Hermes adapter HTTP-only and SDK-agnostic.",
+      "Ensure project, peers and session before prompt/context operations.",
+      "Build prompt context before the model call through /v1/context/build.",
+      "Save user and assistant turns through session message routes.",
+      "Upload attachments through /v1/documents and preserve upload refs in message metadata.",
+      "Add a lifecycle helper and smoke validation for cross-session context recall behavior.",
+      "Prevent identity ensure calls from clearing existing session summaries."
+    ],
+    "out": [
+      "Import or depend on a Hermes SDK.",
+      "Add direct database, Redis, storage or vector access.",
+      "Implement a standalone Hermes daemon.",
+      "Add live Docker E2E coverage."
+    ]
+  },
+  "acceptance_criteria": [
+    "Hermes adapter exposes a lifecycle helper that prepares context and saves turns through the HTTP API.",
+    "Identity ensure creates/upserts project, user peer, agent peer and session records.",
+    "Prompt context is built before saving the current turn.",
+    "User and assistant turns are saved with Hermes source metadata.",
+    "Attachments are uploaded and referenced from saved message metadata.",
+    "Hermes optional tools ensure identity before memory/document API calls.",
+    "Session ensure/upsert does not erase existing session summaries.",
+    "Docs and validations describe the runtime integration boundary."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "pnpm typecheck",
+      "pnpm lint",
+      "pnpm test",
+      "pnpm hermes:validate",
+      "pnpm hermes:smoke",
+      "pnpm db:repositories:validate",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-25.",
+      "Confirm Hermes adapter has no Hermes SDK import.",
+      "Confirm Hermes adapter has no direct DB/Redis/storage/vector imports.",
+      "Confirm lifecycle helper builds context before saving messages."
+    ]
+  },
+  "dependencies": [
+    "TASK-24"
+  ],
+  "risks": [
+    "Smoke coverage uses the injectable HTTP client; live Hermes integration remains environment-dependent.",
+    "Attachment-to-message linking is represented in message metadata until a dedicated attachment API is added."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch can be merged into master without unrelated changes."
+  ]
+}

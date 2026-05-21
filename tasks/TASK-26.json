@@ -1,0 +1,70 @@
+{
+  "id": "TASK-26",
+  "title": "Make Docker Compose runnable",
+  "status": "done",
+  "type": "chore",
+  "priority": "high",
+  "branch": "task/TASK-26-docker-compose-runnable-deployment",
+  "created_at": "2026-05-21",
+  "updated_at": "2026-05-21",
+  "context": {
+    "summary": "Replace API/MCP/worker Compose placeholders with real built application commands and a migration startup path.",
+    "background": "TASK-25 completed Hermes runtime integration. The MVP now needs a local Docker Compose deployment that can build the monorepo, migrate PostgreSQL and start API, worker and MCP services."
+  },
+  "scope": {
+    "in": [
+      "Add a root Dockerfile that installs locked dependencies and builds TypeScript workspaces.",
+      "Add a migrate service that runs the Drizzle migration before app services.",
+      "Run API, worker and MCP services with real dist entrypoints.",
+      "Add healthchecks and local object storage volumes.",
+      "Keep optional profile services for MinIO, ClamAV, Qdrant, Docling and Ollama.",
+      "Update Compose validation and deployment docs."
+    ],
+    "out": [
+      "Publish production images to a registry.",
+      "Add Kubernetes or Helm deployment artifacts.",
+      "Make MCP stdio a network daemon.",
+      "Run the full live E2E acceptance scenario."
+    ]
+  },
+  "acceptance_criteria": [
+    "Dockerfile builds the workspace from pnpm-lock.yaml and emits dist outputs.",
+    "Compose defines migrate, api, worker and mcp services using the built image.",
+    "API starts with apps/api/dist/server.js and checks /ready.",
+    "Worker starts with apps/worker/dist/server.js.",
+    "MCP starts with apps/mcp/dist/stdio.js and keeps stdin open.",
+    "API and worker mount the local object storage volume.",
+    "App services wait for PostgreSQL/Redis and the migration service.",
+    ".env.example and docs describe the local MVP Compose path."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "docker compose -f docker-compose.yml -f docker-compose.override.yml config",
+      "pnpm compose:validate",
+      "pnpm typecheck",
+      "pnpm lint",
+      "pnpm test",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-26.",
+      "Confirm API/MCP/worker placeholder commands were removed.",
+      "Confirm local storage volume is mounted by API and worker.",
+      "Confirm migrate runs before API and worker."
+    ]
+  },
+  "dependencies": [
+    "TASK-25"
+  ],
+  "risks": [
+    "Building the image requires network access for first-time dependency downloads unless the Docker cache is warm.",
+    "MCP stdio is not a network service; Compose keeps stdin open for local process attachment."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch can be merged into master without unrelated changes."
+  ]
+}

@@ -1,0 +1,71 @@
+{
+  "id": "TASK-3",
+  "title": "Add Docker Compose base services",
+  "status": "done",
+  "type": "chore",
+  "priority": "high",
+  "branch": "task/TASK-3-add-base-docker-compose",
+  "created_at": "2026-05-21",
+  "updated_at": "2026-05-21",
+  "context": {
+    "summary": "Create Docker Compose base services for Postgres, Redis, API, MCP and worker placeholders, plus optional profile skeletons.",
+    "background": "TASK-2 established the monorepo layout. TASK-3 makes the self-hosted deployment shape concrete without implementing product runtime behavior."
+  },
+  "scope": {
+    "in": [
+      "Create docker-compose.yml with Postgres, Redis, API placeholder, MCP placeholder and worker placeholder services.",
+      "Create docker-compose.override.yml for local development defaults.",
+      "Add optional profile skeletons for minio, clamav, qdrant, docling and ollama.",
+      "Add an explicit Docker placeholder runner for app services.",
+      "Add compose validation to repository checks.",
+      "Update deployment, configuration, architecture and README documentation."
+    ],
+    "out": [
+      "Implement real API endpoints.",
+      "Implement MCP tools.",
+      "Implement worker queues or processing.",
+      "Implement database schema or migrations.",
+      "Install dependencies or build production images.",
+      "Add Docker Compose scaling refinements beyond the base scaffold."
+    ]
+  },
+  "acceptance_criteria": [
+    "Repository contains docker-compose.yml with postgres, redis, api, mcp and worker services.",
+    "Repository contains docker-compose.override.yml for local development defaults.",
+    "Postgres uses a pgvector-capable image and Redis uses a Redis image.",
+    "API, MCP and worker services run explicit TASK-3 placeholders rather than product runtime code.",
+    "Optional profiles exist for minio, clamav, qdrant, docling and ollama.",
+    "Compose configuration uses .env-compatible Mindory environment variables with defaults.",
+    "Repository checks include compose validation.",
+    "Documentation explains the base compose services and placeholder scope.",
+    "No API, database, worker, MCP, CLI or Hermes product behavior is implemented."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "ls docker-compose.yml docker-compose.override.yml",
+      "ruby -ryaml -e \"YAML.load_file('docker-compose.yml'); YAML.load_file('docker-compose.override.yml');\"",
+      "node scripts/validate-compose.js",
+      "node scripts/validate-tasks.js",
+      "node scripts/check-repo.js"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-3.",
+      "Confirm placeholder runtime paths are namespaced and not product endpoints.",
+      "Confirm optional profiles are present but do not force optional dependencies into the base stack.",
+      "Run docker compose -f docker-compose.yml -f docker-compose.override.yml config in an environment with Docker CLI available."
+    ]
+  },
+  "dependencies": [
+    "TASK-2"
+  ],
+  "risks": [
+    "The app services are placeholders and should be replaced by real images and runtime commands in later task-scoped changes.",
+    "Running docker compose up may require network access to pull images if they are not present locally."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch can be merged into master without unrelated changes."
+  ]
+}

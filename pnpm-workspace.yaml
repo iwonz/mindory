@@ -1,0 +1,10 @@
+packages:
+  - "apps/*"
+  - "apps/adapters/*"
+  - "packages/*"
+  - "packages/storage/*"
+  - "packages/queue/*"
+  - "packages/vector/*"
+  - "packages/processors/*"
+  - "packages/processors/extractors/*"
+  - "packages/processors/embeddings/*"

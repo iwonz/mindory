@@ -1,0 +1,72 @@
+{
+  "id": "TASK-17",
+  "title": "Add auth access control MVP",
+  "status": "done",
+  "type": "feat",
+  "priority": "high",
+  "branch": "task/TASK-17-auth-access-control-mvp",
+  "created_at": "2026-05-21",
+  "updated_at": "2026-05-21",
+  "context": {
+    "summary": "Implement MVP bearer-token verification and project-scoped route authorization for the API runtime.",
+    "background": "The MVP PRD requires access tokens with multi-project scopes and project-level authorization. TASK-15 wired repositories but left auth as a placeholder; TASK-17 activates auth for the server runtime while keeping bare app factory placeholders for scaffold tests."
+  },
+  "scope": {
+    "in": [
+      "Implement shared auth types, token hashing and permission helpers in @mindory/auth.",
+      "Add a Drizzle-backed access token repository using access_tokens and access_token_project_scopes.",
+      "Wire the API server runtime to verify bearer tokens through the database repository.",
+      "Enforce project-scoped permissions in project, peer, session, message, document, memory and context routes.",
+      "Return structured 401/403 API errors for missing, invalid or insufficient bearer tokens.",
+      "Keep health/readiness public and keep placeholder auth for bare buildApiApp dependency-injection scenarios.",
+      "Update docs and validation scripts for active auth runtime behavior."
+    ],
+    "out": [
+      "Add token creation, revocation or listing HTTP endpoints.",
+      "Add document-level ACLs, memory-level ACLs, group roles or policy engine behavior.",
+      "Wire document upload storage/queue runtime.",
+      "Implement jobs API, worker processing or vector search.",
+      "Add live database seed tooling for access tokens."
+    ]
+  },
+  "acceptance_criteria": [
+    "@mindory/auth exports the MVP permission list, AuthorizationContext, token hashing, verification and project permission helpers.",
+    "@mindory/db exports DbAccessTokenRepository and uses token_hash plus scope rows for verification.",
+    "API runtime dependencies include access token verification when the server is built from config.",
+    "Protected API routes check the correct project permission before repository operations.",
+    "Missing or invalid bearer tokens return 401 and insufficient project scopes return 403.",
+    "Bare buildApiApp calls without auth dependencies still use placeholder auth and do not grant project permissions.",
+    "Docs and validation scripts describe active auth runtime behavior."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "pnpm typecheck",
+      "pnpm lint",
+      "pnpm test",
+      "pnpm api:validate",
+      "pnpm api:runtime:validate",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-17.",
+      "Confirm raw bearer tokens are not logged or stored.",
+      "Confirm health and readiness routes remain public.",
+      "Confirm token create/revoke/list endpoints remain out of scope."
+    ]
+  },
+  "dependencies": [
+    "TASK-16"
+  ],
+  "risks": [
+    "No token creation API exists yet, so runtime tokens must be seeded or inserted until a later task adds token management.",
+    "Project listing filters in memory after repository listing for the MVP and should be tightened when broader project counts matter.",
+    "The auth runtime compiles and is structurally validated but is not exercised against a live PostgreSQL database in this task."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch can be merged into master without unrelated changes."
+  ]
+}

@@ -1,0 +1,71 @@
+{
+  "id": "TASK-7",
+  "title": "Add Redis/BullMQ queue",
+  "status": "done",
+  "type": "chore",
+  "priority": "high",
+  "branch": "task/TASK-7-add-redis-bullmq-queue",
+  "created_at": "2026-05-21",
+  "updated_at": "2026-05-21",
+  "context": {
+    "summary": "Create queue abstractions, BullMQ implementation, processing job creation flow and worker base runner.",
+    "background": "TASK-6 added object storage abstractions. TASK-7 adds the async processing queue layer before document upload and processors are implemented."
+  },
+  "scope": {
+    "in": [
+      "Define processing job queue and worker interfaces in @mindory/core.",
+      "Define a processing job store interface for durable PostgreSQL state integration.",
+      "Add a ProcessingJobDispatcher that creates durable jobs before enqueueing BullMQ work.",
+      "Implement BullMQ queue and worker adapters in @mindory/queue-bullmq.",
+      "Add a worker base runner that marks durable job state around processor execution.",
+      "Wire worker app base runner helpers without implementing concrete processors.",
+      "Add queue validation to repository checks.",
+      "Update worker, architecture and configuration documentation."
+    ],
+    "out": [
+      "Implement concrete PostgreSQL repositories.",
+      "Implement document upload, scan or processor logic.",
+      "Start workers from Docker Compose runtime.",
+      "Apply migrations or connect to a live Redis/Postgres during validation.",
+      "Install dependencies if pnpm is unavailable in the local environment."
+    ]
+  },
+  "acceptance_criteria": [
+    "@mindory/core exports processing job queue payload, queue, worker, store and processor contracts.",
+    "ProcessingJobDispatcher creates a durable job through ProcessingJobStore before enqueueing queue work.",
+    "ProcessingJobRunner marks jobs running, succeeded and failed around processor execution.",
+    "@mindory/queue-bullmq exports BullMQ queue and worker adapters configured by Redis URL and queue prefix.",
+    "BullMQ enqueue uses idempotency key as jobId and configures retry/backoff options.",
+    "apps/worker exports base runner helpers but no concrete processors.",
+    "Repository checks include queue validation.",
+    "Documentation explains Redis/BullMQ is execution scheduling only and PostgreSQL remains canonical job state.",
+    "No concrete document processors, DB repositories, API endpoints or Docker runtime changes are implemented."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "ls packages/core/src/queue.ts packages/queue/bullmq/src/index.ts apps/worker/src/runner.ts",
+      "node scripts/validate-queue.js",
+      "node scripts/validate-tasks.js",
+      "node scripts/check-repo.js"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-7.",
+      "Confirm ProcessingJobDispatcher persists before enqueueing.",
+      "Confirm BullMQ payloads use idempotency keys as jobId.",
+      "Confirm no concrete processors, DB repositories, API endpoints or Docker runtime changes were added."
+    ]
+  },
+  "dependencies": [
+    "TASK-6"
+  ],
+  "risks": [
+    "Local pnpm is unavailable in the current environment, so BullMQ and TypeScript execution may need to wait until dependencies are installed.",
+    "The queue layer cannot be exercised against Redis until a later task adds runnable workers and repositories."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch can be merged into master without unrelated changes."
+  ]
+}

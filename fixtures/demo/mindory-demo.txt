@@ -1,0 +1,4 @@
+Mindory MVP demo document.
+
+The demo agent should remember that source-backed context is preferred.
+Document search should find this paragraph after extraction and chunking.

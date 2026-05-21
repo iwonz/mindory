@@ -1,0 +1,34 @@
+{
+  "name": "@mindory/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./runner": {
+      "types": "./dist/runner.d.ts",
+      "default": "./dist/runner.js"
+    }
+  },
+  "scripts": {
+    "start": "node dist/server.js",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "@mindory/config": "workspace:*",
+    "@mindory/core": "workspace:*",
+    "@mindory/db": "workspace:*",
+    "@mindory/embeddings-ollama": "workspace:*",
+    "@mindory/embeddings-openai-compatible": "workspace:*",
+    "@mindory/extractor-builtin-text": "workspace:*",
+    "@mindory/processor-antivirus-clamav": "workspace:*",
+    "@mindory/queue-bullmq": "workspace:*",
+    "@mindory/storage-local-fs": "workspace:*",
+    "@mindory/vector-pgvector": "workspace:*"
+  }
+}

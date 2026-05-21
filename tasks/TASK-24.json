@@ -1,0 +1,68 @@
+{
+  "id": "TASK-24",
+  "title": "Harden CLI MVP acceptance",
+  "status": "done",
+  "type": "feat",
+  "priority": "high",
+  "branch": "task/TASK-24-cli-mvp-acceptance",
+  "created_at": "2026-05-21",
+  "updated_at": "2026-05-21",
+  "context": {
+    "summary": "Complete the CLI command surface against implemented API routes and add clear exit codes plus smoke coverage.",
+    "background": "TASK-23 completed MCP stdio. The CLI now needs to behave like a usable MVP client for project, session, document, memory, context and job flows."
+  },
+  "scope": {
+    "in": [
+      "Add missing implemented API commands for session/message/job reads.",
+      "Require project ids on commands whose API routes are project-scoped.",
+      "Improve API and network error formatting with stable exit codes.",
+      "Add a CLI smoke script that validates the MVP route mapping and exit-code behavior.",
+      "Update CLI docs and validation scripts."
+    ],
+    "out": [
+      "Implement token creation API routes.",
+      "Add an external CLI framework.",
+      "Run a live Docker/API E2E scenario.",
+      "Change MCP or Hermes behavior."
+    ]
+  },
+  "acceptance_criteria": [
+    "CLI includes project, session, message, document, memory, context and job commands for implemented API routes.",
+    "Project-scoped CLI commands require --project or --projects before calling the API.",
+    "Usage errors exit with code 2.",
+    "HTTP API errors exit with code 3 and show status/code/message.",
+    "Network errors exit with code 4.",
+    "A CLI smoke script validates representative MVP commands and error behavior.",
+    "CLI remains HTTP-only and does not import database, queue, storage, vector, MCP SDK or Hermes internals."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "pnpm typecheck",
+      "pnpm lint",
+      "pnpm test",
+      "pnpm cli:validate",
+      "pnpm cli:smoke",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-24.",
+      "Confirm project-scoped commands require project ids.",
+      "Confirm CLI smoke covers job get/list/retry and context build.",
+      "Confirm no external CLI framework was added."
+    ]
+  },
+  "dependencies": [
+    "TASK-23"
+  ],
+  "risks": [
+    "Smoke coverage uses the injectable API client and route mapping; live API acceptance remains for TASK-27.",
+    "Token creation remains listed as planned until the API implements token management routes."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch can be merged into master without unrelated changes."
+  ]
+}

@@ -1,0 +1,71 @@
+{
+  "id": "TASK-22",
+  "title": "Complete memory/context runtime",
+  "status": "done",
+  "type": "feat",
+  "priority": "high",
+  "branch": "task/TASK-22-memory-context-runtime",
+  "created_at": "2026-05-21",
+  "updated_at": "2026-05-21",
+  "context": {
+    "summary": "Add runtime processing for session summaries and conservative memory derivation while keeping manual memory remember as the required active-memory path.",
+    "background": "TASK-21 exposed job visibility and retry. The MVP now needs context to improve as sessions receive messages, without promoting automatic claims directly into active memory."
+  },
+  "scope": {
+    "in": [
+      "Add session summary update contracts and a Drizzle repository implementation.",
+      "Enqueue session.summarize and memory.derive jobs when messages are appended through the API runtime.",
+      "Register worker processors for session.summarize and memory.derive jobs.",
+      "Implement conservative memory derivation that only creates candidate claims with source references.",
+      "Keep manual memory remember as the only default active-memory creation path.",
+      "Update docs and validation scripts for memory/context runtime behavior."
+    ],
+    "out": [
+      "Add LLM-backed summarization or memory extraction.",
+      "Automatically promote derived candidates to active memories.",
+      "Add UI review flows for candidate memories.",
+      "Change document processing behavior."
+    ]
+  },
+  "acceptance_criteria": [
+    "SessionRepository supports updating session summaries.",
+    "DbSessionRepository persists updated session summaries and metadata.",
+    "Message append can enqueue session.summarize and memory.derive jobs when a dispatcher is wired.",
+    "Worker runtime registers processors for session.summarize and memory.derive.",
+    "Derived memory claims are created with status candidate and non-empty sourceRefs only.",
+    "Manual memory remember still defaults to active status.",
+    "ContextBuilder can consume updated session summaries through the existing ContextSessionRepository path.",
+    "Docs and validations describe the conservative derivation boundary."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "pnpm typecheck",
+      "pnpm lint",
+      "pnpm test",
+      "pnpm memory:validate",
+      "pnpm processing:validate",
+      "pnpm api:runtime:validate",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-22.",
+      "Confirm derived memory claims are candidate, not active.",
+      "Confirm derived memory claims include sourceRefs.",
+      "Confirm manual memory remember still defaults to active."
+    ]
+  },
+  "dependencies": [
+    "TASK-21"
+  ],
+  "risks": [
+    "The MVP derivation is intentionally conservative and rule-based; richer extraction remains post-MVP.",
+    "Runtime behavior is structurally validated but still needs live E2E coverage in TASK-27."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch can be merged into master without unrelated changes."
+  ]
+}

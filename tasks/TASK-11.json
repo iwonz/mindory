@@ -1,0 +1,74 @@
+{
+  "id": "TASK-11",
+  "title": "Add MCP server",
+  "status": "done",
+  "type": "chore",
+  "priority": "high",
+  "branch": "task/TASK-11-add-mcp-server",
+  "created_at": "2026-05-21",
+  "updated_at": "2026-05-21",
+  "context": {
+    "summary": "Create MCP tool definitions and a server registry that calls Mindory through the HTTP API boundary.",
+    "background": "TASK-10 added memory/context API surfaces. TASK-11 exposes agent-facing MCP tools without bypassing the HTTP API source-of-truth rule."
+  },
+  "scope": {
+    "in": [
+      "Add @mindory/mcp exports for HTTP client, tool registry and server builder.",
+      "Define MCP tools for sessions, memories, documents and context build.",
+      "Implement tool calls over the Mindory HTTP API using fetch.",
+      "Represent document upload through multipart FormData from text or base64 content.",
+      "Add MCP API URL/token configuration to config, .env.example and Docker Compose.",
+      "Keep stdio SDK transport as an explicit placeholder until runtime dependencies are installed.",
+      "Add MCP validation to repository checks.",
+      "Update MCP, API, configuration and README docs."
+    ],
+    "out": [
+      "Install or wire @modelcontextprotocol/sdk.",
+      "Implement concrete stdio transport startup.",
+      "Implement API endpoints that are still future tasks.",
+      "Add direct database, queue, vector or storage access from MCP.",
+      "Implement CLI or Hermes behavior.",
+      "Install dependencies if pnpm is unavailable in the local environment."
+    ]
+  },
+  "acceptance_criteria": [
+    "@mindory/mcp exports a MindoryApiClient, tool definitions, tool registry and server builder.",
+    "The MCP tool list includes session, memory, document and context tools from the PRD.",
+    "MCP tool calls go through HTTP API paths rather than direct database/core persistence.",
+    "MCP memory_remember exposes sourceRefs and memory_recall uses the memory search endpoint.",
+    "MCP context_build calls /v1/context/build.",
+    "MCP document_upload can send multipart upload content from utf8 or base64 input.",
+    "MCP config includes API URL and optional API token in config, .env.example and Docker Compose.",
+    "The stdio transport remains an explicit not-implemented placeholder until SDK/runtime wiring is added.",
+    "Repository checks include MCP validation.",
+    "Documentation describes the current MCP boundary."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "ls apps/mcp/src/http-client.ts apps/mcp/src/tools.ts apps/mcp/src/server.ts apps/mcp/src/stdio.ts scripts/validate-mcp-server.js",
+      "node scripts/validate-mcp-server.js",
+      "node scripts/validate-tasks.js",
+      "node scripts/check-repo.js"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-11.",
+      "Confirm MCP code calls HTTP paths and does not import @mindory/db or Drizzle.",
+      "Confirm stdio SDK transport is not falsely marked runnable.",
+      "Confirm CLI and Hermes behavior remain untouched."
+    ]
+  },
+  "dependencies": [
+    "TASK-10"
+  ],
+  "risks": [
+    "Local pnpm is unavailable in the current environment, so TypeScript execution may need to wait until dependencies are installed.",
+    "MCP transport is structurally scaffolded but not runnable over @modelcontextprotocol/sdk in this task.",
+    "Some MCP tools point at planned HTTP endpoints that are not implemented by the API skeleton yet."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch can be merged into master without unrelated changes."
+  ]
+}

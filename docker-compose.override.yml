@@ -1,0 +1,12 @@
+services:
+  api:
+    environment:
+      NODE_ENV: development
+
+  mcp:
+    environment:
+      NODE_ENV: development
+
+  worker:
+    environment:
+      NODE_ENV: development

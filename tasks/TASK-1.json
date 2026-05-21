@@ -1,0 +1,73 @@
+{
+  "id": "TASK-1",
+  "title": "Bootstrap Mindory repository operating model",
+  "status": "done",
+  "type": "chore",
+  "priority": "high",
+  "branch": "task/TASK-1-bootstrap-repository-operating-model",
+  "created_at": "2026-05-21",
+  "updated_at": "2026-05-21",
+  "context": {
+    "summary": "Create the initial repository operating model, process files, documentation skeleton and configuration contract.",
+    "background": "Mindory must be developed through the Mindory Ralph-cycle from the first task. The canonical PRD belongs in docs/PRD.md, with the root PRD.md acting as a pointer."
+  },
+  "scope": {
+    "in": [
+      "Create AGENTS.md.",
+      "Create tasks/tasks.json.",
+      "Create tasks/TASK-1.json.",
+      "Create docs/PRD.md with the corrected current PRD.",
+      "Create root PRD.md as a pointer to docs/PRD.md.",
+      "Create docs/DEVELOPMENT_PROCESS.md.",
+      "Create documentation skeleton in docs/.",
+      "Create .env.example.",
+      "Create README.md."
+    ],
+    "out": [
+      "Implement API endpoints.",
+      "Implement database schema.",
+      "Implement workers.",
+      "Implement MCP server.",
+      "Implement CLI commands.",
+      "Implement Hermes adapter.",
+      "Add package manager or monorepo tooling."
+    ]
+  },
+  "acceptance_criteria": [
+    "Repository contains AGENTS.md with mandatory development rules.",
+    "Repository contains tasks/tasks.json with current_task_id set to TASK-1 and task_id_prefix set to TASK.",
+    "Repository contains tasks/TASK-1.json.",
+    "Repository contains docs/PRD.md with TASK-style task identifiers.",
+    "Repository contains root PRD.md pointing to docs/PRD.md.",
+    "Repository contains docs/DEVELOPMENT_PROCESS.md describing the Mindory Ralph-cycle.",
+    "Repository contains initial docs skeleton for architecture, configuration, deployment, API, database, workers, MCP, CLI, Hermes adapter, security, document pipeline and memory model.",
+    "Repository contains .env.example with initial configuration sections.",
+    "Repository contains README.md with project purpose and local bootstrap instructions.",
+    "No implementation code beyond scaffolding is added in this task.",
+    "No legacy zero-padded MIN task IDs or previous MINDORY task prefix remain."
+  ],
+  "verification": {
+    "commands": [
+      "ls AGENTS.md README.md PRD.md .env.example",
+      "ls docs/PRD.md docs/DEVELOPMENT_PROCESS.md docs/ARCHITECTURE.md",
+      "ls tasks/tasks.json tasks/TASK-1.json",
+      "node -e \"JSON.parse(require('fs').readFileSync('tasks/tasks.json', 'utf8')); JSON.parse(require('fs').readFileSync('tasks/TASK-1.json', 'utf8'));\"",
+      "! rg '[M]IN-000[0-9]*|[M]INDORY-[0-9]+' . /Users/iwonz/Desktop/PRD.md"
+    ],
+    "manual_checks": [
+      "Check that docs are structural and do not duplicate the full PRD.",
+      "Check that AGENTS.md clearly says no changes without a task.",
+      "Check that .env.example is understandable and does not contain real secrets.",
+      "Check that TASK-1 did not add implementation code."
+    ]
+  },
+  "dependencies": [],
+  "risks": [
+    "Over-documenting before implementation may create stale docs. Keep docs structural and update them in later tasks."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch can be merged into master without unrelated changes."
+  ]
+}

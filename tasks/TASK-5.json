@@ -1,0 +1,74 @@
+{
+  "id": "TASK-5",
+  "title": "Add API skeleton",
+  "status": "done",
+  "type": "chore",
+  "priority": "high",
+  "branch": "task/TASK-5-add-api-skeleton",
+  "created_at": "2026-05-21",
+  "updated_at": "2026-05-21",
+  "context": {
+    "summary": "Create the Fastify API skeleton with config loading, health/readiness, auth placeholder, project route stubs, error handling and structured logging.",
+    "background": "TASK-4 defined the canonical database schema. TASK-5 establishes the API process shape before adding persistence-backed endpoints."
+  },
+  "scope": {
+    "in": [
+      "Add config loading helpers for the existing MINDORY_* environment contract.",
+      "Create a Fastify app factory and server entrypoint in apps/api.",
+      "Add health and readiness endpoints.",
+      "Add an auth middleware placeholder that attaches an authorization context without enforcing permissions yet.",
+      "Add project endpoint route stubs for POST /v1/projects, GET /v1/projects and GET /v1/projects/:id.",
+      "Add structured error and not-found responses.",
+      "Add structured logging configuration.",
+      "Add API skeleton validation to repository checks.",
+      "Update API, configuration, architecture and README documentation."
+    ],
+    "out": [
+      "Implement database repositories or persistence-backed project endpoints.",
+      "Implement token validation or permission enforcement.",
+      "Implement non-project API endpoint groups.",
+      "Apply database migrations.",
+      "Change Docker Compose app services away from explicit placeholders.",
+      "Install dependencies if pnpm is unavailable in the local environment."
+    ]
+  },
+  "acceptance_criteria": [
+    "apps/api contains a Fastify app factory and server entrypoint.",
+    "The API skeleton loads config from MINDORY_* environment variables.",
+    "GET /health and GET /ready routes are defined.",
+    "An auth placeholder attaches an authorization context without storing raw bearer tokens.",
+    "Project routes exist for POST /v1/projects, GET /v1/projects and GET /v1/projects/:id.",
+    "Project route stubs return structured 501 responses until repositories are implemented.",
+    "Error and not-found handlers return structured JSON with request_id.",
+    "Fastify structured logging is configured from config.",
+    "Repository checks include API skeleton validation.",
+    "Documentation describes the API skeleton and current placeholder limits.",
+    "No database repository, token validation, worker, MCP, CLI or Hermes behavior is implemented."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "ls apps/api/src/app.ts apps/api/src/server.ts apps/api/src/routes/health.ts apps/api/src/routes/projects.ts packages/config/src/index.ts",
+      "node scripts/validate-api-skeleton.js",
+      "node scripts/validate-tasks.js",
+      "node scripts/check-repo.js"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-5.",
+      "Confirm project endpoints are route stubs and do not pretend to persist data.",
+      "Confirm no raw bearer token is logged or stored in the placeholder authorization context."
+    ]
+  },
+  "dependencies": [
+    "TASK-4"
+  ],
+  "risks": [
+    "Local pnpm is unavailable in the current environment, so Fastify and TypeScript execution must wait until dependencies are installed.",
+    "Docker Compose still uses TASK-3 placeholders until a later task adds runnable images or installed dependencies."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch can be merged into master without unrelated changes."
+  ]
+}

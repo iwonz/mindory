@@ -1,0 +1,73 @@
+{
+  "id": "TASK-9",
+  "title": "Add extraction/chunking/indexing",
+  "status": "done",
+  "type": "chore",
+  "priority": "high",
+  "branch": "task/TASK-9-add-extraction-chunking-indexing",
+  "created_at": "2026-05-21",
+  "updated_at": "2026-05-21",
+  "context": {
+    "summary": "Create text/Markdown extraction, deterministic chunking, embedding provider interfaces and vector index scaffolding.",
+    "background": "TASK-8 added document upload and scan flow. TASK-9 adds the next document-processing capabilities while avoiding concrete DB repositories and search endpoints."
+  },
+  "scope": {
+    "in": [
+      "Define extraction, chunking, embedding and vector index contracts in @mindory/core.",
+      "Implement a deterministic text chunker in @mindory/core.",
+      "Implement built-in text and Markdown extraction for .txt, .md and .markdown files.",
+      "Add OpenAI-compatible and Ollama embedding provider package implementations over fetch.",
+      "Add pgvector adapter placeholder with explicit not-implemented behavior.",
+      "Add Qdrant adapter placeholder alignment if needed for vector package consistency.",
+      "Add extraction/chunking/indexing validation to repository checks.",
+      "Update document pipeline, architecture, worker and configuration docs."
+    ],
+    "out": [
+      "Implement concrete PostgreSQL chunk repositories.",
+      "Add database migrations for vector index tables.",
+      "Implement document search endpoints.",
+      "Implement memory claim derivation or context builder.",
+      "Wire processors into a running worker.",
+      "Run embedding providers, pgvector or Qdrant against live services.",
+      "Install dependencies if pnpm is unavailable in the local environment."
+    ]
+  },
+  "acceptance_criteria": [
+    "@mindory/core exports TextExtractor, TextChunker, EmbeddingsProvider and VectorIndex contracts.",
+    "@mindory/core exports a deterministic fixed-size text chunker.",
+    "@mindory/extractor-builtin-text extracts UTF-8 text and Markdown content from supported MIME types/extensions.",
+    "@mindory/embeddings-openai-compatible exports a provider that calls an OpenAI-compatible /embeddings endpoint.",
+    "@mindory/embeddings-ollama exports a provider that calls Ollama /api/embed.",
+    "@mindory/vector-pgvector exports a pgvector adapter scaffold that clearly reports vector_index_not_implemented until schema/repository work is added.",
+    "Repository checks include extraction/chunking/indexing validation.",
+    "Documentation describes current extraction/chunking/embedding/vector boundaries.",
+    "No concrete chunk repository, vector DB migration, document search endpoint, memory derivation or context builder is implemented."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "ls packages/core/src/processing.ts packages/processors/extractors/builtin-text/src/index.ts packages/processors/embeddings/openai-compatible/src/index.ts packages/processors/embeddings/ollama/src/index.ts packages/vector/pgvector/src/index.ts",
+      "node scripts/validate-processing-pipeline.js",
+      "node scripts/validate-tasks.js",
+      "node scripts/check-repo.js"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-9.",
+      "Confirm text chunking is deterministic and bounded.",
+      "Confirm pgvector remains an explicit scaffold rather than a fake index implementation.",
+      "Confirm no document search endpoint, memory derivation or context builder was added."
+    ]
+  },
+  "dependencies": [
+    "TASK-8"
+  ],
+  "risks": [
+    "Local pnpm is unavailable in the current environment, so TypeScript execution may need to wait until dependencies are installed.",
+    "Embedding and vector adapters are not exercised against live providers in this task."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch can be merged into master without unrelated changes."
+  ]
+}

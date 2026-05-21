@@ -1,0 +1,71 @@
+{
+  "id": "TASK-20",
+  "title": "Add pgvector search",
+  "status": "done",
+  "type": "feat",
+  "priority": "high",
+  "branch": "task/TASK-20-add-pgvector-search",
+  "created_at": "2026-05-21",
+  "updated_at": "2026-05-21",
+  "context": {
+    "summary": "Replace the pgvector placeholder with a PostgreSQL-backed vector index for document chunk embeddings and semantic document search.",
+    "background": "TASK-19 registers embed/index processors but leaves vector runtime optional. TASK-20 adds the default pgvector MVP path required by the PRD."
+  },
+  "scope": {
+    "in": [
+      "Add pgvector extension/table/index schema and migration SQL.",
+      "Implement PgVectorChunkIndex upsert, delete and cosine search.",
+      "Add HTTP document search support through embeddings plus pgvector when embeddings are configured.",
+      "Wire worker indexing to PgVectorChunkIndex when embeddings are enabled.",
+      "Keep Qdrant as an optional future adapter.",
+      "Update docs and validation scripts for pgvector runtime behavior."
+    ],
+    "out": [
+      "Implement Qdrant runtime.",
+      "Tune per-model vector dimensions beyond the MVP default.",
+      "Add jobs HTTP API.",
+      "Add live migration execution or Docker runtime commands.",
+      "Implement memory derivation or session summaries."
+    ]
+  },
+  "acceptance_criteria": [
+    "Database schema and initial migration create the pgvector extension and chunk_vector_embeddings table.",
+    "@mindory/vector-pgvector implements upsert, delete and search without vector_index_not_implemented placeholders.",
+    "Worker runtime injects PgVectorChunkIndex when embeddings are configured.",
+    "API document/context search uses pgvector-backed search when embeddings are configured and falls back to text search when embeddings are disabled.",
+    "Qdrant remains a placeholder.",
+    "Docs and validations describe pgvector as the default MVP vector runtime."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "pnpm typecheck",
+      "pnpm lint",
+      "pnpm test",
+      "pnpm db:validate",
+      "pnpm processing:validate",
+      "pnpm api:runtime:validate",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-20.",
+      "Confirm Qdrant remains optional/future.",
+      "Confirm pgvector search still requires embeddings provider configuration.",
+      "Confirm no jobs API routes were added."
+    ]
+  },
+  "dependencies": [
+    "TASK-19"
+  ],
+  "risks": [
+    "The MVP schema uses vector(1536) as the default pgvector dimension, so deployments must configure an embedding model with matching dimensions or change the migration deliberately.",
+    "pgvector behavior is typechecked and structurally validated but not exercised against a live PostgreSQL database in this task.",
+    "API semantic search calls an embeddings provider at query time when embeddings are enabled."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch can be merged into master without unrelated changes."
+  ]
+}

@@ -1,0 +1,235 @@
+# Architecture
+
+Mindory is a self-hosted, project-scoped, evidence-backed memory backend for AI
+agents. The HTTP API is the source of truth for external interfaces, while
+PostgreSQL remains the canonical business-state store.
+
+## Core Boundaries
+
+- API: stateless Fastify service.
+- Database: PostgreSQL with Drizzle schema and migrations.
+- Queue/cache: Redis and BullMQ for async work, not durable business state.
+- Object storage: local filesystem or S3/MinIO for original files.
+- Vector index: replaceable index, with pgvector as the default MVP target.
+- Workers: independently scalable processors for scan, extraction, chunking,
+  embeddings, indexing, memory derivation and session summaries.
+- MCP: agent-facing interface over the core API.
+- CLI: user-facing command line client over the HTTP API.
+- Hermes adapter: runtime integration that calls the HTTP API.
+
+## MVP Shape
+
+The MVP should prove durable sessions, source-backed memories, document upload
+and processing, context building, MCP, CLI and one Hermes adapter without
+implementing future enterprise features early.
+
+## Monorepo Layout
+
+`TASK-2` establishes the pnpm workspace skeleton:
+
+- `apps/` contains API, MCP, CLI, worker and Hermes adapter applications.
+- `packages/` contains shared core, database, SDK, config, auth, storage,
+  queue, vector, processor and observability packages.
+- Root TypeScript project references cover every workspace package.
+
+Workspace `src/index.ts` files are placeholders only. Runtime behavior is added
+by later task-scoped changes.
+
+## Compose Scaffold
+
+`TASK-3` adds Docker Compose services for Postgres, Redis, API, MCP and worker.
+`TASK-26` replaces API, MCP and worker placeholders with a shared built Node
+image, a `migrate` service running `pnpm db:migrate`, real dist entrypoints and
+local object storage volumes for API/worker.
+
+Optional profiles define MinIO, ClamAV, Qdrant, Docling and Ollama deployment
+slots without making those services mandatory for the base stack.
+
+## Database Schema
+
+`TASK-4` adds the MVP PostgreSQL schema in `packages/db`. The schema is declared
+with Drizzle and mirrored by the initial SQL migration. PostgreSQL remains the
+canonical state store for projects, tokens, peers, sessions, messages,
+documents, chunks, memory claims and processing jobs.
+
+Runtime repositories and API handlers are intentionally not part of the schema
+task.
+
+`TASK-14` adds the first database repository layer in `@mindory/db`:
+
+- project and peer repositories;
+- session and message repositories;
+- document repository implementing `DocumentRepository`;
+- memory repository implementing `MemoryRepository`;
+- processing job store implementing `ProcessingJobStore`;
+- text-based document chunk search repository for repository wiring tests.
+
+These repositories are Drizzle-backed skeletons. Core API runtime wiring now
+uses them, but they have not been exercised against a live PostgreSQL database
+in the bootstrap environment.
+
+`TASK-15` wires the first API runtime dependency graph:
+
+- `@mindory/db/client` creates the PostgreSQL pool and Drizzle database.
+- `apps/api/src/runtime.ts` creates repository instances from config.
+- Project, peer, session, message, memory, context and document
+  read/status/list/search routes use injected repositories.
+- Repository not-found errors are mapped to structured API 404 responses.
+
+`TASK-17` adds API access token verification through `@mindory/auth` and
+`DbAccessTokenRepository`. `TASK-18` wires document upload runtime with local
+object storage, `DbProcessingJobStore`, `ProcessingJobDispatcher` and BullMQ.
+`TASK-20` wires pgvector storage/search for document chunk embeddings.
+`TASK-21` exposes processing job status/list/retry routes. `TASK-22` adds
+session summary and conservative memory derivation processors to the worker
+runtime.
+
+## API Skeleton
+
+`TASK-5` adds the Fastify API process shape in `apps/api`. The app loads
+configuration from `@mindory/config`, registers health/readiness routes,
+attaches an authorization context, and returns structured errors. Runtime API
+construction verifies bearer tokens against PostgreSQL token hashes; bare app
+factory usage still has a placeholder context for scaffold validation.
+
+Project routes are registered under `/v1/projects`, but they intentionally
+use injected repositories when the server runtime is built. If the app factory
+is used without dependencies, routes still return explicit `501 not_implemented`
+placeholders. Docker Compose still uses the explicit TASK-3 placeholders until a
+later task adds runnable images or installed dependencies.
+
+## Object Storage
+
+`TASK-6` adds the shared `ObjectStorage` contract in `@mindory/core` and adapter
+packages for local filesystem and S3/MinIO. The local filesystem adapter can
+write, read, stat, check and delete objects under a configured root path while
+rejecting absolute keys and path traversal.
+
+The S3/MinIO package currently exposes the configuration and adapter class shape
+only. It throws explicit `storage_not_implemented` errors until a later task adds
+the real S3 client dependency and network behavior.
+
+## Queue And Workers
+
+`TASK-7` adds processing job queue contracts in `@mindory/core`, a BullMQ adapter
+in `@mindory/queue-bullmq`, and a worker base runner in `apps/worker`.
+
+The boundary is deliberate:
+
+- PostgreSQL `processing_jobs` rows are canonical durable business state.
+- BullMQ receives payloads with durable `processingJobId` and idempotency key.
+- The dispatcher creates the durable job before enqueueing BullMQ work.
+- The base runner marks jobs running, succeeded and failed through an injected
+  store interface.
+
+Concrete PostgreSQL repositories and document processors are later tasks.
+
+## Document Upload And Scan
+
+`TASK-8` adds document upload and scan pipeline contracts:
+
+- `@mindory/core` defines document status/model types, `DocumentRepository` and
+  `DocumentUploadService`.
+- The upload service writes the original blob through `ObjectStorage`, then
+  creates document metadata through the repository interface.
+- In `async_quarantine` mode, it creates a durable `document.scan` job through
+  `ProcessingJobDispatcher`.
+- `@mindory/processor-antivirus-clamav` implements the ClamAV scanner adapter
+  and a `document.scan` processor wrapper.
+
+The API server runtime now includes concrete local-fs storage, document
+repository and BullMQ queue dependencies for uploads. The bare app factory still
+returns explicit `not_implemented` responses when dependencies are omitted.
+
+## Extraction, Chunking And Indexing
+
+`TASK-9` adds the next document processing boundary:
+
+- `@mindory/core/processing` defines text extraction, chunking, embeddings and
+  vector index contracts.
+- `FixedSizeTextChunker` creates deterministic token-window chunks with
+  `start_offset`, `end_offset` and token count metadata.
+- `@mindory/extractor-builtin-text` handles UTF-8 plain text and simple Markdown
+  normalization for `.txt`, `.md` and `.markdown` inputs.
+- `@mindory/embeddings-openai-compatible` and `@mindory/embeddings-ollama`
+  expose fetch-based embedding providers.
+- `@mindory/vector-pgvector` implements the default PostgreSQL vector index.
+- `@mindory/vector-qdrant` remains an optional future vector adapter.
+
+Qdrant runtime remains an optional future adapter.
+
+## Memory And Context Builder
+
+`TASK-10` adds the memory/context domain boundary:
+
+- `@mindory/core/memory` defines `SourceRef`, `MemoryClaimRecord`,
+  `MemoryRepository`, `MemoryService` and `ContextBuilder`.
+- Manual remember requires at least one source reference and defaults claims to
+  `active` status.
+- Memory search defaults to active claims unless explicit statuses are provided.
+- Memory explanation returns the claim, source refs and creation metadata.
+- `ContextBuilder` assembles prompt-ready session summary, recent message,
+  memory and document chunk blocks under a token budget.
+- The API app registers `/v1/memories` and `/v1/context/build` route surfaces.
+
+`TASK-22` completes the MVP runtime path for context freshness:
+
+- Appended messages enqueue `session.summarize` and `memory.derive` jobs when
+  the API runtime dispatcher is wired.
+- `session.summarize` updates the session summary through `SessionRepository`.
+- `memory.derive` uses conservative explicit-memory cues and writes only
+  `candidate` claims with source references.
+- Manual `MemoryService.remember` remains the required path for active memories.
+
+## MCP Server
+
+`TASK-11` adds the agent-facing MCP package boundary in `apps/mcp`, and
+`TASK-23` wires it to a runnable MCP SDK stdio server:
+
+- `MindoryApiClient` calls the Mindory HTTP API with optional bearer auth.
+- `MindoryMcpToolRegistry` defines session, memory, document and context tools.
+- `MindoryMcpServer` exposes `listTools` and `callTool`.
+- `runMindoryMcpStdio` registers SDK `tools/list` and `tools/call` handlers and
+  connects `StdioServerTransport`.
+- Document upload accepts UTF-8 or base64 content and sends multipart
+  `POST /v1/documents`.
+
+The MCP package must not access PostgreSQL, Redis, object storage or vector
+indexes directly.
+
+## CLI
+
+`TASK-12` adds the command-line package in `apps/cli`:
+
+- `mindory` is exposed as the package binary.
+- The CLI uses a small bootstrap argument parser without external dependencies.
+- `MindoryCliApiClient` sends JSON HTTP requests and multipart document uploads.
+- Commands cover project, token, session, message, document, memory, context and
+  jobs operations.
+
+The CLI follows the same source-of-truth boundary as MCP: it calls HTTP API
+paths and does not import database, queue, storage or vector runtime internals.
+`TASK-24` adds stable usage/API/network exit codes and smoke coverage for the
+implemented MVP route mapping. Token creation remains a planned endpoint.
+
+## Hermes Adapter
+
+`TASK-13` adds the runtime-agnostic Hermes adapter package in
+`apps/adapters/hermes`; `TASK-25` wires its lifecycle helpers to the real HTTP
+runtime:
+
+- `mapHermesIdentity` maps external Hermes user, session and agent ids to stable
+  Mindory project, peer and session ids.
+- `MindoryHermesAdapter.preparePromptContext` ensures identity records, calls
+  `/v1/context/build` and formats prompt-ready context text.
+- `MindoryHermesAdapter.handleTurn` builds context before saving the current
+  user/assistant turn.
+- `MindoryHermesAdapter.saveTurn` saves user and assistant messages through
+  session message HTTP paths.
+- Attachment uploads use multipart `POST /v1/documents` and are referenced from
+  saved message metadata.
+- Optional `memor_*` tools ensure identity before calling memory and document
+  HTTP API paths.
+
+The adapter does not import a Hermes SDK, does not run as a daemon and does not
+access PostgreSQL, Redis, object storage or vector indexes directly.

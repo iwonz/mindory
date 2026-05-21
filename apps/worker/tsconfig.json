@@ -1,0 +1,22 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "rootDir": "src",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo"
+  },
+  "include": ["src/**/*.ts"],
+  "references": [
+    { "path": "../../packages/config" },
+    { "path": "../../packages/core" },
+    { "path": "../../packages/db" },
+    { "path": "../../packages/queue/bullmq" },
+    { "path": "../../packages/storage/local-fs" },
+    { "path": "../../packages/processors/antivirus-clamav" },
+    { "path": "../../packages/processors/extractors/builtin-text" },
+    { "path": "../../packages/processors/embeddings/openai-compatible" },
+    { "path": "../../packages/processors/embeddings/ollama" },
+    { "path": "../../packages/vector/pgvector" }
+  ]
+}

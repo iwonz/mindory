@@ -1,0 +1,72 @@
+{
+  "id": "TASK-18",
+  "title": "Wire document upload runtime",
+  "status": "done",
+  "type": "feat",
+  "priority": "high",
+  "branch": "task/TASK-18-wire-document-upload-runtime",
+  "created_at": "2026-05-21",
+  "updated_at": "2026-05-21",
+  "context": {
+    "summary": "Connect POST /v1/documents to concrete local object storage, document repository and BullMQ processing job dispatch.",
+    "background": "TASK-8 added the upload service and API route surface, while TASK-15 wired document read repositories. TASK-18 makes the API server runtime capable of accepting uploads and enqueueing the first scan job."
+  },
+  "scope": {
+    "in": [
+      "Build local-fs object storage from Mindory config in the API runtime.",
+      "Build BullMQ processing queue and ProcessingJobDispatcher from Redis config.",
+      "Build DbProcessingJobStore and inject it into DocumentUploadService.",
+      "Inject DocumentUploadService into document routes in the server runtime.",
+      "Close the queue and database pool on Fastify shutdown.",
+      "Keep worker processors and jobs HTTP API out of scope.",
+      "Update docs and validation scripts for upload runtime wiring."
+    ],
+    "out": [
+      "Implement document scan/extract/chunk/embed/index workers.",
+      "Implement jobs API list/status/retry endpoints.",
+      "Implement S3/MinIO storage runtime.",
+      "Implement pgvector indexing/search.",
+      "Run live uploads against PostgreSQL/Redis."
+    ]
+  },
+  "acceptance_criteria": [
+    "API runtime constructs LocalFsObjectStorage from MINDORY_STORAGE_LOCAL_PATH when local-fs is configured.",
+    "API runtime constructs BullMqProcessingJobQueue from Redis config.",
+    "API runtime constructs DbProcessingJobStore and ProcessingJobDispatcher.",
+    "POST /v1/documents has a DocumentUploadService in the server runtime and can create document records plus scan jobs when dependencies are live.",
+    "Queue and database resources are closed through the API app close hook.",
+    "S3/MinIO, worker processors, jobs API and vector search remain future tasks.",
+    "Docs and validation scripts describe the new upload runtime boundary."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "pnpm typecheck",
+      "pnpm lint",
+      "pnpm test",
+      "pnpm api:runtime:validate",
+      "pnpm documents:validate",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-18.",
+      "Confirm upload runtime is only local-fs by default.",
+      "Confirm S3/MinIO and worker processing are still out of scope.",
+      "Confirm no jobs HTTP routes were added."
+    ]
+  },
+  "dependencies": [
+    "TASK-17"
+  ],
+  "risks": [
+    "Runtime upload behavior still requires live PostgreSQL and Redis, which are not exercised in this task.",
+    "Async scan jobs are enqueued but not processed until TASK-19 wires worker processors.",
+    "S3/MinIO deployments still need a later adapter task or must use local-fs for MVP."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch can be merged into master without unrelated changes."
+  ]
+}

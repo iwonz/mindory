@@ -1,0 +1,35 @@
+{
+  "name": "@mindory/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./app": {
+      "types": "./dist/app.d.ts",
+      "default": "./dist/app.js"
+    }
+  },
+  "scripts": {
+    "start": "node dist/server.js",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "@mindory/auth": "workspace:*",
+    "@mindory/config": "workspace:*",
+    "@mindory/core": "workspace:*",
+    "@mindory/db": "workspace:*",
+    "@mindory/embeddings-ollama": "workspace:*",
+    "@mindory/embeddings-openai-compatible": "workspace:*",
+    "@mindory/queue-bullmq": "workspace:*",
+    "@mindory/storage-local-fs": "workspace:*",
+    "@mindory/vector-pgvector": "workspace:*",
+    "@fastify/multipart": "^9.0.0",
+    "fastify": "^5.0.0"
+  }
+}
