@@ -1,0 +1,10 @@
+name: mindory-test
+
+services:
+  postgres:
+    ports:
+      - "${MINDORY_TEST_POSTGRES_PORT:-55432}:5432"
+
+  redis:
+    ports:
+      - "${MINDORY_TEST_REDIS_PORT:-56379}:6379"

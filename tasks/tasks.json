@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-30",
+  "current_task_id": "TASK-31",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -243,7 +243,7 @@
     {
       "id": "TASK-30",
       "title": "Add real integration test suite",
-      "status": "ready",
+      "status": "done",
       "branch": "task/TASK-30-real-integration-tests",
       "file": "tasks/TASK-30.json"
     },

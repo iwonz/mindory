@@ -65,6 +65,25 @@ Every task must satisfy its task-specific acceptance criteria and the global
 criteria in `tasks/tasks.json`. Implementation tasks should include relevant
 lint, typecheck, tests and migrations.
 
+## Integration Tests
+
+`TASK-30` replaces the placeholder test script with a real MVP integration
+suite. `pnpm test` starts the isolated `mindory-test` Docker Compose project
+with PostgreSQL and Redis, applies migrations, starts API and worker runtimes
+in-process and verifies auth, document upload/chunking, jobs and context build.
+
+Default test ports:
+
+```text
+PostgreSQL: localhost:55432
+Redis:      localhost:56379
+```
+
+Use `MINDORY_TEST_POSTGRES_PORT`, `MINDORY_TEST_REDIS_PORT`,
+`MINDORY_TEST_DATABASE_URL` and `MINDORY_TEST_REDIS_URL` to override local
+connection settings. Use `MINDORY_TEST_SKIP_DOCKER=true` only when equivalent
+PostgreSQL and Redis services are already running.
+
 ## Repository Scripts
 
 `TASK-2` adds the baseline script contract:

@@ -1818,6 +1818,10 @@ Recommended scripts:
 }
 ```
 
+`pnpm test` runs the MVP integration suite against PostgreSQL and Redis. The
+default suite keeps embeddings disabled so it can verify upload, worker
+chunking, jobs and context without external provider credentials.
+
 `tasks:validate` should check:
 
 - `tasks/tasks.json` is valid;

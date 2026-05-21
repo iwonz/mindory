@@ -16,6 +16,7 @@ environment variable is added, renamed or removed, update this document and
 - Embedding provider settings.
 - MCP settings.
 - Hermes adapter defaults.
+- Integration test ports and optional external test service URLs.
 
 ## Docker Compose Defaults
 
@@ -97,6 +98,18 @@ provided external user/session/agent ids as stable Mindory ids.
 
 `MINDORY_HERMES_CONTEXT_TOKEN_BUDGET` controls the default token budget sent to
 `/v1/context/build` before prompt construction.
+
+## Integration Tests
+
+`pnpm test` uses `MINDORY_TEST_POSTGRES_PORT` and
+`MINDORY_TEST_REDIS_PORT` when it starts the isolated `mindory-test` Docker
+Compose project. Defaults are `55432` and `56379`.
+
+Set `MINDORY_TEST_DATABASE_URL` and `MINDORY_TEST_REDIS_URL` to point tests at
+already-running services. Set `MINDORY_TEST_SKIP_DOCKER=true` in that mode so
+the runner does not start Compose. `MINDORY_TEST_SKIP_BUILD=true` skips the
+pre-test TypeScript build when a caller has already produced current `dist`
+outputs. `MINDORY_TEST_DOCKER_BIN` can override the Docker binary path.
 
 ## Secret Handling
 
