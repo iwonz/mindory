@@ -20,6 +20,7 @@
     "db:repositories:validate": "node scripts/validate-db-repositories.js",
     "db:validate": "node scripts/validate-db-schema.js",
     "documents:validate": "node scripts/validate-document-pipeline.js",
+    "hermes:contract": "node scripts/smoke-hermes-contract.js",
     "hermes:validate": "node scripts/validate-hermes-adapter.js",
     "hermes:smoke": "node scripts/smoke-hermes.js",
     "lint": "node scripts/lint-repo.js",

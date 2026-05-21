@@ -1,0 +1,90 @@
+{
+  "contract_name": "mindory-hermes-runtime-local-contract",
+  "captured_at": "2026-05-21",
+  "source": {
+    "type": "local_contract_fixture",
+    "basis": [
+      "docs/PRD.md section 21 Hermes adapter MVP",
+      "docs/HERMES_ADAPTER.md lifecycle methods",
+      "tasks/TASK-33.json acceptance criteria"
+    ],
+    "note": "No Hermes SDK is vendored in this repository. This fixture defines the normalized lifecycle shape a Hermes host must pass to @mindory/adapter-hermes."
+  },
+  "hooks": {
+    "before_prompt": {
+      "adapter_method": "MindoryHermesRuntimeBridge.beforePrompt",
+      "required_fields": ["identity.session.id"],
+      "optional_fields": ["identity.projectId", "identity.user.id", "identity.agent.id", "userText", "query", "tokenBudget", "include"]
+    },
+    "after_response": {
+      "adapter_method": "MindoryHermesRuntimeBridge.afterResponse",
+      "required_fields": ["identity.session.id", "userText"],
+      "optional_fields": ["assistantText", "attachments", "metadata"]
+    },
+    "completed_turn": {
+      "adapter_method": "MindoryHermesRuntimeBridge.handleCompletedTurn",
+      "required_fields": ["identity.session.id", "userText"],
+      "optional_fields": ["assistantText", "attachments", "metadata", "query", "tokenBudget", "include"]
+    }
+  },
+  "identity": {
+    "projectId": "hermes-contract-project",
+    "user": {
+      "id": "hermes-user-1"
+    },
+    "agent": {
+      "id": "hermes-agent-1"
+    },
+    "session": {
+      "id": "hermes-session-1"
+    }
+  },
+  "turn": {
+    "identity": {
+      "projectId": "hermes-contract-project",
+      "user": {
+        "id": "hermes-user-1"
+      },
+      "agent": {
+        "id": "hermes-agent-1"
+      },
+      "session": {
+        "id": "hermes-session-1"
+      }
+    },
+    "userText": "Remember that I prefer source-backed Hermes answers.",
+    "assistantText": "I will use source-backed Mindory context.",
+    "query": "source-backed Hermes answers",
+    "tokenBudget": 1200,
+    "attachments": [
+      {
+        "id": "hermes-attachment-1",
+        "filename": "hermes-note.txt",
+        "mimeType": "text/plain",
+        "content": "Hermes attachment contract fixture.",
+        "encoding": "utf8",
+        "title": "Hermes note"
+      }
+    ],
+    "metadata": {
+      "hermes_contract_fixture": true
+    }
+  },
+  "later_prompt": {
+    "identity": {
+      "projectId": "hermes-contract-project",
+      "user": {
+        "id": "hermes-user-1"
+      },
+      "agent": {
+        "id": "hermes-agent-1"
+      },
+      "session": {
+        "id": "hermes-session-2"
+      }
+    },
+    "userText": "Recall my Hermes answer preference.",
+    "query": "source-backed Hermes answers",
+    "tokenBudget": 1200
+  }
+}

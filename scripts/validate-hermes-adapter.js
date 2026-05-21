@@ -9,8 +9,11 @@ const requiredFiles = [
   "apps/adapters/hermes/src/http-client.ts",
   "apps/adapters/hermes/src/identity.ts",
   "apps/adapters/hermes/src/index.ts",
+  "apps/adapters/hermes/src/runtime-contract.ts",
   "apps/adapters/hermes/src/tools.ts",
-  "scripts/smoke-hermes.js"
+  "apps/adapters/hermes/fixtures/runtime-contract.json",
+  "scripts/smoke-hermes.js",
+  "scripts/smoke-hermes-contract.js"
 ];
 
 function assert(condition, message) {
@@ -37,18 +40,23 @@ const adapter = read("apps/adapters/hermes/src/adapter.ts");
 const httpClient = read("apps/adapters/hermes/src/http-client.ts");
 const identity = read("apps/adapters/hermes/src/identity.ts");
 const index = read("apps/adapters/hermes/src/index.ts");
+const runtimeContract = read("apps/adapters/hermes/src/runtime-contract.ts");
 const tools = read("apps/adapters/hermes/src/tools.ts");
+const fixture = read("apps/adapters/hermes/fixtures/runtime-contract.json");
 const smoke = read("scripts/smoke-hermes.js");
+const contractSmoke = read("scripts/smoke-hermes-contract.js");
 const config = read("packages/config/src/index.ts");
 const envExample = read(".env.example");
 const compose = read("docker-compose.yml");
+const docs = read("docs/HERMES_ADAPTER.md");
 
 assert(rootPackage.scripts?.["hermes:validate"] === "node scripts/validate-hermes-adapter.js", "Root package must expose hermes:validate.");
 assert(rootPackage.scripts?.["hermes:smoke"] === "node scripts/smoke-hermes.js", "Root package must expose hermes:smoke.");
+assert(rootPackage.scripts?.["hermes:contract"] === "node scripts/smoke-hermes-contract.js", "Root package must expose hermes:contract.");
 assert(hermesPackage.exports?.["."], "@mindory/adapter-hermes must export its root module.");
 assert(hermesPackage.dependencies?.["@mindory/config"] === "workspace:*", "@mindory/adapter-hermes must depend on @mindory/config.");
 
-for (const exportPath of ["./adapter.js", "./http-client.js", "./identity.js", "./tools.js"]) {
+for (const exportPath of ["./adapter.js", "./http-client.js", "./identity.js", "./runtime-contract.js", "./tools.js"]) {
   assert(index.includes(`export * from "${exportPath}";`), `Hermes index must export ${exportPath}.`);
 }
 
@@ -93,6 +101,23 @@ for (const symbol of [
 }
 assert(identity.includes("requireStableIdentity(input.externalSessionId"), "Hermes identity mapper must require stable session identity.");
 
+for (const symbol of [
+  "MindoryHermesRuntimeBridge",
+  "beforePrompt",
+  "afterResponse",
+  "handleCompletedTurn",
+  "toIdentityInput",
+  "HermesBeforePromptHook",
+  "HermesAfterResponseHook",
+  "HermesCompletedTurnHook",
+  "buildMindoryHermesTools"
+]) {
+  assert(runtimeContract.includes(symbol), `Hermes runtime contract bridge must include ${symbol}.`);
+}
+assert(runtimeContract.includes("preparePromptContext(input)"), "Hermes runtime bridge must map before_prompt to preparePromptContext.");
+assert(runtimeContract.includes("saveTurn(input)"), "Hermes runtime bridge must map after_response to saveTurn.");
+assert(runtimeContract.includes("handleTurn(input)"), "Hermes runtime bridge must map completed_turn to handleTurn.");
+
 for (const symbol of ["HermesMindoryApiClient", "requestJson", "uploadAttachment", "FormData", "authorization", "Bearer"]) {
   assert(httpClient.includes(symbol), `Hermes HTTP client must include ${symbol}.`);
 }
@@ -108,6 +133,36 @@ assert(smoke.includes("handleTurn"), "Hermes smoke must exercise lifecycle helpe
 assert(smoke.includes("Context must be built before saving the current turn"), "Hermes smoke must verify context before turn save.");
 assert(smoke.includes("Hermes tools must ensure identity"), "Hermes smoke must verify tool identity ensure.");
 assert(smoke.includes("Later sessions must recall project-scoped context"), "Hermes smoke must verify later-session recall.");
+for (const token of [
+  "local_contract_fixture",
+  "2026-05-21",
+  "before_prompt",
+  "after_response",
+  "completed_turn",
+  "hermes-attachment-1"
+]) {
+  assert(fixture.includes(token), `Hermes runtime fixture must include ${token}.`);
+}
+for (const token of [
+  "MindoryHermesRuntimeBridge",
+  "HermesMindoryApiClient",
+  "beforePrompt",
+  "afterResponse",
+  "uploaded attachment response",
+  "Later Hermes sessions must recall project-scoped context",
+  "memor_recall"
+]) {
+  assert(contractSmoke.includes(token), `Hermes contract smoke must include ${token}.`);
+}
+for (const token of [
+  "Runtime Contract Fixture",
+  "2026-05-21",
+  "before_prompt",
+  "after_response",
+  "pnpm hermes:contract"
+]) {
+  assert(docs.includes(token), `Hermes docs must include ${token}.`);
+}
 
 for (const envName of [
   "MINDORY_HERMES_ADAPTER_ENABLED",
@@ -127,7 +182,11 @@ for (const forbidden of ["@mindory/db", "drizzle-orm", "pgTable", "new Pool", "n
   assert(!adapter.includes(forbidden), `Hermes adapter must not include ${forbidden}.`);
   assert(!httpClient.includes(forbidden), `Hermes HTTP client must not include ${forbidden}.`);
   assert(!identity.includes(forbidden), `Hermes identity module must not include ${forbidden}.`);
+  assert(!runtimeContract.includes(forbidden), `Hermes runtime contract module must not include ${forbidden}.`);
   assert(!tools.includes(forbidden), `Hermes tools module must not include ${forbidden}.`);
+}
+for (const forbidden of ["@mindory/db", "drizzle-orm", "pgTable", "new Pool", "pg/lib", "@modelcontextprotocol/sdk", "from \"hermes", "from 'hermes"]) {
+  assert(!contractSmoke.includes(forbidden), `Hermes contract smoke must not include ${forbidden}.`);
 }
 
 console.log("Hermes runtime adapter validated.");

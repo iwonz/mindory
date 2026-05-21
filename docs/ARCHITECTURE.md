@@ -230,6 +230,8 @@ runtime:
   session message HTTP paths.
 - Attachment uploads use multipart `POST /v1/documents` and are referenced from
   saved message metadata.
+- `MindoryHermesRuntimeBridge` maps the local Hermes runtime contract fixture
+  (`before_prompt`, `after_response`, `completed_turn`) onto adapter methods.
 - Optional `memor_*` tools ensure identity before calling memory and document
   HTTP API paths.
 

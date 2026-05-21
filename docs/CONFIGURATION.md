@@ -136,8 +136,9 @@ adapter HTTP calls.
 include an explicit project, user or agent identity. The adapter preserves
 provided external user/session/agent ids as stable Mindory ids.
 
-`MINDORY_HERMES_CONTEXT_TOKEN_BUDGET` controls the default token budget sent to
-`/v1/context/build` before prompt construction.
+`MINDORY_HERMES_CONTEXT_TOKEN_BUDGET` controls the default context budget used
+by `preparePromptContext` and the runtime contract bridge before prompt
+construction.
 
 ## Integration Tests
 

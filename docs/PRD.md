@@ -1897,6 +1897,11 @@ Why do you remember this?
 4. Hermes saves turns into Mindory.
 5. A later Hermes session recalls earlier context.
 
+`TASK-33` adds a local Hermes runtime contract fixture dated 2026-05-21 because
+no Hermes SDK is vendored in this repository. The fixture documents
+`before_prompt`, `after_response` and `completed_turn` hook assumptions and is
+validated by `pnpm hermes:contract`.
+
 ---
 
 ## 29. Initial task roadmap
