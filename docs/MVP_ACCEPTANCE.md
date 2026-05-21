@@ -1,6 +1,34 @@
 # MVP Acceptance
 
-`TASK-27` adds two local acceptance paths.
+`TASK-27` adds local acceptance paths. `TASK-35` adds a one-command Docker demo
+wrapper around the live path.
+
+One-command live demo:
+
+```bash
+pnpm mvp:demo
+```
+
+This starts Docker Compose with the `clamav` profile, waits for required service
+health/readiness, seeds demo credentials and runs live acceptance.
+
+Start and seed without live acceptance:
+
+```bash
+pnpm mvp:up
+```
+
+Stop the stack:
+
+```bash
+pnpm mvp:down
+```
+
+Reset containers and demo volumes:
+
+```bash
+pnpm mvp:reset
+```
 
 Dry-run coverage check:
 
@@ -8,7 +36,7 @@ Dry-run coverage check:
 pnpm mvp:acceptance
 ```
 
-Live Docker flow:
+Manual live Docker flow:
 
 ```bash
 cp .env.example .env

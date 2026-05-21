@@ -148,7 +148,7 @@ async function requestJson(method, pathname, body = undefined) {
 async function uploadDemoDocument() {
   const filePath = path.join(root, "fixtures/demo/mindory-demo.txt");
   const fixture = await readFile(filePath, "utf8");
-  const body = `${fixture}\nMindory acceptance marker ${sessionId} source-backed context document search.\n`;
+  const body = `${fixture}\nMindory acceptance marker source-backed context document search ${sessionId}.\n`;
   const form = new FormData();
   form.append("projectId", projectId);
   form.append("title", "Mindory MVP demo document");
@@ -187,7 +187,7 @@ async function waitForDocument(documentId) {
 async function assertDocumentSearch(documentId) {
   const search = await requestJson("POST", "/v1/documents/search", {
     projectIds: [projectId],
-    query: "acceptance marker source-backed context document search",
+    query: "Mindory acceptance marker source-backed context document search",
     limit: 5
   });
   assert(Array.isArray(search.hits), "Document search should return hits array.");

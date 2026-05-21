@@ -278,7 +278,7 @@
     {
       "id": "TASK-35",
       "title": "Add one-command MVP demo workflow",
-      "status": "ready",
+      "status": "done",
       "branch": "task/TASK-35-one-command-mvp-demo",
       "file": "tasks/TASK-35.json"
     }

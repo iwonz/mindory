@@ -108,6 +108,7 @@ pnpm mcp:validate
 pnpm cli:validate
 pnpm hermes:validate
 pnpm production:validate
+pnpm mvp:demo:validate
 ```
 
 The scripts are implemented with Node-based validation during bootstrap so the

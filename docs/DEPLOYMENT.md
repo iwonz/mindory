@@ -6,14 +6,19 @@ Production hardening expectations for CI, release images, backups, rollback,
 secrets, rate limits and structured logs are maintained in
 `docs/PRODUCTION_HARDENING.md`.
 
-The expected flow is:
+The expected local demo flow is:
 
 ```bash
-cp .env.example .env
-docker compose --profile clamav up -d --build
-pnpm mvp:seed
-MINDORY_E2E_LIVE=true pnpm mvp:acceptance
+pnpm mvp:demo
 ```
+
+`pnpm mvp:demo` starts Docker Compose with the `clamav` profile, waits for
+Postgres, Redis, migration completion, API, worker and MCP service readiness,
+seeds demo credentials from inside the Compose network, then runs live MVP
+acceptance.
+
+Use `pnpm mvp:up` to start and seed without live acceptance, `pnpm mvp:down` to
+stop the stack and `pnpm mvp:reset` to remove containers and demo volumes.
 
 `TASK-3` adds a base Compose scaffold. `TASK-26` replaces the API, MCP and
 worker placeholders with a shared built Node image and real runtime commands.
@@ -42,7 +47,9 @@ The Compose profile uses `MINDORY_CLAMAV_PLATFORM=linux/amd64` by default for
 that reason.
 
 `pnpm mvp:seed` creates a deterministic demo project and bearer token directly
-in PostgreSQL. This remains a local demo shortcut; non-demo tokens should be
+in PostgreSQL when a host-reachable database URL is available. The one-command
+demo uses the same seed script from inside the Compose network so the base stack
+does not need to expose PostgreSQL on the host. Non-demo tokens should be
 created, rotated and revoked through the token API or CLI added in `TASK-29`.
 
 `pnpm mvp:acceptance` runs in dry-run mode by default and validates that the
