@@ -1,0 +1,64 @@
+{
+  "id": "TASK-32",
+  "title": "Package MCP stdio for real client use",
+  "status": "ready",
+  "type": "chore",
+  "priority": "medium",
+  "branch": "task/TASK-32-mcp-client-packaging",
+  "created_at": "2026-05-21",
+  "updated_at": "2026-05-21",
+  "context": {
+    "summary": "Turn the MCP stdio server from a runnable app into a documented package that real MCP clients can spawn.",
+    "background": "MCP tools are implemented and acceptance exercises the registry, but the Compose stdio service is mainly a smoke artifact. Real use needs client config examples and a spawn smoke test."
+  },
+  "scope": {
+    "in": [
+      "Add documented MCP client configuration examples for local API usage.",
+      "Add a spawn smoke test that starts apps/mcp/dist/stdio.js as a child process.",
+      "Verify the stdio server exposes upload/search/memory/context/job tools through the MCP SDK.",
+      "Clarify when MCP should be launched as a process versus represented in Compose.",
+      "Update MCP docs and validation scripts."
+    ],
+    "out": [
+      "Convert MCP stdio into an HTTP server.",
+      "Add hosted MCP deployment.",
+      "Bypass the HTTP API from MCP."
+    ]
+  },
+  "acceptance_criteria": [
+    "Docs include copyable MCP client config examples.",
+    "A smoke script can spawn the stdio server and initialize/list tools.",
+    "Smoke coverage includes at least one tool call through the HTTP API.",
+    "MCP package does not import DB, Redis or storage internals.",
+    "All repository checks pass."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "pnpm typecheck",
+      "pnpm lint",
+      "pnpm test",
+      "pnpm mcp:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-32.",
+      "Confirm MCP client examples use env vars instead of hardcoded secrets.",
+      "Confirm Compose docs do not imply stdio is a network daemon."
+    ]
+  },
+  "dependencies": [
+    "TASK-23",
+    "TASK-27",
+    "TASK-30"
+  ],
+  "risks": [
+    "Stdio smoke tests can hang if process lifecycle handling is incomplete.",
+    "Different MCP clients may require slightly different config shapes."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch is committed and merged back into master."
+  ]
+}

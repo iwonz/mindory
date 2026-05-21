@@ -1,0 +1,66 @@
+{
+  "id": "TASK-33",
+  "title": "Validate Hermes runtime integration",
+  "status": "ready",
+  "type": "feature",
+  "priority": "medium",
+  "branch": "task/TASK-33-hermes-real-runtime-validation",
+  "created_at": "2026-05-21",
+  "updated_at": "2026-05-21",
+  "context": {
+    "summary": "Validate the Hermes adapter against the actual Hermes runtime surface instead of only the local lifecycle abstraction.",
+    "background": "The adapter passed local acceptance, but a full MVP needs confirmation that real Hermes hooks, identity mapping, attachments and session recall behave correctly."
+  },
+  "scope": {
+    "in": [
+      "Document the exact Hermes lifecycle hooks Mindory integrates with.",
+      "Wire or verify ensure identity, prepare context, save user/assistant turns and upload attachments against real Hermes runtime behavior.",
+      "Confirm external session mapping and later-session recall.",
+      "Add a smoke or contract test using the available Hermes integration surface.",
+      "Update Hermes adapter docs with setup and limitations."
+    ],
+    "out": [
+      "Implement unrelated Hermes platform features.",
+      "Add a separate Hermes UI.",
+      "Persist Hermes data outside the Mindory API contract."
+    ]
+  },
+  "acceptance_criteria": [
+    "The adapter is verified against the actual Hermes lifecycle surface or a documented local contract fixture that mirrors it.",
+    "Identity mapping is deterministic for project, user peer, agent peer and session.",
+    "User and assistant turns are saved through the API.",
+    "Attachments are uploaded when Hermes exposes them.",
+    "A later session can recall relevant context through Mindory.",
+    "All repository checks pass."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "pnpm typecheck",
+      "pnpm lint",
+      "pnpm test",
+      "pnpm hermes:validate",
+      "pnpm hermes:smoke",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-33.",
+      "Confirm real Hermes assumptions are documented with dates and source.",
+      "Confirm no direct DB access is introduced in the adapter."
+    ]
+  },
+  "dependencies": [
+    "TASK-25",
+    "TASK-27",
+    "TASK-30"
+  ],
+  "risks": [
+    "Hermes runtime APIs may be unavailable locally or may differ from current assumptions.",
+    "Attachment metadata can diverge from document upload metadata if not normalized."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch is committed and merged back into master."
+  ]
+}

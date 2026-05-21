@@ -1,0 +1,58 @@
+{
+  "id": "TASK-28",
+  "title": "Plan full MVP hardening tasks",
+  "status": "done",
+  "type": "process",
+  "priority": "high",
+  "branch": "task/TASK-28-plan-full-mvp-hardening-tasks",
+  "created_at": "2026-05-21",
+  "updated_at": "2026-05-21",
+  "context": {
+    "summary": "Split the remaining non-demo MVP gaps into explicit task files after the baseline MVP implementation was committed.",
+    "background": "TASK-1 through TASK-27 are represented by the baseline commit. Live Docker acceptance passes, but several hardening areas remain before the MVP is ready beyond a local demo."
+  },
+  "scope": {
+    "in": [
+      "Create separate task files for auth operations, integration tests, live embeddings search, MCP packaging, Hermes runtime validation, production hardening and demo ergonomics.",
+      "Update tasks/tasks.json with the new task sequence.",
+      "Set the next implementation task as current_task_id.",
+      "Keep this task limited to task planning and process metadata."
+    ],
+    "out": [
+      "Implement auth token management.",
+      "Implement integration tests.",
+      "Configure a real embeddings provider.",
+      "Change runtime API, worker, MCP or Hermes behavior outside task metadata."
+    ]
+  },
+  "acceptance_criteria": [
+    "TASK-29 through TASK-35 exist as separate task files.",
+    "Each new task has clear scope, acceptance criteria, verification commands, dependencies and risks.",
+    "tasks/tasks.json includes TASK-28 through TASK-35.",
+    "current_task_id points at the next implementation task.",
+    "Task validation passes."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm this branch started from master.",
+      "Confirm TASK-28 contains only task planning changes.",
+      "Confirm TASK-29 is the next actionable task."
+    ]
+  },
+  "dependencies": [
+    "TASK-27"
+  ],
+  "risks": [
+    "Planning too broadly can blur acceptance boundaries; each future task must remain independently mergeable."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to done.",
+    "Branch is committed and merged back into master."
+  ]
+}

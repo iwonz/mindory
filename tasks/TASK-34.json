@@ -1,0 +1,68 @@
+{
+  "id": "TASK-34",
+  "title": "Add production hardening baseline",
+  "status": "ready",
+  "type": "chore",
+  "priority": "medium",
+  "branch": "task/TASK-34-production-hardening-baseline",
+  "created_at": "2026-05-21",
+  "updated_at": "2026-05-21",
+  "context": {
+    "summary": "Add the minimum production-readiness baseline for a non-demo MVP.",
+    "background": "The local MVP runs, but external use needs CI, release image path, migration safety guidance, secret handling, rate limits and observability conventions."
+  },
+  "scope": {
+    "in": [
+      "Add CI workflow for lint, typecheck, tests, task validation and dry-run acceptance.",
+      "Define release image build/tag expectations.",
+      "Document migration backup/rollback strategy for MVP deployments.",
+      "Document secret management expectations and unsafe defaults.",
+      "Add API rate-limit or request guard baseline where appropriate.",
+      "Add structured logging/observability guidance for API and worker operations."
+    ],
+    "out": [
+      "Add Kubernetes or Helm deployment.",
+      "Add full enterprise observability stack.",
+      "Implement multi-region deployment.",
+      "Replace local Docker Compose with hosted infrastructure."
+    ]
+  },
+  "acceptance_criteria": [
+    "CI can run the repository verification commands on pull requests or pushes.",
+    "Release image build path is documented and reproducible.",
+    "Migration rollback/backup expectations are documented.",
+    "Secret handling guidance identifies required production overrides.",
+    "API has a basic request protection/rate-limit stance or a documented explicit deferral.",
+    "Logs remain structured and useful for API and worker diagnosis.",
+    "All repository checks pass."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "pnpm typecheck",
+      "pnpm lint",
+      "pnpm test",
+      "pnpm compose:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-34.",
+      "Confirm CI does not require private secrets for default checks.",
+      "Confirm production docs clearly distinguish demo defaults from production settings."
+    ]
+  },
+  "dependencies": [
+    "TASK-26",
+    "TASK-27",
+    "TASK-30"
+  ],
+  "risks": [
+    "CI can become too slow if it tries to run every live provider scenario by default.",
+    "Production hardening can sprawl; keep this task to the MVP baseline."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch is committed and merged back into master."
+  ]
+}

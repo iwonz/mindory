@@ -1,0 +1,65 @@
+{
+  "id": "TASK-30",
+  "title": "Add real integration test suite",
+  "status": "ready",
+  "type": "test",
+  "priority": "high",
+  "branch": "task/TASK-30-real-integration-tests",
+  "created_at": "2026-05-21",
+  "updated_at": "2026-05-21",
+  "context": {
+    "summary": "Replace the placeholder pnpm test path with real integration tests for the MVP runtime.",
+    "background": "pnpm check and live acceptance pass, but pnpm test currently reports that no runtime tests are defined. A working MVP needs repeatable tests for API, repositories, worker pipeline and jobs."
+  },
+  "scope": {
+    "in": [
+      "Select and configure a test runner compatible with the monorepo.",
+      "Add integration test setup for PostgreSQL and Redis.",
+      "Test repositories, auth enforcement, document upload, job lifecycle and context build.",
+      "Test worker processing against local object storage and BullMQ.",
+      "Make pnpm test fail on real regressions instead of acting as a placeholder.",
+      "Document test prerequisites and local commands."
+    ],
+    "out": [
+      "Add browser UI tests.",
+      "Require external embedding providers for the default test suite.",
+      "Replace live MVP acceptance with unit tests only."
+    ]
+  },
+  "acceptance_criteria": [
+    "pnpm test runs a real test suite.",
+    "Tests can create isolated database state and clean up after themselves.",
+    "Tests cover auth success/failure paths.",
+    "Tests cover document upload through worker processing at least to chunked status with embeddings disabled.",
+    "Tests cover jobs list/get/retry behavior.",
+    "Tests cover memory/context build with source references.",
+    "All repository checks pass."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "pnpm test",
+      "pnpm typecheck",
+      "pnpm lint",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-30.",
+      "Confirm tests do not depend on developer-local persistent state.",
+      "Confirm Docker/Postgres/Redis prerequisites are documented."
+    ]
+  },
+  "dependencies": [
+    "TASK-27",
+    "TASK-29"
+  ],
+  "risks": [
+    "Tests can become flaky if they depend on shared Docker volumes or long-running worker timing.",
+    "External provider dependencies would make the default suite unreliable."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch is committed and merged back into master."
+  ]
+}
