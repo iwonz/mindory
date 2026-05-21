@@ -1,7 +1,16 @@
 import { randomUUID } from "node:crypto";
 import type { SourceSnapshot } from "./documents.js";
 
-export type SourceRefType = "session" | "message" | "document" | "chunk" | "memory";
+export type SourceRefType =
+  | "session"
+  | "message"
+  | "document"
+  | "chunk"
+  | "artifact"
+  | "processing_run"
+  | "face_identity"
+  | "face_observation"
+  | "memory";
 
 export interface SourceRef {
   type: SourceRefType;

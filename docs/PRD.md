@@ -383,6 +383,7 @@ mindory/
     db/
     sdk/
     config/
+    model-runtime/
     auth/
     storage/
       local-fs/

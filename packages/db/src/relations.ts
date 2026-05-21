@@ -3,6 +3,13 @@ import {
   accessTokenProjectScopes,
   accessTokens,
   attachments,
+  documentArtifactTextSpans,
+  documentArtifactVectors,
+  documentArtifacts,
+  documentMediaMetadata,
+  documentMetadataIndex,
+  faceIdentities,
+  faceObservations,
   chunkVectorEmbeddings,
   chunks,
   documents,
@@ -10,6 +17,7 @@ import {
   messages,
   peers,
   processingJobs,
+  processingRuns,
   projects,
   sessionPeers,
   sessions
@@ -23,6 +31,13 @@ export const projectsRelations = relations(projects, ({ many }) => ({
   documents: many(documents),
   chunks: many(chunks),
   chunkVectorEmbeddings: many(chunkVectorEmbeddings),
+  processingRuns: many(processingRuns),
+  documentArtifacts: many(documentArtifacts),
+  documentArtifactVectors: many(documentArtifactVectors),
+  documentMediaMetadata: many(documentMediaMetadata),
+  documentMetadataIndex: many(documentMetadataIndex),
+  faceIdentities: many(faceIdentities),
+  faceObservations: many(faceObservations),
   memoryClaims: many(memoryClaims),
   processingJobs: many(processingJobs)
 }));
@@ -103,7 +118,14 @@ export const documentsRelations = relations(documents, ({ one, many }) => ({
   }),
   attachments: many(attachments),
   chunks: many(chunks),
-  chunkVectorEmbeddings: many(chunkVectorEmbeddings)
+  chunkVectorEmbeddings: many(chunkVectorEmbeddings),
+  processingRuns: many(processingRuns),
+  artifacts: many(documentArtifacts),
+  artifactVectors: many(documentArtifactVectors),
+  textSpans: many(documentArtifactTextSpans),
+  mediaMetadata: many(documentMediaMetadata),
+  metadataIndex: many(documentMetadataIndex),
+  faceObservations: many(faceObservations)
 }));
 
 export const attachmentsRelations = relations(attachments, ({ one }) => ({
@@ -163,5 +185,129 @@ export const processingJobsRelations = relations(processingJobs, ({ one }) => ({
   project: one(projects, {
     fields: [processingJobs.projectId],
     references: [projects.id]
+  })
+}));
+
+export const processingRunsRelations = relations(processingRuns, ({ one, many }) => ({
+  project: one(projects, {
+    fields: [processingRuns.projectId],
+    references: [projects.id]
+  }),
+  document: one(documents, {
+    fields: [processingRuns.documentId],
+    references: [documents.id]
+  }),
+  artifacts: many(documentArtifacts),
+  metadataIndex: many(documentMetadataIndex),
+  faceObservations: many(faceObservations)
+}));
+
+export const documentArtifactsRelations = relations(documentArtifacts, ({ one, many }) => ({
+  project: one(projects, {
+    fields: [documentArtifacts.projectId],
+    references: [projects.id]
+  }),
+  document: one(documents, {
+    fields: [documentArtifacts.documentId],
+    references: [documents.id]
+  }),
+  processingRun: one(processingRuns, {
+    fields: [documentArtifacts.processingRunId],
+    references: [processingRuns.id]
+  }),
+  vectors: many(documentArtifactVectors),
+  textSpans: many(documentArtifactTextSpans),
+  metadataIndex: many(documentMetadataIndex),
+  faceObservations: many(faceObservations)
+}));
+
+export const documentArtifactVectorsRelations = relations(documentArtifactVectors, ({ one }) => ({
+  project: one(projects, {
+    fields: [documentArtifactVectors.projectId],
+    references: [projects.id]
+  }),
+  document: one(documents, {
+    fields: [documentArtifactVectors.documentId],
+    references: [documents.id]
+  }),
+  artifact: one(documentArtifacts, {
+    fields: [documentArtifactVectors.artifactId],
+    references: [documentArtifacts.id]
+  })
+}));
+
+export const documentArtifactTextSpansRelations = relations(documentArtifactTextSpans, ({ one }) => ({
+  project: one(projects, {
+    fields: [documentArtifactTextSpans.projectId],
+    references: [projects.id]
+  }),
+  document: one(documents, {
+    fields: [documentArtifactTextSpans.documentId],
+    references: [documents.id]
+  }),
+  artifact: one(documentArtifacts, {
+    fields: [documentArtifactTextSpans.artifactId],
+    references: [documentArtifacts.id]
+  })
+}));
+
+export const documentMediaMetadataRelations = relations(documentMediaMetadata, ({ one }) => ({
+  project: one(projects, {
+    fields: [documentMediaMetadata.projectId],
+    references: [projects.id]
+  }),
+  document: one(documents, {
+    fields: [documentMediaMetadata.documentId],
+    references: [documents.id]
+  })
+}));
+
+export const documentMetadataIndexRelations = relations(documentMetadataIndex, ({ one }) => ({
+  project: one(projects, {
+    fields: [documentMetadataIndex.projectId],
+    references: [projects.id]
+  }),
+  document: one(documents, {
+    fields: [documentMetadataIndex.documentId],
+    references: [documents.id]
+  }),
+  processingRun: one(processingRuns, {
+    fields: [documentMetadataIndex.processingRunId],
+    references: [processingRuns.id]
+  }),
+  artifact: one(documentArtifacts, {
+    fields: [documentMetadataIndex.artifactId],
+    references: [documentArtifacts.id]
+  })
+}));
+
+export const faceIdentitiesRelations = relations(faceIdentities, ({ one, many }) => ({
+  project: one(projects, {
+    fields: [faceIdentities.projectId],
+    references: [projects.id]
+  }),
+  observations: many(faceObservations)
+}));
+
+export const faceObservationsRelations = relations(faceObservations, ({ one }) => ({
+  project: one(projects, {
+    fields: [faceObservations.projectId],
+    references: [projects.id]
+  }),
+  document: one(documents, {
+    fields: [faceObservations.documentId],
+    references: [documents.id]
+  }),
+  artifact: one(documentArtifacts, {
+    fields: [faceObservations.artifactId],
+    references: [documentArtifacts.id]
+  }),
+  processingRun: one(processingRuns, {
+    fields: [faceObservations.processingRunId],
+    references: [processingRuns.id]
+  }),
+  identity: one(faceIdentities, {
+    fields: [faceObservations.faceIdentityId],
+    references: [faceIdentities.id]
   })
 }));

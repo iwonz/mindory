@@ -72,6 +72,23 @@ PostgreSQL repository is implemented yet.
 `vector` extension and creates `chunk_vector_embeddings` with `vector(1536)`,
 chunk/project/document indexes and an HNSW cosine index for semantic search.
 
+`TASK-38` adds the derived artifact schema in `0001_derived_artifact_schema`.
+The migration is intentionally separate from `0000_initial_schema` so existing
+databases with the baseline checksum can upgrade safely. It adds:
+
+- `processing_runs` for recomputable derived-state runs with config and model
+  runtime fingerprints.
+- `document_artifacts`, `document_artifact_vectors` and
+  `document_artifact_text_spans` for text, OCR, transcripts, captions, frames
+  and other semantic outputs.
+- `document_media_metadata` and `document_metadata_index` for typed metadata
+  filters such as size, duration, pages and dimensions.
+- `face_identities` and `face_observations` for workspace-scoped face matching.
+
+These tables are derived state. They reference documents and projects with
+cascading deletes, but they do not replace or mutate the original document blob
+stored behind `documents.storage_key`.
+
 ## Repository Layer
 
 `TASK-14` adds Drizzle-backed repository skeletons in:
@@ -87,6 +104,7 @@ Current repositories:
 - `DbSessionRepository`
 - `DbDocumentRepository`
 - `DbDocumentChunkSearchRepository`
+- `DbDerivedArtifactRepository`
 - `DbMemoryRepository`
 - `DbProcessingJobStore`
 
@@ -120,6 +138,11 @@ can attach vector embedding ids after indexing.
 `TASK-20` wires pgvector indexing through `@mindory/vector-pgvector`. The table
 is an indexable projection of canonical chunk rows and can be rebuilt from
 documents/chunks plus embeddings.
+
+`TASK-38` adds `DbDerivedArtifactRepository`, which can create processing runs,
+write document artifacts, store media metadata and record face identities or
+observations. Later modality processors should use this repository rather than
+writing derived artifact tables directly.
 
 `TASK-22` extends `DbSessionRepository` with `updateSessionSummary` so
 `session.summarize` jobs can refresh `sessions.summary` and metadata. It also

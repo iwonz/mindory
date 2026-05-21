@@ -5,8 +5,10 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 const requiredFiles = [
+  "packages/core/src/artifacts.ts",
   "packages/core/src/projects.ts",
   "packages/core/src/sessions.ts",
+  "packages/db/src/repositories/artifacts.ts",
   "packages/db/src/repositories/documents.ts",
   "packages/db/src/repositories/index.ts",
   "packages/db/src/repositories/jobs.ts",
@@ -42,11 +44,13 @@ const coreIndex = read("packages/core/src/index.ts");
 const dbIndex = read("packages/db/src/index.ts");
 const projectsCore = read("packages/core/src/projects.ts");
 const sessionsCore = read("packages/core/src/sessions.ts");
+const artifactsCore = read("packages/core/src/artifacts.ts");
 const processingCore = read("packages/core/src/processing.ts");
 const repoIndex = read("packages/db/src/repositories/index.ts");
 const repoTypes = read("packages/db/src/repositories/types.ts");
 const projectRepos = read("packages/db/src/repositories/projects.ts");
 const sessionRepos = read("packages/db/src/repositories/sessions.ts");
+const artifactRepos = read("packages/db/src/repositories/artifacts.ts");
 const documentRepos = read("packages/db/src/repositories/documents.ts");
 const memoryRepos = read("packages/db/src/repositories/memory.ts");
 const jobRepos = read("packages/db/src/repositories/jobs.ts");
@@ -60,8 +64,10 @@ const apiFiles = [
 assert(rootPackage.scripts?.["db:repositories:validate"] === "node scripts/validate-db-repositories.js", "Root package must expose db:repositories:validate.");
 assert(corePackage.exports?.["./projects"], "@mindory/core must export ./projects.");
 assert(corePackage.exports?.["./sessions"], "@mindory/core must export ./sessions.");
+assert(corePackage.exports?.["./artifacts"], "@mindory/core must export ./artifacts.");
 assert(coreIndex.includes('export * from "./projects.js";'), "@mindory/core index must export project contracts.");
 assert(coreIndex.includes('export * from "./sessions.js";'), "@mindory/core index must export session contracts.");
+assert(coreIndex.includes('export * from "./artifacts.js";'), "@mindory/core index must export artifact contracts.");
 assert(dbPackage.exports?.["./repositories"], "@mindory/db must export ./repositories.");
 assert(dbPackage.dependencies?.["@mindory/core"] === "workspace:*", "@mindory/db must depend on @mindory/core.");
 assert(dbTsconfig.references?.some((reference) => reference.path === "../core"), "@mindory/db must reference @mindory/core.");
@@ -78,7 +84,7 @@ for (const symbol of ["SessionRecord", "MessageRecord", "SessionRepository", "Co
 assert(repoTypes.includes("NodePgDatabase"), "Repository types must define a Drizzle NodePg database type.");
 assert(repoTypes.includes("DbRepositoryError"), "Repository types must define DbRepositoryError.");
 
-for (const exportName of ["documents", "jobs", "memory", "projects", "sessions", "types"]) {
+for (const exportName of ["artifacts", "documents", "jobs", "memory", "projects", "sessions", "types"]) {
   assert(repoIndex.includes(`./${exportName}.js`), `Repository index must export ${exportName}.`);
 }
 
@@ -93,6 +99,14 @@ assert(sessionRepos.includes("if (input.summary !== undefined)"), "Session upser
 
 for (const symbol of ["DocumentChunkRepository", "replaceDocumentChunks", "updateChunkEmbeddingIds"]) {
   assert(processingCore.includes(symbol), `Core processing contracts must include ${symbol}.`);
+}
+
+for (const symbol of ["ProcessingRunRecord", "DocumentArtifactRecord", "DocumentMediaMetadataRecord", "FaceIdentityRecord", "FaceObservationRecord", "DerivedArtifactRepository"]) {
+  assert(artifactsCore.includes(symbol), `Core artifact contracts must include ${symbol}.`);
+}
+
+for (const symbol of ["DbDerivedArtifactRepository", "createProcessingRun", "createDocumentArtifact", "listDocumentArtifacts", "upsertDocumentMediaMetadata", "createFaceIdentity", "createFaceObservation"]) {
+  assert(artifactRepos.includes(symbol), `Derived artifact repository must include ${symbol}.`);
 }
 
 for (const symbol of ["DbDocumentRepository", "DbDocumentChunkSearchRepository", "DbDocumentChunkRepository", "createDocument", "updateDocumentStatus", "searchDocumentChunks", "replaceDocumentChunks"]) {

@@ -14,6 +14,10 @@
       "types": "./dist/antivirus.d.ts",
       "default": "./dist/antivirus.js"
     },
+    "./artifacts": {
+      "types": "./dist/artifacts.d.ts",
+      "default": "./dist/artifacts.js"
+    },
     "./documents": {
       "types": "./dist/documents.d.ts",
       "default": "./dist/documents.js"

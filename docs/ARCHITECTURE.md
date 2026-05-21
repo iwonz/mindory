@@ -156,6 +156,9 @@ returns explicit `not_implemented` responses when dependencies are omitted.
   OpenAI-compatible API key or OAuth bearer auth.
 - `@mindory/vector-pgvector` implements the default PostgreSQL vector index.
 - `@mindory/vector-qdrant` remains an optional future vector adapter.
+- `@mindory/core/artifacts` and `DbDerivedArtifactRepository` define the
+  derived artifact boundary for processing runs, artifact records, media
+  metadata and workspace-scoped face observations.
 
 Qdrant runtime remains an optional future adapter.
 

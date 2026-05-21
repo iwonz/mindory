@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-37",
+  "current_task_id": "TASK-38",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -295,6 +295,13 @@
       "status": "done",
       "branch": "task/TASK-37-model-runtime-module",
       "file": "tasks/TASK-37.json"
+    },
+    {
+      "id": "TASK-38",
+      "title": "Add derived artifact schema",
+      "status": "done",
+      "branch": "task/TASK-38-derived-artifact-schema",
+      "file": "tasks/TASK-38.json"
     }
   ]
 }

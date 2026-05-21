@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   bigint,
+  boolean,
   check,
   index,
   integer,
@@ -16,7 +17,7 @@ import {
 import { vector } from "drizzle-orm/pg-core/columns/vector_extension/vector";
 
 export type SourceRef = {
-  type: "session" | "message" | "document" | "chunk" | "memory";
+  type: "session" | "message" | "document" | "chunk" | "artifact" | "processing_run" | "face_identity" | "face_observation" | "memory";
   id: string;
 };
 
@@ -108,6 +109,33 @@ export const processingJobStatusEnum = pgEnum("processing_job_status", [
   "succeeded",
   "failed",
   "dead"
+]);
+
+export const processingRunStatusEnum = pgEnum("processing_run_status", [
+  "running",
+  "succeeded",
+  "failed",
+  "superseded"
+]);
+
+export const documentArtifactTypeEnum = pgEnum("document_artifact_type", [
+  "raw_metadata",
+  "text",
+  "ocr_text",
+  "transcript",
+  "image_caption",
+  "image_analysis",
+  "image_embedding",
+  "pdf_page",
+  "video_keyframe",
+  "face_observation",
+  "metadata"
+]);
+
+export const faceIdentityStatusEnum = pgEnum("face_identity_status", [
+  "candidate",
+  "confirmed",
+  "archived"
 ]);
 
 const metadataDefault = sql`'{}'::jsonb`;
@@ -378,5 +406,216 @@ export const processingJobs = pgTable(
     index("processing_jobs_target_idx").on(table.targetType, table.targetId),
     check("processing_jobs_attempts_nonnegative", sql`${table.attempts} >= 0`),
     check("processing_jobs_max_attempts_positive", sql`${table.maxAttempts} > 0`)
+  ]
+);
+
+export const processingRuns = pgTable(
+  "processing_runs",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id").notNull().references(() => projects.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    documentId: text("document_id").notNull().references(() => documents.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    status: processingRunStatusEnum("status").notNull().default("running"),
+    reason: text("reason").notNull(),
+    processorVersion: text("processor_version").notNull(),
+    configFingerprint: text("config_fingerprint").notNull(),
+    modelRuntimeFingerprint: text("model_runtime_fingerprint"),
+    sourceDocumentStorageKey: text("source_document_storage_key").notNull(),
+    sourceDocumentChecksum: text("source_document_checksum"),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default(metadataDefault),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [
+    index("processing_runs_project_document_idx").on(table.projectId, table.documentId),
+    index("processing_runs_project_status_idx").on(table.projectId, table.status),
+    index("processing_runs_document_status_idx").on(table.documentId, table.status)
+  ]
+);
+
+export const documentArtifacts = pgTable(
+  "document_artifacts",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id").notNull().references(() => projects.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    documentId: text("document_id").notNull().references(() => documents.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    processingRunId: text("processing_run_id").notNull().references(() => processingRuns.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    parentArtifactId: text("parent_artifact_id"),
+    artifactType: documentArtifactTypeEnum("artifact_type").notNull(),
+    artifactIndex: integer("artifact_index").notNull().default(0),
+    storageKey: text("storage_key"),
+    content: text("content"),
+    contentHash: text("content_hash"),
+    sourceRefs: jsonb("source_refs").$type<SourceRef[]>().notNull().default(sourceRefsDefault),
+    source: jsonb("source").$type<SourceSnapshot>().notNull().default(sourceSnapshotDefault),
+    sourcePosition: jsonb("source_position").$type<Record<string, unknown>>().notNull().default(metadataDefault),
+    modelProvider: text("model_provider"),
+    modelName: text("model_name"),
+    modelVersion: text("model_version"),
+    configFingerprint: text("config_fingerprint"),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default(metadataDefault),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [
+    uniqueIndex("document_artifacts_run_type_index_idx").on(table.processingRunId, table.artifactType, table.parentArtifactId, table.artifactIndex),
+    index("document_artifacts_project_document_idx").on(table.projectId, table.documentId),
+    index("document_artifacts_document_type_idx").on(table.documentId, table.artifactType),
+    index("document_artifacts_processing_run_idx").on(table.processingRunId),
+    index("document_artifacts_source_refs_idx").using("gin", table.sourceRefs),
+    check("document_artifacts_index_nonnegative", sql`${table.artifactIndex} >= 0`),
+    check("document_artifacts_has_payload", sql`${table.storageKey} is not null or ${table.content} is not null or jsonb_array_length(${table.sourceRefs}) > 0 or ${table.metadata} <> '{}'::jsonb`)
+  ]
+);
+
+export const documentArtifactVectors = pgTable(
+  "document_artifact_vectors",
+  {
+    embeddingId: text("embedding_id").primaryKey(),
+    projectId: text("project_id").notNull().references(() => projects.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    documentId: text("document_id").notNull().references(() => documents.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    artifactId: text("artifact_id").notNull().references(() => documentArtifacts.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    content: text("content").notNull(),
+    embedding: vector("embedding", { dimensions: 1536 }).notNull(),
+    model: text("model").notNull(),
+    dimensions: integer("dimensions").notNull(),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default(metadataDefault),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [
+    uniqueIndex("document_artifact_vectors_artifact_id_idx").on(table.artifactId),
+    index("document_artifact_vectors_project_id_idx").on(table.projectId),
+    index("document_artifact_vectors_document_id_idx").on(table.documentId),
+    check("document_artifact_vectors_dimensions_positive", sql`${table.dimensions} > 0`)
+  ]
+);
+
+export const documentArtifactTextSpans = pgTable(
+  "document_artifact_text_spans",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id").notNull().references(() => projects.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    documentId: text("document_id").notNull().references(() => documents.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    artifactId: text("artifact_id").notNull().references(() => documentArtifacts.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    spanType: text("span_type").notNull(),
+    content: text("content").notNull(),
+    startOffset: integer("start_offset"),
+    endOffset: integer("end_offset"),
+    pageNumber: integer("page_number"),
+    frameIndex: integer("frame_index"),
+    timestampMs: integer("timestamp_ms"),
+    boundingBox: jsonb("bounding_box").$type<Record<string, unknown>>(),
+    confidence: real("confidence"),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default(metadataDefault),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [
+    index("document_artifact_text_spans_artifact_idx").on(table.artifactId),
+    index("document_artifact_text_spans_document_idx").on(table.documentId),
+    index("document_artifact_text_spans_project_type_idx").on(table.projectId, table.spanType),
+    check("document_artifact_text_spans_offsets_valid", sql`${table.startOffset} is null or ${table.endOffset} is null or ${table.endOffset} >= ${table.startOffset}`),
+    check("document_artifact_text_spans_confidence_range", sql`${table.confidence} is null or (${table.confidence} >= 0 and ${table.confidence} <= 1)`)
+  ]
+);
+
+export const documentMediaMetadata = pgTable(
+  "document_media_metadata",
+  {
+    documentId: text("document_id").primaryKey().references(() => documents.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    projectId: text("project_id").notNull().references(() => projects.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    mediaType: text("media_type").notNull(),
+    durationMs: integer("duration_ms"),
+    width: integer("width"),
+    height: integer("height"),
+    pageCount: integer("page_count"),
+    frameCount: integer("frame_count"),
+    codec: text("codec"),
+    container: text("container"),
+    language: text("language"),
+    checksumSha256: text("checksum_sha256"),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default(metadataDefault),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [
+    index("document_media_metadata_project_type_idx").on(table.projectId, table.mediaType),
+    index("document_media_metadata_duration_idx").on(table.projectId, table.durationMs),
+    check("document_media_metadata_duration_nonnegative", sql`${table.durationMs} is null or ${table.durationMs} >= 0`),
+    check("document_media_metadata_dimensions_positive", sql`(${table.width} is null or ${table.width} > 0) and (${table.height} is null or ${table.height} > 0)`),
+    check("document_media_metadata_counts_nonnegative", sql`(${table.pageCount} is null or ${table.pageCount} >= 0) and (${table.frameCount} is null or ${table.frameCount} >= 0)`)
+  ]
+);
+
+export const documentMetadataIndex = pgTable(
+  "document_metadata_index",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id").notNull().references(() => projects.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    documentId: text("document_id").notNull().references(() => documents.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    processingRunId: text("processing_run_id").references(() => processingRuns.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    artifactId: text("artifact_id").references(() => documentArtifacts.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    key: text("key").notNull(),
+    valueText: text("value_text"),
+    valueNumber: real("value_number"),
+    valueBoolean: boolean("value_boolean"),
+    valueTimestamp: timestamp("value_timestamp", { withTimezone: true }),
+    unit: text("unit"),
+    source: text("source").notNull().default("derived"),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default(metadataDefault),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [
+    index("document_metadata_index_project_key_idx").on(table.projectId, table.key),
+    index("document_metadata_index_document_key_idx").on(table.documentId, table.key),
+    index("document_metadata_index_key_number_idx").on(table.projectId, table.key, table.valueNumber),
+    index("document_metadata_index_key_text_idx").on(table.projectId, table.key, table.valueText),
+    check("document_metadata_index_has_value", sql`${table.valueText} is not null or ${table.valueNumber} is not null or ${table.valueBoolean} is not null or ${table.valueTimestamp} is not null`)
+  ]
+);
+
+export const faceIdentities = pgTable(
+  "face_identities",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id").notNull().references(() => projects.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    label: text("label"),
+    status: faceIdentityStatusEnum("status").notNull().default("candidate"),
+    representativeArtifactId: text("representative_artifact_id"),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default(metadataDefault),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [
+    index("face_identities_project_status_idx").on(table.projectId, table.status),
+    uniqueIndex("face_identities_project_label_idx").on(table.projectId, table.label)
+  ]
+);
+
+export const faceObservations = pgTable(
+  "face_observations",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id").notNull().references(() => projects.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    documentId: text("document_id").notNull().references(() => documents.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    artifactId: text("artifact_id").notNull().references(() => documentArtifacts.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    processingRunId: text("processing_run_id").notNull().references(() => processingRuns.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    faceIdentityId: text("face_identity_id").references(() => faceIdentities.id, { onDelete: "set null", onUpdate: "cascade" }),
+    embeddingId: text("embedding_id"),
+    embedding: vector("embedding", { dimensions: 512 }),
+    model: text("model"),
+    boundingBox: jsonb("bounding_box").$type<Record<string, unknown>>().notNull(),
+    confidence: real("confidence"),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default(metadataDefault),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [
+    index("face_observations_project_document_idx").on(table.projectId, table.documentId),
+    index("face_observations_identity_idx").on(table.faceIdentityId),
+    index("face_observations_artifact_idx").on(table.artifactId),
+    uniqueIndex("face_observations_embedding_id_idx").on(table.embeddingId),
+    check("face_observations_confidence_range", sql`${table.confidence} is null or (${table.confidence} >= 0 and ${table.confidence} <= 1)`)
   ]
 );
