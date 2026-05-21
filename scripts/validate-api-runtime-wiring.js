@@ -9,6 +9,7 @@ const requiredFiles = [
   "apps/api/src/routes/tokens.ts",
   "apps/api/src/routes/peers.ts",
   "apps/api/src/routes/sessions.ts",
+  "apps/api/src/routes/faces.ts",
   "apps/api/src/routes/jobs.ts",
   "packages/db/src/client.ts"
 ];
@@ -43,6 +44,7 @@ const tokenRoutes = read("apps/api/src/routes/tokens.ts");
 const peerRoutes = read("apps/api/src/routes/peers.ts");
 const sessionRoutes = read("apps/api/src/routes/sessions.ts");
 const documentRoutes = read("apps/api/src/routes/documents.ts");
+const faceRoutes = read("apps/api/src/routes/faces.ts");
 const jobRoutes = read("apps/api/src/routes/jobs.ts");
 const memoryRoutes = read("apps/api/src/routes/memories.ts");
 const contextRoutes = read("apps/api/src/routes/context.ts");
@@ -78,6 +80,7 @@ for (const symbol of [
   "PgVectorChunkIndex",
   "PgVectorDocumentChunkSearchRepository",
   "buildMindoryTextEmbeddingsProvider",
+  "FaceService",
   "MemoryService",
   "ContextBuilder"
 ]) {
@@ -89,6 +92,7 @@ assert(server.includes("buildApiApp({ config, ...runtime })"), "API server must 
 assert(app.includes("registerPeerRoutes"), "API app must register peer routes.");
 assert(app.includes("registerTokenRoutes"), "API app must register token routes.");
 assert(app.includes("registerSessionRoutes"), "API app must register session routes.");
+assert(app.includes("registerFaceRoutes"), "API app must register face routes.");
 assert(app.includes("options.close"), "API app must close runtime dependencies on shutdown.");
 assert(errors.includes("isRepositoryNotFoundError"), "API error handler must map repository not-found errors.");
 
@@ -127,6 +131,13 @@ for (const token of ["documentRepository", "chunkSearchRepository", "artifactRep
   assert(documentRoutes.includes(token), `Document routes must use ${token}.`);
 }
 
+for (const route of ['"/v1/faces/identities"', '"/v1/faces/identities/:id"', '"/v1/faces/observations"', '"/v1/faces/identities/:id/merge"']) {
+  assert(faceRoutes.includes(route), `Face routes must include ${route}.`);
+}
+for (const token of ["FaceService", "listIdentities", "listObservations", "renameIdentity", "mergeIdentities", "\"face:read\"", "\"face:write\""]) {
+  assert(faceRoutes.includes(token), `Face routes must use ${token}.`);
+}
+
 assert(memoryRoutes.includes("MemoryService"), "Memory routes must remain wired through MemoryService dependency.");
 assert(contextRoutes.includes("ContextBuilder"), "Context route must remain wired through ContextBuilder dependency.");
 for (const route of ['"/v1/jobs/:id"', '"/v1/jobs"', '"/v1/jobs/:id/retry"']) {
@@ -137,6 +148,7 @@ for (const token of ["jobStore", "jobDispatcher", "getJob", "listJobs", "retry"]
 }
 assert(runtime.includes("uploadService"), "API runtime must inject DocumentUploadService into document routes.");
 assert(runtime.includes("recomputeService"), "API runtime must inject DocumentRecomputeService into document routes.");
+assert(runtime.includes("faceService"), "API runtime must inject FaceService into face routes.");
 assert(runtime.includes("buildDocumentChunkSearchRepository"), "API runtime must choose text or pgvector document chunk search.");
 assert(runtime.includes("buildEmbeddingsProvider"), "API runtime must build query embeddings when semantic search is configured.");
 assert(runtime.includes("queue.close()"), "API runtime close hook must close the processing queue.");
@@ -148,6 +160,7 @@ assert(tokenRoutes.includes("requireProjectPermission"), "Token routes must enfo
 assert(peerRoutes.includes("requireProjectPermission"), "Peer routes must enforce project authorization.");
 assert(sessionRoutes.includes("requireProjectPermission"), "Session routes must enforce session/message authorization.");
 assert(documentRoutes.includes("requireProjectPermission"), "Document routes must enforce document authorization.");
+assert(faceRoutes.includes("requireProjectPermission"), "Face routes must enforce face authorization.");
 assert(jobRoutes.includes("requireProjectPermission"), "Job routes must enforce project authorization.");
 assert(memoryRoutes.includes("requireProjectPermission"), "Memory routes must enforce memory authorization.");
 assert(contextRoutes.includes("requireProjectPermissionForEach"), "Context route must enforce context authorization.");

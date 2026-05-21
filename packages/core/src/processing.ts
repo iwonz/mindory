@@ -33,6 +33,16 @@ export interface ExtractedSemanticArtifact {
   metadata?: Record<string, unknown>;
 }
 
+export interface ExtractedFaceObservation {
+  observationIndex?: number;
+  content?: string;
+  boundingBox: Record<string, unknown>;
+  embedding?: number[] | null;
+  model?: string | null;
+  confidence?: number | null;
+  metadata?: Record<string, unknown>;
+}
+
 export interface ExtractedText {
   projectId: string;
   documentId: string;
@@ -41,6 +51,7 @@ export interface ExtractedText {
   metadata: Record<string, unknown>;
   pages?: ExtractedTextPage[];
   semanticArtifacts?: ExtractedSemanticArtifact[];
+  faceObservations?: ExtractedFaceObservation[];
 }
 
 export interface TextExtractor {

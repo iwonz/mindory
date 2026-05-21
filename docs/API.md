@@ -139,6 +139,21 @@ Manual `POST /v1/memories` still defaults to `active` memory claims and requires
 source refs. Automatic memory derivation is worker-side only and creates
 `candidate` claims for later review.
 
+Registered face route surfaces:
+
+```text
+GET   /v1/faces/identities
+GET   /v1/faces/identities/:id
+GET   /v1/faces/observations
+PATCH /v1/faces/identities/:id
+POST  /v1/faces/identities/:id/merge
+```
+
+Face routes use `FaceService` when the API server runtime is built. Reads
+require `face:read`; rename and merge require `face:write`. Identities and
+observations are always project-scoped. Merge archives the source identity and
+reassigns its observations to the target identity.
+
 Registered processing job routes:
 
 ```text
@@ -200,6 +215,7 @@ placeholders.
 - Peers
 - Sessions and messages
 - Documents and document search
+- Face identities and observations
 - Memories and memory search
 - Context builder
 - Processing jobs
@@ -211,4 +227,4 @@ permission checks. `TASK-18` wires document upload storage/queue runtime.
 `TASK-20` wires pgvector-backed document chunk search. `TASK-21` wires
 processing job status/list/retry routes. `TASK-22` wires message-triggered
 summary and conservative memory derivation jobs. `TASK-29` wires token lifecycle
-operations.
+operations. `TASK-45` wires face identity/observation management.

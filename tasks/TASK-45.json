@@ -1,0 +1,70 @@
+{
+  "id": "TASK-45",
+  "title": "Add face subsystem with auto match",
+  "status": "done",
+  "type": "chore",
+  "priority": "high",
+  "branch": "task/TASK-45-face-subsystem-auto-match",
+  "created_at": "2026-05-21",
+  "updated_at": "2026-05-21",
+  "context": {
+    "summary": "Add workspace-scoped face identities, face observations, deterministic auto-matching and API management surfaces.",
+    "background": "TASK-38 added the face schema and TASK-44 added image semantic extraction, but no runtime creates or manages face identities yet."
+  },
+  "scope": {
+    "in": [
+      "Add core face service contracts for listing identities/observations, rename, merge and automatic observation matching.",
+      "Extend derived artifact repositories with face list/update/merge operations.",
+      "Wire image extraction to create derived face_observation artifacts and face_observations rows when face detection is enabled and the fallback extractor can infer people count.",
+      "Match observations to existing workspace identities using same-project face embeddings and a configurable threshold.",
+      "Add HTTP API routes for listing face identities, listing observations, renaming identities and merging identities.",
+      "Add integration coverage for image upload creating face identities/observations and API rename/merge flows.",
+      "Update docs, validators and task ledger."
+    ],
+    "out": [
+      "Real cloud/local face detection or recognition model execution.",
+      "Manual face observation creation API.",
+      "CLI, MCP or Hermes face commands.",
+      "Changing 0000_initial_schema.sql."
+    ]
+  },
+  "acceptance_criteria": [
+    "Face identity and observation repository operations are project-scoped.",
+    "Enabled image face detection creates face_observation document artifacts and face_observations rows without mutating RAW originals.",
+    "Automatic matching reuses an existing workspace identity when embedding similarity meets the threshold and creates a candidate identity otherwise.",
+    "GET face identity/observation APIs enforce project authorization and return source-backed records.",
+    "PATCH rename and POST merge APIs update identities and reassign observations safely within one project.",
+    "Integration tests cover image-derived face observations plus rename and merge APIs.",
+    "No schema changes modify 0000_initial_schema.sql."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "pnpm db:repositories:validate",
+      "pnpm processing:validate",
+      "pnpm api:runtime:validate",
+      "pnpm typecheck",
+      "pnpm lint",
+      "pnpm tasks:validate",
+      "pnpm test",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-45.",
+      "Confirm packages/db/drizzle/0000_initial_schema.sql is unchanged.",
+      "Confirm face API responses are project-scoped and source-backed."
+    ]
+  },
+  "dependencies": [
+    "TASK-44"
+  ],
+  "risks": [
+    "The MVP face detector is deterministic fallback logic until a real face model adapter is installed.",
+    "Embedding matching is implemented in repository/service code and should be replaced by vector-index search for large deployments."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch is committed and merged back into master."
+  ]
+}

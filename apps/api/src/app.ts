@@ -6,6 +6,7 @@ import { registerErrorHandlers } from "./errors.js";
 import { registerRequestGuards } from "./request-guard.js";
 import { registerContextRoutes, type ContextRouteDependencies } from "./routes/context.js";
 import { registerDocumentRoutes, type DocumentRouteDependencies } from "./routes/documents.js";
+import { registerFaceRoutes, type FaceRouteDependencies } from "./routes/faces.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerJobRoutes, type JobRouteDependencies } from "./routes/jobs.js";
 import { registerMemoryRoutes, type MemoryRouteDependencies } from "./routes/memories.js";
@@ -23,6 +24,7 @@ export interface BuildApiAppOptions {
   peers?: PeerRouteDependencies;
   sessions?: SessionRouteDependencies;
   documents?: DocumentRouteDependencies;
+  faces?: FaceRouteDependencies;
   jobs?: JobRouteDependencies;
   memories?: MemoryRouteDependencies;
   context?: ContextRouteDependencies;
@@ -63,6 +65,7 @@ export async function buildApiApp(options: BuildApiAppOptions = {}): Promise<Fas
   await registerPeerRoutes(app, options.peers);
   await registerSessionRoutes(app, options.sessions);
   await registerDocumentRoutes(app, options.documents);
+  await registerFaceRoutes(app, options.faces);
   await registerJobRoutes(app, options.jobs);
   await registerMemoryRoutes(app, options.memories);
   await registerContextRoutes(app, options.context);

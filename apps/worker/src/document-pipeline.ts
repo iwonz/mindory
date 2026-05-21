@@ -25,6 +25,7 @@ import {
   ProcessingError,
   type DocumentChunkRepository,
   type EmbeddingsProvider,
+  type ExtractedFaceObservation,
   type ExtractedSemanticArtifact,
   type ExtractedTextPage,
   type TextChunk,
@@ -33,6 +34,7 @@ import {
   type VectorChunkEmbedding,
   type VectorIndex
 } from "@mindory/core/processing";
+import { FaceService } from "@mindory/core/faces";
 import type { ObjectStorage } from "@mindory/core/storage";
 import { BuiltinTextExtractor } from "@mindory/extractor-builtin-text";
 import { DoclingPdfExtractor } from "@mindory/extractor-docling";
@@ -78,6 +80,18 @@ export function buildDocumentPipelineProcessors(options: DocumentPipelineProcess
       }
     }),
     new ImageSemanticExtractor({
+      faceDetection: {
+        enabled: options.config.modelRuntime.faceDetection.enabled,
+        provider: options.config.modelRuntime.faceDetection.provider,
+        model: options.config.modelRuntime.faceDetection.model,
+        required: options.config.modelRuntime.faceDetection.required
+      },
+      faceRecognition: {
+        enabled: options.config.modelRuntime.faceRecognition.enabled,
+        provider: options.config.modelRuntime.faceRecognition.provider,
+        model: options.config.modelRuntime.faceRecognition.model,
+        required: options.config.modelRuntime.faceRecognition.required
+      },
       imageCaptioning: {
         enabled: options.config.modelRuntime.imageCaptioning.enabled,
         provider: options.config.modelRuntime.imageCaptioning.provider,
@@ -569,6 +583,16 @@ class DocumentExtractProcessor implements ProcessingJobProcessor {
       extractorVersion: extractor.version,
       configFingerprint
     });
+    const faceObservations = await createExtractedFaceObservations({
+      artifacts: this.artifacts,
+      document,
+      processingRunId,
+      textArtifactId,
+      faceObservations: extracted.faceObservations ?? [],
+      extractorName: extractor.name,
+      extractorVersion: extractor.version,
+      configFingerprint
+    });
     await this.artifacts.replaceDocumentArtifactTextSpans({
       projectId: document.projectId,
       documentId: document.id,
@@ -589,11 +613,13 @@ class DocumentExtractProcessor implements ProcessingJobProcessor {
           extractor_version: extractor.version,
           page_artifacts: pageArtifacts,
           semantic_artifacts: semanticArtifacts,
+          face_observations: faceObservations,
           source_refs: [
             { type: "document", id: document.id },
             { type: "processing_run", id: processingRunId },
             { type: "artifact", id: textArtifactId }
           ].concat(semanticArtifacts.map((artifact) => ({ type: "artifact", id: artifact.artifact_id })))
+            .concat(faceObservations.map((observation) => ({ type: "artifact", id: observation.artifact_id })))
         }
       }]
     });
@@ -613,6 +639,7 @@ class DocumentExtractProcessor implements ProcessingJobProcessor {
           processing_stage: extractionStage,
           page_artifacts: pageArtifacts,
           semantic_artifacts: semanticArtifacts,
+          face_observations: faceObservations,
           page_count: extracted.pages?.length ?? 0,
           ...extracted.metadata
         }
@@ -678,6 +705,7 @@ class DocumentChunkProcessor implements ProcessingJobProcessor {
     }
     const pageRefs = readExtractionPageRefs(document.metadata.extraction);
     const semanticRefs = readExtractionSemanticArtifactRefs(document.metadata.extraction);
+    const faceRefs = readExtractionFaceObservationRefs(document.metadata.extraction);
 
     const extractedObject = await this.storage.getObject(extractedTextKey);
     const text = await readUtf8(extractedObject.body);
@@ -693,7 +721,7 @@ class DocumentChunkProcessor implements ProcessingJobProcessor {
         text_artifact_id: textArtifactId
       }
     }).map((chunk) => deterministicChunkId(document.id, chunk))
-      .map((chunk) => enrichChunkWithArtifactRefs(chunk, processingRunId, textArtifactId, pageRefs, semanticRefs));
+      .map((chunk) => enrichChunkWithArtifactRefs(chunk, processingRunId, textArtifactId, pageRefs, semanticRefs, faceRefs));
 
     await this.chunks.replaceDocumentChunks({
       projectId: document.projectId,
@@ -994,6 +1022,14 @@ interface ExtractedSemanticArtifactRef {
   span_type: string;
 }
 
+interface ExtractedFaceObservationRef {
+  artifact_id: string;
+  observation_id: string;
+  face_identity_id: string;
+  bounding_box: Record<string, unknown>;
+  confidence: number | null;
+}
+
 async function createExtractedPageArtifacts(input: {
   artifacts: DerivedArtifactRepository;
   document: DocumentRecord;
@@ -1176,6 +1212,95 @@ async function createExtractedSemanticArtifacts(input: {
       text_span_id: textSpanId,
       artifact_type: semanticArtifact.artifactType,
       span_type: spanType
+    });
+  }
+
+  return refs;
+}
+
+async function createExtractedFaceObservations(input: {
+  artifacts: DerivedArtifactRepository;
+  document: DocumentRecord;
+  processingRunId: string;
+  textArtifactId: string;
+  faceObservations: ExtractedFaceObservation[];
+  extractorName: string;
+  extractorVersion: string;
+  configFingerprint: string;
+}): Promise<ExtractedFaceObservationRef[]> {
+  const refs: ExtractedFaceObservationRef[] = [];
+  const faceService = new FaceService({ repository: input.artifacts });
+  for (const [index, faceObservation] of input.faceObservations.entries()) {
+    const artifactIndex = faceObservation.observationIndex ?? index;
+    const artifactId = deterministicArtifactId(input.processingRunId, "face_observation", artifactIndex);
+    const content = faceObservation.content ?? `Face observation ${artifactIndex + 1}.`;
+    const baseMetadata = {
+      ...(faceObservation.metadata ?? {}),
+      extractor: input.extractorName,
+      extractor_version: input.extractorVersion,
+      text_artifact_id: input.textArtifactId,
+      observation_index: artifactIndex
+    };
+    const artifactInput = {
+      id: artifactId,
+      projectId: input.document.projectId,
+      documentId: input.document.id,
+      processingRunId: input.processingRunId,
+      parentArtifactId: input.textArtifactId,
+      artifactType: "face_observation" as const,
+      artifactIndex,
+      content,
+      contentHash: sha256Hex(Buffer.from(content, "utf8")),
+      source: input.document.source,
+      sourcePosition: faceObservation.boundingBox,
+      modelName: faceObservation.model ?? null,
+      configFingerprint: input.configFingerprint
+    };
+
+    await input.artifacts.createDocumentArtifact({
+      ...artifactInput,
+      sourceRefs: [
+        { type: "document", id: input.document.id },
+        { type: "processing_run", id: input.processingRunId },
+        { type: "artifact", id: input.textArtifactId }
+      ],
+      metadata: baseMetadata
+    });
+    const result = await faceService.recordObservation({
+      id: deterministicFaceObservationId(artifactId),
+      projectId: input.document.projectId,
+      documentId: input.document.id,
+      artifactId,
+      processingRunId: input.processingRunId,
+      embeddingId: faceObservation.embedding ? deterministicFaceEmbeddingId(artifactId) : null,
+      embedding: faceObservation.embedding ?? null,
+      model: faceObservation.model ?? null,
+      boundingBox: faceObservation.boundingBox,
+      confidence: faceObservation.confidence ?? null,
+      metadata: baseMetadata
+    });
+    await input.artifacts.createDocumentArtifact({
+      ...artifactInput,
+      sourceRefs: [
+        { type: "document", id: input.document.id },
+        { type: "processing_run", id: input.processingRunId },
+        { type: "artifact", id: input.textArtifactId },
+        { type: "face_identity", id: result.identity.id },
+        { type: "face_observation", id: result.observation.id }
+      ],
+      metadata: {
+        ...baseMetadata,
+        face_identity_id: result.identity.id,
+        face_observation_id: result.observation.id,
+        auto_match: result.match
+      }
+    });
+    refs.push({
+      artifact_id: artifactId,
+      observation_id: result.observation.id,
+      face_identity_id: result.identity.id,
+      bounding_box: faceObservation.boundingBox,
+      confidence: faceObservation.confidence ?? null
     });
   }
 
@@ -1595,13 +1720,15 @@ function enrichChunkWithArtifactRefs(
   processingRunId: string,
   textArtifactId: string,
   pageRefs: ExtractedPageArtifactRef[],
-  semanticRefs: ExtractedSemanticArtifactRef[]
+  semanticRefs: ExtractedSemanticArtifactRef[],
+  faceRefs: ExtractedFaceObservationRef[]
 ): TextChunk {
   const artifactId = deterministicArtifactId(processingRunId, "text_chunk", chunk.index);
   const textSpanId = deterministicTextSpanId(artifactId, 0);
   const overlappingPages = pageRefsForChunk(chunk, pageRefs);
   const pageSourceRefs = overlappingPages.map((page) => ({ type: "artifact" as const, id: page.artifact_id }));
   const semanticSourceRefs = semanticRefs.map((artifact) => ({ type: "artifact" as const, id: artifact.artifact_id }));
+  const faceSourceRefs = faceRefs.map((observation) => ({ type: "artifact" as const, id: observation.artifact_id }));
   return {
     ...chunk,
     metadata: {
@@ -1614,12 +1741,15 @@ function enrichChunkWithArtifactRefs(
       page_artifact_ids: overlappingPages.map((page) => page.artifact_id),
       semantic_artifact_ids: semanticRefs.map((artifact) => artifact.artifact_id),
       semantic_artifact_types: semanticRefs.map((artifact) => artifact.artifact_type),
+      face_observation_artifact_ids: faceRefs.map((observation) => observation.artifact_id),
+      face_identity_ids: faceRefs.map((observation) => observation.face_identity_id),
       source_refs: [
         { type: "document", id: chunk.documentId },
         { type: "processing_run", id: processingRunId },
         { type: "artifact", id: textArtifactId },
         ...pageSourceRefs,
         ...semanticSourceRefs,
+        ...faceSourceRefs,
         { type: "artifact", id: artifactId },
         { type: "chunk", id: chunk.id }
       ]
@@ -1650,6 +1780,14 @@ function deterministicArtifactId(processingRunId: string, artifactType: string, 
 
 function deterministicTextSpanId(artifactId: string, spanIndex: number): string {
   return `span_${hashIdentifier(`${artifactId}:${spanIndex}`).slice(0, 32)}`;
+}
+
+function deterministicFaceObservationId(artifactId: string): string {
+  return `faceobs_${hashIdentifier(artifactId).slice(0, 32)}`;
+}
+
+function deterministicFaceEmbeddingId(artifactId: string): string {
+  return `faceemb_${hashIdentifier(artifactId).slice(0, 32)}`;
 }
 
 function hashIdentifier(value: string): string {
@@ -1707,6 +1845,23 @@ function readExtractionSemanticArtifactRefs(metadata: unknown): ExtractedSemanti
     return typeof recordItem.artifact_id === "string"
       && typeof recordItem.artifact_type === "string"
       && typeof recordItem.span_type === "string";
+  });
+}
+
+function readExtractionFaceObservationRefs(metadata: unknown): ExtractedFaceObservationRef[] {
+  const record = typeof metadata === "object" && metadata !== null ? metadata as Record<string, unknown> : null;
+  const value = record?.face_observations;
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter((item): item is ExtractedFaceObservationRef => {
+    if (typeof item !== "object" || item === null) {
+      return false;
+    }
+    const recordItem = item as Record<string, unknown>;
+    return typeof recordItem.artifact_id === "string"
+      && typeof recordItem.observation_id === "string"
+      && typeof recordItem.face_identity_id === "string";
   });
 }
 

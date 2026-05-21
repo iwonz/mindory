@@ -18,6 +18,10 @@
       "types": "./dist/artifacts.d.ts",
       "default": "./dist/artifacts.js"
     },
+    "./faces": {
+      "types": "./dist/faces.d.ts",
+      "default": "./dist/faces.js"
+    },
     "./documents": {
       "types": "./dist/documents.d.ts",
       "default": "./dist/documents.js"

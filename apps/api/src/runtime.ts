@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { PGVECTOR_EMBEDDING_DIMENSIONS, type MindoryConfig } from "@mindory/config";
 import { DocumentUploadService } from "@mindory/core/documents";
+import { FaceService } from "@mindory/core/faces";
 import { ContextBuilder, MemoryService } from "@mindory/core/memory";
 import type { DocumentChunkSearchRepository } from "@mindory/core/memory";
 import type { EmbeddingsProvider } from "@mindory/core/processing";
@@ -27,7 +28,7 @@ import type { BuildApiAppOptions } from "./app.js";
 
 export interface ApiRuntimeDependencies extends Pick<
   BuildApiAppOptions,
-  "auth" | "close" | "context" | "documents" | "jobs" | "memories" | "peers" | "projects" | "sessions" | "tokens"
+  "auth" | "close" | "context" | "documents" | "faces" | "jobs" | "memories" | "peers" | "projects" | "sessions" | "tokens"
 > {}
 
 export function buildApiRuntimeDependencies(config: MindoryConfig): ApiRuntimeDependencies {
@@ -95,6 +96,11 @@ export function buildApiRuntimeDependencies(config: MindoryConfig): ApiRuntimeDe
       chunkSearchRepository,
       artifactRepository,
       recomputeService
+    },
+    faces: {
+      faceService: new FaceService({
+        repository: artifactRepository
+      })
     },
     jobs: {
       jobStore: processingJobStore,

@@ -1,5 +1,7 @@
+import { createHash } from "node:crypto";
 import {
   ProcessingError,
+  type ExtractedFaceObservation,
   type ExtractedSemanticArtifact,
   type ExtractedText,
   type ExtractTextInput,
@@ -7,6 +9,8 @@ import {
 } from "@mindory/core/processing";
 
 export interface ImageSemanticExtractorOptions {
+  faceDetection?: ModelCapabilityState;
+  faceRecognition?: ModelCapabilityState;
   imageCaptioning?: ModelCapabilityState;
   imageEmbedding?: ModelCapabilityState;
   ocr?: ModelCapabilityState;
@@ -35,11 +39,15 @@ const supportedExtensions = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", "
 export class ImageSemanticExtractor implements TextExtractor {
   readonly name = "image-semantic";
   readonly version = "image-semantic-v1";
+  private readonly faceDetection: ModelCapabilityState;
+  private readonly faceRecognition: ModelCapabilityState;
   private readonly imageCaptioning: ModelCapabilityState;
   private readonly imageEmbedding: ModelCapabilityState;
   private readonly ocr: ModelCapabilityState;
 
   constructor(options: ImageSemanticExtractorOptions = {}) {
+    this.faceDetection = options.faceDetection ?? disabledCapability();
+    this.faceRecognition = options.faceRecognition ?? disabledCapability();
     this.imageCaptioning = options.imageCaptioning ?? disabledCapability();
     this.imageEmbedding = options.imageEmbedding ?? disabledCapability();
     this.ocr = options.ocr ?? disabledCapability();
@@ -66,11 +74,13 @@ export class ImageSemanticExtractor implements TextExtractor {
     }
 
     const labels = buildImageLabels(metadata);
+    const faceCount = this.faceDetection.enabled ? readPeopleCount(labels, ocrText) : 0;
     const caption = buildCaption(metadata, labels);
     const analysis = buildAnalysis(metadata, labels, ocrText);
     const semanticText = [
       caption,
       analysis,
+      faceCount > 0 ? `Detected face observations: ${faceCount}.` : "",
       ocrText.length > 0 ? `Image OCR text: ${ocrText}` : ""
     ].filter((line) => line.length > 0).join("\n\n");
 
@@ -89,6 +99,12 @@ export class ImageSemanticExtractor implements TextExtractor {
         imageEmbedding: this.imageEmbedding,
         ocr: this.ocr
       }),
+      faceObservations: buildFaceObservations({
+        count: faceCount,
+        metadata,
+        faceDetection: this.faceDetection,
+        faceRecognition: this.faceRecognition
+      }),
       metadata: {
         extractor: this.name,
         extractor_version: this.version,
@@ -98,8 +114,11 @@ export class ImageSemanticExtractor implements TextExtractor {
         height: metadata.height,
         orientation: metadata.orientation,
         labels,
+        face_count: faceCount,
         embedded_text_count: metadata.embeddedText.length,
         capabilities: {
+          face_detection: capabilitySnapshot(this.faceDetection, faceCount > 0 ? "fallback_people_count_detected" : this.faceDetection.enabled ? "no_people_count_detected" : "disabled"),
+          face_recognition: capabilitySnapshot(this.faceRecognition, faceCount > 0 ? "fallback_deterministic_embeddings" : this.faceRecognition.enabled ? "no_faces_to_embed" : "disabled"),
           image_captioning: capabilitySnapshot(this.imageCaptioning, this.imageCaptioning.enabled ? "fallback_metadata_caption" : "disabled"),
           image_embedding: capabilitySnapshot(this.imageEmbedding, this.imageEmbedding.enabled ? "skipped_no_adapter" : "disabled"),
           ocr: capabilitySnapshot(this.ocr, ocrText.length > 0 ? "embedded_text_extracted" : this.ocr.enabled ? "skipped_no_adapter" : "disabled")
@@ -179,6 +198,33 @@ function buildSemanticArtifacts(input: {
   return artifacts;
 }
 
+function buildFaceObservations(input: {
+  count: number;
+  metadata: ImageMetadata;
+  faceDetection: ModelCapabilityState;
+  faceRecognition: ModelCapabilityState;
+}): ExtractedFaceObservation[] {
+  if (input.count <= 0) {
+    return [];
+  }
+
+  return Array.from({ length: input.count }, (_, index) => ({
+    observationIndex: index,
+    content: `Face observation ${index + 1} detected by image fallback.`,
+    boundingBox: deterministicFaceBox(index, input.count),
+    embedding: deterministicFaceEmbedding(`fallback-face:${index}:${input.faceRecognition.model || "disabled"}`),
+    model: input.faceRecognition.model || input.faceDetection.model || null,
+    confidence: 0.5,
+    metadata: {
+      source: "fallback_people_count",
+      image_width: input.metadata.width,
+      image_height: input.metadata.height,
+      detection_capability: capabilitySnapshot(input.faceDetection, "fallback_people_count_detected"),
+      recognition_capability: capabilitySnapshot(input.faceRecognition, "fallback_deterministic_embeddings")
+    }
+  }));
+}
+
 function extractImageMetadata(bytes: Buffer, filename: string, mimeType: string): ImageMetadata {
   const dimensions = readImageDimensions(bytes);
   const orientation = dimensions.width === null || dimensions.height === null
@@ -231,6 +277,48 @@ function readPeoplePhrase(labels: string[]): string {
   }
   const count = labels.find((label) => /^\d+$/.test(label));
   return count ? `${count} people in image labels.` : "People mentioned in image labels.";
+}
+
+function readPeopleCount(labels: string[], ocrText: string): number {
+  const labelCount = labels.find((label) => /^\d+$/.test(label));
+  if (labelCount && labels.some((label) => label === "people" || label === "person" || label === "persons")) {
+    return clampPeopleCount(Number.parseInt(labelCount, 10));
+  }
+  const match = ocrText.match(/\b(\d{1,2})\s+(people|persons?|faces?)\b/i);
+  if (match?.[1]) {
+    return clampPeopleCount(Number.parseInt(match[1], 10));
+  }
+  return 0;
+}
+
+function clampPeopleCount(value: number): number {
+  if (!Number.isFinite(value) || value <= 0) {
+    return 0;
+  }
+  return Math.min(value, 20);
+}
+
+function deterministicFaceBox(index: number, count: number): Record<string, unknown> {
+  const width = Math.min(0.18, 0.8 / Math.max(count, 1));
+  const gap = count === 1 ? 0 : (0.82 - width * count) / Math.max(count - 1, 1);
+  const x = 0.09 + index * (width + Math.max(gap, 0.02));
+  return {
+    x: Number(x.toFixed(4)),
+    y: 0.2,
+    width: Number(width.toFixed(4)),
+    height: 0.32,
+    unit: "ratio"
+  };
+}
+
+function deterministicFaceEmbedding(key: string): number[] {
+  const digest = createHash("sha512").update(key, "utf8").digest();
+  const values = Array.from({ length: 512 }, (_, index) => {
+    const byte = digest[index % digest.length] ?? 0;
+    return (byte / 255) * 2 - 1;
+  });
+  const magnitude = Math.sqrt(values.reduce((sum, value) => sum + value * value, 0));
+  return values.map((value) => Number((value / magnitude).toFixed(6)));
 }
 
 function extractEmbeddedImageText(bytes: Buffer): string[] {
