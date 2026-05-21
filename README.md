@@ -8,7 +8,7 @@ The canonical product and engineering specification is `docs/PRD.md`.
 
 ## Repository Status
 
-This repository is currently bootstrapped through `TASK-34`. The repo has the
+This repository is currently bootstrapped through `TASK-35`. The repo has the
 operating model, documentation skeleton, configuration contract, pnpm monorepo
 layout, Docker Compose base scaffold, MVP database schema, Fastify API skeleton
 object storage abstraction, Redis/BullMQ queue scaffold and document upload/scan
@@ -29,7 +29,8 @@ wired. Docker runtime commands, integration tests, indexed-search acceptance,
 MCP client packaging, Hermes runtime contract validation and the production
 hardening baseline are now present. The API includes a configurable in-process
 rate-limit guard, and CI runs `pnpm check` for pushes and pull requests to
-`master`.
+`master`. A one-command local MVP demo workflow now starts Compose, waits for
+readiness, seeds demo credentials and can run live acceptance.
 
 ## Development Process
 
@@ -141,13 +142,16 @@ document upload runtime for local-fs storage plus BullMQ scan job dispatch.
 
 ## Docker Compose
 
-The intended self-hosted bootstrap remains:
+The one-command local demo with live acceptance is:
 
 ```bash
-cp .env.example .env
-docker compose --profile clamav up -d --build
-pnpm mvp:seed
-MINDORY_E2E_LIVE=true pnpm mvp:acceptance
+pnpm mvp:demo
+```
+
+To start and seed the stack without running live acceptance:
+
+```bash
+pnpm mvp:up
 ```
 
 Base services are `postgres`, `redis`, `migrate`, `api`, `mcp` and `worker`.
@@ -155,6 +159,9 @@ The API, worker and MCP services now use the built workspace image and real
 dist entrypoints. API and worker share the `objects-data` volume for local
 filesystem storage. Optional profiles are `minio`, `clamav`, `qdrant`,
 `docling` and `ollama`.
+
+Stop the demo stack with `pnpm mvp:down`. Remove containers and demo volumes
+with `pnpm mvp:reset`.
 
 `pnpm mvp:acceptance` without `MINDORY_E2E_LIVE=true` runs a dry-run scenario
 coverage check that does not require Docker.

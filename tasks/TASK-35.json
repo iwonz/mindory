@@ -1,7 +1,7 @@
 {
   "id": "TASK-35",
   "title": "Add one-command MVP demo workflow",
-  "status": "ready",
+  "status": "done",
   "type": "chore",
   "priority": "medium",
   "branch": "task/TASK-35-one-command-mvp-demo",

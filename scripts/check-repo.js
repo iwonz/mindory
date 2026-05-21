@@ -24,6 +24,7 @@ const checks = [
   ["hermes:validate", "scripts/validate-hermes-adapter.js"],
   ["hermes:smoke", "scripts/smoke-hermes.js"],
   ["hermes:contract", "scripts/smoke-hermes-contract.js"],
+  ["mvp:demo:validate", "scripts/validate-mvp-demo.js"],
   ["mvp:acceptance", "scripts/mvp-acceptance.js"],
   ["test", "scripts/test-integration.js"],
   ["tasks:validate", "scripts/validate-tasks.js"]
