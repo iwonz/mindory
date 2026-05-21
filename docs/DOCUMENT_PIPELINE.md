@@ -76,5 +76,11 @@ configured. Qdrant remains an optional future adapter.
 `TASK-19` adds `DocumentChunkRepository`, a Drizzle-backed chunk repository and
 the worker processor registry. Clean scans enqueue extraction, extraction writes
 derived text objects, chunking replaces durable chunk rows, and embedding/index
-processors are present but skip safely when embeddings or vector index runtime
-are disabled.
+processors write pgvector rows when embeddings are configured. With
+`MINDORY_EMBEDDINGS_PROVIDER=disabled`, the pipeline intentionally stops at
+`chunked` and API document search falls back to text chunk search.
+
+`TASK-31` adds strict indexed acceptance: with
+`MINDORY_E2E_REQUIRE_INDEXED=true`, the live acceptance script waits for
+`indexed` document status and verifies document search returns source-backed
+chunk hits.

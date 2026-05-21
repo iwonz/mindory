@@ -152,6 +152,15 @@ filesystem storage. Optional profiles are `minio`, `clamav`, `qdrant`,
 `pnpm mvp:acceptance` without `MINDORY_E2E_LIVE=true` runs a dry-run scenario
 coverage check that does not require Docker.
 
+With embeddings configured, run strict indexed acceptance:
+
+```bash
+MINDORY_E2E_LIVE=true MINDORY_E2E_REQUIRE_INDEXED=true pnpm mvp:acceptance
+```
+
+The current pgvector MVP schema uses 1536-dimensional vectors. Disabled
+embeddings remain supported and should process demo documents to `chunked`.
+
 ## Integration Tests
 
 Run:
@@ -171,3 +180,7 @@ Override these with `MINDORY_TEST_POSTGRES_PORT`, `MINDORY_TEST_REDIS_PORT`,
 `MINDORY_TEST_DATABASE_URL` or `MINDORY_TEST_REDIS_URL`. Set
 `MINDORY_TEST_SKIP_DOCKER=true` when pointing tests at already-running
 PostgreSQL and Redis services.
+
+`pnpm test` also starts a local OpenAI-compatible fake embeddings server for the
+indexed-search scenario, so it verifies pgvector row persistence without
+external provider credentials.

@@ -39,6 +39,9 @@ HTTP endpoints are not part of the MVP surface yet.
 scenario covers API, CLI, MCP, Hermes, document upload, job polling,
 source-backed memory and context build. Set `MINDORY_E2E_LIVE=true` to execute
 the live flow against `MINDORY_E2E_API_URL` or `http://localhost:3000`.
+Set `MINDORY_E2E_REQUIRE_INDEXED=true` when embeddings are configured and the
+deployment must prove the document pipeline reaches `indexed` status and serves
+pgvector-backed document search.
 
 ## Base Services
 
@@ -65,6 +68,11 @@ Example:
 ```bash
 docker compose --profile minio --profile clamav --profile qdrant up -d
 ```
+
+The `ollama` profile is optional for local embeddings. The selected embedding
+model must produce 1536-dimensional vectors for the current pgvector MVP schema;
+otherwise keep `MINDORY_EMBEDDINGS_PROVIDER=disabled` for the default chunked
+fallback.
 
 `docling` is still a profile skeleton. Running Compose may require network
 access to pull images and to install dependencies during the first Docker build

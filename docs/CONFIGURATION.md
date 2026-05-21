@@ -54,18 +54,54 @@ TASK-7 does not register concrete processors yet.
 ## Embeddings And Vector Indexes
 
 `MINDORY_EMBEDDINGS_PROVIDER` accepts `disabled`, `openai-compatible` or
-`ollama`. `MINDORY_EMBEDDINGS_MODEL` names the provider model.
-`MINDORY_EMBEDDINGS_DIMENSIONS` is optional and is passed to compatible
-providers that support explicit dimensions.
+`ollama`. `disabled` is still a supported local fallback: documents process to
+`chunked` and document search uses text chunk search.
+
+When embeddings are enabled, `MINDORY_EMBEDDINGS_MODEL` is required. The current
+MVP pgvector schema stores `vector(1536)`, so
+`MINDORY_EMBEDDINGS_DIMENSIONS` must be empty or `1536` while
+`MINDORY_VECTOR_PROVIDER=pgvector`. Use a 1536-dimensional embedding model for
+strict indexed acceptance.
 
 `MINDORY_OPENAI_COMPATIBLE_BASE_URL` and
 `MINDORY_OPENAI_COMPATIBLE_API_KEY` configure the OpenAI-compatible embeddings
-adapter. `MINDORY_OLLAMA_BASE_URL` configures the Ollama adapter and defaults to
-the Compose Ollama service URL.
+adapter.
+
+OpenAI-compatible example:
+
+```env
+MINDORY_EMBEDDINGS_PROVIDER=openai-compatible
+MINDORY_EMBEDDINGS_MODEL=text-embedding-3-small
+MINDORY_EMBEDDINGS_DIMENSIONS=1536
+MINDORY_OPENAI_COMPATIBLE_BASE_URL=https://api.openai.com/v1
+MINDORY_OPENAI_COMPATIBLE_API_KEY=sk-...
+```
+
+`MINDORY_OLLAMA_BASE_URL` configures the Ollama adapter and defaults to the
+Compose Ollama service URL. For the current pgvector MVP schema, the selected
+Ollama model must also return 1536-dimensional vectors:
+
+Ollama example:
+
+```env
+MINDORY_EMBEDDINGS_PROVIDER=ollama
+MINDORY_EMBEDDINGS_MODEL=<1536-dimensional-local-embedding-model>
+MINDORY_EMBEDDINGS_DIMENSIONS=1536
+MINDORY_OLLAMA_BASE_URL=http://ollama:11434
+```
 
 `MINDORY_VECTOR_PROVIDER` accepts `pgvector` or `qdrant`. `pgvector` is the
 default MVP runtime after `TASK-20`; Qdrant remains optional and profile-gated
 in Compose.
+
+## MVP Acceptance
+
+`MINDORY_E2E_LIVE=true` makes `pnpm mvp:acceptance` run against
+`MINDORY_E2E_API_URL` or `http://localhost:3000`. By default the live flow
+accepts either `chunked` or `indexed` document status so disabled embeddings
+remain usable. Set `MINDORY_E2E_REQUIRE_INDEXED=true` when an embeddings
+provider is configured and the acceptance run must prove pgvector indexing and
+semantic document search.
 
 ## MCP
 

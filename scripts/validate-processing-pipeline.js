@@ -13,7 +13,8 @@ const requiredFiles = [
   "packages/vector/qdrant/src/index.ts",
   "apps/worker/src/document-pipeline.ts",
   "apps/worker/src/memory-pipeline.ts",
-  "apps/worker/src/runtime.ts"
+  "apps/worker/src/runtime.ts",
+  "scripts/mvp-acceptance.js"
 ];
 
 function assert(condition, message) {
@@ -59,6 +60,8 @@ const memoryPipeline = read("apps/worker/src/memory-pipeline.ts");
 const workerRuntime = read("apps/worker/src/runtime.ts");
 const config = read("packages/config/src/index.ts");
 const envExample = read(".env.example");
+const mvpAcceptance = read("scripts/mvp-acceptance.js");
+const configurationDocs = read("docs/CONFIGURATION.md");
 
 assert(rootPackage.scripts?.["processing:validate"] === "node scripts/validate-processing-pipeline.js", "Root package must expose processing:validate.");
 assert(corePackage.exports?.["./processing"], "@mindory/core must export ./processing.");
@@ -133,6 +136,27 @@ for (const envName of [
 ]) {
   assert(config.includes(envName), `Config loader must read ${envName}.`);
   assert(envExample.includes(envName), `.env.example must include ${envName}.`);
+}
+for (const token of [
+  "PGVECTOR_EMBEDDING_DIMENSIONS",
+  "validateMindoryConfig",
+  "MINDORY_EMBEDDINGS_MODEL is required",
+  "MINDORY_OPENAI_COMPATIBLE_BASE_URL is required",
+  "MINDORY_OLLAMA_BASE_URL is required"
+]) {
+  assert(config.includes(token), `Config loader must validate embeddings setting ${token}.`);
+}
+for (const token of [
+  "MINDORY_E2E_REQUIRE_INDEXED",
+  "new Set([\"indexed\"])",
+  "\"/v1/documents/search\"",
+  "sourceRefs"
+]) {
+  assert(mvpAcceptance.includes(token), `MVP acceptance must include strict indexed search token ${token}.`);
+}
+assert(envExample.includes("MINDORY_E2E_REQUIRE_INDEXED"), ".env.example must document strict indexed acceptance.");
+for (const token of ["OpenAI-compatible example", "Ollama example", "1536-dimensional", "disabled"]) {
+  assert(configurationDocs.includes(token), `Configuration docs must describe embeddings mode: ${token}.`);
 }
 
 for (const token of [

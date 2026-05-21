@@ -4,6 +4,8 @@ export type AntivirusMode = "disabled" | "async_quarantine" | "sync_scan";
 export type EmbeddingsProvider = "openai-compatible" | "ollama" | "disabled";
 export type McpTransport = "stdio";
 
+export const PGVECTOR_EMBEDDING_DIMENSIONS = 1536;
+
 export interface MindoryConfig {
   log: {
     level: string;
@@ -109,6 +111,9 @@ function readNullableNumber(env: EnvSource, name: string): number | null {
   if (Number.isNaN(parsed)) {
     throw new Error(`${name} must be a number when set.`);
   }
+  if (parsed <= 0) {
+    throw new Error(`${name} must be greater than zero when set.`);
+  }
   return parsed;
 }
 
@@ -132,7 +137,7 @@ function readEnum<T extends string>(env: EnvSource, name: string, defaultValue: 
 }
 
 export function loadMindoryConfig(env: EnvSource = process.env): MindoryConfig {
-  return {
+  const config: MindoryConfig = {
     log: {
       level: readString(env, "MINDORY_LOG_LEVEL", "info")
     },
@@ -210,4 +215,36 @@ export function loadMindoryConfig(env: EnvSource = process.env): MindoryConfig {
       contextTokenBudget: readNumber(env, "MINDORY_HERMES_CONTEXT_TOKEN_BUDGET", 3000)
     }
   };
+
+  validateMindoryConfig(config);
+  return config;
+}
+
+export function validateMindoryConfig(config: MindoryConfig): void {
+  validateEmbeddingsConfig(config);
+}
+
+function validateEmbeddingsConfig(config: MindoryConfig): void {
+  if (config.embeddings.provider === "disabled") {
+    return;
+  }
+
+  if (config.embeddings.model.trim() === "") {
+    throw new Error("MINDORY_EMBEDDINGS_MODEL is required when embeddings are enabled.");
+  }
+
+  if (config.vector.provider === "pgvector") {
+    const dimensions = config.embeddings.dimensions ?? PGVECTOR_EMBEDDING_DIMENSIONS;
+    if (dimensions !== PGVECTOR_EMBEDDING_DIMENSIONS) {
+      throw new Error(`MINDORY_EMBEDDINGS_DIMENSIONS must be ${PGVECTOR_EMBEDDING_DIMENSIONS} for the current pgvector MVP schema.`);
+    }
+  }
+
+  if (config.embeddings.provider === "openai-compatible" && config.embeddings.openaiCompatibleBaseUrl.trim() === "") {
+    throw new Error("MINDORY_OPENAI_COMPATIBLE_BASE_URL is required when MINDORY_EMBEDDINGS_PROVIDER=openai-compatible.");
+  }
+
+  if (config.embeddings.provider === "ollama" && config.embeddings.ollamaBaseUrl.trim() === "") {
+    throw new Error("MINDORY_OLLAMA_BASE_URL is required when MINDORY_EMBEDDINGS_PROVIDER=ollama.");
+  }
 }

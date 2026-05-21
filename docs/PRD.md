@@ -1819,8 +1819,13 @@ Recommended scripts:
 ```
 
 `pnpm test` runs the MVP integration suite against PostgreSQL and Redis. The
-default suite keeps embeddings disabled so it can verify upload, worker
-chunking, jobs and context without external provider credentials.
+suite verifies both disabled embeddings fallback (`chunked`) and configured
+OpenAI-compatible embeddings through a local fake provider, pgvector row
+persistence and semantic document search without external provider credentials.
+
+`pnpm mvp:acceptance` supports `MINDORY_E2E_REQUIRE_INDEXED=true` for live
+runs where an embeddings provider is configured and the demo must prove
+`indexed` document status plus source-backed document search.
 
 `tasks:validate` should check:
 
