@@ -14,6 +14,7 @@ const workspaces = [
   ["packages/db", "@mindory/db"],
   ["packages/sdk", "@mindory/sdk"],
   ["packages/config", "@mindory/config"],
+  ["packages/llm", "@mindory/llm"],
   ["packages/auth", "@mindory/auth"],
   ["packages/storage/local-fs", "@mindory/storage-local-fs"],
   ["packages/storage/s3", "@mindory/storage-s3"],

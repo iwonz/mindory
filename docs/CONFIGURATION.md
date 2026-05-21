@@ -13,7 +13,7 @@ environment variable is added, renamed or removed, update this document and
 - Vector index provider and optional Qdrant settings.
 - Antivirus policy and ClamAV connection settings.
 - Worker type and concurrency.
-- Embedding provider settings.
+- Unified LLM adapter provider settings.
 - MCP settings.
 - Hermes adapter defaults.
 - Integration test ports and optional external test service URLs.
@@ -67,43 +67,61 @@ used by the worker base runner.
 `MINDORY_WORKER_TYPE` is already represented for future worker filtering, but
 TASK-7 does not register concrete processors yet.
 
-## Embeddings And Vector Indexes
+## LLM Adapter And Vector Indexes
 
-`MINDORY_EMBEDDINGS_PROVIDER` accepts `disabled`, `openai-compatible` or
-`ollama`. `disabled` is still a supported local fallback: documents process to
-`chunked` and document search uses text chunk search.
+`MINDORY_LLM_PROVIDER` accepts `disabled`, `openai-compatible` or `ollama`.
+`disabled` is still a supported local fallback: documents process to `chunked`
+and document search uses text chunk search.
 
-When embeddings are enabled, `MINDORY_EMBEDDINGS_MODEL` is required. The current
-MVP pgvector schema stores `vector(1536)`, so
-`MINDORY_EMBEDDINGS_DIMENSIONS` must be empty or `1536` while
+When LLM embeddings are enabled, `MINDORY_LLM_EMBEDDING_MODEL` is required. The
+current MVP pgvector schema stores `vector(1536)`, so
+`MINDORY_LLM_EMBEDDING_DIMENSIONS` must be empty or `1536` while
 `MINDORY_VECTOR_PROVIDER=pgvector`. Use a 1536-dimensional embedding model for
 strict indexed acceptance.
 
-`MINDORY_OPENAI_COMPATIBLE_BASE_URL` and
-`MINDORY_OPENAI_COMPATIBLE_API_KEY` configure the OpenAI-compatible embeddings
-adapter.
+`MINDORY_LLM_CHAT_MODEL` is reserved for future generation flows and is kept in
+the same component so subsystems do not add separate provider settings.
+
+`MINDORY_LLM_OPENAI_COMPATIBLE_BASE_URL` configures the OpenAI-compatible
+adapter. `MINDORY_LLM_OPENAI_COMPATIBLE_AUTH_MODE` accepts `none`, `api-key` or
+`oauth-bearer`.
 
 OpenAI-compatible example:
 
 ```env
-MINDORY_EMBEDDINGS_PROVIDER=openai-compatible
-MINDORY_EMBEDDINGS_MODEL=text-embedding-3-small
-MINDORY_EMBEDDINGS_DIMENSIONS=1536
-MINDORY_OPENAI_COMPATIBLE_BASE_URL=https://api.openai.com/v1
-MINDORY_OPENAI_COMPATIBLE_API_KEY=sk-...
+MINDORY_LLM_PROVIDER=openai-compatible
+MINDORY_LLM_EMBEDDING_MODEL=text-embedding-3-small
+MINDORY_LLM_EMBEDDING_DIMENSIONS=1536
+MINDORY_LLM_OPENAI_COMPATIBLE_BASE_URL=https://api.openai.com/v1
+MINDORY_LLM_OPENAI_COMPATIBLE_AUTH_MODE=api-key
+MINDORY_LLM_OPENAI_COMPATIBLE_API_KEY=sk-...
 ```
 
-`MINDORY_OLLAMA_BASE_URL` configures the Ollama adapter and defaults to the
+OpenAI-compatible OAuth bearer example:
+
+```env
+MINDORY_LLM_PROVIDER=openai-compatible
+MINDORY_LLM_EMBEDDING_MODEL=text-embedding-3-small
+MINDORY_LLM_EMBEDDING_DIMENSIONS=1536
+MINDORY_LLM_OPENAI_COMPATIBLE_BASE_URL=https://api.openai.com/v1
+MINDORY_LLM_OPENAI_COMPATIBLE_AUTH_MODE=oauth-bearer
+MINDORY_LLM_OPENAI_OAUTH_ACCESS_TOKEN=<host-supplied-access-token>
+```
+
+The OAuth bearer mode consumes a token supplied by a host runtime such as Codex
+or Hermes. Mindory does not perform an interactive OAuth login flow in the MVP.
+
+`MINDORY_LLM_OLLAMA_BASE_URL` configures the Ollama adapter and defaults to the
 Compose Ollama service URL. For the current pgvector MVP schema, the selected
 Ollama model must also return 1536-dimensional vectors:
 
 Ollama example:
 
 ```env
-MINDORY_EMBEDDINGS_PROVIDER=ollama
-MINDORY_EMBEDDINGS_MODEL=<1536-dimensional-local-embedding-model>
-MINDORY_EMBEDDINGS_DIMENSIONS=1536
-MINDORY_OLLAMA_BASE_URL=http://ollama:11434
+MINDORY_LLM_PROVIDER=ollama
+MINDORY_LLM_EMBEDDING_MODEL=<1536-dimensional-local-embedding-model>
+MINDORY_LLM_EMBEDDING_DIMENSIONS=1536
+MINDORY_LLM_OLLAMA_BASE_URL=http://ollama:11434
 ```
 
 `MINDORY_VECTOR_PROVIDER` accepts `pgvector` or `qdrant`. `pgvector` is the
@@ -115,9 +133,9 @@ in Compose.
 `MINDORY_E2E_LIVE=true` makes `pnpm mvp:acceptance` run against
 `MINDORY_E2E_API_URL` or `http://localhost:3000`. By default the live flow
 accepts either `chunked` or `indexed` document status so disabled embeddings
-remain usable. Set `MINDORY_E2E_REQUIRE_INDEXED=true` when an embeddings
-provider is configured and the acceptance run must prove pgvector indexing and
-semantic document search.
+remain usable. Set `MINDORY_E2E_REQUIRE_INDEXED=true` when an LLM provider is
+configured and the acceptance run must prove pgvector indexing and semantic
+document search.
 
 ## MCP
 
@@ -174,6 +192,7 @@ outputs. `MINDORY_TEST_DOCKER_BIN` can override the Docker binary path.
 obvious placeholders, but never real credentials.
 
 Production deployments must override all demo defaults that grant access or
-protect state, including database credentials, Redis URLs, S3 credentials,
-embedding provider keys, MCP/CLI/Hermes API tokens and Mindory bearer tokens.
+protect state, including database credentials, Redis URLs, S3 credentials, LLM
+provider keys or OAuth bearer tokens, MCP/CLI/Hermes API tokens and Mindory
+bearer tokens.
 Store production values in a secret manager or deployment secret store.

@@ -44,12 +44,9 @@ importers:
       '@mindory/db':
         specifier: workspace:*
         version: link:../../packages/db
-      '@mindory/embeddings-ollama':
+      '@mindory/llm':
         specifier: workspace:*
-        version: link:../../packages/processors/embeddings/ollama
-      '@mindory/embeddings-openai-compatible':
-        specifier: workspace:*
-        version: link:../../packages/processors/embeddings/openai-compatible
+        version: link:../../packages/llm
       '@mindory/queue-bullmq':
         specifier: workspace:*
         version: link:../../packages/queue/bullmq
@@ -89,15 +86,12 @@ importers:
       '@mindory/db':
         specifier: workspace:*
         version: link:../../packages/db
-      '@mindory/embeddings-ollama':
-        specifier: workspace:*
-        version: link:../../packages/processors/embeddings/ollama
-      '@mindory/embeddings-openai-compatible':
-        specifier: workspace:*
-        version: link:../../packages/processors/embeddings/openai-compatible
       '@mindory/extractor-builtin-text':
         specifier: workspace:*
         version: link:../../packages/processors/extractors/builtin-text
+      '@mindory/llm':
+        specifier: workspace:*
+        version: link:../../packages/llm
       '@mindory/processor-antivirus-clamav':
         specifier: workspace:*
         version: link:../../packages/processors/antivirus-clamav
@@ -131,6 +125,21 @@ importers:
       pg:
         specifier: ^8.13.0
         version: 8.21.0
+
+  packages/llm:
+    dependencies:
+      '@mindory/config':
+        specifier: workspace:*
+        version: link:../config
+      '@mindory/core':
+        specifier: workspace:*
+        version: link:../core
+      '@mindory/embeddings-ollama':
+        specifier: workspace:*
+        version: link:../processors/embeddings/ollama
+      '@mindory/embeddings-openai-compatible':
+        specifier: workspace:*
+        version: link:../processors/embeddings/openai-compatible
 
   packages/observability: {}
 

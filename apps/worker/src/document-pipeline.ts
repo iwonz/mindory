@@ -22,9 +22,8 @@ import {
 } from "@mindory/core/processing";
 import type { ObjectStorage } from "@mindory/core/storage";
 import { BuiltinTextExtractor } from "@mindory/extractor-builtin-text";
+import { buildMindoryEmbeddingsProvider } from "@mindory/llm";
 import { ClamAvDocumentScanProcessor, ClamAvScanner } from "@mindory/processor-antivirus-clamav";
-import { OpenAICompatibleEmbeddingsProvider, type OpenAICompatibleEmbeddingsOptions } from "@mindory/embeddings-openai-compatible";
-import { OllamaEmbeddingsProvider } from "@mindory/embeddings-ollama";
 
 export interface DocumentPipelineProcessorOptions {
   config: MindoryConfig;
@@ -118,26 +117,7 @@ export function buildDocumentPipelineProcessors(options: DocumentPipelineProcess
 }
 
 export function buildEmbeddingsProvider(config: MindoryConfig): EmbeddingsProvider | undefined {
-  if (config.embeddings.provider === "openai-compatible") {
-    const options: OpenAICompatibleEmbeddingsOptions = {
-      baseUrl: config.embeddings.openaiCompatibleBaseUrl,
-      model: config.embeddings.model
-    };
-    if (config.embeddings.openaiCompatibleApiKey) {
-      options.apiKey = config.embeddings.openaiCompatibleApiKey;
-    }
-    if (config.embeddings.dimensions !== null) {
-      options.dimensions = config.embeddings.dimensions;
-    }
-    return new OpenAICompatibleEmbeddingsProvider(options);
-  }
-  if (config.embeddings.provider === "ollama") {
-    return new OllamaEmbeddingsProvider({
-      baseUrl: config.embeddings.ollamaBaseUrl,
-      model: config.embeddings.model
-    });
-  }
-  return undefined;
+  return buildMindoryEmbeddingsProvider(config);
 }
 
 class DocumentExtractProcessor implements ProcessingJobProcessor {

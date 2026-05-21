@@ -15,8 +15,7 @@
     { "path": "../../packages/storage/local-fs" },
     { "path": "../../packages/processors/antivirus-clamav" },
     { "path": "../../packages/processors/extractors/builtin-text" },
-    { "path": "../../packages/processors/embeddings/openai-compatible" },
-    { "path": "../../packages/processors/embeddings/ollama" },
+    { "path": "../../packages/llm" },
     { "path": "../../packages/vector/pgvector" }
   ]
 }

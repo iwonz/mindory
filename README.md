@@ -13,8 +13,8 @@ operating model, documentation skeleton, configuration contract, pnpm monorepo
 layout, Docker Compose base scaffold, MVP database schema, Fastify API skeleton
 object storage abstraction, Redis/BullMQ queue scaffold and document upload/scan
 pipeline contracts. It also has text/Markdown extraction, deterministic
-chunking, embedding provider adapters, vector index scaffolding, and memory/
-context builder contracts. The MCP package now exposes HTTP-backed tool
+chunking, a unified LLM adapter for embeddings, vector index scaffolding, and
+memory/context builder contracts. The MCP package now exposes HTTP-backed tool
 definitions and a server registry. The CLI package now exposes HTTP-backed
 commands. The Hermes adapter package maps Hermes lifecycle inputs to HTTP API
 calls. The database package now exposes Drizzle-backed repository skeletons.
@@ -107,10 +107,10 @@ for local-fs storage and BullMQ; the bare app factory still returns a structured
 placeholder when dependencies are omitted.
 
 The processing packages expose a built-in text/Markdown extractor, a fixed-size
-chunker, OpenAI-compatible and Ollama embedding providers, and explicit pgvector
-and Qdrant vector index scaffolds. The worker package registers scan, extract,
+chunker, the `@mindory/llm` provider entrypoint, and explicit pgvector and
+Qdrant vector index scaffolds. The worker package registers scan, extract,
 chunk, embed and index processors; pgvector is the default vector storage/search
-path when embeddings are configured.
+path when an LLM provider is configured.
 
 The memory/context packages expose `MemoryService`, `ConservativeMemoryDeriver`
 and `ContextBuilder` contracts plus Fastify route surfaces for `/v1/memories`

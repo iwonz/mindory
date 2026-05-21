@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-35",
+  "current_task_id": "TASK-36",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -281,6 +281,13 @@
       "status": "done",
       "branch": "task/TASK-35-one-command-mvp-demo",
       "file": "tasks/TASK-35.json"
+    },
+    {
+      "id": "TASK-36",
+      "title": "Add unified LLM adapter module",
+      "status": "done",
+      "branch": "task/TASK-36-unified-llm-adapter",
+      "file": "tasks/TASK-36.json"
     }
   ]
 }

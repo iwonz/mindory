@@ -17,10 +17,9 @@ import {
   DbSessionRepository,
   type MindoryDatabase
 } from "@mindory/db";
+import { buildMindoryEmbeddingsProvider } from "@mindory/llm";
 import { BullMqProcessingJobQueue } from "@mindory/queue-bullmq";
 import { LocalFsObjectStorage } from "@mindory/storage-local-fs";
-import { OpenAICompatibleEmbeddingsProvider, type OpenAICompatibleEmbeddingsOptions } from "@mindory/embeddings-openai-compatible";
-import { OllamaEmbeddingsProvider } from "@mindory/embeddings-ollama";
 import { PgVectorChunkIndex, PgVectorDocumentChunkSearchRepository } from "@mindory/vector-pgvector";
 import type { BuildApiAppOptions } from "./app.js";
 
@@ -128,30 +127,11 @@ function buildDocumentChunkSearchRepository(config: MindoryConfig, db: MindoryDa
     embeddings,
     vectorIndex: new PgVectorChunkIndex({
       db,
-      dimensions: config.embeddings.dimensions ?? PGVECTOR_EMBEDDING_DIMENSIONS
+      dimensions: config.llm.embeddingDimensions ?? PGVECTOR_EMBEDDING_DIMENSIONS
     })
   });
 }
 
 function buildEmbeddingsProvider(config: MindoryConfig): EmbeddingsProvider | undefined {
-  if (config.embeddings.provider === "openai-compatible") {
-    const options: OpenAICompatibleEmbeddingsOptions = {
-      baseUrl: config.embeddings.openaiCompatibleBaseUrl,
-      model: config.embeddings.model
-    };
-    if (config.embeddings.openaiCompatibleApiKey) {
-      options.apiKey = config.embeddings.openaiCompatibleApiKey;
-    }
-    if (config.embeddings.dimensions !== null) {
-      options.dimensions = config.embeddings.dimensions;
-    }
-    return new OpenAICompatibleEmbeddingsProvider(options);
-  }
-  if (config.embeddings.provider === "ollama") {
-    return new OllamaEmbeddingsProvider({
-      baseUrl: config.embeddings.ollamaBaseUrl,
-      model: config.embeddings.model
-    });
-  }
-  return undefined;
+  return buildMindoryEmbeddingsProvider(config);
 }

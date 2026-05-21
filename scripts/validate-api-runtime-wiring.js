@@ -75,6 +75,7 @@ for (const symbol of [
   "DocumentUploadService",
   "PgVectorChunkIndex",
   "PgVectorDocumentChunkSearchRepository",
+  "buildMindoryEmbeddingsProvider",
   "MemoryService",
   "ContextBuilder"
 ]) {

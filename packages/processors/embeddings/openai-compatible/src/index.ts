@@ -8,6 +8,7 @@ import {
 export interface OpenAICompatibleEmbeddingsOptions {
   baseUrl: string;
   apiKey?: string;
+  bearerToken?: string;
   model: string;
   dimensions?: number;
   fetchImpl?: typeof fetch;
@@ -37,7 +38,7 @@ export class OpenAICompatibleEmbeddingsProvider implements EmbeddingsProvider {
     const model = input.model ?? this.model;
     const response = await this.fetchImpl(endpoint(this.options.baseUrl), {
       method: "POST",
-      headers: headers(this.options.apiKey),
+      headers: headers(this.options.bearerToken ?? this.options.apiKey),
       body: JSON.stringify({
         model,
         input: input.texts,

@@ -1,0 +1,67 @@
+{
+  "id": "TASK-36",
+  "title": "Add unified LLM adapter module",
+  "status": "done",
+  "type": "chore",
+  "priority": "high",
+  "branch": "task/TASK-36-unified-llm-adapter",
+  "created_at": "2026-05-21",
+  "updated_at": "2026-05-21",
+  "context": {
+    "summary": "Centralize current and future LLM provider usage behind one reusable Mindory module.",
+    "background": "API and worker runtime currently construct OpenAI-compatible and Ollama embedding providers directly. Future subsystems need one configurable component that can support multiple providers and OpenAI-compatible OAuth bearer tokens supplied by a host such as Codex or Hermes."
+  },
+  "scope": {
+    "in": [
+      "Add a shared @mindory/llm workspace package as the runtime adapter boundary for LLM/embedding providers.",
+      "Support disabled, OpenAI-compatible and Ollama embedding providers through the shared module.",
+      "Support OpenAI-compatible auth modes for no auth, API key and externally supplied OAuth bearer token.",
+      "Move API query embeddings and worker document embeddings to the shared LLM module.",
+      "Replace old MINDORY_EMBEDDINGS_* runtime configuration with MINDORY_LLM_* configuration.",
+      "Document the unified LLM adapter and update configuration/deployment docs."
+    ],
+    "out": [
+      "Implement an interactive OAuth browser/device-code flow.",
+      "Replace pgvector schema dimensions.",
+      "Add paid external provider requirements to default checks.",
+      "Implement generative chat usage where no subsystem currently needs it."
+    ]
+  },
+  "acceptance_criteria": [
+    "@mindory/llm is the single runtime construction point for current LLM/embedding providers.",
+    "API and worker runtime no longer instantiate OpenAI-compatible or Ollama providers directly.",
+    "OpenAI-compatible OAuth bearer token mode is represented in config and adapter code.",
+    "Old MINDORY_EMBEDDINGS_* env names are removed from active runtime configuration.",
+    "Docs explain how subsystems should use the shared adapter.",
+    "All repository checks pass."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "pnpm llm:validate",
+      "pnpm typecheck",
+      "pnpm lint",
+      "pnpm test",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-36.",
+      "Confirm API/worker imports point at @mindory/llm for provider construction.",
+      "Confirm OpenAI OAuth mode does not require storing a raw token in docs or examples."
+    ]
+  },
+  "dependencies": [
+    "TASK-20",
+    "TASK-31",
+    "TASK-34"
+  ],
+  "risks": [
+    "Changing config names requires updating demo, strict indexed acceptance and documentation together.",
+    "OAuth support can sprawl into interactive login; keep this task to externally supplied bearer tokens."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch is committed and merged back into master."
+  ]
+}
