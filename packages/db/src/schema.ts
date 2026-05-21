@@ -100,6 +100,7 @@ export const processingJobTypeEnum = pgEnum("processing_job_type", [
   "document.chunk",
   "document.embed",
   "document.index",
+  "document.recompute",
   "memory.derive",
   "session.summarize"
 ]);

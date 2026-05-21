@@ -44,6 +44,10 @@ const migrations = [
   {
     id: "0002_document_route_job",
     expectedTables: []
+  },
+  {
+    id: "0003_document_recompute_job",
+    expectedTables: []
   }
 ];
 

@@ -10,6 +10,7 @@ providers and vector index scaffolding. `TASK-19` registers those pieces in the
 worker document pipeline. `TASK-38` adds the derived artifact schema that later
 multimodal processors will write to. `TASK-39` adds the routing stage that
 classifies uploaded files and creates only the enabled downstream jobs.
+`TASK-40` adds recompute flow for derived state.
 
 ## MVP Pipeline
 
@@ -104,6 +105,19 @@ The default route configuration is conservative:
 Disabling a modality means no job is created for that file type. Enabling a
 future modality before its processor exists records a skipped route with
 `processor_not_implemented`; it does not enqueue a missing processor.
+
+## Recompute Flow
+
+`POST /v1/documents/:id/recompute` creates a durable `document.recompute` job.
+The worker reads the RAW object only to calculate the source checksum, creates a
+new `processing_run`, marks previous runs for the requested stage as
+`superseded`, and then enqueues `document.route` with the new
+`processing_run_id`.
+
+The RAW storage key is not changed. Existing derived rows stay attached to their
+old `processing_run`; the current run is the latest non-superseded version.
+Current implemented stages are `all`, `route`, `text`, `pdf`, `image`, `audio`
+and `video`, with only `text` reaching a concrete extractor today.
 
 ## Current Worker Processing
 

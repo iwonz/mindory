@@ -1,7 +1,9 @@
 import fastifyMultipart, { type MultipartFile } from "@fastify/multipart";
 import type { FastifyInstance } from "fastify";
+import type { DerivedArtifactRepository, ProcessingRunRecord } from "@mindory/core/artifacts";
 import { DocumentUploadService, type DocumentRecord, type DocumentRepository, type DocumentStatus, type ListDocumentsInput, type UploadDocumentInput, type UploadDocumentResult } from "@mindory/core/documents";
 import type { DocumentChunkSearchRepository } from "@mindory/core/memory";
+import { DocumentRecomputeError, DocumentRecomputeService } from "@mindory/core/recompute";
 import { requireProjectPermission, requireProjectPermissionForEach } from "../auth.js";
 import { ApiError, notImplemented } from "../errors.js";
 
@@ -9,10 +11,19 @@ export interface DocumentRouteDependencies {
   uploadService?: DocumentUploadService;
   documentRepository?: DocumentRepository;
   chunkSearchRepository?: DocumentChunkSearchRepository;
+  artifactRepository?: DerivedArtifactRepository;
+  recomputeService?: DocumentRecomputeService;
 }
 
 interface MultipartFieldValue {
   value?: unknown;
+}
+
+interface RecomputeDocumentBody {
+  projectId: string;
+  stages?: string[];
+  reason?: string;
+  requestId?: string;
 }
 
 export async function registerDocumentRoutes(app: FastifyInstance, dependencies: DocumentRouteDependencies = {}): Promise<void> {
@@ -124,6 +135,83 @@ export async function registerDocumentRoutes(app: FastifyInstance, dependencies:
     };
   });
 
+  app.get<{ Params: { id: string }; Querystring: { projectId: string } }>("/v1/documents/:id/processing-runs", {
+    schema: {
+      params: {
+        type: "object",
+        required: ["id"],
+        properties: {
+          id: { type: "string", minLength: 1 }
+        }
+      }
+    }
+  }, async (request) => {
+    if (!dependencies.artifactRepository) {
+      throw notImplemented("Processing run listing requires derived artifact repository dependencies.");
+    }
+    requireProjectPermission(request, request.query.projectId, "document:read");
+
+    return {
+      processing_runs: (await dependencies.artifactRepository.listProcessingRuns(request.query.projectId, request.params.id)).map(toProcessingRunResponse)
+    };
+  });
+
+  app.post<{ Params: { id: string }; Body: RecomputeDocumentBody }>("/v1/documents/:id/recompute", {
+    schema: {
+      params: {
+        type: "object",
+        required: ["id"],
+        properties: {
+          id: { type: "string", minLength: 1 }
+        }
+      }
+    }
+  }, async (request, reply) => {
+    if (!dependencies.recomputeService) {
+      throw notImplemented("Document recompute requires job dispatcher runtime dependencies.");
+    }
+    requireProjectPermission(request, request.body.projectId, "document:write");
+
+    try {
+      const recomputeInput = {
+        projectId: request.body.projectId,
+        documentId: request.params.id,
+        metadata: {
+          request_id: request.id,
+          source: "api"
+        }
+      };
+      if (request.body.stages !== undefined) {
+        Object.assign(recomputeInput, { stages: request.body.stages });
+      }
+      if (request.body.reason !== undefined) {
+        Object.assign(recomputeInput, { reason: request.body.reason });
+      }
+      if (request.body.requestId !== undefined) {
+        Object.assign(recomputeInput, { requestId: request.body.requestId });
+      }
+      const result = await dependencies.recomputeService.requestRecompute(recomputeInput);
+
+      reply.status(202).send({
+        request_id: request.id,
+        recompute_request_id: result.requestId,
+        processing_run_id: result.processingRunId,
+        stages: result.stages,
+        document: toDocumentResponse(result.document),
+        job: {
+          id: result.job.processingJobId,
+          queue_job_id: result.job.queueJobId,
+          queue_name: result.job.queueName
+        }
+      });
+    } catch (error) {
+      if (error instanceof DocumentRecomputeError) {
+        throw new ApiError(400, error.code, error.message);
+      }
+      throw error;
+    }
+  });
+
   app.post<{ Body: { projectIds: string[]; query: string; limit: number } }>("/v1/documents/search", async (request) => {
     if (!dependencies.chunkSearchRepository) {
       throw notImplemented("Document search requires chunk search repositories from a later task.");
@@ -185,5 +273,25 @@ function toDocumentResponse(document: DocumentRecord): Record<string, unknown> {
     metadata: document.metadata,
     created_at: document.createdAt.toISOString(),
     updated_at: document.updatedAt.toISOString()
+  };
+}
+
+function toProcessingRunResponse(run: ProcessingRunRecord): Record<string, unknown> {
+  return {
+    id: run.id,
+    project_id: run.projectId,
+    document_id: run.documentId,
+    status: run.status,
+    reason: run.reason,
+    processor_version: run.processorVersion,
+    config_fingerprint: run.configFingerprint,
+    model_runtime_fingerprint: run.modelRuntimeFingerprint,
+    source_document_storage_key: run.sourceDocumentStorageKey,
+    source_document_checksum: run.sourceDocumentChecksum,
+    metadata: run.metadata,
+    started_at: run.startedAt.toISOString(),
+    finished_at: run.finishedAt?.toISOString() ?? null,
+    created_at: run.createdAt.toISOString(),
+    updated_at: run.updatedAt.toISOString()
   };
 }

@@ -49,6 +49,10 @@
     "./queue": {
       "types": "./dist/queue.d.ts",
       "default": "./dist/queue.js"
+    },
+    "./recompute": {
+      "types": "./dist/recompute.d.ts",
+      "default": "./dist/recompute.js"
     }
   },
   "scripts": {

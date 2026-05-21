@@ -11,8 +11,9 @@ PostgreSQL remains the canonical business-state store.
 - Queue/cache: Redis and BullMQ for async work, not durable business state.
 - Object storage: local filesystem or S3/MinIO for original files.
 - Vector index: replaceable index, with pgvector as the default MVP target.
-- Workers: independently scalable processors for scan, routing, extraction,
-  chunking, embeddings, indexing, memory derivation and session summaries.
+- Workers: independently scalable processors for scan, recompute, routing,
+  extraction, chunking, embeddings, indexing, memory derivation and session
+  summaries.
 - MCP: agent-facing interface over the core API.
 - CLI: user-facing command line client over the HTTP API.
 - Hermes adapter: runtime integration that calls the HTTP API.
@@ -164,6 +165,9 @@ returns explicit `not_implemented` responses when dependencies are omitted.
 - `@mindory/core/artifacts` and `DbDerivedArtifactRepository` define the
   derived artifact boundary for processing runs, artifact records, media
   metadata and workspace-scoped face observations.
+- `@mindory/core/recompute` defines the document recompute request boundary.
+  Recompute jobs create a new `processing_run`, supersede older runs by stage
+  and enqueue routing while preserving the original document storage key.
 
 Qdrant runtime remains an optional future adapter.
 

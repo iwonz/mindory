@@ -109,8 +109,9 @@ returns a structured placeholder when dependencies are omitted.
 The processing packages expose a built-in text/Markdown extractor, a fixed-size
 chunker, the `@mindory/model-runtime` provider entrypoint, document routing, and
 explicit pgvector and Qdrant vector index scaffolds. The worker package
-registers scan, route, extract, chunk, embed and index processors; pgvector is
-the default vector storage/search path when text embeddings are configured.
+registers scan, recompute, route, extract, chunk, embed and index processors;
+pgvector is the default vector storage/search path when text embeddings are
+configured.
 
 The memory/context packages expose `MemoryService`, `ConservativeMemoryDeriver`
 and `ContextBuilder` contracts plus Fastify route surfaces for `/v1/memories`
