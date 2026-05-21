@@ -43,6 +43,17 @@ export interface ExtractedFaceObservation {
   metadata?: Record<string, unknown>;
 }
 
+export interface ExtractedTranscriptSegment {
+  segmentIndex?: number;
+  text: string;
+  startMs: number;
+  endMs: number;
+  startOffset?: number;
+  endOffset?: number;
+  confidence?: number | null;
+  metadata?: Record<string, unknown>;
+}
+
 export interface ExtractedText {
   projectId: string;
   documentId: string;
@@ -52,6 +63,7 @@ export interface ExtractedText {
   pages?: ExtractedTextPage[];
   semanticArtifacts?: ExtractedSemanticArtifact[];
   faceObservations?: ExtractedFaceObservation[];
+  transcriptSegments?: ExtractedTranscriptSegment[];
 }
 
 export interface TextExtractor {

@@ -14,6 +14,7 @@
     { "path": "../../packages/queue/bullmq" },
     { "path": "../../packages/storage/local-fs" },
     { "path": "../../packages/processors/antivirus-clamav" },
+    { "path": "../../packages/processors/extractors/audio-transcript" },
     { "path": "../../packages/processors/extractors/builtin-text" },
     { "path": "../../packages/processors/extractors/docling" },
     { "path": "../../packages/processors/extractors/image-semantic" },

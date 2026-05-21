@@ -21,6 +21,7 @@
     { "path": "packages/processors/extractors/builtin-text" },
     { "path": "packages/processors/extractors/docling" },
     { "path": "packages/processors/extractors/image-semantic" },
+    { "path": "packages/processors/extractors/audio-transcript" },
     { "path": "packages/processors/embeddings/openai-compatible" },
     { "path": "packages/processors/embeddings/ollama" },
     { "path": "packages/observability" }

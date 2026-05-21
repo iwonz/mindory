@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-45",
+  "current_task_id": "TASK-46",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -351,6 +351,13 @@
       "status": "done",
       "branch": "task/TASK-45-face-subsystem-auto-match",
       "file": "tasks/TASK-45.json"
+    },
+    {
+      "id": "TASK-46",
+      "title": "Add audio pipeline",
+      "status": "done",
+      "branch": "task/TASK-46-audio-pipeline",
+      "file": "tasks/TASK-46.json"
     }
   ]
 }

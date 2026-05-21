@@ -15,6 +15,7 @@ classifies uploaded files and creates only the enabled downstream jobs.
 `TASK-42` adds typed attachment metadata indexing for search filters.
 `TASK-43` adds PDF native text extraction on page-level artifacts.
 `TASK-44` adds the first image semantic extraction path.
+`TASK-46` adds the first audio transcript extraction path.
 
 ## MVP Pipeline
 
@@ -30,10 +31,10 @@ index
 derive memory candidates
 ```
 
-Text, Markdown, PDF native text and image semantic extraction are the currently
-implemented routes. Audio and video can be enabled in configuration, but their
-handlers intentionally skip as `processor_not_implemented` until the
-corresponding tasks add concrete processors.
+Text, Markdown, PDF native text, image semantic extraction and audio transcript
+extraction are the currently implemented routes. Video can be enabled in
+configuration, but its handler intentionally skips as `processor_not_implemented`
+until the corresponding task adds concrete processors.
 
 Processing status must be durable in PostgreSQL, not only in BullMQ.
 
@@ -105,7 +106,8 @@ The default route configuration is conservative:
 - text: enabled, creates `document.extract`;
 - PDF: disabled by default, creates `document.extract` when enabled;
 - image: disabled by default, creates `document.extract` when enabled;
-- audio/video: disabled until their processors exist;
+- audio: disabled by default, creates `document.extract` when enabled;
+- video: disabled until its processor exists;
 - video keyframe limit: `10`.
 
 Disabling a modality means no job is created for that file type. Enabling a
@@ -176,6 +178,23 @@ filename or embedded image text. The worker records deterministic
 observations through `FaceService`, creates candidate identities when no match
 reaches the threshold and keeps the RAW image unchanged.
 
+## Audio Processing
+
+When `MINDORY_DOCUMENT_PROCESSING_AUDIO_ENABLED=true`, routing sends audio
+uploads to `document.extract`. The `@mindory/extractor-audio-transcript` MVP
+extractor reads WAV metadata and embedded RIFF `INFO/ICMT` transcript text
+without mutating the RAW object. It writes:
+
+- a top-level extracted text artifact;
+- a `transcript` artifact with transcript text;
+- time-coded `transcript_segment` spans with `start_ms` and `end_ms` metadata;
+- chunk metadata and source refs that point back to transcript artifacts and
+  time ranges.
+
+The default runtime records ASR capability state from `@mindory/model-runtime`.
+Real cloud/local ASR execution is deferred to a later adapter; current local
+tests use deterministic embedded transcript fallback text.
+
 ## Recompute Flow
 
 `POST /v1/documents/:id/recompute` creates a durable `document.recompute` job.
@@ -187,19 +206,22 @@ new `processing_run`, marks previous runs for the requested stage as
 The RAW storage key is not changed. Existing derived rows stay attached to their
 old `processing_run`; the current run is the latest non-superseded version.
 Current implemented stages are `all`, `route`, `text`, `pdf`, `image`, `audio`
-and `video`, with `text`, opt-in `pdf` and opt-in `image` reaching concrete
-extractors today.
+and `video`, with `text`, opt-in `pdf`, opt-in `image` and opt-in `audio`
+reaching concrete extractors today.
 
 ## Current Worker Processing
 
 `@mindory/core/processing` defines the processing contracts. The built-in text
 extractor supports plain text and Markdown inputs, `@mindory/extractor-docling`
 supports native-text PDF inputs, `@mindory/extractor-image-semantic` supports
-image semantic fallback extraction, and `FixedSizeTextChunker` creates
+image semantic fallback extraction, `@mindory/extractor-audio-transcript`
+supports embedded-transcript audio fallback extraction, and
+`FixedSizeTextChunker` creates
 deterministic token windows with offset metadata. Text/PDF/image extraction
 writes a `text` artifact plus an `extracted_text` span; PDF extraction also
 writes `pdf_page` artifacts and page-level spans; image extraction also writes
 semantic image artifacts, spans and optional face observation artifacts.
+Audio extraction also writes transcript artifacts and time-coded segment spans.
 Chunking writes one child `text` artifact
 and one `text_chunk` span per chunk. Legacy `chunks` rows remain the
 compatibility table for context and embeddings, but their metadata points back
@@ -222,7 +244,7 @@ artifact and processing run.
 
 `TASK-19` adds `DocumentChunkRepository`, a Drizzle-backed chunk repository and
 the worker processor registry. Clean scans enqueue routing, routing enqueues
-extraction for text/Markdown/PDF/image documents when the modality is enabled,
+extraction for text/Markdown/PDF/image/audio documents when the modality is enabled,
 extraction writes derived text objects, chunking replaces durable chunk rows,
 and embedding/index processors write pgvector rows when text embeddings are
 configured. With

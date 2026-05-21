@@ -22,6 +22,7 @@ const workspaces = [
   ["packages/vector/pgvector", "@mindory/vector-pgvector"],
   ["packages/vector/qdrant", "@mindory/vector-qdrant"],
   ["packages/processors/antivirus-clamav", "@mindory/processor-antivirus-clamav"],
+  ["packages/processors/extractors/audio-transcript", "@mindory/extractor-audio-transcript"],
   ["packages/processors/extractors/builtin-text", "@mindory/extractor-builtin-text"],
   ["packages/processors/extractors/docling", "@mindory/extractor-docling"],
   ["packages/processors/extractors/image-semantic", "@mindory/extractor-image-semantic"],
