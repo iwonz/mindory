@@ -120,16 +120,12 @@ test("MVP runtime integration covers auth, upload, worker jobs and context", { t
       queuePrefix
     });
     const managementStore = new modules.DbProcessingJobStore(managementDatabase.db, () => `job_${randomUUID()}`);
-    const managementDispatcher = new modules.ProcessingJobDispatcher({
-      store: managementStore,
-      queue: managementQueue
-    });
 
     await assertAuthEnforcement(apiUrl);
     const childToken = await assertTokenLifecycle(apiUrl);
     const { sessionId, messageId } = await createConversation(apiUrl);
-    const { documentId, extractJobId } = await uploadAndProcessDocument(apiUrl, managementDispatcher);
-    await assertJobsApi(apiUrl, managementStore, sessionId, extractJobId);
+    const { documentId, routeJobId } = await uploadAndProcessDocument(apiUrl);
+    await assertJobsApi(apiUrl, managementStore, sessionId, routeJobId);
     await assertMemoryAndContext(apiUrl, sessionId, messageId, documentId);
     await assertRevokedTokenIsRejected(apiUrl, childToken.id, childToken.rawToken);
   } finally {
@@ -200,15 +196,8 @@ test("MVP runtime integration indexes document chunks with configured embeddings
       redisUrl,
       queuePrefix: indexedQueuePrefix
     });
-    const managementStore = new modules.DbProcessingJobStore(managementDatabase.db, () => `job_${randomUUID()}`);
-    const managementDispatcher = new modules.ProcessingJobDispatcher({
-      store: managementStore,
-      queue: managementQueue
-    });
-
     const documentId = await uploadAndIndexDocument({
       apiUrl,
-      dispatcher: managementDispatcher,
       projectId: indexedProjectId,
       token: indexedToken
     });
@@ -323,7 +312,7 @@ async function createConversation(apiUrl) {
   };
 }
 
-async function uploadAndProcessDocument(apiUrl, dispatcher) {
+async function uploadAndProcessDocument(apiUrl) {
   const documentText = [
     "Mindory integration document.",
     "source-backed context should include chunked document evidence.",
@@ -347,26 +336,16 @@ async function uploadAndProcessDocument(apiUrl, dispatcher) {
   }
   const upload = await uploadResponse.json();
   const documentId = upload.document.id;
-
-  const enqueued = await dispatcher.createAndEnqueue({
-    projectId,
-    type: "document.extract",
-    targetType: "document",
-    targetId: documentId,
-    idempotencyKey: `integration.document.extract:${documentId}`,
-    processorVersion: "document-extract-v1",
-    metadata: {
-      source: "integration-test"
-    }
-  });
+  const routeJobId = upload.route_job?.id;
+  assert.equal(typeof routeJobId, "string", "document upload should enqueue a route job when scan is disabled");
 
   await waitFor(async () => {
     const status = await requestJson(apiUrl, "GET", `/v1/documents/${encodeURIComponent(documentId)}/status?projectId=${encodeURIComponent(projectId)}`);
     return status.status === "chunked";
   }, "document to reach chunked status");
 
-  const extractJob = await waitForJobStatus(apiUrl, enqueued.processingJobId, "succeeded");
-  assert.equal(extractJob.type, "document.extract");
+  const routeJob = await waitForJobStatus(apiUrl, routeJobId, "succeeded");
+  assert.equal(routeJob.type, "document.route");
 
   const search = await requestJson(apiUrl, "POST", "/v1/documents/search", {
     projectIds: [projectId],
@@ -377,7 +356,7 @@ async function uploadAndProcessDocument(apiUrl, dispatcher) {
 
   return {
     documentId,
-    extractJobId: enqueued.processingJobId
+    routeJobId
   };
 }
 
@@ -405,18 +384,7 @@ async function uploadAndIndexDocument(input) {
   }
   const upload = await uploadResponse.json();
   const documentId = upload.document.id;
-
-  await input.dispatcher.createAndEnqueue({
-    projectId: input.projectId,
-    type: "document.extract",
-    targetType: "document",
-    targetId: documentId,
-    idempotencyKey: `integration.document.indexed.extract:${documentId}`,
-    processorVersion: "document-extract-v1",
-    metadata: {
-      source: "integration-test"
-    }
-  });
+  assert.equal(typeof upload.route_job?.id, "string", "document upload should enqueue a route job when scan is disabled");
 
   await waitFor(async () => {
     const status = await requestJson(input.apiUrl, "GET", `/v1/documents/${encodeURIComponent(documentId)}/status?projectId=${encodeURIComponent(input.projectId)}`, undefined, input.token);
@@ -426,12 +394,12 @@ async function uploadAndIndexDocument(input) {
   return documentId;
 }
 
-async function assertJobsApi(apiUrl, store, sessionId, extractJobId) {
+async function assertJobsApi(apiUrl, store, sessionId, routeJobId) {
   const listed = await requestJson(apiUrl, "GET", `/v1/jobs?projectId=${encodeURIComponent(projectId)}&limit=20`);
-  assert.ok(listed.jobs.some((job) => job.id === extractJobId), "job list should include document extract job");
+  assert.ok(listed.jobs.some((job) => job.id === routeJobId), "job list should include document route job");
 
-  const extractJob = await requestJson(apiUrl, "GET", `/v1/jobs/${encodeURIComponent(extractJobId)}?projectId=${encodeURIComponent(projectId)}`);
-  assert.equal(extractJob.status, "succeeded");
+  const routeJob = await requestJson(apiUrl, "GET", `/v1/jobs/${encodeURIComponent(routeJobId)}?projectId=${encodeURIComponent(projectId)}`);
+  assert.equal(routeJob.status, "succeeded");
 
   const retrySeed = await store.createPendingJob({
     projectId,

@@ -13,6 +13,7 @@ environment variable is added, renamed or removed, update this document and
 - Vector index provider and optional Qdrant settings.
 - Antivirus policy and ClamAV connection settings.
 - Worker type and concurrency.
+- Document processing router and modality switches.
 - Model runtime capability and provider settings.
 - MCP settings.
 - Hermes adapter defaults.
@@ -66,6 +67,21 @@ used by the worker base runner.
 
 `MINDORY_WORKER_TYPE` is already represented for future worker filtering, but
 TASK-7 does not register concrete processors yet.
+
+## Document Processing Router
+
+`MINDORY_DOCUMENT_PROCESSING_ROUTING_ENABLED` controls whether uploads enqueue
+the `document.route` planning job after a clean scan or when antivirus is
+disabled. It defaults to `true`.
+
+Each modality has `MINDORY_DOCUMENT_PROCESSING_<TYPE>_ENABLED` and
+`MINDORY_DOCUMENT_PROCESSING_<TYPE>_REQUIRED` settings. Current types are
+`TEXT`, `PDF`, `IMAGE`, `AUDIO` and `VIDEO`. Text is enabled by default and
+routes to the existing text extraction/chunking/indexing pipeline. PDF, image,
+audio and video default to disabled until their processors are implemented.
+
+`MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES` sets the future video
+keyframe cap and defaults to `10`.
 
 ## Model Runtime And Vector Indexes
 

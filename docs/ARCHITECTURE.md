@@ -11,8 +11,8 @@ PostgreSQL remains the canonical business-state store.
 - Queue/cache: Redis and BullMQ for async work, not durable business state.
 - Object storage: local filesystem or S3/MinIO for original files.
 - Vector index: replaceable index, with pgvector as the default MVP target.
-- Workers: independently scalable processors for scan, extraction, chunking,
-  embeddings, indexing, memory derivation and session summaries.
+- Workers: independently scalable processors for scan, routing, extraction,
+  chunking, embeddings, indexing, memory derivation and session summaries.
 - MCP: agent-facing interface over the core API.
 - CLI: user-facing command line client over the HTTP API.
 - Hermes adapter: runtime integration that calls the HTTP API.
@@ -134,8 +134,11 @@ Concrete PostgreSQL repositories and document processors are later tasks.
   creates document metadata through the repository interface.
 - In `async_quarantine` mode, it creates a durable `document.scan` job through
   `ProcessingJobDispatcher`.
+- When scan is not required, it creates a durable `document.route` job so the
+  worker can classify the file before downstream processing.
 - `@mindory/processor-antivirus-clamav` implements the ClamAV scanner adapter
-  and a `document.scan` processor wrapper.
+  and a `document.scan` processor wrapper that enqueues routing after a clean
+  verdict.
 
 The API server runtime now includes concrete local-fs storage, document
 repository and BullMQ queue dependencies for uploads. The bare app factory still
@@ -151,6 +154,8 @@ returns explicit `not_implemented` responses when dependencies are omitted.
   `start_offset`, `end_offset` and token count metadata.
 - `@mindory/extractor-builtin-text` handles UTF-8 plain text and simple Markdown
   normalization for `.txt`, `.md` and `.markdown` inputs.
+- `@mindory/core/document-routing` classifies uploads by MIME, extension and
+  magic bytes, then plans only enabled downstream jobs.
 - `@mindory/model-runtime` is the runtime adapter entrypoint for text
   embeddings and future OCR, ASR, vision and face capabilities, including
   OpenAI-compatible API key or OAuth bearer auth.

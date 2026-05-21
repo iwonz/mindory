@@ -79,8 +79,10 @@ POST /v1/documents/search
 `POST /v1/documents` is wired for multipart parsing. In the API server runtime,
 `TASK-18` injects `DocumentUploadService`, local filesystem object storage,
 document repositories and BullMQ dispatch, so uploads can store the file, create
-the `Document` row and enqueue the first `document.scan` job. In a bare
-`buildApiApp` call without dependencies, it still returns `501 not_implemented`.
+the `Document` row and enqueue `document.scan` when async antivirus is required
+or `document.route` when it can route immediately. The upload response includes
+`scan_job` and `route_job` fields. In a bare `buildApiApp` call without
+dependencies, it still returns `501 not_implemented`.
 
 Document read/status/list/search routes use document repositories when the API
 server runtime is built. Document search uses pgvector semantic search when an

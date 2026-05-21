@@ -18,6 +18,15 @@ export interface ModelRuntimeEmbeddingCapabilityConfig extends ModelRuntimeCapab
   dimensions: number | null;
 }
 
+export interface DocumentProcessingModalityConfig {
+  enabled: boolean;
+  required: boolean;
+}
+
+export interface DocumentProcessingVideoConfig extends DocumentProcessingModalityConfig {
+  maxKeyframes: number;
+}
+
 export interface MindoryConfig {
   log: {
     level: string;
@@ -72,6 +81,14 @@ export interface MindoryConfig {
   workers: {
     type: string;
     concurrency: number;
+  };
+  documentProcessing: {
+    routingEnabled: boolean;
+    text: DocumentProcessingModalityConfig;
+    pdf: DocumentProcessingModalityConfig;
+    image: DocumentProcessingModalityConfig;
+    audio: DocumentProcessingModalityConfig;
+    video: DocumentProcessingVideoConfig;
   };
   modelRuntime: {
     textEmbedding: ModelRuntimeEmbeddingCapabilityConfig;
@@ -203,6 +220,21 @@ function readModelEmbeddingCapabilityConfig(
   };
 }
 
+function readDocumentProcessingModalityConfig(
+  env: EnvSource,
+  key: string,
+  defaults: {
+    enabled?: boolean;
+    required?: boolean;
+  } = {}
+): DocumentProcessingModalityConfig {
+  const prefix = `MINDORY_DOCUMENT_PROCESSING_${key}`;
+  return {
+    enabled: readBoolean(env, `${prefix}_ENABLED`, defaults.enabled ?? false),
+    required: readBoolean(env, `${prefix}_REQUIRED`, defaults.required ?? false)
+  };
+}
+
 export function loadMindoryConfig(env: EnvSource = process.env): MindoryConfig {
   const config: MindoryConfig = {
     log: {
@@ -258,6 +290,19 @@ export function loadMindoryConfig(env: EnvSource = process.env): MindoryConfig {
     workers: {
       type: readString(env, "MINDORY_WORKER_TYPE", "all"),
       concurrency: readNumber(env, "MINDORY_WORKER_CONCURRENCY", 2)
+    },
+    documentProcessing: {
+      routingEnabled: readBoolean(env, "MINDORY_DOCUMENT_PROCESSING_ROUTING_ENABLED", true),
+      text: readDocumentProcessingModalityConfig(env, "TEXT", {
+        enabled: true
+      }),
+      pdf: readDocumentProcessingModalityConfig(env, "PDF"),
+      image: readDocumentProcessingModalityConfig(env, "IMAGE"),
+      audio: readDocumentProcessingModalityConfig(env, "AUDIO"),
+      video: {
+        ...readDocumentProcessingModalityConfig(env, "VIDEO"),
+        maxKeyframes: readNumber(env, "MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES", 10)
+      }
     },
     modelRuntime: {
       textEmbedding: readModelEmbeddingCapabilityConfig(env, "TEXT_EMBEDDING"),
@@ -319,6 +364,7 @@ export function loadMindoryConfig(env: EnvSource = process.env): MindoryConfig {
 
 export function validateMindoryConfig(config: MindoryConfig): void {
   validateApiConfig(config);
+  validateDocumentProcessingConfig(config);
   validateModelRuntimeConfig(config);
 }
 
@@ -333,6 +379,12 @@ function validateApiConfig(config: MindoryConfig): void {
 
   if (config.api.rateLimit.maxRequests <= 0) {
     throw new Error("MINDORY_API_RATE_LIMIT_MAX must be greater than zero when rate limits are enabled.");
+  }
+}
+
+function validateDocumentProcessingConfig(config: MindoryConfig): void {
+  if (config.documentProcessing.video.maxKeyframes <= 0) {
+    throw new Error("MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES must be greater than zero.");
   }
 }
 

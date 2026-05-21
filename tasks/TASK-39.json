@@ -1,0 +1,69 @@
+{
+  "id": "TASK-39",
+  "title": "Add processing router after upload and antivirus",
+  "status": "done",
+  "type": "chore",
+  "priority": "high",
+  "branch": "task/TASK-39-processing-router",
+  "created_at": "2026-05-21",
+  "updated_at": "2026-05-21",
+  "context": {
+    "summary": "Route uploaded documents by file type after upload or clean antivirus scan before creating modality-specific processing jobs.",
+    "background": "TASK-38 added derived artifact schema. Multimodal processing needs a dedicated planning stage so antivirus, routing and handlers stay separated and disabled handlers do not create jobs."
+  },
+  "scope": {
+    "in": [
+      "Add a document.route processing job type and migration.",
+      "Add a core document routing module for MIME, extension and magic-byte classification.",
+      "Enqueue document.route after upload when asynchronous scan is not required.",
+      "Enqueue document.route after clean ClamAV scans instead of directly enqueueing extraction.",
+      "Register a worker route processor that creates only enabled downstream jobs.",
+      "Add document processing route configuration and document it in .env.example, Compose and docs.",
+      "Update integration and validation checks to use route jobs."
+    ],
+    "out": [
+      "Implement PDF, image, audio, video, OCR, ASR, face or keyframe processors.",
+      "Implement derived artifact writes for routed handlers.",
+      "Expose artifact or recompute APIs."
+    ]
+  },
+  "acceptance_criteria": [
+    "document.route exists in core queue types, Drizzle schema and a forward migration without changing 0000_initial_schema.",
+    "Uploads with no async scan return a route_job and do not require manual extraction enqueue.",
+    "Clean ClamAV scans enqueue document.route instead of document.extract.",
+    "The worker route processor classifies text, PDF, image, audio, video and unknown files.",
+    "Disabled handlers do not create downstream jobs.",
+    "Text routes create the existing document.extract job.",
+    "Configuration supports modality enable/required switches and video max keyframes.",
+    "Documentation describes the routing stage and new configuration."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "pnpm db:validate",
+      "pnpm documents:validate",
+      "pnpm processing:validate",
+      "pnpm typecheck",
+      "pnpm lint",
+      "pnpm test",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm the task branch starts from master.",
+      "Confirm 0000_initial_schema.sql is unchanged.",
+      "Confirm no modality processor is enqueued when the handler is disabled or not implemented."
+    ]
+  },
+  "dependencies": [
+    "TASK-38"
+  ],
+  "risks": [
+    "A route migration changes the processing_job_type enum for existing databases; it must be applied before route jobs are created.",
+    "Future modality tasks must add processors before enabling those handlers by default."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch is committed and merged back into master."
+  ]
+}

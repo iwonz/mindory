@@ -1,6 +1,7 @@
 export * from "./antivirus.js";
 export * from "./artifacts.js";
 export * from "./documents.js";
+export * from "./document-routing.js";
 export * from "./memory.js";
 export * from "./processing.js";
 export * from "./projects.js";

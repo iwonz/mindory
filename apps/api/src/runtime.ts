@@ -57,7 +57,9 @@ export function buildApiRuntimeDependencies(config: MindoryConfig): ApiRuntimeDe
       mode: config.antivirus.mode,
       onScanFailure: config.antivirus.onScanFailure,
       onInfected: config.antivirus.onInfected
-    }
+    },
+    routeAfterUpload: config.documentProcessing.routingEnabled,
+    routeProcessorVersion: "document-route-v1"
   });
 
   return {

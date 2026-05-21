@@ -6,6 +6,7 @@ stateless and horizontally scalable.
 ## Worker Types
 
 - `virus-scan`
+- `routing`
 - `extraction`
 - `chunking`
 - `embedding`
@@ -17,9 +18,9 @@ Workers should be independently scalable by `WORKER_TYPE` and
 `WORKER_CONCURRENCY`.
 
 `TASK-3` includes a `worker` Docker Compose placeholder. `TASK-18` makes API
-uploads enqueue `document.scan` jobs through BullMQ. `TASK-19` adds the concrete
-worker runtime builder and document processor registry, but Docker Compose still
-uses the placeholder service until the deployment task swaps runtime commands.
+uploads enqueue durable document jobs through BullMQ. `TASK-19` adds the
+concrete worker runtime builder and document processor registry, and `TASK-39`
+adds route planning between scan and modality-specific processing.
 
 `TASK-4` adds the canonical `processing_jobs` table. Workers added later must use
 that table for durable job state and BullMQ only for execution scheduling.
@@ -37,9 +38,11 @@ enqueueing the BullMQ job. BullMQ uses the job idempotency key as `jobId` so
 duplicate enqueue attempts are coalesced by Redis while PostgreSQL remains
 canonical.
 
-`TASK-19` wires the document pipeline processors:
+The document pipeline processors now include:
 
-- `document.scan` via ClamAV, which enqueues extraction after a clean scan.
+- `document.scan` via ClamAV, which enqueues routing after a clean scan.
+- `document.route`, which classifies the file and plans only enabled downstream
+  jobs for the file type.
 - `document.extract`, which writes extracted text back to object storage.
 - `document.chunk`, which replaces durable PostgreSQL chunk rows.
 - `document.embed` and `document.index`, which are registered and skip safely
@@ -48,6 +51,10 @@ canonical.
 The current concrete pieces are the built-in text/Markdown extractor, fixed-size
 chunker, OpenAI-compatible embeddings provider, Ollama embeddings provider, and
 explicit pgvector/Qdrant vector index scaffolds.
+
+Routing is intentionally separate from antivirus and extraction. When antivirus
+is disabled, upload enqueues `document.route` directly. When asynchronous
+ClamAV is enabled, scan must finish cleanly before route planning runs.
 
 `TASK-22` wires memory/context processors into the same worker runtime:
 
