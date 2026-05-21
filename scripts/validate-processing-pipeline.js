@@ -6,6 +6,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 const requiredFiles = [
   "packages/core/src/processing.ts",
+  "packages/core/src/faces.ts",
   "packages/core/src/document-routing.ts",
   "packages/core/src/recompute.ts",
   "packages/processors/extractors/builtin-text/src/index.ts",
@@ -61,6 +62,7 @@ const qdrantTsconfig = readJson("packages/vector/qdrant/tsconfig.json");
 
 const coreIndex = read("packages/core/src/index.ts");
 const processing = read("packages/core/src/processing.ts");
+const faces = read("packages/core/src/faces.ts");
 const routing = read("packages/core/src/document-routing.ts");
 const recompute = read("packages/core/src/recompute.ts");
 const extractor = read("packages/processors/extractors/builtin-text/src/index.ts");
@@ -81,9 +83,11 @@ const configurationDocs = read("docs/CONFIGURATION.md");
 
 assert(rootPackage.scripts?.["processing:validate"] === "node scripts/validate-processing-pipeline.js", "Root package must expose processing:validate.");
 assert(corePackage.exports?.["./processing"], "@mindory/core must export ./processing.");
+assert(corePackage.exports?.["./faces"], "@mindory/core must export ./faces.");
 assert(corePackage.exports?.["./document-routing"], "@mindory/core must export ./document-routing.");
 assert(corePackage.exports?.["./recompute"], "@mindory/core must export ./recompute.");
 assert(coreIndex.includes('export * from "./processing.js";'), "@mindory/core root index must export processing contracts.");
+assert(coreIndex.includes('export * from "./faces.js";'), "@mindory/core root index must export face contracts.");
 assert(coreIndex.includes('export * from "./document-routing.js";'), "@mindory/core root index must export document routing contracts.");
 assert(coreIndex.includes('export * from "./recompute.js";'), "@mindory/core root index must export recompute contracts.");
 
@@ -91,6 +95,7 @@ for (const symbol of [
   "TextExtractor",
   "ExtractTextInput",
   "ExtractedText",
+  "ExtractedFaceObservation",
   "TextChunker",
   "FixedSizeTextChunker",
   "TextChunk",
@@ -102,6 +107,9 @@ for (const symbol of [
   "ProcessingError"
 ]) {
   assert(processing.includes(symbol), `@mindory/core processing module must define ${symbol}.`);
+}
+for (const token of ["FaceService", "recordObservation", "cosineSimilarity", "mergeIdentities"]) {
+  assert(faces.includes(token), `@mindory/core faces module must include ${token}.`);
 }
 
 for (const token of [
@@ -145,7 +153,7 @@ for (const token of ["DoclingPdfExtractor", "extractPdfPageText", "\"application
 assert(imageSemanticPackage.dependencies?.["@mindory/core"] === "workspace:*", "Image semantic extractor must depend on @mindory/core.");
 assert(imageSemanticPackage.exports?.["."], "Image semantic extractor must export its root module.");
 assert(imageSemanticTsconfig.references?.some((reference) => reference.path === "../../../../packages/core"), "Image semantic extractor must reference @mindory/core.");
-for (const token of ["ImageSemanticExtractor", "image_caption", "image_analysis", "ocr_text", "image_embedding", "extractEmbeddedImageText"]) {
+for (const token of ["ImageSemanticExtractor", "image_caption", "image_analysis", "ocr_text", "image_embedding", "faceObservations", "face_detection", "deterministicFaceEmbedding", "extractEmbeddedImageText"]) {
   assert(imageSemantic.includes(token), `Image semantic extractor must include ${token}.`);
 }
 
@@ -251,14 +259,18 @@ for (const token of [
   "checksum_sha256",
   "DoclingPdfExtractor",
   "ImageSemanticExtractor",
+  "FaceService",
   "pdf_page",
   "pdf_native_text",
+  "face_observation",
   "page_artifact_ids",
   "semantic_artifact_ids",
   "semantic_artifact_types",
+  "face_observation_artifact_ids",
   "text_artifact_id",
   "artifact_id",
   "createExtractedSemanticArtifacts",
+  "createExtractedFaceObservations",
   "ClamAvDocumentScanProcessor",
   "document.recompute",
   "document.route",

@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import type {
   CreateDocumentArtifactInput,
   CreateDocumentArtifactTextSpanInput,
@@ -13,9 +13,13 @@ import type {
   DocumentMediaMetadataRecord,
   FaceIdentityRecord,
   FaceObservationRecord,
+  ListFaceIdentitiesInput,
+  ListFaceObservationsInput,
   ProcessingRunRecord,
+  ReassignFaceObservationsInput,
   ReplaceDocumentMetadataIndexInput,
   ReplaceDocumentArtifactTextSpansInput,
+  UpdateFaceIdentityInput,
   UpdateProcessingRunStatusInput,
   UpsertDocumentMediaMetadataInput
 } from "@mindory/core/artifacts";
@@ -230,13 +234,60 @@ export class DbDerivedArtifactRepository implements DerivedArtifactRepository {
       status: input.status ?? "candidate",
       representativeArtifactId: input.representativeArtifactId ?? null,
       metadata: input.metadata ?? {}
-    }).returning();
+    }).onConflictDoNothing().returning();
 
-    return mapFaceIdentity(firstOrThrow(row ? [row] : [], `Face identity ${input.id} was not created.`));
+    return row ? mapFaceIdentity(row) : this.getFaceIdentity(input.projectId, input.id);
+  }
+
+  async getFaceIdentity(projectId: string, identityId: string): Promise<FaceIdentityRecord> {
+    const rows = await this.db.select().from(faceIdentities).where(and(
+      eq(faceIdentities.projectId, projectId),
+      eq(faceIdentities.id, identityId)
+    ));
+
+    return mapFaceIdentity(firstOrThrow(rows, `Face identity ${identityId} was not found.`));
+  }
+
+  async listFaceIdentities(input: ListFaceIdentitiesInput): Promise<FaceIdentityRecord[]> {
+    const conditions = [eq(faceIdentities.projectId, input.projectId)];
+    if (input.statuses && input.statuses.length > 0) {
+      conditions.push(inArray(faceIdentities.status, input.statuses));
+    }
+    const rows = await this.db.select().from(faceIdentities)
+      .where(and(...conditions))
+      .orderBy(asc(faceIdentities.createdAt))
+      .limit(input.limit ?? 100);
+
+    return rows.map(mapFaceIdentity);
+  }
+
+  async updateFaceIdentity(input: UpdateFaceIdentityInput): Promise<FaceIdentityRecord> {
+    const update: Partial<typeof faceIdentities.$inferInsert> = {
+      updatedAt: new Date()
+    };
+    if (input.label !== undefined) {
+      update.label = input.label;
+    }
+    if (input.status !== undefined) {
+      update.status = input.status;
+    }
+    if (input.representativeArtifactId !== undefined) {
+      update.representativeArtifactId = input.representativeArtifactId;
+    }
+    if (input.metadata !== undefined) {
+      update.metadata = input.metadata;
+    }
+
+    const [row] = await this.db.update(faceIdentities).set(update).where(and(
+      eq(faceIdentities.projectId, input.projectId),
+      eq(faceIdentities.id, input.identityId)
+    )).returning();
+
+    return mapFaceIdentity(firstOrThrow(row ? [row] : [], `Face identity ${input.identityId} was not updated.`));
   }
 
   async createFaceObservation(input: CreateFaceObservationInput): Promise<FaceObservationRecord> {
-    const [row] = await this.db.insert(faceObservations).values({
+    const values = {
       id: input.id,
       projectId: input.projectId,
       documentId: input.documentId,
@@ -249,9 +300,42 @@ export class DbDerivedArtifactRepository implements DerivedArtifactRepository {
       boundingBox: input.boundingBox,
       confidence: input.confidence ?? null,
       metadata: input.metadata ?? {}
+    };
+    const [row] = await this.db.insert(faceObservations).values(values).onConflictDoUpdate({
+      target: faceObservations.id,
+      set: values
     }).returning();
 
     return mapFaceObservation(firstOrThrow(row ? [row] : [], `Face observation ${input.id} was not created.`));
+  }
+
+  async listFaceObservations(input: ListFaceObservationsInput): Promise<FaceObservationRecord[]> {
+    const conditions = [eq(faceObservations.projectId, input.projectId)];
+    if (input.identityId !== undefined) {
+      conditions.push(input.identityId === null
+        ? isNull(faceObservations.faceIdentityId)
+        : eq(faceObservations.faceIdentityId, input.identityId));
+    }
+    if (input.documentId !== undefined) {
+      conditions.push(eq(faceObservations.documentId, input.documentId));
+    }
+    const rows = await this.db.select().from(faceObservations)
+      .where(and(...conditions))
+      .orderBy(asc(faceObservations.createdAt))
+      .limit(input.limit ?? 100);
+
+    return rows.map(mapFaceObservation);
+  }
+
+  async reassignFaceObservations(input: ReassignFaceObservationsInput): Promise<number> {
+    const rows = await this.db.update(faceObservations).set({
+      faceIdentityId: input.toIdentityId
+    }).where(and(
+      eq(faceObservations.projectId, input.projectId),
+      eq(faceObservations.faceIdentityId, input.fromIdentityId)
+    )).returning();
+
+    return rows.length;
   }
 }
 

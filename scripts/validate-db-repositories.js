@@ -6,6 +6,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 const requiredFiles = [
   "packages/core/src/artifacts.ts",
+  "packages/core/src/faces.ts",
   "packages/core/src/projects.ts",
   "packages/core/src/sessions.ts",
   "packages/db/src/repositories/artifacts.ts",
@@ -45,6 +46,7 @@ const dbIndex = read("packages/db/src/index.ts");
 const projectsCore = read("packages/core/src/projects.ts");
 const sessionsCore = read("packages/core/src/sessions.ts");
 const artifactsCore = read("packages/core/src/artifacts.ts");
+const facesCore = read("packages/core/src/faces.ts");
 const processingCore = read("packages/core/src/processing.ts");
 const repoIndex = read("packages/db/src/repositories/index.ts");
 const repoTypes = read("packages/db/src/repositories/types.ts");
@@ -57,6 +59,7 @@ const jobRepos = read("packages/db/src/repositories/jobs.ts");
 const apiFiles = [
   "apps/api/src/routes/projects.ts",
   "apps/api/src/routes/documents.ts",
+  "apps/api/src/routes/faces.ts",
   "apps/api/src/routes/memories.ts",
   "apps/api/src/routes/context.ts"
 ].map(read).join("\n");
@@ -65,9 +68,11 @@ assert(rootPackage.scripts?.["db:repositories:validate"] === "node scripts/valid
 assert(corePackage.exports?.["./projects"], "@mindory/core must export ./projects.");
 assert(corePackage.exports?.["./sessions"], "@mindory/core must export ./sessions.");
 assert(corePackage.exports?.["./artifacts"], "@mindory/core must export ./artifacts.");
+assert(corePackage.exports?.["./faces"], "@mindory/core must export ./faces.");
 assert(coreIndex.includes('export * from "./projects.js";'), "@mindory/core index must export project contracts.");
 assert(coreIndex.includes('export * from "./sessions.js";'), "@mindory/core index must export session contracts.");
 assert(coreIndex.includes('export * from "./artifacts.js";'), "@mindory/core index must export artifact contracts.");
+assert(coreIndex.includes('export * from "./faces.js";'), "@mindory/core index must export face contracts.");
 assert(dbPackage.exports?.["./repositories"], "@mindory/db must export ./repositories.");
 assert(dbPackage.dependencies?.["@mindory/core"] === "workspace:*", "@mindory/db must depend on @mindory/core.");
 assert(dbTsconfig.references?.some((reference) => reference.path === "../core"), "@mindory/db must reference @mindory/core.");
@@ -105,7 +110,11 @@ for (const symbol of ["ProcessingRunRecord", "DocumentArtifactRecord", "Document
   assert(artifactsCore.includes(symbol), `Core artifact contracts must include ${symbol}.`);
 }
 
-for (const symbol of ["DbDerivedArtifactRepository", "createProcessingRun", "listProcessingRuns", "supersedeDocumentProcessingRuns", "createDocumentArtifact", "listDocumentArtifacts", "replaceDocumentArtifactTextSpans", "upsertDocumentMediaMetadata", "replaceDocumentMetadataIndex", "createFaceIdentity", "createFaceObservation"]) {
+for (const symbol of ["FaceService", "recordObservation", "mergeIdentities", "renameIdentity", "similarityThreshold"]) {
+  assert(facesCore.includes(symbol), `Core face service must include ${symbol}.`);
+}
+
+for (const symbol of ["DbDerivedArtifactRepository", "createProcessingRun", "listProcessingRuns", "supersedeDocumentProcessingRuns", "createDocumentArtifact", "listDocumentArtifacts", "replaceDocumentArtifactTextSpans", "upsertDocumentMediaMetadata", "replaceDocumentMetadataIndex", "createFaceIdentity", "getFaceIdentity", "listFaceIdentities", "updateFaceIdentity", "createFaceObservation", "listFaceObservations", "reassignFaceObservations"]) {
   assert(artifactRepos.includes(symbol), `Derived artifact repository must include ${symbol}.`);
 }
 

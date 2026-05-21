@@ -99,7 +99,9 @@ Text embeddings are currently the only capability that performs live model
 calls. The image pipeline records OCR, image-captioning and image-embedding
 capability state in derived artifacts, but the current MVP extractor uses a
 deterministic metadata and embedded PNG text fallback until concrete vision/OCR
-adapters are added.
+adapters are added. When `MINDORY_MODEL_RUNTIME_FACE_DETECTION_ENABLED=true`,
+the fallback image extractor can also derive face observations from explicit
+people-count signals and match them through the workspace-scoped face subsystem.
 
 Text embeddings are the only capability used for pgvector indexing today.
 When `MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_ENABLED=true`,

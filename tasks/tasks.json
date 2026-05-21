@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-44",
+  "current_task_id": "TASK-45",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -344,6 +344,13 @@
       "status": "done",
       "branch": "task/TASK-44-image-semantic-pipeline",
       "file": "tasks/TASK-44.json"
+    },
+    {
+      "id": "TASK-45",
+      "title": "Add face subsystem with auto match",
+      "status": "done",
+      "branch": "task/TASK-45-face-subsystem-auto-match",
+      "file": "tasks/TASK-45.json"
     }
   ]
 }

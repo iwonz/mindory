@@ -160,12 +160,21 @@ artifact-backed spans. It writes:
 - `image_caption` and `image_analysis` artifacts with text spans;
 - an `image_embedding` artifact that records image-embedding capability state;
 - an `ocr_text` artifact and span when embedded PNG `tEXt` metadata is present;
+- `face_observation` artifacts and `face_observations` rows when face detection
+  is enabled and the fallback extractor can infer people count;
 - chunk metadata and source refs that point back to semantic image artifacts.
 
 The current extractor is deterministic and does not call cloud or local vision
 models. It records configured OCR, image-captioning and image-embedding
 capability state from `@mindory/model-runtime` so a later concrete adapter can
 replace derived outputs without changing RAW originals.
+
+When face detection is enabled, the same fallback extractor can create
+workspace-scoped face observations from explicit people-count signals in the
+filename or embedded image text. The worker records deterministic
+512-dimensional face embeddings, auto-matches them against existing project
+observations through `FaceService`, creates candidate identities when no match
+reaches the threshold and keeps the RAW image unchanged.
 
 ## Recompute Flow
 
@@ -190,7 +199,8 @@ image semantic fallback extraction, and `FixedSizeTextChunker` creates
 deterministic token windows with offset metadata. Text/PDF/image extraction
 writes a `text` artifact plus an `extracted_text` span; PDF extraction also
 writes `pdf_page` artifacts and page-level spans; image extraction also writes
-semantic image artifacts and spans. Chunking writes one child `text` artifact
+semantic image artifacts, spans and optional face observation artifacts.
+Chunking writes one child `text` artifact
 and one `text_chunk` span per chunk. Legacy `chunks` rows remain the
 compatibility table for context and embeddings, but their metadata points back
 to `processing_run_id`, `text_artifact_id`, chunk `artifact_id`, page artifact

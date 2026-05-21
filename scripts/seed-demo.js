@@ -19,6 +19,8 @@ const permissions = [
   "document:read",
   "document:write",
   "document:search",
+  "face:read",
+  "face:write",
   "memory:read",
   "memory:write",
   "memory:delete",

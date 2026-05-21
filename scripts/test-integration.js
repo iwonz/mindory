@@ -37,6 +37,8 @@ const testEnv = {
   MINDORY_AV_MODE: "disabled",
   MINDORY_DOCUMENT_PROCESSING_PDF_ENABLED: "true",
   MINDORY_DOCUMENT_PROCESSING_IMAGE_ENABLED: "true",
+  MINDORY_MODEL_RUNTIME_FACE_DETECTION_ENABLED: "true",
+  MINDORY_MODEL_RUNTIME_FACE_RECOGNITION_ENABLED: "true",
   MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_ENABLED: "false",
   MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_PROVIDER: "disabled",
   MINDORY_WORKER_CONCURRENCY: "1"
@@ -129,7 +131,8 @@ test("MVP runtime integration covers auth, upload, worker jobs and context", { t
     const { sessionId, messageId } = await createConversation(apiUrl);
     const { documentId, routeJobId } = await uploadAndProcessDocument(apiUrl);
     await uploadAndProcessPdfDocument(apiUrl);
-    await uploadAndProcessImageDocument(apiUrl);
+    const imageDocument = await uploadAndProcessImageDocument(apiUrl);
+    await assertFaceSubsystem(apiUrl, imageDocument.documentId);
     await assertJobsApi(apiUrl, managementStore, sessionId, routeJobId);
     await assertDocumentRecompute(apiUrl, documentId);
     await assertMemoryAndContext(apiUrl, sessionId, messageId, documentId);
@@ -512,6 +515,43 @@ async function uploadAndProcessImageDocument(apiUrl) {
   assert.equal(await countDocumentTextSpans(projectId, documentId, "image_caption", databaseUrl), 1);
   assert.equal(await countDocumentTextSpans(projectId, documentId, "image_analysis", databaseUrl), 1);
   assert.equal(await countDocumentTextSpans(projectId, documentId, "ocr_text", databaseUrl), 1);
+
+  return {
+    documentId,
+    routeJobId
+  };
+}
+
+async function assertFaceSubsystem(apiUrl, documentId) {
+  const identities = await requestJson(apiUrl, "GET", `/v1/faces/identities?projectId=${encodeURIComponent(projectId)}&limit=20`);
+  const observations = await requestJson(apiUrl, "GET", `/v1/faces/observations?projectId=${encodeURIComponent(projectId)}&documentId=${encodeURIComponent(documentId)}&limit=20`);
+  assert.equal(observations.observations.length, 3, "image face fallback should create one observation per detected person count.");
+  assert.equal(new Set(observations.observations.map((observation) => observation.face_identity_id)).size, 3, "distinct fallback faces should create distinct candidate identities.");
+  assert.ok(observations.observations.every((observation) => observation.artifact_id && observation.bounding_box), "face observations should be source-backed by artifacts and bounding boxes.");
+  assert.ok(identities.identities.length >= 3, "face identity API should list image-derived identities.");
+  assert.equal(await countDocumentArtifacts(projectId, documentId, "face_observation", databaseUrl), 3);
+
+  const [firstObservation, secondObservation] = observations.observations;
+  const firstIdentityId = firstObservation.face_identity_id;
+  const secondIdentityId = secondObservation.face_identity_id;
+  assert.notEqual(firstIdentityId, secondIdentityId, "merge test requires two separate face identities.");
+
+  const renamed = await requestJson(apiUrl, "PATCH", `/v1/faces/identities/${encodeURIComponent(firstIdentityId)}`, {
+    projectId,
+    label: "Integration Person A"
+  });
+  assert.equal(renamed.label, "Integration Person A", "face identity rename should persist label.");
+
+  const merged = await requestJson(apiUrl, "POST", `/v1/faces/identities/${encodeURIComponent(secondIdentityId)}/merge`, {
+    projectId,
+    targetIdentityId: firstIdentityId
+  });
+  assert.equal(merged.source.status, "archived", "merged source identity should be archived.");
+  assert.equal(merged.target.id, firstIdentityId);
+  assert.ok(merged.reassigned_observations >= 1, "merge should reassign source observations to target identity.");
+
+  const targetObservations = await requestJson(apiUrl, "GET", `/v1/faces/observations?projectId=${encodeURIComponent(projectId)}&identityId=${encodeURIComponent(firstIdentityId)}&limit=20`);
+  assert.ok(targetObservations.observations.length >= 2, "target identity should include reassigned observations.");
 }
 
 async function uploadAndIndexDocument(input) {

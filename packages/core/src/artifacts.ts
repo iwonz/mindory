@@ -252,6 +252,21 @@ export interface CreateFaceIdentityInput {
   metadata?: Record<string, unknown>;
 }
 
+export interface ListFaceIdentitiesInput {
+  projectId: string;
+  statuses?: FaceIdentityStatus[];
+  limit?: number;
+}
+
+export interface UpdateFaceIdentityInput {
+  projectId: string;
+  identityId: string;
+  label?: string | null;
+  status?: FaceIdentityStatus;
+  representativeArtifactId?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
 export interface FaceObservationRecord {
   id: string;
   projectId: string;
@@ -283,6 +298,19 @@ export interface CreateFaceObservationInput {
   metadata?: Record<string, unknown>;
 }
 
+export interface ListFaceObservationsInput {
+  projectId: string;
+  identityId?: string | null;
+  documentId?: string;
+  limit?: number;
+}
+
+export interface ReassignFaceObservationsInput {
+  projectId: string;
+  fromIdentityId: string;
+  toIdentityId: string;
+}
+
 export interface DerivedArtifactRepository extends DocumentProcessingRunRepository {
   createProcessingRun(input: CreateProcessingRunInput): Promise<ProcessingRunRecord>;
   updateProcessingRunStatus(input: UpdateProcessingRunStatusInput): Promise<ProcessingRunRecord>;
@@ -292,5 +320,10 @@ export interface DerivedArtifactRepository extends DocumentProcessingRunReposito
   upsertDocumentMediaMetadata(input: UpsertDocumentMediaMetadataInput): Promise<DocumentMediaMetadataRecord>;
   replaceDocumentMetadataIndex(input: ReplaceDocumentMetadataIndexInput): Promise<DocumentMetadataIndexRecord[]>;
   createFaceIdentity(input: CreateFaceIdentityInput): Promise<FaceIdentityRecord>;
+  getFaceIdentity(projectId: string, identityId: string): Promise<FaceIdentityRecord>;
+  listFaceIdentities(input: ListFaceIdentitiesInput): Promise<FaceIdentityRecord[]>;
+  updateFaceIdentity(input: UpdateFaceIdentityInput): Promise<FaceIdentityRecord>;
   createFaceObservation(input: CreateFaceObservationInput): Promise<FaceObservationRecord>;
+  listFaceObservations(input: ListFaceObservationsInput): Promise<FaceObservationRecord[]>;
+  reassignFaceObservations(input: ReassignFaceObservationsInput): Promise<number>;
 }

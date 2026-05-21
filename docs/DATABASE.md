@@ -144,6 +144,12 @@ write document artifacts, store media metadata and record face identities or
 observations. Later modality processors should use this repository rather than
 writing derived artifact tables directly.
 
+`TASK-45` extends face repository operations with project-scoped identity and
+observation listing, identity rename, observation reassignment and source
+identity archival for merges. Face observations keep 512-dimensional embeddings
+as derived state so automatic matching can be recomputed from RAW documents and
+artifacts.
+
 `TASK-41` extends that repository with idempotent text span replacement for
 artifact-backed text chunks. The text search path now uses a full-text GIN index
 on `document_artifact_text_spans` and filters out spans from `superseded`
