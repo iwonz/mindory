@@ -23,7 +23,7 @@ const dockerfile = fs.readFileSync(dockerfilePath, "utf8");
 const dockerignore = fs.readFileSync(dockerignorePath, "utf8");
 const releaseManifest = JSON.parse(fs.readFileSync(releaseManifestPath, "utf8"));
 
-for (const service of ["postgres", "redis", "migrate", "api", "mcp", "worker"]) {
+for (const service of ["postgres", "redis", "migrate", "api", "mcp", "worker", "librefs", "librefs-bucket", "minio", "minio-bucket"]) {
   assert(compose.includes(`\n  ${service}:`), `docker-compose.yml must define ${service}.`);
 }
 
@@ -59,6 +59,10 @@ assert(compose.includes("${MINDORY_HOME:-${HOME}/.mindory}/config:/data/mindory/
 assert(compose.includes("${MINDORY_HOME:-${HOME}/.mindory}/logs:/data/mindory/logs"), "Runtime services must mount logs under MINDORY_HOME.");
 assert(compose.includes("ghcr.io/librefs/librefs:latest"), "Compose must define the LibreFS local S3-compatible image.");
 assert(compose.includes("${MINDORY_HOME:-${HOME}/.mindory}/data/librefs:/data"), "LibreFS data must be bind-mounted under MINDORY_HOME.");
+assert(compose.includes("librefs-bucket"), "Compose must define a LibreFS bucket bootstrap service.");
+assert(compose.includes("minio-bucket"), "Compose must define a MinIO bucket bootstrap service.");
+assert(compose.includes("mc mb --ignore-existing"), "S3-compatible profiles must bootstrap the configured bucket.");
+assert(compose.includes("condition: service_healthy"), "S3-compatible bucket bootstrap must wait for a healthy storage service.");
 for (const namedVolume of ["postgres-data:", "redis-data:", "objects-data:", "minio-data:", "clamav-data:", "qdrant-data:", "ollama-data:"]) {
   assert(!compose.includes(namedVolume), `Compose must not use named runtime volume ${namedVolume}.`);
 }

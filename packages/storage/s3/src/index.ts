@@ -116,6 +116,29 @@ export class S3ObjectStorage implements ObjectStorage {
     }
   }
 
+  async ensureBucket(): Promise<void> {
+    const head = await this.bucketRequest("HEAD");
+    if (head.ok) {
+      return;
+    }
+    if (head.status !== 404) {
+      await throwS3Error(head, `Could not check bucket ${this.options.bucket}.`);
+    }
+
+    const created = await this.bucketRequest("PUT");
+    if (created.ok || created.status === 409) {
+      return;
+    }
+    await throwS3Error(created, `Could not create bucket ${this.options.bucket}.`);
+  }
+
+  async checkBucketAccess(): Promise<void> {
+    const response = await this.bucketRequest("HEAD");
+    if (!response.ok) {
+      await throwS3Error(response, `Could not access bucket ${this.options.bucket}.`);
+    }
+  }
+
   private request(input: S3Request): Promise<Response> {
     const body = input.body ?? Buffer.alloc(0);
     const payloadHash = sha256Hex(body);
@@ -150,6 +173,31 @@ export class S3ObjectStorage implements ObjectStorage {
       init.body = body;
     }
     return this.fetchImpl(target.url, init);
+  }
+
+  private bucketRequest(method: "HEAD" | "PUT"): Promise<Response> {
+    const body = Buffer.alloc(0);
+    const payloadHash = sha256Hex(body);
+    const target = buildS3BucketUrl(this.options);
+    const headers = new Headers();
+    headers.set("host", target.url.host);
+    headers.set("x-amz-content-sha256", payloadHash);
+    headers.set("x-amz-date", amzDate(target.now));
+    headers.set("authorization", authorizationHeader({
+      method,
+      url: target.url,
+      headers,
+      payloadHash,
+      now: target.now,
+      region: this.options.region,
+      accessKeyId: this.options.accessKeyId,
+      secretAccessKey: this.options.secretAccessKey
+    }));
+
+    return this.fetchImpl(target.url, {
+      method,
+      headers
+    });
   }
 }
 
@@ -190,6 +238,20 @@ function buildS3Url(options: S3ObjectStorageOptions, key: string): { url: URL; n
     endpoint.pathname = joinUrlPath(endpoint.pathname, encodedKey);
   }
 
+  return {
+    url: endpoint,
+    now: new Date()
+  };
+}
+
+function buildS3BucketUrl(options: S3ObjectStorageOptions): { url: URL; now: Date } {
+  const endpoint = new URL(options.endpoint);
+  if (options.forcePathStyle) {
+    endpoint.pathname = joinUrlPath(endpoint.pathname, options.bucket);
+  } else {
+    endpoint.hostname = `${options.bucket}.${endpoint.hostname}`;
+    endpoint.pathname = joinUrlPath(endpoint.pathname);
+  }
   return {
     url: endpoint,
     now: new Date()

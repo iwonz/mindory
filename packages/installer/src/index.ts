@@ -30,6 +30,7 @@ import {
   type LlmProvider,
   type StorageProvider
 } from "@mindory/config";
+import { S3ObjectStorage } from "@mindory/storage-s3";
 
 export const INSTALLER_SCHEMA_VERSION = 1;
 
@@ -297,6 +298,7 @@ export interface InstallExecutionOptions {
   commandRunner?: InstallCommandRunner;
   apiReadyCheck?: (url: string) => Promise<boolean> | boolean;
   firstRunCredentials?: FirstRunCredentials;
+  s3FetchImpl?: typeof fetch;
   beforeStep?: (step: InstallPlanStep, plan: InstallPlan) => void;
 }
 
@@ -441,6 +443,9 @@ export function validateInstallAnswers(answers: MindoryInstallAnswers): string[]
   validateCatalogValue(errors, "MINDORY_INSTALL_PROFILE", answers.profile);
   validateCatalogValue(errors, "MINDORY_INSTALL_DEPENDENCY_POLICY", answers.dependencyPolicy);
   validateCatalogValue(errors, "MINDORY_STORAGE_PROVIDER", answers.storage.provider);
+  if (answers.storage.provider === "s3") {
+    errors.push(...validateS3StorageAnswers(answers.storage.s3));
+  }
   validateCatalogValue(errors, "MINDORY_AV_MODE", answers.antivirus.mode);
   validateCatalogValue(errors, "MINDORY_LLM_OPENAI_COMPATIBLE_AUTH_MODE", answers.llmProviders.openaiCompatibleAuthMode);
   if (answers.interfaces.apiPort <= 0 || answers.interfaces.apiPort > 65535) {
@@ -483,6 +488,28 @@ export function validateInstallAnswers(answers: MindoryInstallAnswers): string[]
   return errors;
 }
 
+export function validateS3StorageAnswers(answers: S3StorageAnswers): string[] {
+  const errors: string[] = [];
+  try {
+    const parsed = new URL(answers.endpoint);
+    if (!["http:", "https:"].includes(parsed.protocol)) {
+      errors.push("storage.s3.endpoint must use http or https.");
+    }
+  } catch {
+    errors.push("storage.s3.endpoint must be a valid URL.");
+  }
+  if (!/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(answers.bucket) || answers.bucket.includes("..")) {
+    errors.push("storage.s3.bucket must be a valid S3-compatible bucket name.");
+  }
+  if (answers.accessKeyId.trim() === "") {
+    errors.push("storage.s3.accessKeyId is required.");
+  }
+  if (answers.secretAccessKey.trim() === "") {
+    errors.push("storage.s3.secretAccessKey is required.");
+  }
+  return errors;
+}
+
 export function createInstallPlan(answers: MindoryInstallAnswers): InstallPlan {
   const errors = validateInstallAnswers(answers);
   if (errors.length > 0) {
@@ -504,6 +531,7 @@ export function createInstallPlan(answers: MindoryInstallAnswers): InstallPlan {
       step("write-compose-assets", "Write release Compose assets", "compose", "restore_file", path.posix.join(answers.mindoryHome, "install/compose")),
       step("pull-images", "Pull or build required container images", "docker", "none"),
       step("start-infra", "Start Postgres, Redis and optional infrastructure", "docker", "compose_down"),
+      step("bootstrap-storage", "Bootstrap object storage bucket", "docker", "none"),
       step("run-migrations", "Run database migrations", "migration", "none"),
       step("start-runtime", "Start API, worker and MCP package smoke services", "runtime", "compose_down"),
       step("health-check", "Run install health checks", "healthcheck", "none"),
@@ -996,6 +1024,9 @@ export function composeProfilesForAnswers(answers: MindoryInstallAnswers): strin
   if (answers.storage.provider === "s3" && answers.storage.s3.endpoint.includes("librefs")) {
     profiles.add("librefs");
   }
+  if (answers.storage.provider === "s3" && answers.storage.s3.endpoint.includes("minio")) {
+    profiles.add("minio");
+  }
   if (answers.antivirus.mode !== "disabled" && answers.antivirus.provider === "clamav") {
     profiles.add("clamav");
   }
@@ -1306,6 +1337,10 @@ async function executeSupportedInstallStep(
     await startComposeInfrastructure(plan, options);
     return;
   }
+  if (stepItem.id === "bootstrap-storage") {
+    await bootstrapObjectStorage(answers, plan, options);
+    return;
+  }
   if (stepItem.id === "run-migrations") {
     await runComposeMigrations(plan, options);
     return;
@@ -1378,6 +1413,45 @@ async function startComposeInfrastructure(plan: InstallPlan, options: InstallExe
   await runDockerCompose(plan, ["up", "-d", ...infrastructureServices(plan)], options);
 }
 
+async function bootstrapObjectStorage(
+  answers: MindoryInstallAnswers,
+  plan: InstallPlan,
+  options: InstallExecutionOptions
+): Promise<void> {
+  if (answers.storage.provider !== "s3") {
+    return;
+  }
+  const bootstrapService = storageBootstrapService(plan);
+  if (bootstrapService !== undefined) {
+    await runDockerCompose(plan, ["up", bootstrapService], options);
+    return;
+  }
+  await checkS3StorageAccess(answers, options.s3FetchImpl);
+}
+
+export async function checkS3StorageAccess(
+  answers: MindoryInstallAnswers,
+  fetchImpl?: typeof fetch
+): Promise<void> {
+  if (answers.storage.provider !== "s3") {
+    return;
+  }
+  const storageOptions = {
+    endpoint: answers.storage.s3.endpoint,
+    region: answers.storage.s3.region,
+    bucket: answers.storage.s3.bucket,
+    accessKeyId: answers.storage.s3.accessKeyId,
+    secretAccessKey: answers.storage.s3.secretAccessKey,
+    forcePathStyle: answers.storage.s3.forcePathStyle
+  };
+  const storage = new S3ObjectStorage(fetchImpl === undefined ? storageOptions : {
+    ...storageOptions,
+    fetchImpl
+  });
+  await storage.ensureBucket();
+  await storage.checkBucketAccess();
+}
+
 async function runComposeMigrations(plan: InstallPlan, options: InstallExecutionOptions): Promise<void> {
   await runDockerCompose(plan, ["up", "migrate"], options);
 }
@@ -1425,7 +1499,7 @@ async function waitForComposeServices(plan: InstallPlan, options: InstallExecuti
   const deadline = Date.now() + (options.timeoutMs ?? 240_000);
   const pollIntervalMs = options.pollIntervalMs ?? 2_000;
   const required = ["postgres", "redis", "api", "worker", "mcp"];
-  const completed = ["migrate"];
+  const completed = ["migrate", ...storageBootstrapServices(plan)];
   let lastStatus = "";
 
   while (Date.now() < deadline) {
@@ -1451,6 +1525,11 @@ async function waitForComposeServices(plan: InstallPlan, options: InstallExecuti
   }
 
   throw new Error(`Timed out waiting for Docker Compose services: ${lastStatus}`);
+}
+
+function storageBootstrapServices(plan: InstallPlan): string[] {
+  const service = storageBootstrapService(plan);
+  return service === undefined ? [] : [service];
 }
 
 async function waitForApiReady(plan: InstallPlan, options: InstallExecutionOptions): Promise<void> {
@@ -1568,6 +1647,19 @@ function infrastructureServices(plan: InstallPlan): string[] {
     }
   }
   return [...new Set(services)];
+}
+
+function storageBootstrapService(plan: InstallPlan): string | undefined {
+  if (plan.environment.MINDORY_STORAGE_PROVIDER !== "s3") {
+    return undefined;
+  }
+  if (plan.composeProfiles.includes("librefs")) {
+    return "librefs-bucket";
+  }
+  if (plan.composeProfiles.includes("minio")) {
+    return "minio-bucket";
+  }
+  return undefined;
 }
 
 function generateFirstRunCredentials(plan: InstallPlan): FirstRunCredentials {

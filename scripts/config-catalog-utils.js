@@ -71,7 +71,7 @@ function sectionNotes(sectionId) {
   if (sectionId === "storage") {
     return [
       "# local-fs and S3-compatible storage are implemented.",
-      "# LibreFS/external S3 installer profiles are configured by later installer tasks."
+      "# LibreFS/MinIO profiles bootstrap buckets; external S3-compatible endpoints are access-checked by the installer."
     ];
   }
   if (sectionId === "llm") {

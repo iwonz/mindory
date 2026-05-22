@@ -29,6 +29,7 @@ assert(rootPackage.scripts?.["installer:validate"]?.includes("scripts/validate-i
 assert(rootTsconfig.references?.some((reference) => reference.path === "packages/installer"), "Root tsconfig must reference @mindory/installer.");
 assert(installerPackage.name === "@mindory/installer", "Installer package must be named @mindory/installer.");
 assert(installerPackage.dependencies?.["@mindory/config"] === "workspace:*", "Installer core must depend on @mindory/config.");
+assert(installerPackage.dependencies?.["@mindory/storage-s3"] === "workspace:*", "Installer core must depend on @mindory/storage-s3 for S3 credential checks.");
 
 for (const symbol of [
   "MindoryInstallAnswers",
@@ -50,6 +51,8 @@ for (const symbol of [
   "acquireInstallLock",
   "writeInstallJournal",
   "readInstallJournal",
+  "validateS3StorageAnswers",
+  "checkS3StorageAccess",
   "formatInstallerDiagnostic"
 ]) {
   assert(installerSource.includes(symbol), `Installer core must expose ${symbol}.`);
@@ -135,7 +138,7 @@ assert(plan.composeProfiles.includes("ollama"), "Ollama LLM answers must add the
 for (const directory of ["config", "data/postgres", "data/redis", "data/objects", "data/librefs", "logs", "backups", "install"]) {
   assert(plan.homeDirectories.includes(directory), `Install plan must include ${directory}.`);
 }
-for (const stepId of ["ensure-home", "write-config", "write-env", "write-compose-assets", "health-check"]) {
+for (const stepId of ["ensure-home", "write-config", "write-env", "write-compose-assets", "bootstrap-storage", "health-check"]) {
   assert(plan.steps.some((step) => step.id === stepId), `Install plan must include ${stepId}.`);
 }
 
@@ -194,6 +197,67 @@ for (const token of ["pull --ignore-buildable", "build", "up -d postgres redis c
   assert(composeCommands.some((command) => command.includes(token)), `Compose execution must run ${token}.`);
 }
 fs.rmSync(composeHome, { recursive: true, force: true });
+
+const librefsHome = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-installer-librefs-"));
+fs.rmSync(librefsHome, { recursive: true, force: true });
+const librefsCommands = [];
+await installer.executeInstallPlan(installer.createDefaultInstallAnswers({
+  mindoryHome: librefsHome,
+  antivirus: { mode: "disabled", provider: "disabled", clamavPlatform: "linux/amd64" },
+  storage: {
+    provider: "s3",
+    localPath: "/data/mindory/objects",
+    s3: {
+      endpoint: "http://librefs:9000",
+      region: "us-east-1",
+      bucket: "mindory-validator",
+      accessKeyId: "validator-access",
+      secretAccessKey: "validator-secret",
+      forcePathStyle: true
+    }
+  }
+}), {
+  sourceRoot: root,
+  owner: "validator",
+  stopBeforeStepId: "run-migrations",
+  commandRunner: {
+    async run(command, args) {
+      librefsCommands.push(`${command} ${args.join(" ")}`);
+      return { status: 0, stdout: "ok", stderr: "" };
+    }
+  }
+});
+assert(librefsCommands.some((command) => command.includes("--profile librefs")), "LibreFS install must enable the librefs Compose profile.");
+assert(librefsCommands.some((command) => command.includes("up -d postgres redis librefs")), "LibreFS install must start the local S3-compatible service.");
+assert(librefsCommands.some((command) => command.includes("up librefs-bucket")), "LibreFS install must run bucket bootstrap.");
+fs.rmSync(librefsHome, { recursive: true, force: true });
+
+const externalS3Answers = installer.createDefaultInstallAnswers({
+  storage: {
+    provider: "s3",
+    localPath: "/data/mindory/objects",
+    s3: {
+      endpoint: "http://s3.example.test",
+      region: "us-east-1",
+      bucket: "mindory-validator",
+      accessKeyId: "validator-access",
+      secretAccessKey: "validator-secret",
+      forcePathStyle: true
+    }
+  }
+});
+const s3Calls = [];
+await installer.checkS3StorageAccess(externalS3Answers, async (url, init) => {
+  const headers = init.headers;
+  s3Calls.push({
+    method: init.method,
+    url: String(url),
+    authorization: headers.get("authorization")
+  });
+  return new Response("", { status: s3Calls.length === 1 ? 404 : 200 });
+});
+assert(s3Calls.map((call) => call.method).join(",") === "HEAD,PUT,HEAD", "External S3 credential check must HEAD, create and recheck the bucket.");
+assert(s3Calls.every((call) => call.authorization.startsWith("AWS4-HMAC-SHA256")), "External S3 credential check must sign requests.");
 
 const provisionHome = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-installer-provision-"));
 fs.rmSync(provisionHome, { recursive: true, force: true });

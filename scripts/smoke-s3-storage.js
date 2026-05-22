@@ -5,6 +5,7 @@ import { S3ObjectStorage } from "../packages/storage/s3/dist/index.js";
 
 const bucket = "mindory-smoke";
 const objects = new Map();
+const buckets = new Set();
 
 const server = createServer(async (request, response) => {
   try {
@@ -22,8 +23,26 @@ const server = createServer(async (request, response) => {
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
     const [, pathBucket, ...keyParts] = url.pathname.split("/");
     const key = keyParts.map(decodeURIComponent).join("/");
-    if (pathBucket !== bucket || key === "") {
+    if (pathBucket !== bucket) {
       response.writeHead(404);
+      response.end();
+      return;
+    }
+
+    if (key === "") {
+      if (request.method === "HEAD") {
+        response.writeHead(buckets.has(pathBucket) ? 200 : 404);
+        response.end();
+        return;
+      }
+      if (request.method === "PUT") {
+        const existed = buckets.has(pathBucket);
+        buckets.add(pathBucket);
+        response.writeHead(existed ? 409 : 200);
+        response.end();
+        return;
+      }
+      response.writeHead(405);
       response.end();
       return;
     }
@@ -99,6 +118,9 @@ try {
     forcePathStyle: true
   });
 
+  await storage.ensureBucket();
+  await storage.checkBucketAccess();
+
   const put = await storage.putObject({
     key: "docs/hello.txt",
     body: "hello from s3",
@@ -127,6 +149,16 @@ try {
     invalidKeyRejected = true;
   }
   assert(invalidKeyRejected, "S3 storage should reject invalid keys.");
+
+  const externalStorage = new S3ObjectStorage({
+    endpoint: `http://127.0.0.1:${address.port}`,
+    region: "us-east-1",
+    bucket,
+    accessKeyId: "external-access",
+    secretAccessKey: "external-secret",
+    forcePathStyle: true
+  });
+  await externalStorage.checkBucketAccess();
 
   console.log("S3-compatible storage smoke scenario passed.");
 } finally {

@@ -1,0 +1,69 @@
+{
+  "id": "TASK-82",
+  "title": "Operationalize LibreFS and S3-compatible storage",
+  "status": "done",
+  "type": "feature",
+  "priority": "high",
+  "branch": "task/TASK-82-librefs-s3-operationalization",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Make LibreFS and external S3-compatible storage usable from installer and Compose flows.",
+    "background": "TASK-56 added the S3-compatible object storage adapter and smoke coverage, while later installer tasks added storage choices and single-home Compose assets. TASK-82 closes the operational gap by bootstrapping local buckets, validating external bucket access and documenting the supported S3 paths."
+  },
+  "scope": {
+    "in": [
+      "Add bucket-level ensure and access-check operations to the S3-compatible storage adapter.",
+      "Add LibreFS and MinIO bucket bootstrap services to Docker Compose with health-gated startup.",
+      "Add installer validation for S3 endpoint, bucket and credentials.",
+      "Add an installer bootstrap-storage step that runs local bucket bootstrap or validates external S3-compatible access.",
+      "Cover LibreFS profile startup and external S3 signed bucket checks in installer/storage validators.",
+      "Update configuration, deployment, installer and public support documentation."
+    ],
+    "out": [
+      "Cloud IAM/user provisioning.",
+      "Bucket lifecycle policy management.",
+      "Remote bucket deletion during rollback or uninstall.",
+      "Production object storage backup automation.",
+      "Full upstream LibreFS behavior certification beyond the S3-compatible local profile."
+    ]
+  },
+  "acceptance_criteria": [
+    "@mindory/storage-s3 can ensure a bucket exists and verify bucket access using signed requests.",
+    "Docker Compose provides health-gated LibreFS and MinIO bucket bootstrap services.",
+    "Installer plans include a bootstrap-storage step after infrastructure startup and before migrations.",
+    "Installer startup runs the LibreFS or MinIO bucket bootstrap service for local S3 profiles.",
+    "Installer startup validates and signs bucket access for external S3-compatible endpoints.",
+    ".env.example and docs describe the supported LibreFS/external S3 operational path.",
+    "pnpm check passes."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm --filter @mindory/storage-s3 --filter @mindory/installer typecheck",
+      "pnpm storage:validate",
+      "pnpm compose:validate",
+      "pnpm installer:validate",
+      "pnpm public:validate",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-82.",
+      "Confirm local-fs remains the default storage provider.",
+      "Confirm installer rollback does not attempt to delete external S3 buckets."
+    ]
+  },
+  "dependencies": [
+    "TASK-81"
+  ],
+  "risks": [
+    "Bucket bootstrap must not run against external endpoints unless explicitly selected through S3 validation.",
+    "Compose health checks must remain compatible with LibreFS/MinIO local profiles.",
+    "Installer diagnostics must surface credential or bucket failures clearly."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to done.",
+    "Branch is committed and merged back into master."
+  ]
+}

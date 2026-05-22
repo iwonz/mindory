@@ -263,6 +263,29 @@ services:
       - "9001:9001"
     volumes:
       - ${MINDORY_HOME:-${HOME}/.mindory}/data/librefs:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:9000/minio/health/ready || wget -q --spider http://127.0.0.1:9000"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  librefs-bucket:
+    image: minio/mc:latest
+    profiles: ["librefs"]
+    restart: "no"
+    depends_on:
+      librefs:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >
+        mc alias set mindory http://librefs:9000 "$${MINDORY_S3_ACCESS_KEY_ID}" "$${MINDORY_S3_SECRET_ACCESS_KEY}" &&
+        mc mb --ignore-existing "mindory/$${MINDORY_S3_BUCKET}" &&
+        mc ls "mindory/$${MINDORY_S3_BUCKET}"
+    environment:
+      MINDORY_S3_BUCKET: ${MINDORY_S3_BUCKET:-mindory}
+      MINDORY_S3_ACCESS_KEY_ID: ${MINDORY_S3_ACCESS_KEY_ID:-mindory}
+      MINDORY_S3_SECRET_ACCESS_KEY: ${MINDORY_S3_SECRET_ACCESS_KEY:-mindory-secret}
 
   minio:
     image: minio/minio:latest
@@ -277,6 +300,29 @@ services:
       - "9001:9001"
     volumes:
       - ${MINDORY_HOME:-${HOME}/.mindory}/data/minio:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:9000/minio/health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  minio-bucket:
+    image: minio/mc:latest
+    profiles: ["minio"]
+    restart: "no"
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >
+        mc alias set mindory http://minio:9000 "$${MINDORY_S3_ACCESS_KEY_ID}" "$${MINDORY_S3_SECRET_ACCESS_KEY}" &&
+        mc mb --ignore-existing "mindory/$${MINDORY_S3_BUCKET}" &&
+        mc ls "mindory/$${MINDORY_S3_BUCKET}"
+    environment:
+      MINDORY_S3_BUCKET: ${MINDORY_S3_BUCKET:-mindory}
+      MINDORY_S3_ACCESS_KEY_ID: ${MINDORY_S3_ACCESS_KEY_ID:-mindory}
+      MINDORY_S3_SECRET_ACCESS_KEY: ${MINDORY_S3_SECRET_ACCESS_KEY:-mindory-secret}
 
   clamav:
     image: clamav/clamav:stable

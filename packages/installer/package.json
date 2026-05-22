@@ -18,6 +18,7 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
-    "@mindory/config": "workspace:*"
+    "@mindory/config": "workspace:*",
+    "@mindory/storage-s3": "workspace:*"
   }
 }

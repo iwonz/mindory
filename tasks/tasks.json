@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-81",
+  "current_task_id": "TASK-82",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -603,6 +603,13 @@
       "status": "done",
       "branch": "task/TASK-81-unified-multimodal-search-hardening",
       "file": "tasks/TASK-81.json"
+    },
+    {
+      "id": "TASK-82",
+      "title": "Operationalize LibreFS and S3-compatible storage",
+      "status": "done",
+      "branch": "task/TASK-82-librefs-s3-operationalization",
+      "file": "tasks/TASK-82.json"
     }
   ]
 }

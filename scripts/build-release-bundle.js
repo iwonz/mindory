@@ -96,7 +96,7 @@ function isAllowedBuildOutput(relativePath) {
 }
 
 function buildInstallerArtifacts() {
-  const result = spawnSync("pnpm", ["--filter", "@mindory/installer", "typecheck"], {
+  const result = spawnSync("pnpm", ["--filter", "@mindory/storage-s3", "--filter", "@mindory/installer", "typecheck"], {
     cwd: root,
     encoding: "utf8"
   });
@@ -107,9 +107,7 @@ function buildInstallerArtifacts() {
 
 function createPackagedEntrypoints(bundleRoot) {
   const installerCli = path.join(bundleRoot, "packages", "installer", "dist", "cli.js");
-  const configPackage = path.join(bundleRoot, "packages", "config");
   assert(fs.existsSync(installerCli), "Release bundle is missing packages/installer/dist/cli.js.");
-  assert(fs.existsSync(path.join(configPackage, "dist", "index.js")), "Release bundle is missing packages/config/dist/index.js.");
 
   const binDir = path.join(bundleRoot, "bin");
   fs.mkdirSync(binDir, { recursive: true });
@@ -126,7 +124,14 @@ function createPackagedEntrypoints(bundleRoot) {
 
   const scopeDir = path.join(bundleRoot, "node_modules", "@mindory");
   fs.mkdirSync(scopeDir, { recursive: true });
-  fs.cpSync(configPackage, path.join(scopeDir, "config"), { recursive: true });
+  for (const packagePath of packagedWorkspacePackages) {
+    const packageRoot = path.join(bundleRoot, packagePath);
+    const packageJson = readJson(path.join(packagePath, "package.json"));
+    const packageName = packageJson.name.split("/").at(-1);
+    assert(typeof packageName === "string" && packageName.length > 0, `Release bundle package ${packagePath} has an invalid name.`);
+    assert(fs.existsSync(path.join(packageRoot, "dist", "index.js")) || fs.existsSync(path.join(packageRoot, "dist", "storage.js")), `Release bundle is missing built dist output for ${packagePath}.`);
+    fs.cpSync(packageRoot, path.join(scopeDir, packageName), { recursive: true });
+  }
 }
 
 function sha256File(filePath) {
@@ -175,8 +180,16 @@ const ignoredPathNames = new Set([
 ]);
 
 const allowedBuildOutputRoots = [
+  path.join("packages", "core", "dist"),
   path.join("packages", "config", "dist"),
-  path.join("packages", "installer", "dist")
+  path.join("packages", "installer", "dist"),
+  path.join("packages", "storage", "s3", "dist")
+];
+
+const packagedWorkspacePackages = [
+  "packages/config",
+  "packages/core",
+  "packages/storage/s3"
 ];
 
 const releaseEntries = [
