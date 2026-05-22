@@ -14,7 +14,7 @@ minimum baseline for the MVP release path.
 | Release bundles | Supported baseline. The release workflow generates bundle, manifest and checksum artifacts, then runs smoke-release-install. Signature verification remains future work. |
 | Installer execution | Partial baseline. Current installer can prepare `$MINDORY_HOME`, start Compose through health checks, provision the first token, refresh local assets, create/restore runtime backups and uninstall with explicit confirmation, but remote release update is future work. |
 | Public self-host acceptance | Supported gate. `pnpm selfhost:acceptance` dry-runs the public self-host path; opt-in live mode runs installer start, MVP acceptance, backup, reset and uninstall in a temporary home. |
-| Backup and restore | Supported MVP. Installer commands cover config, installer metadata, PostgreSQL dumps, local object storage state and scheduled local backup runs with lock, retention, logs and health status. Point-in-time recovery and encrypted remote backups are future hardening work. |
+| Backup and restore | Supported MVP. Installer commands cover config, installer metadata, PostgreSQL dumps, local object storage state, scheduled local backup runs and local Compose PostgreSQL PITR with WAL archive/base backup/restore-to-time. Encrypted remote backups are future hardening work. |
 | Observability | Supported baseline. Structured logs, model operation audit helpers, Prometheus metrics exporters, OpenTelemetry OTLP tracing/log export, in-process job/stage metrics, health snapshots and rate-limit strategy are documented in `docs/OBSERVABILITY.md`. |
 | Public GitHub readiness | Supported baseline. The repo includes license, contribution guide, root security policy, issue/PR templates, changelog/release notes policy, support matrix and repository status docs. |
 
@@ -89,6 +89,7 @@ backup:
 
 ```bash
 mindory-installer backup --home "$MINDORY_HOME" --label before-migration
+mindory-installer pitr-backup --home "$MINDORY_HOME" --label before-migration
 pnpm backup:validate
 ```
 
@@ -125,6 +126,38 @@ The runner writes `$MINDORY_HOME/backups/scheduled-backup.lock`,
 time. Retention deletes only directories under `$MINDORY_HOME/backups` that
 contain a Mindory `backup-manifest.json`.
 
+For point-in-time recovery in the local Compose profile, keep WAL archiving
+enabled:
+
+```env
+MINDORY_POSTGRES_WAL_ARCHIVE_ENABLED=true
+MINDORY_POSTGRES_WAL_ARCHIVE_TIMEOUT_SECONDS=60
+```
+
+WAL files are stored in `$MINDORY_HOME/backups/postgres-wal`. A PITR base backup
+is created with:
+
+```bash
+mindory-installer pitr-backup --home "$MINDORY_HOME" --label before-release
+```
+
+Restore to a target timestamp by staging recovery files first:
+
+```bash
+mindory-installer pitr-restore --home "$MINDORY_HOME" \
+  --backup "$MINDORY_HOME/backups/<pitr-dir>" \
+  --target-time 2026-05-22T12:00:00Z \
+  --yes
+```
+
+The staged restore writes `postgresql.auto.conf` with `restore_command` and
+`recovery_target_time`, plus `recovery.signal`, under
+`$MINDORY_HOME/backups/pitr-restore`. To replace the local Compose data
+directory, rerun with `--replace-live-data`; the installer stops Compose and
+backs up the current `$MINDORY_HOME/data/postgres` first. Keep enough disk for
+base backups plus retained WAL segments, and prune old PITR backup directories
+only after newer base backups and their required WAL ranges are verified.
+
 The MVP uses forward migrations. If a migration or release must be rolled back,
 stop API and worker traffic, restore the verified backup, redeploy the previous
 known-good image and then run acceptance against that restored deployment.
@@ -133,8 +166,7 @@ process that can test both forward and backward paths.
 
 External S3-compatible bucket data is not copied by the local MVP backup
 command. Back up external buckets with provider-native tooling before
-migrations that change document metadata or chunk/index expectations. Database
-point-in-time recovery remains future hardening.
+migrations that change document metadata or chunk/index expectations.
 
 ## Production Secret Handling
 

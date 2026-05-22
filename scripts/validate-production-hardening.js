@@ -49,7 +49,7 @@ for (const token of ["MINDORY_API_RATE_LIMIT_ENABLED", "MINDORY_API_RATE_LIMIT_W
   assertIncludes(config, token, "packages/config/src/index.ts");
   assertIncludes(configuration, token, "docs/CONFIGURATION.md");
 }
-for (const token of ["MINDORY_BACKUP_SCHEDULE_ENABLED", "MINDORY_BACKUP_SCHEDULE_INTERVAL_MINUTES", "MINDORY_BACKUP_RETENTION_COUNT", "MINDORY_BACKUP_RETENTION_DAYS"]) {
+for (const token of ["MINDORY_BACKUP_SCHEDULE_ENABLED", "MINDORY_BACKUP_SCHEDULE_INTERVAL_MINUTES", "MINDORY_BACKUP_RETENTION_COUNT", "MINDORY_BACKUP_RETENTION_DAYS", "MINDORY_POSTGRES_WAL_ARCHIVE_ENABLED", "MINDORY_POSTGRES_WAL_ARCHIVE_TIMEOUT_SECONDS"]) {
   assertIncludes(envExample, token, ".env.example");
   assertIncludes(compose, token, "docker-compose.yml");
   assertIncludes(config, token, "packages/config/src/index.ts");
@@ -73,6 +73,9 @@ for (const token of [
   "docker build",
   "pnpm check",
   "backup",
+  "pitr-backup",
+  "pitr-restore",
+  "recovery_target_time",
   "rollback",
   "secret manager",
   "rate limit",

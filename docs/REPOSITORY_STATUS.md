@@ -6,7 +6,7 @@ The repository should be described with the support levels in
 
 ## Current Baseline
 
-The repository is complete through `TASK-103`.
+The repository is complete through `TASK-104`.
 
 Supported local MVP path:
 
@@ -58,6 +58,9 @@ Supported local MVP path:
 - Backup/restore MVP includes installer CLI commands for config, installer
   metadata, PostgreSQL dumps, local object-storage state and scheduled local
   backup runs with retention, logs and health status.
+- Local Compose PostgreSQL PITR includes WAL archiving under
+  `$MINDORY_HOME/backups/postgres-wal`, base backups with `pitr-manifest.json`
+  and target-time restore staging.
 - Public self-host acceptance is documented as the release-readiness gate for
   local self-host users.
 
@@ -77,8 +80,8 @@ Public GitHub hygiene baseline:
 - Signed release manifests are future work.
 - Registry push policy for Docker images is future hardening.
 - Full automated installer resume is future work.
-- Point-in-time recovery, encrypted remote backups and external S3 bucket
-  streaming backups are future work.
+- Encrypted remote backups and external S3 bucket streaming backups are future
+  work.
 - Alerting policy is not bundled; route Prometheus and OTLP exports to the
   monitoring stack used by the deployment.
 - Official Hermes SDK certification is future work; the current supported path

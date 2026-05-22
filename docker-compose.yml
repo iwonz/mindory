@@ -30,6 +30,8 @@ x-mindory-env: &mindory-env
   MINDORY_BACKUP_INCLUDE_CONFIG: ${MINDORY_BACKUP_INCLUDE_CONFIG:-true}
   MINDORY_BACKUP_INCLUDE_POSTGRES: ${MINDORY_BACKUP_INCLUDE_POSTGRES:-true}
   MINDORY_BACKUP_INCLUDE_OBJECTS: ${MINDORY_BACKUP_INCLUDE_OBJECTS:-true}
+  MINDORY_POSTGRES_WAL_ARCHIVE_ENABLED: ${MINDORY_POSTGRES_WAL_ARCHIVE_ENABLED:-true}
+  MINDORY_POSTGRES_WAL_ARCHIVE_TIMEOUT_SECONDS: ${MINDORY_POSTGRES_WAL_ARCHIVE_TIMEOUT_SECONDS:-60}
   MINDORY_DATABASE_URL: ${MINDORY_DATABASE_URL:-postgresql://mindory:mindory@postgres:5432/mindory}
   MINDORY_REDIS_URL: ${MINDORY_REDIS_URL:-redis://redis:6379}
   MINDORY_QUEUE_PREFIX: ${MINDORY_QUEUE_PREFIX:-mindory:queue}
@@ -181,10 +183,18 @@ services:
   postgres:
     image: pgvector/pgvector:pg16
     restart: unless-stopped
+    command:
+      [
+        "bash",
+        "-lc",
+        "export PATH=/usr/lib/postgresql/16/bin:$PATH && mkdir -p /var/lib/postgresql/wal-archive && chown -R postgres:postgres /var/lib/postgresql/wal-archive && if [ \"${MINDORY_POSTGRES_WAL_ARCHIVE_ENABLED:-true}\" = \"true\" ]; then exec docker-entrypoint.sh postgres -c wal_level=replica -c archive_mode=on -c archive_command='test ! -f /var/lib/postgresql/wal-archive/%f && cp %p /var/lib/postgresql/wal-archive/%f' -c archive_timeout=${MINDORY_POSTGRES_WAL_ARCHIVE_TIMEOUT_SECONDS:-60}s; else exec docker-entrypoint.sh postgres; fi"
+      ]
     environment:
       POSTGRES_DB: mindory
       POSTGRES_USER: mindory
       POSTGRES_PASSWORD: mindory
+      MINDORY_POSTGRES_WAL_ARCHIVE_ENABLED: ${MINDORY_POSTGRES_WAL_ARCHIVE_ENABLED:-true}
+      MINDORY_POSTGRES_WAL_ARCHIVE_TIMEOUT_SECONDS: ${MINDORY_POSTGRES_WAL_ARCHIVE_TIMEOUT_SECONDS:-60}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U mindory -d mindory"]
       interval: 10s
@@ -192,6 +202,7 @@ services:
       retries: 5
     volumes:
       - ${MINDORY_HOME:-${HOME}/.mindory}/data/postgres:/var/lib/postgresql/data
+      - ${MINDORY_HOME:-${HOME}/.mindory}/backups/postgres-wal:/var/lib/postgresql/wal-archive
 
   redis:
     image: redis:7-alpine

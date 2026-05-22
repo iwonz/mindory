@@ -489,6 +489,51 @@ export interface RuntimeRestoreReport {
   components: RuntimeBackupComponentReport[];
 }
 
+export interface PostgresPitrBackupManifest {
+  schema_version: InstallerSchemaVersion;
+  kind: "mindory-postgres-pitr-base";
+  created_at: string;
+  mindory_home: string;
+  database: string;
+  user: string;
+  base_backup_relative_path: string;
+  wal_archive_path: string;
+  wal_archive_relative_path: string;
+}
+
+export interface PostgresPitrBackupOptions extends InstallExecutionOptions {
+  outputDirectory?: string;
+  label?: string;
+  dryRun?: boolean;
+}
+
+export interface PostgresPitrBackupReport {
+  backupPath: string;
+  manifestPath: string;
+  baseBackupPath: string;
+  walArchivePath: string;
+  dryRun: boolean;
+}
+
+export interface PostgresPitrRestoreOptions extends InstallExecutionOptions {
+  yes: boolean;
+  targetTime: string | Date;
+  restoreDirectory?: string;
+  replaceLiveData?: boolean;
+}
+
+export interface PostgresPitrRestoreReport {
+  backupPath: string;
+  manifestPath: string;
+  restorePath: string;
+  walArchivePath: string;
+  targetTime: string;
+  recoveryConfigPath: string;
+  recoverySignalPath: string;
+  replacedLiveData: boolean;
+  liveDataBackupPath?: string;
+}
+
 export interface ScheduledBackupConfig {
   enabled: boolean;
   intervalMinutes: number;
@@ -1258,6 +1303,164 @@ export async function restoreMindoryRuntimeBackup(
     manifestPath,
     restored: components.some((component) => component.status === "restored"),
     components
+  };
+}
+
+export async function createMindoryPostgresPitrBaseBackup(
+  mindoryHome: string,
+  options: PostgresPitrBackupOptions = {}
+): Promise<PostgresPitrBackupReport> {
+  const resolvedHome = assertSafeMindoryHome(mindoryHome);
+  const homeEnv = readMindoryHomeEnvironment(resolvedHome);
+  const dryRun = options.dryRun === true;
+  const backupPath = path.resolve(options.outputDirectory ?? path.join(resolvedHome, "backups", `${timestampLabel()}-${sanitizeBackupLabel(options.label ?? "postgres-pitr-base")}`));
+  const manifestPath = path.join(backupPath, "pitr-manifest.json");
+  const baseBackupPath = path.join(backupPath, "basebackup");
+  const walArchivePath = postgresWalArchivePath(resolvedHome);
+  const plan = createRuntimePlanFromHome(resolvedHome, homeEnv);
+  const { database, user } = postgresConnectionParts(plan.environment.MINDORY_DATABASE_URL);
+
+  if (dryRun) {
+    return {
+      backupPath,
+      manifestPath,
+      baseBackupPath,
+      walArchivePath,
+      dryRun: true
+    };
+  }
+
+  assertPathInside(backupPath, path.join(resolvedHome, "backups"));
+  mkdirSync(baseBackupPath, { recursive: true, mode: 0o700 });
+  mkdirSync(walArchivePath, { recursive: true, mode: 0o700 });
+
+  const containerBasePath = `/tmp/mindory-pitr-base-${timestampLabel()}`;
+  await runDockerCompose(plan, [
+    "exec",
+    "-T",
+    "postgres",
+    "sh",
+    "-lc",
+    [
+      `rm -rf ${shellQuote(containerBasePath)}`,
+      `mkdir -p ${shellQuote(containerBasePath)}`,
+      `pg_basebackup -U ${shellQuote(user)} -D ${shellQuote(containerBasePath)} -Ft -z -X fetch -P`
+    ].join(" && ")
+  ], options);
+  await runDockerCompose(plan, ["cp", `postgres:${containerBasePath}`, baseBackupPath], options);
+  await runDockerCompose(plan, [
+    "exec",
+    "-T",
+    "postgres",
+    "psql",
+    "-U",
+    user,
+    "-d",
+    database,
+    "-v",
+    "ON_ERROR_STOP=1",
+    "-c",
+    "CHECKPOINT; SELECT pg_switch_wal();"
+  ], options);
+  try {
+    await runDockerCompose(plan, ["exec", "-T", "postgres", "rm", "-rf", containerBasePath], options);
+  } catch {
+    // A failed temp-directory cleanup should not invalidate an otherwise complete base backup.
+  }
+
+  const manifest: PostgresPitrBackupManifest = {
+    schema_version: INSTALLER_SCHEMA_VERSION,
+    kind: "mindory-postgres-pitr-base",
+    created_at: new Date().toISOString(),
+    mindory_home: resolvedHome,
+    database,
+    user,
+    base_backup_relative_path: "basebackup",
+    wal_archive_path: walArchivePath,
+    wal_archive_relative_path: path.join("backups", "postgres-wal")
+  };
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o600 });
+
+  return {
+    backupPath,
+    manifestPath,
+    baseBackupPath,
+    walArchivePath,
+    dryRun: false
+  };
+}
+
+export async function restoreMindoryPostgresPitrBackup(
+  mindoryHome: string,
+  backupPath: string,
+  options: PostgresPitrRestoreOptions
+): Promise<PostgresPitrRestoreReport> {
+  if (!options.yes) {
+    throw new Error("PITR restore requires explicit confirmation through yes=true or --yes.");
+  }
+  const resolvedHome = assertSafeMindoryHome(mindoryHome);
+  const resolvedBackup = path.resolve(backupPath);
+  const manifestPath = path.join(resolvedBackup, "pitr-manifest.json");
+  const manifest = readPostgresPitrBackupManifest(manifestPath);
+  const targetTime = normalizePitrTargetTime(options.targetTime);
+  const restorePath = path.resolve(options.restoreDirectory ?? path.join(resolvedHome, "backups", "pitr-restore", `${timestampLabel()}-restore`));
+  const backupsRoot = path.join(resolvedHome, "backups");
+  assertPathInside(restorePath, backupsRoot);
+  const walArchivePath = path.resolve(manifest.wal_archive_path || postgresWalArchivePath(resolvedHome));
+  assertPathInside(walArchivePath, backupsRoot);
+  const baseBackupPath = path.join(resolvedBackup, manifest.base_backup_relative_path);
+  if (!existsSync(baseBackupPath)) {
+    throw new Error(`PITR base backup files not found at ${baseBackupPath}.`);
+  }
+  if (!existsSync(walArchivePath)) {
+    throw new Error(`PITR WAL archive not found at ${walArchivePath}.`);
+  }
+
+  mkdirSync(restorePath, { recursive: true, mode: 0o700 });
+  const homeEnv = readMindoryHomeEnvironment(resolvedHome);
+  const plan = createRuntimePlanFromHome(resolvedHome, homeEnv);
+  await runDockerCompose(plan, [
+    "run",
+    "--rm",
+    "--no-deps",
+    "-T",
+    "--entrypoint",
+    "sh",
+    "-v",
+    `${baseBackupPath}:/backup:ro`,
+    "-v",
+    `${restorePath}:/restore`,
+    "-v",
+    `${walArchivePath}:/wal-archive:ro`,
+    "postgres",
+    "-lc",
+    renderPostgresPitrRestoreScript(targetTime)
+  ], options);
+
+  let liveDataBackupPath: string | undefined;
+  if (options.replaceLiveData === true) {
+    await runDockerCompose(plan, ["down"], options);
+    const liveDataPath = path.join(resolvedHome, "data", "postgres");
+    assertPathInside(liveDataPath, resolvedHome);
+    liveDataBackupPath = path.join(resolvedHome, "backups", `${timestampLabel()}-postgres-data-before-pitr`);
+    if (existsSync(liveDataPath)) {
+      cpSync(liveDataPath, liveDataBackupPath, { recursive: true });
+    }
+    rmSync(liveDataPath, { recursive: true, force: true });
+    mkdirSync(path.dirname(liveDataPath), { recursive: true, mode: 0o700 });
+    cpSync(restorePath, liveDataPath, { recursive: true });
+  }
+
+  return {
+    backupPath: resolvedBackup,
+    manifestPath,
+    restorePath,
+    walArchivePath,
+    targetTime,
+    recoveryConfigPath: path.join(restorePath, "postgresql.auto.conf"),
+    recoverySignalPath: path.join(restorePath, "recovery.signal"),
+    replacedLiveData: options.replaceLiveData === true,
+    ...(liveDataBackupPath === undefined ? {} : { liveDataBackupPath })
   };
 }
 
@@ -3052,6 +3255,17 @@ function readRuntimeBackupManifest(manifestPath: string): RuntimeBackupManifest 
   return manifest;
 }
 
+function readPostgresPitrBackupManifest(manifestPath: string): PostgresPitrBackupManifest {
+  if (!existsSync(manifestPath)) {
+    throw new Error(`Mindory PITR manifest not found at ${manifestPath}.`);
+  }
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as PostgresPitrBackupManifest;
+  if (manifest.kind !== "mindory-postgres-pitr-base" || manifest.schema_version !== INSTALLER_SCHEMA_VERSION) {
+    throw new Error(`Unsupported Mindory PITR manifest at ${manifestPath}.`);
+  }
+  return manifest;
+}
+
 function restoreFilesystemComponent(
   manifest: RuntimeBackupManifest,
   backupPath: string,
@@ -3103,6 +3317,35 @@ function postgresConnectionParts(databaseUrl: string | undefined): { database: s
   } catch {
     return { database: "mindory", user: "mindory" };
   }
+}
+
+function postgresWalArchivePath(mindoryHome: string): string {
+  return path.join(mindoryHome, "backups", "postgres-wal");
+}
+
+function normalizePitrTargetTime(value: string | Date): string {
+  const date = value instanceof Date ? value : new Date(value);
+  if (!Number.isFinite(date.getTime())) {
+    throw new Error("PITR target time must be a valid ISO timestamp.");
+  }
+  return date.toISOString();
+}
+
+function renderPostgresPitrRestoreScript(targetTime: string): string {
+  const recoveryConfig = [
+    "restore_command = 'cp /wal-archive/%f %p'",
+    `recovery_target_time = '${targetTime.replaceAll("'", "''")}'`,
+    "recovery_target_action = 'promote'",
+    ""
+  ].join("\n");
+  return [
+    "rm -rf /restore/*",
+    "tar -xzf /backup/base.tar.gz -C /restore",
+    "if [ -f /backup/pg_wal.tar.gz ]; then mkdir -p /restore/pg_wal && tar -xzf /backup/pg_wal.tar.gz -C /restore/pg_wal; fi",
+    `printf %s ${shellQuote(recoveryConfig)} > /restore/postgresql.auto.conf`,
+    "touch /restore/recovery.signal",
+    "chown -R postgres:postgres /restore"
+  ].join(" && ");
 }
 
 function shellQuote(value: string): string {
