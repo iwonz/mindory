@@ -1,0 +1,41 @@
+{
+  "platform": "macos",
+  "answers": {
+    "mindoryHome": "/Users/example/.mindory",
+    "profile": "persistent-local",
+    "dependencyPolicy": "ask",
+    "publicUrl": "http://localhost:3000",
+    "storage": {
+      "provider": "s3",
+      "localPath": "/data/mindory/objects",
+      "s3": {
+        "endpoint": "http://librefs:9000",
+        "region": "us-east-1",
+        "bucket": "mindory",
+        "accessKeyId": "fixture-access",
+        "secretAccessKey": "fixture-secret",
+        "forcePathStyle": true
+      }
+    },
+    "antivirus": {
+      "mode": "disabled",
+      "provider": "clamav",
+      "clamavPlatform": "linux/amd64"
+    },
+    "llmRoles": {
+      "TEXT_EMBEDDING": {
+        "enabled": true,
+        "provider": "ollama",
+        "model": "fixture-embedding",
+        "required": false,
+        "timeoutMs": 60000,
+        "concurrency": 1,
+        "dimensions": 1536
+      }
+    }
+  },
+  "expected": {
+    "composeProfiles": ["librefs", "ollama"],
+    "dependencyFailures": ["docker-daemon"]
+  }
+}

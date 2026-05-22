@@ -1,0 +1,30 @@
+{
+  "platform": "linux",
+  "answers": {
+    "mindoryHome": "/tmp/mindory-linux",
+    "profile": "local-quickstart",
+    "dependencyPolicy": "manual",
+    "publicUrl": "http://localhost:3000",
+    "storage": {
+      "provider": "local-fs",
+      "localPath": "/data/mindory/objects"
+    },
+    "antivirus": {
+      "mode": "async_quarantine",
+      "provider": "clamav",
+      "clamavPlatform": "linux/amd64"
+    },
+    "modalities": {
+      "text": true,
+      "pdf": true,
+      "image": true,
+      "audio": false,
+      "video": false,
+      "videoMaxKeyframes": 10
+    }
+  },
+  "expected": {
+    "composeProfiles": ["clamav"],
+    "dependencyFailures": []
+  }
+}

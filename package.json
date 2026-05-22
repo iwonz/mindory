@@ -27,6 +27,7 @@
     "hermes:validate": "node scripts/validate-hermes-adapter.js",
     "hermes:smoke": "node scripts/smoke-hermes.js",
     "installer:validate": "pnpm --filter @mindory/installer typecheck && node scripts/validate-installer-core.js",
+    "installer:matrix:validate": "pnpm --filter @mindory/installer typecheck && node scripts/validate-installer-matrix.js",
     "jobs:validate": "node scripts/validate-job-semantics.js",
     "lint": "node scripts/lint-repo.js",
     "llm:validate": "node scripts/validate-llm.js",

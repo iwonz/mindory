@@ -1,0 +1,36 @@
+{
+  "platform": "windows",
+  "answers": {
+    "mindoryHome": "C:\\Mindory",
+    "profile": "dev-test",
+    "dependencyPolicy": "manual",
+    "devMode": true,
+    "publicUrl": "http://localhost:3100",
+    "storage": {
+      "provider": "s3",
+      "localPath": "/data/mindory/objects",
+      "s3": {
+        "endpoint": "http://storage.local:9000",
+        "region": "us-east-1",
+        "bucket": "mindory-dev",
+        "accessKeyId": "fixture-access",
+        "secretAccessKey": "fixture-secret",
+        "forcePathStyle": true
+      }
+    },
+    "interfaces": {
+      "apiPort": 3100,
+      "mcpEnabled": true,
+      "hermesEnabled": true
+    },
+    "tokens": {
+      "mcpApiToken": "fixture-mcp-token",
+      "cliApiToken": "fixture-cli-token",
+      "hermesApiToken": "fixture-hermes-token"
+    }
+  },
+  "expected": {
+    "composeProfiles": ["clamav"],
+    "dependencyFailures": ["node", "pnpm", "api-port"]
+  }
+}

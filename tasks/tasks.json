@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-61",
+  "current_task_id": "TASK-62",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -463,6 +463,13 @@
       "status": "done",
       "branch": "task/TASK-61-failure-handling-recovery",
       "file": "tasks/TASK-61.json"
+    },
+    {
+      "id": "TASK-62",
+      "title": "Add dev/test installer matrix",
+      "status": "done",
+      "branch": "task/TASK-62-dev-test-installer-matrix",
+      "file": "tasks/TASK-62.json"
     }
   ]
 }
