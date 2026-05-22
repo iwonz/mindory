@@ -40,7 +40,7 @@ uses the same matrix for defaults, env metadata and installer gating.
 | Role | Role status | Supported providers | Experimental providers | Future providers |
 | --- | --- | --- | --- | --- |
 | `text-embedding` | supported | `disabled`, `openai-compatible`, `ollama` | `local-http` | `local-command` |
-| `chat` | experimental | `disabled` | `openai-compatible`, `ollama` | `local-http`, `local-command` |
+| `chat` | supported | `disabled`, `openai-compatible` | none | `ollama`, `local-http`, `local-command` |
 | `image-embedding` | experimental | `disabled` | `local-http` | `openai-compatible`, `ollama`, `local-command` |
 | `vision-captioning` | experimental | `disabled` | `openai-compatible`, `local-http` | `ollama`, `local-command` |
 | `ocr` | experimental | `disabled` | `openai-compatible`, `local-http` | `ollama`, `local-command` |
@@ -113,6 +113,11 @@ The OAuth mode expects the host runtime to supply an already-issued bearer
 access token, for example from a Codex or Hermes integration. Mindory does not
 run an interactive OAuth login flow; it consumes the supplied token and sends it
 as `Authorization: Bearer ...`.
+
+The OpenAI-compatible adapter currently implements chat completions and text
+embeddings. Chat calls use `/chat/completions`; text embeddings use
+`/embeddings`. Both API-key and OAuth bearer modes share the same centralized
+auth configuration and audit path.
 
 ## Runtime Boundary
 

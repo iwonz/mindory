@@ -20,6 +20,8 @@ documentation.
 
 ### Added
 
+- `TASK-73`: OpenAI-compatible chat adapter in `@mindory/llm`, sharing API-key
+  and OAuth bearer auth with embeddings plus operation audit output.
 - `TASK-72`: centralized LLM role/provider support matrix with config and
   installer gating for experimental model roles.
 - `TASK-71`: release workflow baseline with `pnpm check`, Docker image build,

@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-72",
+  "current_task_id": "TASK-73",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -540,6 +540,13 @@
       "status": "done",
       "branch": "task/TASK-72-llm-provider-support-matrix-cleanup",
       "file": "tasks/TASK-72.json"
+    },
+    {
+      "id": "TASK-73",
+      "title": "Add OpenAI-compatible and OAuth LLM adapters",
+      "status": "done",
+      "branch": "task/TASK-73-openai-compatible-oauth-llm-adapters",
+      "file": "tasks/TASK-73.json"
     }
   ]
 }
