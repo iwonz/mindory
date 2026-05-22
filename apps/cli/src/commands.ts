@@ -1,8 +1,12 @@
+import { createHash } from "node:crypto";
+import { loadMindoryConfig, type EnvSource } from "@mindory/config";
+import { buildMindoryLlm, type LlmGeneratedMediaOutput, type LlmOperationAudit, type LlmOperationResult, type LlmRole } from "@mindory/llm";
 import { readBooleanFlag, readFlag, readFlagValues, type ParsedCliArgs } from "./args.js";
 import { MindoryCliApiClient, queryString } from "./http-client.js";
 
 export interface CliCommandContext {
   api: MindoryCliApiClient;
+  env?: EnvSource;
 }
 
 export class CliError extends Error {
@@ -137,6 +141,10 @@ export async function dispatchCliCommand(parsed: ParsedCliArgs, context: CliComm
       return context.api.postJson(`/v1/jobs/${encodeURIComponent(requiredArg(args, 0, "job id"))}/retry`, {
         projectId: requiredFlag(parsed, "project")
       });
+    case "llm:generate-image":
+      return generateMedia(args, parsed, context, "image-generation");
+    case "llm:generate-audio":
+      return generateMedia(args, parsed, context, "audio-generation");
     default:
       throw new CliError(`Unknown command: ${parsed.positionals.join(" ") || "(empty)"}\n\n${helpText()}`, 2);
   }
@@ -182,6 +190,8 @@ export function helpText(): string {
     "  mindory jobs list --project <id> [--status <status>] [--limit 20]",
     "  mindory jobs get <id> --project <id>",
     "  mindory jobs retry <id> --project <id>",
+    "  mindory llm generate-image <prompt> [--include-bytes]",
+    "  mindory llm generate-audio <prompt> [--include-bytes]",
     "",
     "Global flags:",
     "  --api-url <url>     Override MINDORY_CLI_API_URL.",
@@ -329,6 +339,74 @@ function buildContext(args: string[], parsed: ParsedCliArgs, context: CliCommand
     tokenBudget: readPositiveIntegerFlag(parsed, "token-budget") ?? 3000,
     include: readJsonFlag(parsed, "include")
   });
+}
+
+async function generateMedia(
+  args: string[],
+  parsed: ParsedCliArgs,
+  context: CliCommandContext,
+  roleName: Extract<LlmRole, "image-generation" | "audio-generation">
+): Promise<unknown> {
+  const audits: LlmOperationAudit[] = [];
+  const runtime = buildMindoryLlm(loadMindoryConfig(context.env), {
+    auditSink: (audit) => {
+      audits.push(audit);
+    }
+  });
+  const role = runtime.registry.require(roleName);
+  const refs = llmRefs(parsed);
+  const result = runtime.generation === undefined
+    ? runtime.disabledResult<LlmGeneratedMediaOutput>(roleName, refs)
+    : roleName === "image-generation"
+      ? await runtime.generation.generateImage({ prompt: requiredQuery(args) }, { role, refs })
+      : await runtime.generation.generateAudio({ prompt: requiredQuery(args) }, { role, refs });
+  const summary = generationResultSummary(result, readBooleanFlag(parsed.flags, "include-bytes"));
+  if (audits.length > 0) {
+    summary.audits = audits;
+  } else {
+    summary.audits = [result.audit];
+  }
+  return summary;
+}
+
+function generationResultSummary(
+  result: LlmOperationResult<LlmGeneratedMediaOutput>,
+  includeBytes: boolean
+): Record<string, unknown> {
+  const summary: Record<string, unknown> = {
+    status: result.status,
+    audit: result.audit
+  };
+  if (result.value === undefined) {
+    return summary;
+  }
+  summary.mimeType = result.value.mimeType;
+  summary.byteLength = result.value.bytes.length;
+  summary.sha256 = createHash("sha256").update(result.value.bytes).digest("hex");
+  if (result.value.metadata !== undefined) {
+    summary.metadata = result.value.metadata;
+  }
+  if (includeBytes) {
+    summary.dataBase64 = Buffer.from(result.value.bytes).toString("base64");
+  }
+  return summary;
+}
+
+function llmRefs(parsed: ParsedCliArgs): Record<string, string> {
+  const refs: Record<string, string> = {};
+  for (const [flag, key] of [
+    ["project", "projectId"],
+    ["document", "documentId"],
+    ["job", "jobId"],
+    ["session", "sessionId"],
+    ["message", "messageId"]
+  ] as const) {
+    const value = readFlag(parsed.flags, flag);
+    if (value !== undefined) {
+      refs[key] = value;
+    }
+  }
+  return refs;
 }
 
 function requiredArg(args: string[], index: number, label: string): string {

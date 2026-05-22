@@ -267,18 +267,20 @@ indexes directly.
 
 ## CLI
 
-`TASK-12` adds the command-line package in `apps/cli`:
+The command-line package lives in `apps/cli`:
 
 - `mindory` is exposed as the package binary.
 - The CLI uses a small bootstrap argument parser without external dependencies.
 - `MindoryCliApiClient` sends JSON HTTP requests and multipart document uploads.
 - Commands cover project, token, session, message, document, memory, context and
   jobs operations.
+- Local LLM generation diagnostics call `@mindory/llm` directly and do not
+  create or mutate product state.
 
 The CLI follows the same source-of-truth boundary as MCP: it calls HTTP API
-paths and does not import database, queue, storage or vector runtime internals.
-`TASK-24` adds stable usage/API/network exit codes and smoke coverage for the
-implemented MVP route mapping. Token creation remains a planned endpoint.
+paths for product data and does not import database, queue, storage or vector
+runtime internals. It exposes stable usage/API/network exit codes and smoke
+coverage for the implemented route mapping.
 
 ## Hermes Adapter
 

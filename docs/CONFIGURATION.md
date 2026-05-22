@@ -203,10 +203,13 @@ stdout without mutating the RAW video object.
 The role/provider support matrix is centralized in `@mindory/llm` and the
 config catalog. `chat` and `text-embedding` have supported OpenAI-compatible
 and local HTTP adapters today; text embeddings also support Ollama. OCR,
-vision, ASR, image embeddings and face roles are experimental; generation roles
-are future. Scanned-PDF OCR, image OCR, image embeddings, image vision
-captioning, image object detection, audio ASR and image face
-detection/recognition are implemented through experimental local HTTP providers.
+vision, ASR, image embeddings, face roles and generation roles are
+experimental. Scanned-PDF OCR, image OCR, image embeddings, image vision
+captioning, image object detection, audio ASR, image face
+detection/recognition and image/audio generation are implemented through
+experimental local HTTP or local-command providers where the role supports
+them. Image/audio generation also supports OpenAI-compatible API-key and OAuth
+bearer modes.
 Any
 enabled role or selected provider that is not
 `supported` requires `MINDORY_INSTALL_ALLOW_EXPERIMENTAL=true`, including

@@ -114,15 +114,15 @@ export const LLM_ROLE_SUPPORT_CATALOG = [
     "local-command": "experimental"
   }),
   llmRoleSupport("IMAGE_GENERATION", "experimental", "disabled", "", {
-    "openai-compatible": "future",
+    "openai-compatible": "experimental",
     "ollama": "future",
-    "local-http": "future",
+    "local-http": "experimental",
     "local-command": "experimental"
   }),
   llmRoleSupport("AUDIO_GENERATION", "experimental", "disabled", "", {
-    "openai-compatible": "future",
+    "openai-compatible": "experimental",
     "ollama": "future",
-    "local-http": "future",
+    "local-http": "experimental",
     "local-command": "experimental"
   })
 ] as const satisfies readonly LlmRoleSupportCatalogEntry[];

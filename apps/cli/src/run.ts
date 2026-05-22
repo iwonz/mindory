@@ -37,7 +37,8 @@ export async function runMindoryCli(options: RunMindoryCliOptions): Promise<numb
   const api = options.apiClient ?? new MindoryCliApiClient(clientOptions);
 
   try {
-    const result = await dispatchCliCommand(parsed, { api });
+    const commandContext = options.env === undefined ? { api } : { api, env: options.env };
+    const result = await dispatchCliCommand(parsed, commandContext);
     if (result !== undefined) {
       stdout(formatResult(result));
     }

@@ -1,7 +1,7 @@
 {
   "id": "TASK-99",
   "title": "Implement image and audio generation roles",
-  "status": "draft",
+  "status": "done",
   "type": "feature",
   "priority": "medium",
   "branch": "task/TASK-99-image-audio-generation-roles",

@@ -199,6 +199,13 @@ export interface LlmFaceRecognitionOutput {
   usage?: LlmOperationUsage;
 }
 
+export interface LlmGeneratedMediaOutput {
+  bytes: Uint8Array;
+  mimeType: string;
+  metadata?: Record<string, unknown>;
+  usage?: LlmOperationUsage;
+}
+
 export interface OpenAICompatibleChatOptions {
   baseUrl: string;
   model: string;
@@ -303,8 +310,8 @@ export interface LlmFaceProvider {
 }
 
 export interface LlmGenerationProvider {
-  generateImage(input: { prompt: string }, context: LlmProviderCallContext): Promise<LlmOperationResult<{ bytes: Uint8Array; mimeType: string }>>;
-  generateAudio(input: { prompt: string }, context: LlmProviderCallContext): Promise<LlmOperationResult<{ bytes: Uint8Array; mimeType: string }>>;
+  generateImage(input: { prompt: string }, context: LlmProviderCallContext): Promise<LlmOperationResult<LlmGeneratedMediaOutput>>;
+  generateAudio(input: { prompt: string }, context: LlmProviderCallContext): Promise<LlmOperationResult<LlmGeneratedMediaOutput>>;
 }
 
 export interface MindoryLlmOptions {
@@ -786,26 +793,89 @@ export function buildMindoryGenerationProvider(
 ): LlmGenerationProvider | undefined {
   const image = config.llm.imageGeneration;
   const audio = config.llm.audioGeneration;
-  const imageEnabled = image.enabled && image.provider !== "disabled";
-  const audioEnabled = audio.enabled && audio.provider !== "disabled";
-  if (!imageEnabled && !audioEnabled) {
+  const imageRole = descriptor("image-generation", image);
+  const audioRole = descriptor("audio-generation", audio);
+  const imageProvider = buildMindoryMediaGenerationOperationProvider(config, options, imageRole, "image");
+  const audioProvider = buildMindoryMediaGenerationOperationProvider(config, options, audioRole, "audio");
+  if (imageProvider === undefined && audioProvider === undefined) {
     return undefined;
   }
-  const providers = new Set([image.provider, audio.provider].filter((provider) => provider !== "disabled"));
-  if (providers.size > 1) {
-    throw new Error("Image generation and audio generation must use the same provider in the current @mindory/llm runtime.");
+  return new MindoryGenerationProvider(
+    imageRole,
+    audioRole,
+    imageProvider,
+    audioProvider,
+    options.auditSink,
+    options.operationRefs ?? {}
+  );
+}
+
+type LlmMediaGenerationKind = "image" | "audio";
+
+interface LlmMediaGenerationOperationProvider {
+  generate(input: { prompt: string }, context: LlmProviderCallContext): Promise<LlmOperationResult<LlmGeneratedMediaOutput>>;
+}
+
+function buildMindoryMediaGenerationOperationProvider(
+  config: MindoryConfig,
+  options: MindoryLlmOptions,
+  role: LlmRoleDescriptor,
+  kind: LlmMediaGenerationKind
+): LlmMediaGenerationOperationProvider | undefined {
+  if (!role.enabled || role.provider === "disabled") {
+    return undefined;
   }
-  const provider = providers.values().next().value;
-  if (provider === "local-command") {
-    return new LocalCommandGenerationProvider(
-      localCommandModelOptions(config, options),
-      descriptor("image-generation", image),
-      descriptor("audio-generation", audio),
+
+  if (role.provider === "openai-compatible") {
+    const providerOptions: OpenAICompatibleChatOptions = {
+      baseUrl: config.llm.openaiCompatible.baseUrl,
+      model: role.model
+    };
+    const bearerToken = openAiCompatibleBearerToken(config);
+    if (bearerToken !== undefined) {
+      providerOptions.bearerToken = bearerToken;
+    }
+    if (options.fetchImpl !== undefined) {
+      providerOptions.fetchImpl = options.fetchImpl;
+    }
+    return new OpenAICompatibleGenerationProvider(
+      providerOptions,
+      role,
+      kind,
       options.auditSink,
       options.operationRefs ?? {}
     );
   }
-  throw new Error(`${provider} generation is configured but no generation adapter is installed.`);
+
+  if (role.provider === "local-http") {
+    const providerOptions: LocalHttpModelOptions = {
+      baseUrl: config.llm.localHttp.baseUrl,
+      model: role.model
+    };
+    if (options.fetchImpl !== undefined) {
+      providerOptions.fetchImpl = options.fetchImpl;
+    }
+    return new LocalHttpGenerationProvider(
+      providerOptions,
+      role,
+      kind,
+      options.auditSink,
+      options.operationRefs ?? {}
+    );
+  }
+
+  if (role.provider === "local-command") {
+    return new LocalCommandGenerationProvider(
+      localCommandModelOptions(config, options),
+      role,
+      kind === "image" ? "image_generation" : "audio_generation",
+      kind === "image" ? "image/png" : "audio/wav",
+      options.auditSink,
+      options.operationRefs ?? {}
+    );
+  }
+
+  throw new Error(`${role.provider} ${role.role} is configured but no generation adapter is installed.`);
 }
 
 export async function checkMindoryLlmProviderHealth(
@@ -1333,25 +1403,271 @@ export class LocalCommandFaceProvider implements LlmFaceProvider {
   }
 }
 
-export class LocalCommandGenerationProvider implements LlmGenerationProvider {
+export class MindoryGenerationProvider implements LlmGenerationProvider {
+  constructor(
+    private readonly imageRole: LlmRoleDescriptor,
+    private readonly audioRole: LlmRoleDescriptor,
+    private readonly imageProvider: LlmMediaGenerationOperationProvider | undefined,
+    private readonly audioProvider: LlmMediaGenerationOperationProvider | undefined,
+    private readonly auditSink: LlmAuditSink | undefined,
+    private readonly refs: LlmOperationRefs
+  ) {}
+
+  generateImage(input: { prompt: string }, context: LlmProviderCallContext): Promise<LlmOperationResult<LlmGeneratedMediaOutput>> {
+    if (this.imageProvider === undefined) {
+      return Promise.resolve(disabledLlmOperationResult(this.imageRole, mergeLlmRefs(this.refs, context.refs), this.auditSink));
+    }
+    return this.imageProvider.generate(input, {
+      ...context,
+      role: this.imageRole,
+      refs: mergeLlmRefs(this.refs, context.refs)
+    });
+  }
+
+  generateAudio(input: { prompt: string }, context: LlmProviderCallContext): Promise<LlmOperationResult<LlmGeneratedMediaOutput>> {
+    if (this.audioProvider === undefined) {
+      return Promise.resolve(disabledLlmOperationResult(this.audioRole, mergeLlmRefs(this.refs, context.refs), this.auditSink));
+    }
+    return this.audioProvider.generate(input, {
+      ...context,
+      role: this.audioRole,
+      refs: mergeLlmRefs(this.refs, context.refs)
+    });
+  }
+}
+
+export class LocalCommandGenerationProvider implements LlmMediaGenerationOperationProvider {
   private readonly executor: LocalCommandOperationExecutor;
 
   constructor(
     options: LocalCommandModelOptions,
-    private readonly imageRole: LlmRoleDescriptor,
-    private readonly audioRole: LlmRoleDescriptor,
+    private readonly role: LlmRoleDescriptor,
+    private readonly operation: Extract<LocalCommandOperationName, "image_generation" | "audio_generation">,
+    private readonly defaultMimeType: string,
     auditSink: LlmAuditSink | undefined,
     refs: LlmOperationRefs
   ) {
     this.executor = new LocalCommandOperationExecutor(options, auditSink, refs);
   }
 
-  generateImage(input: { prompt: string }, context: LlmProviderCallContext): Promise<LlmOperationResult<{ bytes: Uint8Array; mimeType: string }>> {
-    return this.executor.call("image_generation", this.imageRole, { prompt: input.prompt }, (output) => localCommandGeneratedMedia(output, "image/png"), context.refs, context.signal);
+  generate(input: { prompt: string }, context: LlmProviderCallContext): Promise<LlmOperationResult<LlmGeneratedMediaOutput>> {
+    return this.executor.call(this.operation, this.role, { prompt: input.prompt }, (output, payload) => ({
+      ...localCommandGeneratedMedia(output, this.defaultMimeType),
+      usage: localCommandUsage(payload)
+    }), context.refs, context.signal);
+  }
+}
+
+export class LocalHttpGenerationProvider implements LlmMediaGenerationOperationProvider {
+  private readonly fetchImpl: typeof fetch;
+
+  constructor(
+    private readonly options: LocalHttpModelOptions,
+    private readonly role: LlmRoleDescriptor,
+    private readonly kind: LlmMediaGenerationKind,
+    private readonly auditSink: LlmAuditSink | undefined,
+    private readonly refs: LlmOperationRefs
+  ) {
+    this.fetchImpl = options.fetchImpl ?? fetch;
   }
 
-  generateAudio(input: { prompt: string }, context: LlmProviderCallContext): Promise<LlmOperationResult<{ bytes: Uint8Array; mimeType: string }>> {
-    return this.executor.call("audio_generation", this.audioRole, { prompt: input.prompt }, (output) => localCommandGeneratedMedia(output, "audio/wav"), context.refs, context.signal);
+  async generate(input: { prompt: string }, context: LlmProviderCallContext): Promise<LlmOperationResult<LlmGeneratedMediaOutput>> {
+    const endpoint = this.kind === "image" ? "/generation/image" : "/generation/audio";
+    const defaultMimeType = this.kind === "image" ? "image/png" : "audio/wav";
+    return this.callJsonMediaEndpoint(endpoint, defaultMimeType, input, context);
+  }
+
+  private async callJsonMediaEndpoint(
+    endpoint: "/generation/image" | "/generation/audio",
+    defaultMimeType: string,
+    input: { prompt: string },
+    context: LlmProviderCallContext
+  ): Promise<LlmOperationResult<LlmGeneratedMediaOutput>> {
+    const startedAt = Date.now();
+    const model = context.role.model || this.options.model;
+    try {
+      const requestInit: RequestInit = {
+        method: "POST",
+        headers: {
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          model,
+          prompt: input.prompt,
+          response_format: "b64_json"
+        })
+      };
+      if (context.signal !== undefined) {
+        requestInit.signal = context.signal;
+      }
+      const response = await this.fetchImpl(`${trimTrailingSlash(this.options.baseUrl)}${endpoint}`, requestInit);
+      const responseText = await response.text();
+      if (!response.ok) {
+        throw new Error(`Local HTTP ${this.kind} generation request failed with ${response.status}: ${responseText}`);
+      }
+      const payload = JSON.parse(responseText) as GeneratedMediaJsonResponse;
+      return this.result("success", startedAt, model, generatedMediaFromJson(payload, defaultMimeType), context.refs);
+    } catch (error) {
+      return this.result("failed", startedAt, model, undefined, context.refs, error);
+    }
+  }
+
+  private result(
+    status: LlmOperationStatus,
+    startedAt: number,
+    model: string,
+    value?: LlmGeneratedMediaOutput,
+    refs: LlmOperationRefs = {},
+    error?: unknown
+  ): LlmOperationResult<LlmGeneratedMediaOutput> {
+    const durationMs = Date.now() - startedAt;
+    const audit: LlmOperationAudit = {
+      role: this.role.role,
+      provider: this.role.provider,
+      model,
+      status,
+      durationMs,
+      usage: generatedMediaUsage(value, this.kind, durationMs),
+      refs: {
+        ...this.refs,
+        ...refs
+      }
+    };
+    if (error !== undefined) {
+      audit.errorCode = errorCode(error);
+      audit.errorMessage = errorMessage(error);
+    }
+    this.auditSink?.(audit);
+    return {
+      status,
+      ...(value === undefined ? {} : { value }),
+      audit
+    };
+  }
+}
+
+export class OpenAICompatibleGenerationProvider implements LlmMediaGenerationOperationProvider {
+  private readonly fetchImpl: typeof fetch;
+
+  constructor(
+    private readonly options: OpenAICompatibleChatOptions,
+    private readonly role: LlmRoleDescriptor,
+    private readonly kind: LlmMediaGenerationKind,
+    private readonly auditSink: LlmAuditSink | undefined,
+    private readonly refs: LlmOperationRefs
+  ) {
+    this.fetchImpl = options.fetchImpl ?? fetch;
+  }
+
+  async generate(input: { prompt: string }, context: LlmProviderCallContext): Promise<LlmOperationResult<LlmGeneratedMediaOutput>> {
+    return this.kind === "image" ? this.generateImage(input, context) : this.generateAudio(input, context);
+  }
+
+  private async generateImage(input: { prompt: string }, context: LlmProviderCallContext): Promise<LlmOperationResult<LlmGeneratedMediaOutput>> {
+    const startedAt = Date.now();
+    const model = context.role.model || this.options.model;
+    try {
+      const requestInit: RequestInit = {
+        method: "POST",
+        headers: this.headers(),
+        body: JSON.stringify({
+          model,
+          prompt: input.prompt,
+          n: 1,
+          response_format: "b64_json"
+        })
+      };
+      if (context.signal !== undefined) {
+        requestInit.signal = context.signal;
+      }
+      const response = await this.fetchImpl(`${trimTrailingSlash(this.options.baseUrl)}/images/generations`, requestInit);
+      const responseText = await response.text();
+      if (!response.ok) {
+        throw new Error(`OpenAI-compatible image generation request failed with ${response.status}: ${responseText}`);
+      }
+      const payload = JSON.parse(responseText) as GeneratedMediaJsonResponse;
+      return this.result("success", startedAt, model, generatedMediaFromJson(payload, "image/png"), context.refs);
+    } catch (error) {
+      return this.result("failed", startedAt, model, undefined, context.refs, error);
+    }
+  }
+
+  private async generateAudio(input: { prompt: string }, context: LlmProviderCallContext): Promise<LlmOperationResult<LlmGeneratedMediaOutput>> {
+    const startedAt = Date.now();
+    const model = context.role.model || this.options.model;
+    try {
+      const requestInit: RequestInit = {
+        method: "POST",
+        headers: this.headers(),
+        body: JSON.stringify({
+          model,
+          input: input.prompt,
+          response_format: "wav"
+        })
+      };
+      if (context.signal !== undefined) {
+        requestInit.signal = context.signal;
+      }
+      const response = await this.fetchImpl(`${trimTrailingSlash(this.options.baseUrl)}/audio/speech`, requestInit);
+      if (!response.ok) {
+        throw new Error(`OpenAI-compatible audio generation request failed with ${response.status}: ${await response.text()}`);
+      }
+      const contentType = response.headers.get("content-type") ?? "";
+      if (contentType.includes("application/json")) {
+        const payload = JSON.parse(await response.text()) as GeneratedMediaJsonResponse;
+        return this.result("success", startedAt, model, generatedMediaFromJson(payload, "audio/wav"), context.refs);
+      }
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      return this.result("success", startedAt, model, {
+        bytes,
+        mimeType: contentType.split(";")[0]?.trim() || "audio/wav"
+      }, context.refs);
+    } catch (error) {
+      return this.result("failed", startedAt, model, undefined, context.refs, error);
+    }
+  }
+
+  private headers(): Record<string, string> {
+    const headers: Record<string, string> = {
+      "content-type": "application/json"
+    };
+    if (this.options.bearerToken !== undefined) {
+      headers.authorization = `Bearer ${this.options.bearerToken}`;
+    }
+    return headers;
+  }
+
+  private result(
+    status: LlmOperationStatus,
+    startedAt: number,
+    model: string,
+    value?: LlmGeneratedMediaOutput,
+    refs: LlmOperationRefs = {},
+    error?: unknown
+  ): LlmOperationResult<LlmGeneratedMediaOutput> {
+    const durationMs = Date.now() - startedAt;
+    const audit: LlmOperationAudit = {
+      role: this.role.role,
+      provider: this.role.provider,
+      model,
+      status,
+      durationMs,
+      usage: generatedMediaUsage(value, this.kind, durationMs),
+      refs: {
+        ...this.refs,
+        ...refs
+      }
+    };
+    if (error !== undefined) {
+      audit.errorCode = errorCode(error);
+      audit.errorMessage = errorMessage(error);
+    }
+    this.auditSink?.(audit);
+    return {
+      status,
+      ...(value === undefined ? {} : { value }),
+      audit
+    };
   }
 }
 
@@ -2057,6 +2373,32 @@ interface LocalHttpFaceResponse {
   }>;
   identity_ids?: unknown[];
   usage?: OpenAICompatibleChatResponse["usage"];
+}
+
+interface GeneratedMediaJsonResponse {
+  data_base64?: string;
+  bytes_base64?: string;
+  b64_json?: string;
+  base64?: string;
+  mime_type?: string;
+  mimeType?: string;
+  content_type?: string;
+  contentType?: string;
+  duration_ms?: number;
+  duration_seconds?: number;
+  metadata?: Record<string, unknown>;
+  usage?: OpenAICompatibleChatResponse["usage"] & {
+    audio_seconds?: number;
+    image_count?: number;
+  };
+  data?: Array<{
+    b64_json?: string;
+    data_base64?: string;
+    revised_prompt?: string;
+    mime_type?: string;
+    mimeType?: string;
+    metadata?: Record<string, unknown>;
+  }>;
 }
 
 export function openAiCompatibleBearerToken(config: MindoryConfig): string | undefined {
@@ -2765,7 +3107,7 @@ function localCommandEmbeddings(output: unknown): number[][] {
   return localHttpEmbeddings(body);
 }
 
-function localCommandGeneratedMedia(output: unknown, defaultMimeType: string): { bytes: Uint8Array; mimeType: string } {
+function localCommandGeneratedMedia(output: unknown, defaultMimeType: string): LlmGeneratedMediaOutput {
   if (!isRecord(output)) {
     throw localCommandOperationError("local_command_invalid_media", "local-command generated media output must be an object.");
   }
@@ -2773,9 +3115,106 @@ function localCommandGeneratedMedia(output: unknown, defaultMimeType: string): {
   if (dataBase64 === undefined || dataBase64.trim() === "") {
     throw localCommandOperationError("local_command_missing_media", "local-command generated media output must include base64 bytes.");
   }
-  return {
+  const result: LlmGeneratedMediaOutput = {
     bytes: Buffer.from(dataBase64, "base64"),
     mimeType: stringField(output, "mime_type") ?? stringField(output, "mimeType") ?? defaultMimeType
+  };
+  if (isRecord(output.metadata)) {
+    result.metadata = output.metadata;
+  }
+  return result;
+}
+
+function generatedMediaFromJson(payload: GeneratedMediaJsonResponse, defaultMimeType: string): LlmGeneratedMediaOutput {
+  const firstData = Array.isArray(payload.data) ? payload.data[0] : undefined;
+  const dataBase64 = payload.data_base64
+    ?? payload.bytes_base64
+    ?? payload.b64_json
+    ?? payload.base64
+    ?? firstData?.b64_json
+    ?? firstData?.data_base64;
+  if (dataBase64 === undefined || dataBase64.trim() === "") {
+    throw localCommandOperationError("generation_missing_media", "Generation response must include base64 media bytes.");
+  }
+
+  const metadata: Record<string, unknown> = {
+    ...(payload.metadata ?? {}),
+    ...(firstData?.metadata ?? {})
+  };
+  if (firstData?.revised_prompt !== undefined) {
+    metadata.revisedPrompt = firstData.revised_prompt;
+  }
+  if (payload.duration_ms !== undefined) {
+    metadata.durationMs = payload.duration_ms;
+  }
+  if (payload.duration_seconds !== undefined) {
+    metadata.durationSeconds = payload.duration_seconds;
+  }
+
+  const result: LlmGeneratedMediaOutput = {
+    bytes: Buffer.from(dataBase64, "base64"),
+    mimeType: payload.mime_type
+      ?? payload.mimeType
+      ?? payload.content_type
+      ?? payload.contentType
+      ?? firstData?.mime_type
+      ?? firstData?.mimeType
+      ?? defaultMimeType
+  };
+  if (Object.keys(metadata).length > 0) {
+    result.metadata = metadata;
+  }
+  const usage = generatedMediaJsonUsage(payload);
+  if (Object.keys(usage).length > 0) {
+    result.usage = usage;
+  }
+  return result;
+}
+
+function generatedMediaJsonUsage(payload: GeneratedMediaJsonResponse): LlmOperationUsage {
+  const usage = usageFromOpenAI(payload.usage);
+  if (typeof payload.usage?.image_count === "number") {
+    usage.imageCount = payload.usage.image_count;
+  }
+  if (typeof payload.usage?.audio_seconds === "number") {
+    usage.audioSeconds = payload.usage.audio_seconds;
+  }
+  if (typeof payload.duration_ms === "number" && usage.audioSeconds === undefined) {
+    usage.audioSeconds = payload.duration_ms / 1000;
+  }
+  if (typeof payload.duration_seconds === "number" && usage.audioSeconds === undefined) {
+    usage.audioSeconds = payload.duration_seconds;
+  }
+  return usage;
+}
+
+function generatedMediaUsage(
+  value: LlmGeneratedMediaOutput | undefined,
+  kind: LlmMediaGenerationKind,
+  durationMs: number
+): LlmOperationUsage {
+  const usage: LlmOperationUsage = {
+    ...value?.usage,
+    durationMs
+  };
+  if (kind === "image" && usage.imageCount === undefined && value !== undefined) {
+    usage.imageCount = 1;
+  }
+  const durationSeconds = value?.metadata?.durationSeconds;
+  if (kind === "audio" && usage.audioSeconds === undefined && typeof durationSeconds === "number") {
+    usage.audioSeconds = durationSeconds;
+  }
+  const durationFromMs = value?.metadata?.durationMs;
+  if (kind === "audio" && usage.audioSeconds === undefined && typeof durationFromMs === "number") {
+    usage.audioSeconds = durationFromMs / 1000;
+  }
+  return usage;
+}
+
+function mergeLlmRefs(base: LlmOperationRefs, override: LlmOperationRefs | undefined): LlmOperationRefs {
+  return {
+    ...base,
+    ...(override ?? {})
   };
 }
 
