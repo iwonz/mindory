@@ -104,6 +104,7 @@ pnpm tasks:validate
 pnpm workspace:validate
 pnpm llm:validate
 pnpm observability:validate
+pnpm backup:validate
 pnpm db:validate
 pnpm db:repositories:validate
 pnpm api:validate

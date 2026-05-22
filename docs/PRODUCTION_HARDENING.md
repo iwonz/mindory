@@ -12,8 +12,8 @@ minimum baseline for the MVP release path.
 | Local demo | Supported local MVP through Docker Compose and `pnpm mvp:demo`. |
 | Release images | Supported baseline. The release workflow runs `pnpm check` and builds a Docker image for the target version. Registry push policy is future hardening. |
 | Release bundles | Supported baseline. The release workflow generates bundle, manifest and checksum artifacts, then runs smoke-release-install. Signature verification remains future work. |
-| Installer execution | Partial baseline. Current installer can prepare `$MINDORY_HOME`, start Compose through health checks, provision the first token, refresh local assets and uninstall with explicit confirmation, but remote release update is future work. |
-| Backup and restore | Manual guidance only. Scripted backup/restore and restore acceptance are future hardening work. |
+| Installer execution | Partial baseline. Current installer can prepare `$MINDORY_HOME`, start Compose through health checks, provision the first token, refresh local assets, create/restore runtime backups and uninstall with explicit confirmation, but remote release update is future work. |
+| Backup and restore | Supported MVP. Installer commands cover config, installer metadata, PostgreSQL dumps and local object storage state. Point-in-time recovery, scheduled backups and encrypted remote backups are future hardening work. |
 | Observability | Supported baseline. Structured logs, model operation audit helpers, in-process job/stage metrics, health snapshots and rate-limit strategy are documented in `docs/OBSERVABILITY.md`. Metrics exporters, tracing, log aggregation and alerting are future hardening work. |
 | Public GitHub readiness | Supported baseline. The repo includes license, contribution guide, root security policy, issue/PR templates, changelog/release notes policy, support matrix and repository status docs. |
 
@@ -82,10 +82,21 @@ Run migrations as a deployment step before API and worker services accept
 traffic. Docker Compose does this through the `migrate` service with
 `pnpm db:migrate`.
 
-Before applying migrations in production, create and verify a database backup:
+Before applying migrations in production, create and verify a Mindory runtime
+backup:
 
 ```bash
-pg_dump "$MINDORY_DATABASE_URL" > "mindory-before-$(date +%Y%m%d%H%M%S).sql"
+mindory-installer backup --home "$MINDORY_HOME" --label before-migration
+pnpm backup:validate
+```
+
+The backup command writes `backup-manifest.json`, config, installer metadata,
+a Docker Compose `pg_dump` output at `postgres/mindory.sql` and local object
+storage files for `local-fs` or local LibreFS profiles. Restore requires an
+explicit confirmation:
+
+```bash
+mindory-installer restore --home "$MINDORY_HOME" --backup "$MINDORY_HOME/backups/<backup-dir>" --yes
 ```
 
 The MVP uses forward migrations. If a migration or release must be rolled back,
@@ -94,9 +105,10 @@ known-good image and then run acceptance against that restored deployment.
 Automated down migrations are deferred until the schema is managed by a release
 process that can test both forward and backward paths.
 
-Object storage is not part of PostgreSQL backup. Back up the configured local
-filesystem volume or S3 bucket before migrations that change document metadata
-or chunk/index expectations.
+External S3-compatible bucket data is not copied by the local MVP backup
+command. Back up external buckets with provider-native tooling before
+migrations that change document metadata or chunk/index expectations. Database
+point-in-time recovery remains future hardening.
 
 ## Production Secret Handling
 

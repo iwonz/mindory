@@ -362,6 +362,61 @@ export interface InstallUninstallReport {
   backupPath?: string;
 }
 
+export type RuntimeBackupComponent = "config" | "installer_state" | "postgres" | "objects" | "librefs" | "external_s3";
+export type RuntimeBackupComponentStatus = "backed_up" | "restored" | "skipped" | "missing" | "dry_run";
+
+export interface RuntimeBackupComponentReport {
+  component: RuntimeBackupComponent;
+  status: RuntimeBackupComponentStatus;
+  source?: string;
+  target?: string;
+  backupRelativePath?: string;
+  restoreTargetRelativePath?: string;
+  reason?: string;
+}
+
+export interface RuntimeBackupManifest {
+  schema_version: InstallerSchemaVersion;
+  kind: "mindory-runtime-backup";
+  created_at: string;
+  mindory_home: string;
+  storage: {
+    provider: string;
+    s3_endpoint?: string;
+  };
+  components: RuntimeBackupComponentReport[];
+}
+
+export interface RuntimeBackupOptions extends InstallExecutionOptions {
+  outputDirectory?: string;
+  label?: string;
+  dryRun?: boolean;
+  includeConfig?: boolean;
+  includePostgres?: boolean;
+  includeObjects?: boolean;
+}
+
+export interface RuntimeBackupReport {
+  backupPath: string;
+  manifestPath: string;
+  dryRun: boolean;
+  components: RuntimeBackupComponentReport[];
+}
+
+export interface RuntimeRestoreOptions extends InstallExecutionOptions {
+  yes: boolean;
+  restoreConfig?: boolean;
+  restorePostgres?: boolean;
+  restoreObjects?: boolean;
+}
+
+export interface RuntimeRestoreReport {
+  backupPath: string;
+  manifestPath: string;
+  restored: boolean;
+  components: RuntimeBackupComponentReport[];
+}
+
 export interface InstallStateInspection {
   lockPath: string;
   lock: InstallLockRecord | null;
@@ -889,6 +944,116 @@ export function uninstallMindoryHome(mindoryHome: string, options: InstallUninst
   return {
     removed: true,
     ...(backupPath === undefined ? {} : { backupPath })
+  };
+}
+
+export async function createMindoryRuntimeBackup(
+  mindoryHome: string,
+  options: RuntimeBackupOptions = {}
+): Promise<RuntimeBackupReport> {
+  const resolvedHome = assertSafeMindoryHome(mindoryHome);
+  const homeEnv = readMindoryHomeEnvironment(resolvedHome);
+  const dryRun = options.dryRun === true;
+  const backupPath = path.resolve(options.outputDirectory ?? path.join(resolvedHome, "backups", `${timestampLabel()}-${sanitizeBackupLabel(options.label ?? "runtime-backup")}`));
+  const manifestPath = path.join(backupPath, "backup-manifest.json");
+  const components: RuntimeBackupComponentReport[] = [];
+  const plan = createRuntimePlanFromHome(resolvedHome, homeEnv);
+
+  if (!dryRun) {
+    mkdirSync(backupPath, { recursive: true, mode: 0o700 });
+  }
+
+  if (options.includeConfig !== false) {
+    components.push(copyBackupComponent({
+      component: "config",
+      source: path.join(resolvedHome, "config"),
+      target: path.join(backupPath, "config"),
+      backupRelativePath: "config",
+      restoreTargetRelativePath: "config",
+      dryRun
+    }));
+    components.push(copyBackupComponent({
+      component: "installer_state",
+      source: path.join(resolvedHome, "install"),
+      target: path.join(backupPath, "installer-state"),
+      backupRelativePath: "installer-state",
+      restoreTargetRelativePath: "install",
+      dryRun
+    }));
+  }
+
+  if (options.includePostgres !== false) {
+    components.push(await backupPostgresDatabase(plan, backupPath, dryRun, options));
+  }
+
+  if (options.includeObjects !== false) {
+    for (const storageSource of objectStorageBackupSources(resolvedHome, homeEnv)) {
+      components.push(copyBackupComponent({
+        component: storageSource.component,
+        source: storageSource.source,
+        target: path.join(backupPath, storageSource.backupRelativePath),
+        backupRelativePath: storageSource.backupRelativePath,
+        restoreTargetRelativePath: storageSource.restoreTargetRelativePath,
+        dryRun
+      }));
+    }
+    if (objectStorageBackupSources(resolvedHome, homeEnv).length === 0) {
+      components.push({
+        component: "external_s3",
+        status: "skipped",
+        reason: "External S3-compatible buckets are not copied by the MVP local backup command; use provider-native bucket backup tooling."
+      });
+    }
+  }
+
+  if (!dryRun) {
+    const manifest = createRuntimeBackupManifest(resolvedHome, homeEnv, components);
+    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o600 });
+  }
+
+  return {
+    backupPath,
+    manifestPath,
+    dryRun,
+    components
+  };
+}
+
+export async function restoreMindoryRuntimeBackup(
+  mindoryHome: string,
+  backupPath: string,
+  options: RuntimeRestoreOptions
+): Promise<RuntimeRestoreReport> {
+  if (!options.yes) {
+    throw new Error("Restore requires explicit confirmation through yes=true or --yes.");
+  }
+  const resolvedHome = assertSafeMindoryHome(mindoryHome);
+  const resolvedBackup = path.resolve(backupPath);
+  const manifestPath = path.join(resolvedBackup, "backup-manifest.json");
+  const manifest = readRuntimeBackupManifest(manifestPath);
+  const homeEnv = readMindoryHomeEnvironment(resolvedHome);
+  const plan = createRuntimePlanFromHome(resolvedHome, homeEnv);
+  const components: RuntimeBackupComponentReport[] = [];
+
+  if (options.restoreConfig !== false) {
+    components.push(restoreFilesystemComponent(manifest, resolvedBackup, resolvedHome, "config"));
+    components.push(restoreFilesystemComponent(manifest, resolvedBackup, resolvedHome, "installer_state"));
+  }
+
+  if (options.restoreObjects !== false) {
+    components.push(restoreFilesystemComponent(manifest, resolvedBackup, resolvedHome, "objects"));
+    components.push(restoreFilesystemComponent(manifest, resolvedBackup, resolvedHome, "librefs"));
+  }
+
+  if (options.restorePostgres !== false) {
+    components.push(await restorePostgresDatabase(plan, resolvedBackup, options));
+  }
+
+  return {
+    backupPath: resolvedBackup,
+    manifestPath,
+    restored: components.some((component) => component.status === "restored"),
+    components
   };
 }
 
@@ -1719,6 +1884,335 @@ function restoreInstallBackup(mindoryHome: string, backupPath: string): void {
     mkdirSync(path.dirname(targetPath), { recursive: true, mode: 0o700 });
     cpSync(sourcePath, targetPath, { recursive: true });
   }
+}
+
+function readMindoryHomeEnvironment(mindoryHome: string): Record<string, string> {
+  const envPath = path.join(mindoryHome, "config", ".env");
+  if (!existsSync(envPath)) {
+    return {};
+  }
+  return parseEnvFile(readFileSync(envPath, "utf8"));
+}
+
+function parseEnvFile(contents: string): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const line of contents.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (trimmed === "" || trimmed.startsWith("#")) {
+      continue;
+    }
+    const separator = trimmed.indexOf("=");
+    if (separator === -1) {
+      continue;
+    }
+    const key = trimmed.slice(0, separator).trim();
+    const value = trimmed.slice(separator + 1);
+    if (/^[A-Z0-9_]+$/.test(key)) {
+      env[key] = unquoteEnvValue(value);
+    }
+  }
+  return env;
+}
+
+function unquoteEnvValue(value: string): string {
+  const trimmed = value.trim();
+  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+}
+
+function createRuntimePlanFromHome(mindoryHome: string, homeEnv: Record<string, string>): InstallPlan {
+  const answers = createDefaultInstallAnswers({
+    mindoryHome,
+    publicUrl: homeEnv.MINDORY_PUBLIC_URL ?? catalogDefault("MINDORY_PUBLIC_URL"),
+    storage: {
+      provider: (homeEnv.MINDORY_STORAGE_PROVIDER ?? catalogDefault("MINDORY_STORAGE_PROVIDER")) as StorageProvider,
+      localPath: homeEnv.MINDORY_STORAGE_LOCAL_PATH ?? catalogDefault("MINDORY_STORAGE_LOCAL_PATH"),
+      s3: {
+        endpoint: homeEnv.MINDORY_S3_ENDPOINT ?? catalogDefault("MINDORY_S3_ENDPOINT"),
+        region: homeEnv.MINDORY_S3_REGION ?? catalogDefault("MINDORY_S3_REGION"),
+        bucket: homeEnv.MINDORY_S3_BUCKET ?? catalogDefault("MINDORY_S3_BUCKET"),
+        accessKeyId: homeEnv.MINDORY_S3_ACCESS_KEY_ID ?? catalogDefault("MINDORY_S3_ACCESS_KEY_ID"),
+        secretAccessKey: homeEnv.MINDORY_S3_SECRET_ACCESS_KEY ?? catalogDefault("MINDORY_S3_SECRET_ACCESS_KEY"),
+        forcePathStyle: (homeEnv.MINDORY_S3_FORCE_PATH_STYLE ?? catalogDefault("MINDORY_S3_FORCE_PATH_STYLE")) === "true"
+      }
+    },
+    antivirus: {
+      mode: (homeEnv.MINDORY_AV_MODE ?? catalogDefault("MINDORY_AV_MODE")) as AntivirusMode,
+      provider: homeEnv.MINDORY_AV_PROVIDER ?? catalogDefault("MINDORY_AV_PROVIDER"),
+      clamavPlatform: homeEnv.MINDORY_CLAMAV_PLATFORM ?? catalogDefault("MINDORY_CLAMAV_PLATFORM")
+    }
+  });
+  const plan = createInstallPlan(answers);
+  return {
+    ...plan,
+    environment: {
+      ...plan.environment,
+      ...homeEnv,
+      MINDORY_HOME: mindoryHome
+    }
+  };
+}
+
+function copyBackupComponent(input: {
+  component: RuntimeBackupComponent;
+  source: string;
+  target: string;
+  backupRelativePath: string;
+  restoreTargetRelativePath: string;
+  dryRun: boolean;
+}): RuntimeBackupComponentReport {
+  if (!existsSync(input.source)) {
+    return {
+      component: input.component,
+      status: "missing",
+      source: input.source,
+      target: input.target,
+      reason: "Source path does not exist."
+    };
+  }
+  if (input.dryRun) {
+    return {
+      component: input.component,
+      status: "dry_run",
+      source: input.source,
+      target: input.target,
+      backupRelativePath: input.backupRelativePath,
+      restoreTargetRelativePath: input.restoreTargetRelativePath
+    };
+  }
+  rmSync(input.target, { recursive: true, force: true });
+  mkdirSync(path.dirname(input.target), { recursive: true, mode: 0o700 });
+  cpSync(input.source, input.target, { recursive: true });
+  return {
+    component: input.component,
+    status: "backed_up",
+    source: input.source,
+    target: input.target,
+    backupRelativePath: input.backupRelativePath,
+    restoreTargetRelativePath: input.restoreTargetRelativePath
+  };
+}
+
+async function backupPostgresDatabase(
+  plan: InstallPlan,
+  backupPath: string,
+  dryRun: boolean,
+  options: RuntimeBackupOptions
+): Promise<RuntimeBackupComponentReport> {
+  const target = path.join(backupPath, "postgres", "mindory.sql");
+  if (dryRun) {
+    return {
+      component: "postgres",
+      status: "dry_run",
+      target,
+      backupRelativePath: path.join("postgres", "mindory.sql"),
+      restoreTargetRelativePath: "postgres"
+    };
+  }
+  mkdirSync(path.dirname(target), { recursive: true, mode: 0o700 });
+  const { database, user } = postgresConnectionParts(plan.environment.MINDORY_DATABASE_URL);
+  const containerDumpPath = `/tmp/mindory-backup-${timestampLabel()}.sql`;
+  await runDockerCompose(plan, [
+    "exec",
+    "-T",
+    "postgres",
+    "sh",
+    "-lc",
+    `pg_dump -U ${shellQuote(user)} -d ${shellQuote(database)} --clean --if-exists --no-owner --no-privileges > ${shellQuote(containerDumpPath)}`
+  ], options);
+  await runDockerCompose(plan, ["cp", `postgres:${containerDumpPath}`, target], options);
+  try {
+    await runDockerCompose(plan, ["exec", "-T", "postgres", "rm", "-f", containerDumpPath], options);
+  } catch {
+    // A failed temp-file cleanup should not invalidate an otherwise complete backup.
+  }
+  return {
+    component: "postgres",
+    status: "backed_up",
+    source: `postgres:${containerDumpPath}`,
+    target,
+    backupRelativePath: path.join("postgres", "mindory.sql"),
+    restoreTargetRelativePath: "postgres"
+  };
+}
+
+async function restorePostgresDatabase(
+  plan: InstallPlan,
+  backupPath: string,
+  options: RuntimeRestoreOptions
+): Promise<RuntimeBackupComponentReport> {
+  const source = path.join(backupPath, "postgres", "mindory.sql");
+  if (!existsSync(source)) {
+    return {
+      component: "postgres",
+      status: "missing",
+      source,
+      reason: "PostgreSQL dump is not present in this backup."
+    };
+  }
+  const containerRestorePath = `/tmp/mindory-restore-${timestampLabel()}.sql`;
+  const { database, user } = postgresConnectionParts(plan.environment.MINDORY_DATABASE_URL);
+  await runDockerCompose(plan, ["cp", source, `postgres:${containerRestorePath}`], options);
+  await runDockerCompose(plan, [
+    "exec",
+    "-T",
+    "postgres",
+    "psql",
+    "-U",
+    user,
+    "-d",
+    database,
+    "-v",
+    "ON_ERROR_STOP=1",
+    "-f",
+    containerRestorePath
+  ], options);
+  try {
+    await runDockerCompose(plan, ["exec", "-T", "postgres", "rm", "-f", containerRestorePath], options);
+  } catch {
+    // A failed temp-file cleanup should not invalidate an otherwise complete restore.
+  }
+  return {
+    component: "postgres",
+    status: "restored",
+    source,
+    target: `postgres:${containerRestorePath}`,
+    backupRelativePath: path.join("postgres", "mindory.sql"),
+    restoreTargetRelativePath: "postgres"
+  };
+}
+
+function objectStorageBackupSources(
+  mindoryHome: string,
+  homeEnv: Record<string, string>
+): Array<{
+  component: RuntimeBackupComponent;
+  source: string;
+  backupRelativePath: string;
+  restoreTargetRelativePath: string;
+}> {
+  const provider = homeEnv.MINDORY_STORAGE_PROVIDER ?? catalogDefault("MINDORY_STORAGE_PROVIDER");
+  if (provider === "local-fs") {
+    return [{
+      component: "objects",
+      source: path.join(mindoryHome, "data", "objects"),
+      backupRelativePath: "objects",
+      restoreTargetRelativePath: path.join("data", "objects")
+    }];
+  }
+  const endpoint = homeEnv.MINDORY_S3_ENDPOINT ?? catalogDefault("MINDORY_S3_ENDPOINT");
+  if (endpoint.includes("librefs")) {
+    return [{
+      component: "librefs",
+      source: path.join(mindoryHome, "data", "librefs"),
+      backupRelativePath: "librefs",
+      restoreTargetRelativePath: path.join("data", "librefs")
+    }];
+  }
+  if (endpoint.includes("minio")) {
+    return [{
+      component: "librefs",
+      source: path.join(mindoryHome, "data", "minio"),
+      backupRelativePath: "minio",
+      restoreTargetRelativePath: path.join("data", "minio")
+    }];
+  }
+  return [];
+}
+
+function createRuntimeBackupManifest(
+  mindoryHome: string,
+  homeEnv: Record<string, string>,
+  components: RuntimeBackupComponentReport[]
+): RuntimeBackupManifest {
+  const storageProvider = homeEnv.MINDORY_STORAGE_PROVIDER ?? catalogDefault("MINDORY_STORAGE_PROVIDER");
+  const s3Endpoint = homeEnv.MINDORY_S3_ENDPOINT ?? catalogDefault("MINDORY_S3_ENDPOINT");
+  const storage: RuntimeBackupManifest["storage"] = { provider: storageProvider };
+  if (storageProvider === "s3") {
+    storage.s3_endpoint = s3Endpoint;
+  }
+  return {
+    schema_version: INSTALLER_SCHEMA_VERSION,
+    kind: "mindory-runtime-backup",
+    created_at: new Date().toISOString(),
+    mindory_home: mindoryHome,
+    storage,
+    components
+  };
+}
+
+function readRuntimeBackupManifest(manifestPath: string): RuntimeBackupManifest {
+  if (!existsSync(manifestPath)) {
+    throw new Error(`Mindory backup manifest not found at ${manifestPath}.`);
+  }
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as RuntimeBackupManifest;
+  if (manifest.kind !== "mindory-runtime-backup" || manifest.schema_version !== INSTALLER_SCHEMA_VERSION) {
+    throw new Error(`Unsupported Mindory backup manifest at ${manifestPath}.`);
+  }
+  return manifest;
+}
+
+function restoreFilesystemComponent(
+  manifest: RuntimeBackupManifest,
+  backupPath: string,
+  mindoryHome: string,
+  component: RuntimeBackupComponent
+): RuntimeBackupComponentReport {
+  const entry = manifest.components.find((candidate) => candidate.component === component && candidate.status === "backed_up");
+  if (entry === undefined || entry.backupRelativePath === undefined || entry.restoreTargetRelativePath === undefined) {
+    return {
+      component,
+      status: "skipped",
+      reason: "Component was not backed up in this backup."
+    };
+  }
+  const source = path.join(backupPath, entry.backupRelativePath);
+  const target = path.join(mindoryHome, entry.restoreTargetRelativePath);
+  if (!existsSync(source)) {
+    return {
+      component,
+      status: "missing",
+      source,
+      target,
+      reason: "Backup component path is missing."
+    };
+  }
+  rmSync(target, { recursive: true, force: true });
+  mkdirSync(path.dirname(target), { recursive: true, mode: 0o700 });
+  cpSync(source, target, { recursive: true });
+  return {
+    component,
+    status: "restored",
+    source,
+    target,
+    backupRelativePath: entry.backupRelativePath,
+    restoreTargetRelativePath: entry.restoreTargetRelativePath
+  };
+}
+
+function postgresConnectionParts(databaseUrl: string | undefined): { database: string; user: string } {
+  if (databaseUrl === undefined || databaseUrl.trim() === "") {
+    return { database: "mindory", user: "mindory" };
+  }
+  try {
+    const parsed = new URL(databaseUrl);
+    return {
+      database: decodeURIComponent(parsed.pathname.replace(/^\//, "") || "mindory"),
+      user: decodeURIComponent(parsed.username || "mindory")
+    };
+  } catch {
+    return { database: "mindory", user: "mindory" };
+  }
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", "'\"'\"'")}'`;
+}
+
+function sanitizeBackupLabel(label: string): string {
+  return label.trim().toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "runtime-backup";
 }
 
 function assertSafeMindoryHome(mindoryHome: string): string {

@@ -22,6 +22,7 @@ writing README, issues, release notes and docs.
 | Windows source development | Experimental | PowerShell bootstrap exists; full native matrix is dry-run validated. |
 | Docker Compose local demo | Supported | `pnpm mvp:demo` is the local MVP demo path; `--model-profile local --require-indexed` proves indexed pgvector search with deterministic local embeddings. |
 | One-home installer layout | Supported baseline | `$MINDORY_HOME` config, logs, data, install and backups layout is implemented. |
+| Backup and restore | Supported MVP | `mindory-installer backup` and `restore` cover config, installer metadata, PostgreSQL dumps and local object storage state. External S3 bucket data needs provider-native backup tooling. |
 | Remote release update | Future | Local asset update exists; remote release orchestration is later work. |
 | Release artifact publishing | Supported baseline | Release workflow generates bundle, manifest and checksum artifacts; tag builds upload them to a draft GitHub Release. |
 
@@ -80,5 +81,5 @@ model roles, or before selecting a non-supported provider for a supported role.
 | Project-scoped bearer tokens | Supported | Token create/list/revoke/rotate APIs and CLI commands exist. |
 | API rate limit guard | Supported baseline | In-process guard; distributed enforcement is future hardening. |
 | Observability baseline | Supported baseline | Structured logs, model operation audit helpers, in-process job/stage metrics, health snapshots and rate-limit strategy are documented. Prometheus/OpenTelemetry/exporters/alerting are future work. |
-| Backup and restore | Manual baseline | Scripted backup/restore is future work. |
+| Backup and restore | Supported MVP | Installer CLI creates `backup-manifest.json`, PostgreSQL dumps and local object-storage copies; PITR, scheduled and encrypted remote backups are future work. |
 | Public vulnerability process | Supported baseline | Root `SECURITY.md` defines reporting expectations. |

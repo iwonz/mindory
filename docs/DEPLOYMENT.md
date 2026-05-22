@@ -16,7 +16,7 @@ secrets, rate limits, structured logs and observability are maintained in
 | Installer prepare execution | Supported. It can create `$MINDORY_HOME`, write config/env files and copy Compose assets. |
 | Installer Compose startup | Supported as an explicit start step. It can pull/build, start infrastructure, run migrations, start API/worker/MCP and wait for health checks. |
 | Installer first-run provisioning | Supported. The start step creates the first project/token and writes `config/initial-token.json` under `$MINDORY_HOME`. |
-| Installer lifecycle operations | Supported baseline for local asset update and guarded uninstall. Remote release update and full automated resume remain future work. |
+| Installer lifecycle operations | Supported baseline for local asset update, runtime backup/restore and guarded uninstall. Remote release update, scheduled backup and full automated resume remain future work. |
 | Release images and bundles | Bundle generation is supported with `pnpm release:bundle`. Publishing automation and signed release manifests are future release tasks. |
 | Heavy local models | Experimental. Profiles exist for wiring checks or local experiments, not as a guaranteed default install. |
 
@@ -65,6 +65,23 @@ not set it:
 
 API and worker mount `data/objects` at `/data/mindory/objects` for the default
 local filesystem storage provider.
+
+Back up a persistent local install before upgrades or migrations with:
+
+```bash
+mindory-installer backup --home "$MINDORY_HOME"
+```
+
+Restore from a verified backup with:
+
+```bash
+mindory-installer restore --home "$MINDORY_HOME" --backup "$MINDORY_HOME/backups/<backup-dir>" --yes
+```
+
+The restore command imports PostgreSQL through Compose `psql`, so the Postgres
+service must be running. Local filesystem objects and local LibreFS data are
+copied from the backup; external S3-compatible bucket data must be restored
+with provider-native tools.
 
 If `MINDORY_HOME` is explicitly set for `pnpm mvp:reset`, the reset command
 stops containers but leaves that directory in place to avoid deleting an
