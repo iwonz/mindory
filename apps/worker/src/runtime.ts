@@ -10,10 +10,11 @@ import {
   DbProcessingJobStore,
   DbSessionRepository
 } from "@mindory/db";
+import { buildMindoryLlm } from "@mindory/llm";
 import { BullMqProcessingJobQueue } from "@mindory/queue-bullmq";
 import { LocalFsObjectStorage } from "@mindory/storage-local-fs";
 import { PgVectorChunkIndex } from "@mindory/vector-pgvector";
-import { buildDocumentPipelineProcessors, buildEmbeddingsProvider, type DocumentPipelineProcessorOptions } from "./document-pipeline.js";
+import { buildDocumentPipelineProcessors, type DocumentPipelineProcessorOptions } from "./document-pipeline.js";
 import { buildMemoryRuntimeProcessors } from "./memory-pipeline.js";
 import { buildWorkerBaseRunner, type WorkerBaseRunner } from "./runner.js";
 
@@ -46,15 +47,17 @@ export function buildWorkerRuntime(config: MindoryConfig = loadMindoryConfig()):
     store,
     queue
   });
+  const llm = buildMindoryLlm(config);
   const processorOptions: DocumentPipelineProcessorOptions = {
     config,
     storage,
     documents,
     artifacts,
     chunks,
-    jobs: dispatcher
+    jobs: dispatcher,
+    llm
   } satisfies Parameters<typeof buildDocumentPipelineProcessors>[0];
-  const embeddings = buildEmbeddingsProvider(config);
+  const embeddings = llm.textEmbeddings;
   if (embeddings) {
     processorOptions.embeddings = embeddings;
     processorOptions.vectorIndex = new PgVectorChunkIndex({

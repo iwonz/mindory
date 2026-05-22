@@ -20,7 +20,7 @@ import {
   DbSessionRepository,
   type MindoryDatabase
 } from "@mindory/db";
-import { buildMindoryTextEmbeddingsProvider } from "@mindory/llm";
+import { buildMindoryLlm } from "@mindory/llm";
 import { BullMqProcessingJobQueue } from "@mindory/queue-bullmq";
 import { LocalFsObjectStorage } from "@mindory/storage-local-fs";
 import { PgVectorChunkIndex, PgVectorDocumentChunkSearchRepository } from "@mindory/vector-pgvector";
@@ -154,5 +154,5 @@ function buildDocumentChunkSearchRepository(config: MindoryConfig, db: MindoryDa
 }
 
 function buildEmbeddingsProvider(config: MindoryConfig): EmbeddingsProvider | undefined {
-  return buildMindoryTextEmbeddingsProvider(config);
+  return buildMindoryLlm(config).textEmbeddings;
 }

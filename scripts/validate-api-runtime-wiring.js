@@ -81,7 +81,7 @@ for (const symbol of [
   "DocumentRecomputeService",
   "PgVectorChunkIndex",
   "PgVectorDocumentChunkSearchRepository",
-  "buildMindoryTextEmbeddingsProvider",
+  "buildMindoryLlm",
   "FaceService",
   "MemoryService",
   "ContextBuilder"

@@ -28,6 +28,13 @@ export interface LlmRoleDescriptor {
   dimensions?: number | null;
 }
 
+export interface LlmRoleState {
+  enabled: boolean;
+  provider: LlmProvider;
+  model: string;
+  required: boolean;
+}
+
 export interface LlmProviderDescriptor {
   provider: Exclude<LlmProvider, "disabled">;
   baseUrl?: string;
@@ -178,6 +185,20 @@ export function buildMindoryLlm(
     runtime.textEmbeddings = textEmbeddings;
   }
   return runtime;
+}
+
+export function llmRoleState(
+  runtime: MindoryLlm | LlmRoleRegistry,
+  role: LlmRole
+): LlmRoleState {
+  const registry = runtime instanceof LlmRoleRegistry ? runtime : runtime.registry;
+  const descriptor = registry.require(role);
+  return {
+    enabled: descriptor.enabled,
+    provider: descriptor.provider,
+    model: descriptor.model,
+    required: descriptor.required
+  };
 }
 
 export function buildMindoryTextEmbeddingsProvider(

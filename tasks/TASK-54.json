@@ -1,0 +1,66 @@
+{
+  "id": "TASK-54",
+  "title": "Migrate LLM consumers to SDK boundary",
+  "status": "done",
+  "type": "chore",
+  "priority": "high",
+  "branch": "task/TASK-54-llm-consumer-migration",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Route current and placeholder model consumers through @mindory/llm instead of reading provider config directly in worker/API code.",
+    "background": "TASK-53 introduced the @mindory/llm SDK and new MINDORY_LLM_* namespace. Worker document processors still adapt OCR, ASR, vision, face and embedding role state directly from config, which weakens the SDK boundary required by the installer/model runtime plan."
+  },
+  "scope": {
+    "in": [
+      "Add @mindory/llm helpers for role-state snapshots used by processors.",
+      "Build LLM runtime once for document processing and pass role state from the SDK registry.",
+      "Keep text embedding provider creation behind @mindory/llm.",
+      "Strengthen validators to reject direct provider package imports and direct placeholder role config reads outside @mindory/llm.",
+      "Update docs to describe the consumer boundary."
+    ],
+    "out": [
+      "Persisting LLM audit logs.",
+      "Adding concrete OCR/ASR/vision/face providers.",
+      "Changing database schema.",
+      "Installer implementation."
+    ]
+  },
+  "acceptance_criteria": [
+    "Worker document pipeline gets ASR/OCR/vision/face role state from @mindory/llm helpers.",
+    "API and worker text embeddings are still constructed through @mindory/llm.",
+    "No app or processor outside packages/llm imports provider packages directly.",
+    "Validators cover the SDK consumer boundary.",
+    "Docs explain that consumers use @mindory/llm role snapshots rather than direct provider config reads.",
+    "No database schema changes are included."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "pnpm llm:validate",
+      "pnpm processing:validate",
+      "pnpm typecheck",
+      "pnpm lint",
+      "pnpm tasks:validate",
+      "pnpm test",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-54.",
+      "Confirm packages/db/drizzle/0000_initial_schema.sql is unchanged.",
+      "Confirm direct provider imports remain only inside packages/llm."
+    ]
+  },
+  "dependencies": [
+    "TASK-53"
+  ],
+  "risks": [
+    "The processor interfaces still use local ModelCapabilityState names; TASK-54 should route their values through the SDK without unrelated extractor refactors.",
+    "Existing deterministic multimodal fixture behavior must remain unchanged."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch is committed and merged back into master."
+  ]
+}
