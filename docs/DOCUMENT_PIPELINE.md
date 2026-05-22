@@ -49,7 +49,7 @@ Processing status must be durable in PostgreSQL, not only in BullMQ.
 | Native-text PDF | Supported local MVP. Extracts page-level native text and source refs. |
 | Scanned PDF OCR | Supported when the OCR role is enabled with a local HTTP OCR provider; disabled by default. |
 | Image | Supported deterministic fallback plus experimental local HTTP OCR and vision captioning through `@mindory/llm` when enabled. Stores derived caption, analysis, labels and OCR text. Future work adds image embeddings and object detection. |
-| Face observations | Supported deterministic fallback only when explicit people-count signals are present. Future work adds real face detection and recognition adapters. |
+| Face observations | Experimental provider path plus supported deterministic fallback. Local HTTP face detection/recognition runs through `@mindory/llm` when enabled; explicit people-count signals still create fallback observations when providers are disabled. |
 | Audio | Supported WAV metadata and embedded `INFO/ICMT` transcript fallback plus experimental local HTTP ASR through `@mindory/llm` when enabled. |
 | Video | Supported embedded `MINDORY_VIDEO_MANIFEST` fallback plus experimental local-command keyframe extraction. Extracted frame bytes can run through OCR/vision roles. Future work adds bundled ffmpeg profiles and frame bitmap object storage. |
 | Embeddings and vector search | Supported for text chunks through `@mindory/llm` and pgvector when a compatible 1536-dimensional provider is configured. Full-text fallback is supported when embeddings are disabled. |
@@ -321,9 +321,16 @@ over `document_artifact_text_spans` and ignores artifacts attached to
 artifact and processing run.
 
 `POST /v1/artifacts/search` searches the same derived text span store directly
-across artifact types. It is the unified MVP search surface for OCR text,
-transcripts, captions, video keyframe descriptions and face observation spans,
-with source refs and source positions returned per hit.
+across artifact types. It supports text queries and constrained metadata-only
+queries for OCR text, transcripts, captions, video keyframe descriptions and
+face observation spans, with source refs and source positions returned per hit.
+
+`POST /v1/search` is the unified multimodal search surface. It combines
+document chunk search, artifact span search and face observation search behind
+one API, and is also exposed through CLI `mindory search query` and MCP
+`unified_search`. Document search continues to use pgvector when text
+embeddings are configured and full-text fallback otherwise; artifact and face
+paths enforce metadata filters through the derived metadata index.
 
 `TASK-19` adds `DocumentChunkRepository`, a Drizzle-backed chunk repository and
 the worker processor registry. Clean scans enqueue routing, routing enqueues

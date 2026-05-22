@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-80",
+  "current_task_id": "TASK-81",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -596,6 +596,13 @@
       "status": "done",
       "branch": "task/TASK-80-face-detection-recognition-pipeline",
       "file": "tasks/TASK-80.json"
+    },
+    {
+      "id": "TASK-81",
+      "title": "Harden unified multimodal search",
+      "status": "done",
+      "branch": "task/TASK-81-unified-multimodal-search-hardening",
+      "file": "tasks/TASK-81.json"
     }
   ]
 }

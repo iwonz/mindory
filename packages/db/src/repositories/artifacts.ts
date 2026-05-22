@@ -21,9 +21,11 @@ import type {
   ReplaceDocumentMetadataIndexInput,
   ReplaceDocumentArtifactTextSpansInput,
   SearchArtifactsInput,
+  SearchFaceObservationsInput,
   UpdateFaceIdentityInput,
   UpdateProcessingRunStatusInput,
-  UpsertDocumentMediaMetadataInput
+  UpsertDocumentMediaMetadataInput,
+  FaceObservationSearchHit
 } from "@mindory/core/artifacts";
 import type { DocumentRecomputeStage, SupersedeDocumentProcessingRunsInput } from "@mindory/core/recompute";
 import {
@@ -229,7 +231,8 @@ export class DbDerivedArtifactRepository implements DerivedArtifactRepository {
   }
 
   async searchArtifacts(input: SearchArtifactsInput): Promise<ArtifactSearchHit[]> {
-    if (input.projectIds.length === 0 || !input.query || input.query.trim() === "") {
+    const query = input.query?.trim();
+    if (input.projectIds.length === 0 || !hasArtifactSearchConstraint(input, query)) {
       return [];
     }
 
@@ -240,6 +243,12 @@ export class DbDerivedArtifactRepository implements DerivedArtifactRepository {
     const spanTypeFilter = input.spanTypes && input.spanTypes.length > 0
       ? sql`and spans.span_type in (${sql.join(input.spanTypes.map((type) => sql`${type}`), sql`, `)})`
       : sql``;
+    const textSearchFilter = query
+      ? sql`and to_tsvector('simple', spans.content) @@ plainto_tsquery('simple', ${query})`
+      : sql``;
+    const scoreExpression = query
+      ? sql`ts_rank_cd(to_tsvector('simple', spans.content), plainto_tsquery('simple', ${query}))`
+      : sql`1::real`;
     const result = await this.db.execute(sql`
       select
         spans.project_id,
@@ -258,7 +267,7 @@ export class DbDerivedArtifactRepository implements DerivedArtifactRepository {
         artifacts.source_refs,
         artifacts.source_position,
         artifacts.metadata as artifact_metadata,
-        ts_rank_cd(to_tsvector('simple', spans.content), plainto_tsquery('simple', ${input.query})) as score
+        ${scoreExpression} as score
       from document_artifact_text_spans spans
       inner join document_artifacts artifacts
         on artifacts.id = spans.artifact_id
@@ -272,7 +281,7 @@ export class DbDerivedArtifactRepository implements DerivedArtifactRepository {
         and runs.status <> 'superseded'
         ${artifactTypeFilter}
         ${spanTypeFilter}
-        and to_tsvector('simple', spans.content) @@ plainto_tsquery('simple', ${input.query})
+        ${textSearchFilter}
         and ${artifactMetadataFiltersSql(sql.raw("spans.project_id"), sql.raw("spans.document_id"), input.metadataFilters)}
       order by score desc, spans.created_at desc
       limit ${input.limit}
@@ -307,6 +316,78 @@ export class DbDerivedArtifactRepository implements DerivedArtifactRepository {
         }
       };
     });
+  }
+
+  async searchFaceObservations(input: SearchFaceObservationsInput): Promise<FaceObservationSearchHit[]> {
+    const query = input.query?.trim();
+    if (input.projectIds.length === 0 || !hasFaceSearchConstraint(input, query)) {
+      return [];
+    }
+
+    const projectFilters = sql.join(input.projectIds.map((projectId) => sql`${projectId}`), sql`, `);
+    const queryPattern = query ? `%${query}%` : undefined;
+    const queryFilter = queryPattern
+      ? sql`and (
+          identities.id ilike ${queryPattern}
+          or identities.label ilike ${queryPattern}
+          or observations.id ilike ${queryPattern}
+          or coalesce(observations.metadata ->> 'label', '') ilike ${queryPattern}
+        )`
+      : sql``;
+    const statusFilter = input.statuses && input.statuses.length > 0
+      ? sql`and identities.status in (${sql.join(input.statuses.map((status) => sql`${status}`), sql`, `)})`
+      : sql``;
+    const scoreExpression = queryPattern
+      ? sql`case
+          when identities.label ilike ${queryPattern} then 1::real
+          when identities.id ilike ${queryPattern} then 0.95::real
+          when observations.id ilike ${queryPattern} then 0.9::real
+          else coalesce(observations.confidence, 0.5)
+        end`
+      : sql`coalesce(observations.confidence, 1::real)`;
+
+    const result = await this.db.execute(sql`
+      select
+        observations.project_id,
+        observations.document_id,
+        observations.id as face_observation_id,
+        observations.artifact_id,
+        observations.processing_run_id,
+        observations.face_identity_id,
+        observations.bounding_box,
+        observations.confidence,
+        observations.model,
+        observations.metadata,
+        identities.label as face_identity_label,
+        identities.status as face_identity_status,
+        ${scoreExpression} as score
+      from face_observations observations
+      left join face_identities identities
+        on identities.id = observations.face_identity_id
+        and identities.project_id = observations.project_id
+      where observations.project_id in (${projectFilters})
+        ${queryFilter}
+        ${statusFilter}
+        and ${artifactMetadataFiltersSql(sql.raw("observations.project_id"), sql.raw("observations.document_id"), input.metadataFilters)}
+      order by score desc, observations.created_at desc
+      limit ${input.limit}
+    `);
+
+    return readRows(result).map((row) => ({
+      projectId: String(row.project_id),
+      documentId: String(row.document_id),
+      artifactId: String(row.artifact_id),
+      processingRunId: String(row.processing_run_id),
+      faceObservationId: String(row.face_observation_id),
+      faceIdentityId: row.face_identity_id === null ? null : String(row.face_identity_id),
+      faceIdentityLabel: row.face_identity_label === null ? null : String(row.face_identity_label),
+      faceIdentityStatus: row.face_identity_status === null ? null : String(row.face_identity_status) as FaceObservationSearchHit["faceIdentityStatus"],
+      boundingBox: readNullableMetadata(row.bounding_box) ?? {},
+      confidence: row.confidence === null ? null : Number(row.confidence),
+      model: row.model === null ? null : String(row.model),
+      score: Number(row.score),
+      metadata: readMetadata(row.metadata)
+    }));
   }
 
   async createFaceIdentity(input: CreateFaceIdentityInput): Promise<FaceIdentityRecord> {
@@ -632,6 +713,23 @@ function readSourceRefs(value: unknown, fallback: ArtifactSearchHit["sourceRefs"
     && typeof (item as { id?: unknown }).id === "string"
   );
   return refs.length > 0 ? refs : fallback;
+}
+
+function hasArtifactSearchConstraint(input: SearchArtifactsInput, query: string | undefined): boolean {
+  return Boolean(
+    query
+    || (input.metadataFilters && input.metadataFilters.length > 0)
+    || (input.artifactTypes && input.artifactTypes.length > 0)
+    || (input.spanTypes && input.spanTypes.length > 0)
+  );
+}
+
+function hasFaceSearchConstraint(input: SearchFaceObservationsInput, query: string | undefined): boolean {
+  return Boolean(
+    query
+    || (input.metadataFilters && input.metadataFilters.length > 0)
+    || (input.statuses && input.statuses.length > 0)
+  );
 }
 
 function readSearchSourcePosition(row: Row): Record<string, unknown> {

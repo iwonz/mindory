@@ -255,6 +255,30 @@ export interface ArtifactSearchHit {
   metadata: Record<string, unknown>;
 }
 
+export interface SearchFaceObservationsInput {
+  projectIds: string[];
+  query?: string;
+  statuses?: FaceIdentityStatus[];
+  metadataFilters?: DocumentMetadataFilter[];
+  limit: number;
+}
+
+export interface FaceObservationSearchHit {
+  projectId: string;
+  documentId: string;
+  artifactId: string;
+  processingRunId: string;
+  faceObservationId: string;
+  faceIdentityId: string | null;
+  faceIdentityLabel: string | null;
+  faceIdentityStatus: FaceIdentityStatus | null;
+  boundingBox: Record<string, unknown>;
+  confidence: number | null;
+  model: string | null;
+  score: number;
+  metadata: Record<string, unknown>;
+}
+
 export interface FaceIdentityRecord {
   id: string;
   projectId: string;
@@ -343,6 +367,7 @@ export interface DerivedArtifactRepository extends DocumentProcessingRunReposito
   upsertDocumentMediaMetadata(input: UpsertDocumentMediaMetadataInput): Promise<DocumentMediaMetadataRecord>;
   replaceDocumentMetadataIndex(input: ReplaceDocumentMetadataIndexInput): Promise<DocumentMetadataIndexRecord[]>;
   searchArtifacts(input: SearchArtifactsInput): Promise<ArtifactSearchHit[]>;
+  searchFaceObservations(input: SearchFaceObservationsInput): Promise<FaceObservationSearchHit[]>;
   createFaceIdentity(input: CreateFaceIdentityInput): Promise<FaceIdentityRecord>;
   getFaceIdentity(projectId: string, identityId: string): Promise<FaceIdentityRecord>;
   listFaceIdentities(input: ListFaceIdentitiesInput): Promise<FaceIdentityRecord[]>;

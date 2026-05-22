@@ -20,6 +20,9 @@ documentation.
 
 ### Added
 
+- `TASK-81`: unified multimodal search through `POST /v1/search`, CLI
+  `search query` and MCP `unified_search`, including metadata-only artifact
+  search and face observation hits with source refs.
 - `TASK-80`: local HTTP face detection and recognition through `@mindory/llm`,
   with provider-backed face observations and workspace auto-match.
 - `TASK-79`: opt-in local-command video keyframe extraction, with capped frame

@@ -119,6 +119,10 @@ const routeCases = [
     expected: { method: "POST", path: "/v1/artifacts/search" }
   },
   {
+    argv: ["search", "query", "--project", "p1", "--target", "documents,artifacts,faces", "--artifact-type", "ocr_text,image_caption", "--metadata-filter", "{\"key\":\"extension\",\"valueText\":\"png\"}", "passport airport"],
+    expected: { method: "POST", path: "/v1/search" }
+  },
+  {
     argv: ["face", "identities", "--project", "p1"],
     expected: { method: "GET", path: "/v1/faces/identities?projectId=p1" }
   },

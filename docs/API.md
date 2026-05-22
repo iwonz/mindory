@@ -127,8 +127,27 @@ POST /v1/artifacts/search
 Artifact search scans current non-superseded derived text spans across extracted
 text, OCR, transcripts, captions, video keyframes and face observation spans.
 It supports `artifactTypes`, `spanTypes`, `metadataFilters`, `projectIds`,
-`query` and `limit`, and returns artifact ids, source refs, source positions and
-span metadata. It requires `document:search` for every requested project.
+optional `query` and `limit`, and returns artifact ids, source refs, source
+positions and span metadata. If `query` is omitted, callers must provide a
+constraining metadata, artifact type or span type filter. It requires
+`document:search` for every requested project.
+
+Registered unified multimodal search route:
+
+```text
+POST /v1/search
+```
+
+Unified search combines document chunk search, derived artifact span search and
+face observation search. It accepts `targets` (`documents`, `artifacts`,
+`faces`), `artifactTypes`, `spanTypes`, `faceIdentityStatuses`,
+`metadataFilters`, optional `query` and `limit`. Document hits use pgvector when
+text embeddings are configured and full-text fallback otherwise. Artifact hits
+cover OCR text, transcripts, captions, video keyframe descriptions and face
+observation spans. Face hits match workspace-scoped face identities and
+observations. Every hit includes `source_refs` and `source_position` where the
+underlying artifact has page, frame, timestamp, bounding box or confidence
+metadata.
 
 Registered memory route surfaces:
 
@@ -239,6 +258,7 @@ placeholders.
 - Sessions and messages
 - Documents and document search
 - Artifact search
+- Unified multimodal search
 - Face identities and observations
 - Memories and memory search
 - Context builder
@@ -254,3 +274,5 @@ summary and conservative memory derivation jobs. `TASK-29` wires token lifecycle
 operations. `TASK-45` wires face identity/observation management.
 `TASK-48` adds unified artifact search across derived artifact text spans.
 `TASK-49` adds stage graph details to job responses and worker job metadata.
+`TASK-81` adds the unified multimodal search route across document chunks,
+artifact spans and face observations.

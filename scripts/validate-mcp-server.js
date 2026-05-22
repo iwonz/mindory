@@ -34,6 +34,7 @@ const expectedTools = [
   "document_read",
   "document_list",
   "artifact_search",
+  "unified_search",
   "face_identity_list",
   "face_identity_get",
   "face_observation_list",
@@ -116,6 +117,7 @@ for (const route of [
   "/recompute",
   "/v1/documents/search",
   "/v1/artifacts/search",
+  "/v1/search",
   "/v1/faces/identities",
   "/v1/faces/observations",
   "/v1/jobs"
@@ -125,7 +127,8 @@ for (const route of [
 
 assert(tools.includes("sourceRefs"), "memory_remember tool must expose sourceRefs.");
 assert(tools.includes("projectIds"), "context and search tools must expose projectIds.");
-assert(tools.includes("metadataFilters"), "document/artifact search tools must expose metadataFilters.");
+assert(tools.includes("metadataFilters"), "document/artifact/unified search tools must expose metadataFilters.");
+assert(tools.includes("faceIdentityStatuses"), "unified search tool must expose face identity status filters.");
 assert(tools.includes("patchJson"), "MCP tools must support PATCH routes.");
 assert(tools.includes("tokenBudget"), "context build tool must expose tokenBudget.");
 assert(tools.includes("mcpTextResult"), "MCP calls must return MCP text content results.");
@@ -155,12 +158,13 @@ for (const token of [
   "memory_recall",
   "/v1/memories/search",
   "/v1/artifacts/search",
+  "/v1/search",
   "MINDORY_MCP_API_URL",
   "MINDORY_MCP_API_TOKEN"
 ]) {
   assert(smoke.includes(token), `MCP stdio smoke script must include ${token}.`);
 }
-for (const toolName of ["document_upload", "document_search", "document_reprocess", "artifact_search", "face_identity_list", "memory_remember", "memory_recall", "context_build", "job_get", "job_list", "job_retry"]) {
+for (const toolName of ["document_upload", "document_search", "document_reprocess", "artifact_search", "unified_search", "face_identity_list", "memory_remember", "memory_recall", "context_build", "job_get", "job_list", "job_retry"]) {
   assert(smoke.includes(`"${toolName}"`), `MCP stdio smoke must assert ${toolName} is exposed.`);
 }
 for (const example of [clientExample, pnpmClientExample]) {

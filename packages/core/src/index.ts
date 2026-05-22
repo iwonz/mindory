@@ -8,5 +8,6 @@ export * from "./processing.js";
 export * from "./projects.js";
 export * from "./queue.js";
 export * from "./recompute.js";
+export * from "./search.js";
 export * from "./sessions.js";
 export * from "./storage.js";

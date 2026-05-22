@@ -86,7 +86,8 @@ pnpm mcp:smoke
 
 The smoke test starts a fake Mindory HTTP API, spawns
 `apps/mcp/dist/stdio.js` through the MCP SDK client transport, initializes the
-server, lists tools and calls `memory_recall` through the HTTP boundary.
+server, lists tools and calls memory, artifact and unified search tools through
+the HTTP boundary.
 
 ## Docker Compose Note
 
@@ -103,6 +104,8 @@ clients should use the stdio process configuration above and point
   list.
 - Artifact tools: unified artifact search with artifact/span type filters and
   metadata filters.
+- Search tools: unified multimodal search across document chunks, artifact
+  spans and face observations.
 - Face tools: list/read/rename/merge identities and list observations.
 - Context tools: build prompt-ready context.
 - Job tools: read, list and retry processing jobs.
@@ -128,6 +131,7 @@ document_search
 document_read
 document_list
 artifact_search
+unified_search
 face_identity_list
 face_identity_get
 face_observation_list
@@ -141,5 +145,6 @@ job_retry
 
 Token management is not exposed as an MCP tool. Job tools call the HTTP jobs API
 added in `TASK-21`. Memory/context tools call the runtime paths updated in
-`TASK-22`. `TASK-50` adds the multimodal surfaces through HTTP only; MCP still
-does not access PostgreSQL, Redis, object storage or vector indexes directly.
+`TASK-22`. `TASK-50` adds the multimodal surfaces through HTTP only; `TASK-81`
+adds `unified_search` over `/v1/search`. MCP still does not access PostgreSQL,
+Redis, object storage or vector indexes directly.

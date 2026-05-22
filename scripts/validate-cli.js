@@ -35,6 +35,7 @@ const expectedCommandTokens = [
   "document:read",
   "document:list",
   "artifact:search",
+  "search:query",
   "face:identities",
   "face:identity",
   "face:observations",
@@ -104,6 +105,7 @@ for (const route of [
   "/recompute",
   "/v1/documents/search",
   "/v1/artifacts/search",
+  "/v1/search",
   "/v1/faces/identities",
   "/v1/faces/observations",
   "/v1/memories",
@@ -121,6 +123,7 @@ assert(commands.includes("tokenBudget"), "context build must send tokenBudget.")
 assert(commands.includes("jobs retry"), "CLI help must document job retry.");
 assert(commands.includes("jobs get"), "CLI help must document job get.");
 assert(commands.includes("artifact search"), "CLI help must document artifact search.");
+assert(commands.includes("search query"), "CLI help must document unified search.");
 assert(commands.includes("document reprocess"), "CLI help must document document reprocess.");
 assert(commands.includes("document runs"), "CLI help must document document processing runs.");
 assert(commands.includes("face identities"), "CLI help must document face identities.");
@@ -151,6 +154,7 @@ for (const token of [
   "RecordingApi",
   "jobs\", \"get\"",
   "artifact\", \"search\"",
+  "search\", \"query\"",
   "face\", \"rename\"",
   "context\", \"build\"",
   "document\", \"upload\"",

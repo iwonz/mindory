@@ -44,6 +44,7 @@ writing README, issues, release notes and docs.
 | S3-compatible storage | Supported baseline | Adapter and smoke tests exist for LibreFS/MinIO/external S3-compatible endpoints. |
 | LibreFS Compose profile | Experimental | Profile exists; operationalized installer bootstrap remains future hardening. |
 | PostgreSQL full-text search | Supported | Used for fallback document search when embeddings are disabled. |
+| Unified multimodal search | Supported local MVP | `POST /v1/search`, CLI `search query` and MCP `unified_search` combine document chunks, OCR/caption/transcript/keyframe artifact spans and face observations with metadata filters and source refs. |
 | pgvector text embeddings | Supported | Requires a compatible 1536-dimensional embedding provider. |
 | Qdrant | Future | Optional future vector backend. |
 

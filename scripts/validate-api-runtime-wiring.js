@@ -11,6 +11,7 @@ const requiredFiles = [
   "apps/api/src/routes/peers.ts",
   "apps/api/src/routes/sessions.ts",
   "apps/api/src/routes/faces.ts",
+  "apps/api/src/routes/search.ts",
   "apps/api/src/routes/jobs.ts",
   "packages/db/src/client.ts"
 ];
@@ -47,6 +48,7 @@ const peerRoutes = read("apps/api/src/routes/peers.ts");
 const sessionRoutes = read("apps/api/src/routes/sessions.ts");
 const documentRoutes = read("apps/api/src/routes/documents.ts");
 const faceRoutes = read("apps/api/src/routes/faces.ts");
+const searchRoutes = read("apps/api/src/routes/search.ts");
 const jobRoutes = read("apps/api/src/routes/jobs.ts");
 const memoryRoutes = read("apps/api/src/routes/memories.ts");
 const contextRoutes = read("apps/api/src/routes/context.ts");
@@ -84,6 +86,7 @@ for (const symbol of [
   "buildMindoryLlm",
   "FaceService",
   "MemoryService",
+  "UnifiedSearchService",
   "ContextBuilder"
 ]) {
   assert(runtime.includes(symbol), `API runtime wiring must include ${symbol}.`);
@@ -96,6 +99,7 @@ assert(app.includes("registerArtifactRoutes"), "API app must register artifact r
 assert(app.includes("registerTokenRoutes"), "API app must register token routes.");
 assert(app.includes("registerSessionRoutes"), "API app must register session routes.");
 assert(app.includes("registerFaceRoutes"), "API app must register face routes.");
+assert(app.includes("registerSearchRoutes"), "API app must register unified search routes.");
 assert(app.includes("options.close"), "API app must close runtime dependencies on shutdown.");
 assert(errors.includes("isRepositoryNotFoundError"), "API error handler must map repository not-found errors.");
 
@@ -138,6 +142,12 @@ assert(artifactRoutes.includes('"/v1/artifacts/search"'), "Artifact routes must 
 for (const token of ["artifactRepository", "searchArtifacts", "metadataFilters", "artifactTypes", "spanTypes", "\"document:search\""]) {
   assert(artifactRoutes.includes(token), `Artifact routes must use ${token}.`);
 }
+assert(artifactRoutes.includes('required: ["projectIds", "limit"]'), "Artifact search must allow metadata-only searches without query.");
+
+assert(searchRoutes.includes('"/v1/search"'), "Search routes must include POST /v1/search.");
+for (const token of ["UnifiedSearchService", "unifiedSearchService", "metadataFilters", "artifactTypes", "spanTypes", "faceIdentityStatuses", "requireProjectPermissionForEach", "\"document:search\""]) {
+  assert(searchRoutes.includes(token), `Unified search routes must use ${token}.`);
+}
 
 for (const route of ['"/v1/faces/identities"', '"/v1/faces/identities/:id"', '"/v1/faces/observations"', '"/v1/faces/identities/:id/merge"']) {
   assert(faceRoutes.includes(route), `Face routes must include ${route}.`);
@@ -158,6 +168,7 @@ assert(runtime.includes("uploadService"), "API runtime must inject DocumentUploa
 assert(runtime.includes("recomputeService"), "API runtime must inject DocumentRecomputeService into document routes.");
 assert(runtime.includes("artifacts:") && runtime.includes("artifactRepository"), "API runtime must inject artifact repository into artifact routes.");
 assert(runtime.includes("faceService"), "API runtime must inject FaceService into face routes.");
+assert(runtime.includes("unifiedSearchService"), "API runtime must inject UnifiedSearchService into search routes.");
 assert(runtime.includes("buildDocumentChunkSearchRepository"), "API runtime must choose text or pgvector document chunk search.");
 assert(runtime.includes("buildEmbeddingsProvider"), "API runtime must build query embeddings when semantic search is configured.");
 assert(runtime.includes("queue.close()"), "API runtime close hook must close the processing queue.");
@@ -170,6 +181,7 @@ assert(peerRoutes.includes("requireProjectPermission"), "Peer routes must enforc
 assert(sessionRoutes.includes("requireProjectPermission"), "Session routes must enforce session/message authorization.");
 assert(documentRoutes.includes("requireProjectPermission"), "Document routes must enforce document authorization.");
 assert(artifactRoutes.includes("requireProjectPermissionForEach"), "Artifact routes must enforce artifact search authorization.");
+assert(searchRoutes.includes("requireProjectPermissionForEach"), "Unified search route must enforce project authorization.");
 assert(faceRoutes.includes("requireProjectPermission"), "Face routes must enforce face authorization.");
 assert(jobRoutes.includes("requireProjectPermission"), "Job routes must enforce project authorization.");
 assert(memoryRoutes.includes("requireProjectPermission"), "Memory routes must enforce memory authorization.");
