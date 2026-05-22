@@ -54,7 +54,7 @@ writing README, issues, release notes and docs.
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| Video keyframes | Supported manifest fallback; experimental local-command provider | Local-command extraction is opt-in, validates a command path, respects the configured max frame count and can run extracted frame bytes through OCR/vision roles. Bundled ffmpeg profiles remain future work. |
+| Video keyframes | Supported manifest fallback and bundled ffmpeg provider; experimental local-command provider | The ffmpeg provider extracts frame PNGs through the bundled runtime image, enforces the configured max frame count and can run frame bytes through OCR/vision roles. Local-command extraction is opt-in and validates a command path for custom deployments. |
 
 ## Model Roles
 

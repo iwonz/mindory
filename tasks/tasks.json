@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-99",
+  "current_task_id": "TASK-100",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -733,7 +733,7 @@
     {
       "id": "TASK-100",
       "title": "Add bundled video keyframe provider",
-      "status": "draft",
+      "status": "done",
       "branch": "task/TASK-100-bundled-video-keyframe-provider",
       "file": "tasks/TASK-100.json"
     },

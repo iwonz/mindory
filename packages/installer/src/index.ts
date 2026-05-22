@@ -30,6 +30,7 @@ import {
   type LlmOpenAiAuthMode,
   type LlmProvider,
   type StorageProvider,
+  type VideoKeyframeProvider,
   type VectorProvider
 } from "@mindory/config";
 import {
@@ -117,6 +118,9 @@ export interface ModalityAnswers {
   audio: boolean;
   video: boolean;
   videoMaxKeyframes: number;
+  videoKeyframeProvider: VideoKeyframeProvider;
+  videoFfmpegCommand: string;
+  videoFfprobeCommand: string;
 }
 
 export interface LlmRoleAnswers {
@@ -538,7 +542,10 @@ export function createDefaultInstallAnswers(overrides: Partial<MindoryInstallAns
       image: catalogDefault("MINDORY_DOCUMENT_PROCESSING_IMAGE_ENABLED") === "true",
       audio: catalogDefault("MINDORY_DOCUMENT_PROCESSING_AUDIO_ENABLED") === "true",
       video: catalogDefault("MINDORY_DOCUMENT_PROCESSING_VIDEO_ENABLED") === "true",
-      videoMaxKeyframes: Number.parseInt(catalogDefault("MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES"), 10)
+      videoMaxKeyframes: Number.parseInt(catalogDefault("MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES"), 10),
+      videoKeyframeProvider: catalogDefault("MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_PROVIDER") as VideoKeyframeProvider,
+      videoFfmpegCommand: catalogDefault("MINDORY_DOCUMENT_PROCESSING_VIDEO_FFMPEG_COMMAND"),
+      videoFfprobeCommand: catalogDefault("MINDORY_DOCUMENT_PROCESSING_VIDEO_FFPROBE_COMMAND")
     },
     llmRoles: {},
     llmProviders: {
@@ -607,6 +614,10 @@ export function validateInstallAnswers(answers: MindoryInstallAnswers): string[]
   }
   if (answers.modalities.videoMaxKeyframes <= 0) {
     errors.push("modalities.videoMaxKeyframes must be greater than zero.");
+  }
+  validateCatalogValue(errors, "MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_PROVIDER", answers.modalities.videoKeyframeProvider);
+  if (answers.modalities.video && answers.modalities.videoKeyframeProvider === "ffmpeg" && answers.modalities.videoFfmpegCommand.trim() === "") {
+    errors.push("modalities.videoFfmpegCommand is required when ffmpeg keyframe extraction is selected.");
   }
   for (const [role, roleAnswers] of Object.entries(answers.llmRoles)) {
     if (!LLM_ROLE_KEYS.includes(role as InstallerLlmRoleKey)) {
@@ -857,9 +868,13 @@ export function detectHostDependencies(answers: MindoryInstallAnswers, probe: De
   if (answers.devMode || answers.profile === "dev-test") {
     checks.push(commandCheck("node", "Node.js", probe.run("node", ["--version"]), true, "Install Node.js 22 or newer."));
     checks.push(commandCheck("pnpm", "pnpm", probe.run("pnpm", ["--version"]), true, "Enable corepack or install pnpm 10 or newer."));
+    if (answers.modalities.video && answers.modalities.videoKeyframeProvider === "ffmpeg") {
+      checks.push(commandCheck("ffmpeg", "ffmpeg", probe.run(answers.modalities.videoFfmpegCommand, ["-version"]), true, "Install ffmpeg or choose the manifest video keyframe provider."));
+    }
   } else {
     checks.push({ id: "node", label: "Node.js", status: "skipped", required: false });
     checks.push({ id: "pnpm", label: "pnpm", status: "skipped", required: false });
+    checks.push({ id: "ffmpeg", label: "ffmpeg", status: "skipped", required: false });
   }
 
   const homeWritable = probe.isWritable(answers.mindoryHome);
@@ -1256,6 +1271,9 @@ export function answersToEnvMap(answers: MindoryInstallAnswers): Record<string, 
   assign(env, "MINDORY_DOCUMENT_PROCESSING_AUDIO_ENABLED", bool(answers.modalities.audio));
   assign(env, "MINDORY_DOCUMENT_PROCESSING_VIDEO_ENABLED", bool(answers.modalities.video));
   assign(env, "MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES", String(answers.modalities.videoMaxKeyframes));
+  assign(env, "MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_PROVIDER", answers.modalities.videoKeyframeProvider);
+  assign(env, "MINDORY_DOCUMENT_PROCESSING_VIDEO_FFMPEG_COMMAND", answers.modalities.videoFfmpegCommand);
+  assign(env, "MINDORY_DOCUMENT_PROCESSING_VIDEO_FFPROBE_COMMAND", answers.modalities.videoFfprobeCommand);
   assign(env, "MINDORY_LLM_OPENAI_COMPATIBLE_BASE_URL", answers.llmProviders.openaiCompatibleBaseUrl);
   assign(env, "MINDORY_LLM_OPENAI_COMPATIBLE_AUTH_MODE", answers.llmProviders.openaiCompatibleAuthMode);
   assign(env, "MINDORY_LLM_OPENAI_COMPATIBLE_API_KEY", answers.llmProviders.openaiCompatibleApiKey);
@@ -1408,6 +1426,9 @@ export function buildWizardPromptPlan(options: WizardOptions = {}): WizardPrompt
     promptFromCatalog("modalities.audio", "MINDORY_DOCUMENT_PROCESSING_AUDIO_ENABLED", "boolean"),
     promptFromCatalog("modalities.video", "MINDORY_DOCUMENT_PROCESSING_VIDEO_ENABLED", "boolean"),
     promptFromCatalog("modalities.video_max_keyframes", "MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES", "number"),
+    promptFromCatalog("modalities.video_keyframe_provider", "MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_PROVIDER", "choice"),
+    promptFromCatalog("modalities.video_ffmpeg_command", "MINDORY_DOCUMENT_PROCESSING_VIDEO_FFMPEG_COMMAND", "text"),
+    promptFromCatalog("modalities.video_ffprobe_command", "MINDORY_DOCUMENT_PROCESSING_VIDEO_FFPROBE_COMMAND", "text"),
     promptFromCatalog("interfaces.api_port", "MINDORY_API_PORT", "number"),
     promptFromCatalog("interfaces.mcp_enabled", "MINDORY_MCP_ENABLED", "boolean"),
     promptFromCatalog("interfaces.hermes_enabled", "MINDORY_HERMES_ADAPTER_ENABLED", "boolean"),
@@ -1489,6 +1510,11 @@ export async function runInstallWizard(io: WizardIo, options: WizardOptions = {}
   answers.modalities.audio = await askBoolean(io, promptFromCatalog("modalities.audio", "MINDORY_DOCUMENT_PROCESSING_AUDIO_ENABLED", "boolean"));
   answers.modalities.video = await askBoolean(io, promptFromCatalog("modalities.video", "MINDORY_DOCUMENT_PROCESSING_VIDEO_ENABLED", "boolean"));
   answers.modalities.videoMaxKeyframes = await askNumber(io, promptFromCatalog("modalities.video_max_keyframes", "MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES", "number"));
+  answers.modalities.videoKeyframeProvider = await askChoice(io, promptFromCatalog("modalities.video_keyframe_provider", "MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_PROVIDER", "choice")) as VideoKeyframeProvider;
+  if (answers.modalities.videoKeyframeProvider === "ffmpeg") {
+    answers.modalities.videoFfmpegCommand = await askString(io, promptFromCatalog("modalities.video_ffmpeg_command", "MINDORY_DOCUMENT_PROCESSING_VIDEO_FFMPEG_COMMAND", "text", { defaultValue: answers.modalities.videoFfmpegCommand }));
+    answers.modalities.videoFfprobeCommand = await askString(io, promptFromCatalog("modalities.video_ffprobe_command", "MINDORY_DOCUMENT_PROCESSING_VIDEO_FFPROBE_COMMAND", "text", { defaultValue: answers.modalities.videoFfprobeCommand }));
+  }
 
   for (const role of LLM_ROLE_KEYS) {
     const experimentalAllowed = answers.allowExperimental || options.allowExperimental === true;
@@ -1834,7 +1860,27 @@ async function runInstallHealthChecks(plan: InstallPlan, options: InstallExecuti
   await waitForComposeServices(plan, options);
   await checkClamAvInstallerHealth(plan, options);
   await checkLocalCommandLlmInstallerHealth(plan, options);
+  await checkFfmpegInstallerHealth(plan, options);
   await waitForApiReady(plan, options);
+}
+
+export async function checkFfmpegInstallerHealth(plan: InstallPlan, options: InstallExecutionOptions = {}): Promise<InstallCommandResult | null> {
+  if (plan.environment.MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_PROVIDER !== "ffmpeg") {
+    return null;
+  }
+  const command = plan.environment.MINDORY_DOCUMENT_PROCESSING_VIDEO_FFMPEG_COMMAND || "ffmpeg";
+  const result = await runDockerComposeWithoutStatusCheck(plan, [
+    "exec",
+    "-T",
+    "worker",
+    "sh",
+    "-lc",
+    `${shellQuote(command)} -version >/dev/null`
+  ], options);
+  if ((result.status ?? 1) === 0) {
+    return result;
+  }
+  throw new Error(`ffmpeg health check failed in the worker container. Install ffmpeg in the runtime image or set MINDORY_DOCUMENT_PROCESSING_VIDEO_FFMPEG_COMMAND to a valid executable. ${commandOutput(result)}`);
 }
 
 export async function checkClamAvInstallerHealth(plan: InstallPlan, options: InstallExecutionOptions = {}): Promise<ClamAvInstallerHealthReport> {
@@ -2856,6 +2902,9 @@ function promptIdToEnvName(promptId: string): string | undefined {
     "modalities.audio": "MINDORY_DOCUMENT_PROCESSING_AUDIO_ENABLED",
     "modalities.video": "MINDORY_DOCUMENT_PROCESSING_VIDEO_ENABLED",
     "modalities.video_max_keyframes": "MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES",
+    "modalities.video_keyframe_provider": "MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_PROVIDER",
+    "modalities.video_ffmpeg_command": "MINDORY_DOCUMENT_PROCESSING_VIDEO_FFMPEG_COMMAND",
+    "modalities.video_ffprobe_command": "MINDORY_DOCUMENT_PROCESSING_VIDEO_FFPROBE_COMMAND",
     "interfaces.api_port": "MINDORY_API_PORT",
     "interfaces.mcp_enabled": "MINDORY_MCP_ENABLED",
     "interfaces.hermes_enabled": "MINDORY_HERMES_ADAPTER_ENABLED",

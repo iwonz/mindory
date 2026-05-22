@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import http from "node:http";
 import net from "node:net";
 import os from "node:os";
@@ -231,7 +231,6 @@ test("MVP runtime integration covers auth, upload, worker jobs and context", { t
       confidence: 0.98
     }]
   });
-  const fakeKeyframeCommand = await writeFakeKeyframeExtractorScript(storagePath);
   let doclingService = await startDoclingService({
     MINDORY_LLM_OCR_ENABLED: "true",
     MINDORY_LLM_OCR_PROVIDER: "local-http",
@@ -242,9 +241,9 @@ test("MVP runtime integration covers auth, upload, worker jobs and context", { t
     ...testEnv,
     MINDORY_DOCLING_ENABLED: "true",
     MINDORY_DOCLING_URL: doclingService.baseUrl,
-    MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_PROVIDER: "local-command",
-    MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_COMMAND: process.execPath,
-    MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_ARGS: JSON.stringify([fakeKeyframeCommand, "{input}", "{maxKeyframes}"]),
+    MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_PROVIDER: "ffmpeg",
+    MINDORY_DOCUMENT_PROCESSING_VIDEO_FFMPEG_COMMAND: process.env.MINDORY_TEST_FFMPEG_BIN ?? "ffmpeg",
+    MINDORY_DOCUMENT_PROCESSING_VIDEO_FFPROBE_COMMAND: process.env.MINDORY_TEST_FFPROBE_BIN ?? "ffprobe",
     MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_TIMEOUT_MS: "30000",
     MINDORY_LLM_OCR_ENABLED: "true",
     MINDORY_LLM_OCR_PROVIDER: "local-http",
@@ -1163,17 +1162,7 @@ async function uploadAndProcessAudioDocument(apiUrl) {
 }
 
 async function uploadAndProcessVideoDocument(apiUrl) {
-  const video = buildVideoManifestFile({
-    durationMs: 12_000,
-    codec: "manifest-h264",
-    frames: [
-      { timestampMs: 0, description: "opening frame shows a passport in hand at an airport", labels: ["passport", "airport"] },
-      { timestampMs: 3000, description: "second frame shows two dogs near luggage", labels: ["dogs", "luggage"] },
-      { timestampMs: 6000, description: "third frame shows nature through a window", labels: ["nature", "window"] },
-      { timestampMs: 9000, description: "fourth frame should be skipped by max keyframes", labels: ["skipped"] },
-      { timestampMs: 11000, description: "fifth frame should also be skipped", labels: ["skipped"] }
-    ]
-  });
+  const video = await buildFfmpegVideoFixture();
   const form = new FormData();
   form.append("projectId", projectId);
   form.append("title", "Integration video document");
@@ -1207,20 +1196,19 @@ async function uploadAndProcessVideoDocument(apiUrl) {
   assert.equal(document.metadata.extraction.processing_stage, "video");
   assert.equal(document.metadata.extraction.video_keyframes, true);
   assert.equal(document.metadata.extraction.frame_count, 3);
-  assert.equal(document.metadata.extraction.manifest_frame_count, 5);
+  assert.equal(document.metadata.extraction.manifest_frame_count, 3);
   assert.equal(document.metadata.extraction.max_keyframes, 3);
-  assert.equal(document.metadata.extraction.keyframe_provider, "local-command");
+  assert.equal(document.metadata.extraction.keyframe_provider, "ffmpeg");
+  assert.equal(document.metadata.extraction.ffmpeg_command, process.env.MINDORY_TEST_FFMPEG_BIN ?? "ffmpeg");
   assert.equal(document.metadata.extraction.capabilities.vision_captioning.status, "provider_caption");
   assert.equal(document.metadata.extraction.capabilities.ocr.status, "provider_ocr");
 
   const search = await requestJson(apiUrl, "POST", "/v1/documents/search", {
     projectIds: [projectId],
-    query: "passport airport dogs",
+    query: "passport airport",
     limit: 5,
     metadataFilters: [
-      { key: "extension", valueText: "mp4" },
-      { key: "duration_ms", operator: "between", minNumber: 10_000, maxNumber: 15_000, unit: "ms" },
-      { key: "frame_count", operator: "eq", valueNumber: 5, unit: "frames" }
+      { key: "extension", valueText: "mp4" }
     ]
   });
   const videoHit = search.hits.find((hit) => hit.documentId === documentId);
@@ -1233,8 +1221,8 @@ async function uploadAndProcessVideoDocument(apiUrl) {
   assert.equal(await countDocumentTextSpans(projectId, documentId, "video_keyframe_description", databaseUrl), 3);
   const mediaMetadata = await getDocumentMediaMetadata(projectId, documentId, databaseUrl);
   assert.equal(mediaMetadata.media_type, "video");
-  assert.equal(mediaMetadata.duration_ms, 12_000);
-  assert.equal(mediaMetadata.codec, "manifest-h264");
+  assert.equal(mediaMetadata.duration_ms, null);
+  assert.equal(mediaMetadata.codec, null);
 
   return {
     documentId,
@@ -1274,7 +1262,7 @@ async function assertUnifiedArtifactSearch(apiUrl, input) {
     artifactTypes: ["video_keyframe"],
     spanTypes: ["video_keyframe_description"],
     limit: 10,
-    metadataFilters: [{ key: "frame_count", operator: "eq", valueNumber: 5, unit: "frames" }]
+    metadataFilters: [{ key: "extension", valueText: "mp4" }]
   });
   assert.ok(metadataOnlySearch.hits.some((hit) => hit.kind === "artifact_span" && hit.document_id === input.videoDocumentId), "unified metadata-only search should find video keyframe artifacts without a text query.");
 
@@ -1315,16 +1303,16 @@ async function assertUnifiedArtifactSearch(apiUrl, input) {
 
   const videoSearch = await requestJson(apiUrl, "POST", "/v1/artifacts/search", {
     projectIds: [projectId],
-    query: "dogs luggage",
+    query: "passport airport",
     artifactTypes: ["video_keyframe"],
     spanTypes: ["video_keyframe_description"],
     limit: 10,
-    metadataFilters: [{ key: "frame_count", operator: "eq", valueNumber: 5, unit: "frames" }]
+    metadataFilters: [{ key: "extension", valueText: "mp4" }]
   });
   const videoHit = videoSearch.hits.find((hit) => hit.document_id === input.videoDocumentId);
   assert.ok(videoHit, "artifact search should find video keyframe spans.");
-  assert.equal(videoHit.metadata.timestamp_ms, 3000);
-  assert.equal(videoHit.source_position.timestamp_ms, 3000);
+  assert.ok([0, 1000, 2000].includes(videoHit.metadata.timestamp_ms), "artifact search should return one of the capped ffmpeg keyframe timestamps.");
+  assert.equal(videoHit.source_position.timestamp_ms, videoHit.metadata.timestamp_ms);
 }
 
 async function uploadAndIndexDocument(input) {
@@ -2103,23 +2091,27 @@ function getFreePort() {
   });
 }
 
-async function writeFakeKeyframeExtractorScript(directory) {
-  const scriptPath = path.join(directory, "fake-video-keyframes.mjs");
-  await writeFile(scriptPath, `
-const frame = text => Buffer.from(text, "utf8").toString("base64");
-console.log(JSON.stringify({
-  durationMs: 12000,
-  codec: "manifest-h264",
-  frames: [
-    { timestampMs: 0, description: "opening frame shows a passport in hand at an airport", labels: ["passport", "airport"], mime_type: "image/png", data_base64: frame("video-frame passport airport") },
-    { timestampMs: 3000, description: "second frame shows two dogs near luggage", labels: ["dogs", "luggage"], mime_type: "image/png", data_base64: frame("video-frame dogs luggage") },
-    { timestampMs: 6000, description: "third frame shows nature through a window", labels: ["nature", "window"], mime_type: "image/png", data_base64: frame("video-frame nature window") },
-    { timestampMs: 9000, description: "fourth frame should be skipped by max keyframes", labels: ["skipped"], mime_type: "image/png", data_base64: frame("video-frame skipped fourth") },
-    { timestampMs: 11000, description: "fifth frame should also be skipped", labels: ["skipped"], mime_type: "image/png", data_base64: frame("video-frame skipped fifth") }
-  ]
-}));
-`, "utf8");
-  return scriptPath;
+async function buildFfmpegVideoFixture() {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "mindory-ffmpeg-fixture-"));
+  const outputPath = path.join(tempDir, "fixture.mp4");
+  try {
+    runCommand(process.env.MINDORY_TEST_FFMPEG_BIN ?? "ffmpeg", [
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-y",
+      "-f",
+      "lavfi",
+      "-i",
+      "testsrc=duration=5:size=160x120:rate=1",
+      "-pix_fmt",
+      "yuv420p",
+      outputPath
+    ]);
+    return await readFile(outputPath);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
 }
 
 function decodeBase64Text(value) {

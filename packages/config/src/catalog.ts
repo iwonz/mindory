@@ -364,11 +364,13 @@ export const CONFIG_CATALOG = [
   entry("MINDORY_DOCUMENT_PROCESSING_VIDEO_REQUIRED", "document-processing", "boolean", "false", "Treat video processing as required.", "runtime", "supported"),
   entry("MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES", "document-processing", "number", "10", "Maximum derived video keyframes.", "both", "supported"),
   entry("MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_PROVIDER", "document-processing", "enum", "manifest", "Video keyframe extraction provider.", "runtime", "supported", {
-    allowedValues: ["manifest", "local-command"]
+    allowedValues: ["manifest", "local-command", "ffmpeg"]
   }),
   entry("MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_COMMAND", "document-processing", "string", "", "Executable for local-command video keyframe extraction.", "runtime", "experimental"),
   entry("MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_ARGS", "document-processing", "string", "", "JSON string array of local-command keyframe extraction arguments.", "runtime", "experimental"),
   entry("MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_TIMEOUT_MS", "document-processing", "number", "120000", "Timeout for local-command video keyframe extraction.", "runtime", "experimental"),
+  entry("MINDORY_DOCUMENT_PROCESSING_VIDEO_FFMPEG_COMMAND", "document-processing", "string", "ffmpeg", "Executable for bundled ffmpeg video keyframe extraction.", "runtime", "supported"),
+  entry("MINDORY_DOCUMENT_PROCESSING_VIDEO_FFPROBE_COMMAND", "document-processing", "string", "ffprobe", "Executable for optional ffprobe video metadata probing.", "runtime", "supported"),
 
   entry("MINDORY_DOCLING_ENABLED", "docling", "boolean", "false", "Route PDF extraction through the Docling-compatible HTTP service.", "both", "supported", {
     prompt: {
@@ -477,6 +479,8 @@ export const CONFIG_CATALOG = [
   entry("MINDORY_TEST_SKIP_DOCKER", "integration-tests", "boolean", "false", "Skip Docker-managed integration test dependencies.", "test", "supported"),
   entry("MINDORY_TEST_SKIP_BUILD", "integration-tests", "boolean", "false", "Skip pre-test TypeScript build.", "test", "supported"),
   entry("MINDORY_TEST_DOCKER_BIN", "integration-tests", "string", "/usr/local/bin/docker", "Docker binary path for integration tests.", "test", "supported"),
+  entry("MINDORY_TEST_FFMPEG_BIN", "integration-tests", "string", "ffmpeg", "ffmpeg binary path for integration video fixture tests.", "test", "supported"),
+  entry("MINDORY_TEST_FFPROBE_BIN", "integration-tests", "string", "ffprobe", "ffprobe binary path for integration video extraction tests.", "test", "supported"),
 
   entry("MINDORY_E2E_LIVE", "mvp-acceptance", "boolean", "false", "Run MVP acceptance against a live API.", "test", "supported"),
   entry("MINDORY_E2E_API_URL", "mvp-acceptance", "string", "http://localhost:3000", "MVP acceptance API URL.", "test", "supported"),

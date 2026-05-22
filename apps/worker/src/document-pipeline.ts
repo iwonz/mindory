@@ -242,6 +242,8 @@ function videoKeyframeExtractorOptions(config: MindoryConfig, llm: MindoryLlm): 
     keyframeCommand: config.documentProcessing.video.keyframeCommand,
     keyframeCommandArgs: config.documentProcessing.video.keyframeCommandArgs,
     keyframeTimeoutMs: config.documentProcessing.video.keyframeTimeoutMs,
+    ffmpegCommand: config.documentProcessing.video.ffmpegCommand,
+    ffprobeCommand: config.documentProcessing.video.ffprobeCommand,
     ocr: llmRoleState(llm, "ocr"),
     visionCaptioning: llmRoleState(llm, "vision-captioning"),
     ocrRole: llm.registry.require("ocr"),

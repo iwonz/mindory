@@ -241,7 +241,8 @@ The wizard prompts for:
 - install profile, home directory, dependency policy and public URL;
 - antivirus mode;
 - storage choice: local filesystem, LibreFS local S3 or external S3-compatible;
-- document modality switches, video keyframe limit and keyframe provider;
+- document modality switches, video keyframe limit, keyframe provider and
+  ffmpeg/ffprobe commands when the bundled ffmpeg provider is selected;
 - independent LLM role enablement, provider, model, required mode, timeout,
   concurrency and embedding dimensions where applicable;
 - API/MCP/Hermes interface switches and tokens.
@@ -265,6 +266,12 @@ daemon unavailable, timeout, protocol failure, clean probe reported infected or
 EICAR probe not detected. The diagnostic includes `MINDORY_AV_MODE`,
 `MINDORY_AV_PROVIDER`, `MINDORY_CLAMAV_PLATFORM`, the last scan output and the
 recommended repair path.
+
+When video processing selects the bundled ffmpeg keyframe provider, dev/source
+dependency detection validates the configured ffmpeg executable. Runtime
+installer health checks also execute `ffmpeg -version` inside the worker
+container before accepting the stack, so missing binaries fail before uploads
+can enqueue video extraction work.
 
 ## Transaction Model
 

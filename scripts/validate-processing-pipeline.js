@@ -191,7 +191,7 @@ assert(videoKeyframePackage.dependencies?.["@mindory/llm"] === "workspace:*", "V
 assert(videoKeyframePackage.exports?.["."], "Video keyframe extractor must export its root module.");
 assert(videoKeyframeTsconfig.references?.some((reference) => reference.path === "../../../../packages/core"), "Video keyframe extractor must reference @mindory/core.");
 assert(videoKeyframeTsconfig.references?.some((reference) => reference.path === "../../../../packages/llm"), "Video keyframe extractor must reference @mindory/llm.");
-for (const token of ["VideoKeyframeExtractor", "video_keyframe", "video_keyframe_description", "maxKeyframes", "MINDORY_VIDEO_MANIFEST", "readVideoManifest", "LocalCommandVideoKeyframeProvider", "keyframeProvider", "local-command", "recognizeText", "captionImage", "provider_ocr", "provider_caption"]) {
+for (const token of ["VideoKeyframeExtractor", "video_keyframe", "video_keyframe_description", "maxKeyframes", "MINDORY_VIDEO_MANIFEST", "readVideoManifest", "LocalCommandVideoKeyframeProvider", "FfmpegVideoKeyframeProvider", "keyframeProvider", "local-command", "ffmpeg", "ffmpeg_keyframes", "recognizeText", "captionImage", "provider_ocr", "provider_caption"]) {
   assert(videoKeyframe.includes(token), `Video keyframe extractor must include ${token}.`);
 }
 
@@ -259,7 +259,9 @@ for (const envName of [
   "MINDORY_LLM_OPENAI_COMPATIBLE_API_KEY",
   "MINDORY_LLM_OPENAI_OAUTH_ACCESS_TOKEN",
   "MINDORY_LLM_OLLAMA_BASE_URL",
-  "MINDORY_LLM_LOCAL_HTTP_BASE_URL"
+  "MINDORY_LLM_LOCAL_HTTP_BASE_URL",
+  "MINDORY_DOCUMENT_PROCESSING_VIDEO_FFMPEG_COMMAND",
+  "MINDORY_DOCUMENT_PROCESSING_VIDEO_FFPROBE_COMMAND"
 ]) {
   assert(envExample.includes(envName), `.env.example must include ${envName}.`);
 }

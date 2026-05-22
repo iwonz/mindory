@@ -8,7 +8,7 @@ The canonical product and engineering specification is `docs/PRD.md`.
 
 ## Repository Status
 
-This repository is complete through `TASK-89`. Mindory can run a local
+This repository is complete through `TASK-100`. Mindory can run a local
 demo-MVP through Docker Compose, seed demo credentials, process uploaded
 documents through the worker pipeline and run live acceptance. `pnpm check`
 passes through the repo validation, typecheck, lint, tests and dry-run
@@ -21,7 +21,7 @@ experimental profile surfaces and planned hardening:
 | --- | --- |
 | API | Supported local MVP: Fastify server runtime wires PostgreSQL repositories, bearer-token access control, projects, tokens, peers, sessions, messages, memories, context, documents, jobs, document/artifact search and unified multimodal search routes. Product startup requires runtime dependencies before serving traffic; dependency-free app construction is explicit test mode. |
 | Worker pipeline | Supported local MVP: scan, route, extract, chunk, embed and index processors are registered. Text and metadata fallback search work without external model credentials. |
-| Document modalities | Supported fallback: text/Markdown, native-text PDF, scanned-PDF OCR through local HTTP when enabled, image OCR/vision/object detection/image embeddings/face detection and recognition through local HTTP or local-command where the role supports it, deterministic image metadata fallback, audio ASR through local HTTP when enabled plus embedded WAV transcript fallback, and video keyframes through manifest fallback or opt-in local-command extraction. Future: bundled ffmpeg profiles. |
+| Document modalities | Supported fallback: text/Markdown, native-text PDF, scanned-PDF OCR through local HTTP when enabled, image OCR/vision/object detection/image embeddings/face detection and recognition through local HTTP or local-command where the role supports it, deterministic image metadata fallback, audio ASR through local HTTP when enabled plus embedded WAV transcript fallback, and video keyframes through manifest fallback, bundled ffmpeg extraction or opt-in local-command extraction. |
 | Vectors | Supported local MVP: pgvector for 1536-dimensional text chunk and image artifact embeddings when compatible providers are configured. Supported runtime option: Qdrant via `MINDORY_VECTOR_PROVIDER=qdrant`. Supported fallback: PostgreSQL full-text search when embeddings are disabled. |
 | LLM/model runtime | Supported boundary: all model operations route through `@mindory/llm`, with disabled behavior, audit hooks, OpenAI-compatible chat/embeddings, Ollama text embeddings, local HTTP chat/embeddings/OCR/vision captioning/ASR/face roles, local provider health checks and deterministic local acceptance profiles. Unsupported roles remain disabled or experimental until concrete adapters land. |
 | Interfaces | Supported local MVP: HTTP API, CLI and MCP stdio tools call the API, including unified multimodal search. Hermes adapter exposes lifecycle helpers, hook registration for Hermes-like runtimes and a fake-compatible runtime harness; an official Hermes SDK is not vendored. |

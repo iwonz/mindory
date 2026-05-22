@@ -3,6 +3,7 @@ FROM node:24-alpine AS app
 WORKDIR /app
 
 RUN corepack enable
+RUN apk add --no-cache ffmpeg
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc tsconfig.json tsconfig.base.json ./
 COPY apps ./apps
