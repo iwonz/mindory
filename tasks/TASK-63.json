@@ -1,0 +1,59 @@
+{
+  "id": "TASK-63",
+  "title": "Add full install acceptance",
+  "status": "done",
+  "type": "chore",
+  "priority": "high",
+  "branch": "task/TASK-63-full-install-acceptance",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Add an installer acceptance harness that validates dry-run install behavior and can run a live Docker smoke in a temp MINDORY_HOME.",
+    "background": "Installer core, wizard, bootstrap, recovery and matrix checks exist. The final task ties them into an acceptance command and documents the live Docker path."
+  },
+  "scope": {
+    "in": [
+      "Add installer acceptance script.",
+      "Dry-run acceptance validates installer CLI, repair/resume surfaces, bootstrap syntax and matrix checks.",
+      "Live mode uses a temp MINDORY_HOME and runs the MVP demo acceptance flow.",
+      "Live mode resets the stack and removes the temp home on completion.",
+      "Add acceptance command to pnpm check in dry-run mode.",
+      "Update docs."
+    ],
+    "out": [
+      "Publishing release artifacts.",
+      "Real external update server.",
+      "Production backup/restore automation."
+    ]
+  },
+  "acceptance_criteria": [
+    "pnpm installer:acceptance runs in dry-run mode without Docker mutation.",
+    "MINDORY_INSTALL_ACCEPTANCE_LIVE=true pnpm installer:acceptance runs the Docker MVP smoke path with temp MINDORY_HOME.",
+    "Acceptance covers installer plan, repair/resume, update dry-run and uninstall/reset surfaces.",
+    "Temp install home cleanup is best-effort and scoped to the created temp path.",
+    "pnpm check includes dry-run installer acceptance."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "pnpm installer:acceptance",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-63.",
+      "Confirm live Docker mode is opt-in through MINDORY_INSTALL_ACCEPTANCE_LIVE=true."
+    ]
+  },
+  "dependencies": [
+    "TASK-62"
+  ],
+  "risks": [
+    "Live Docker acceptance may require cached images or network access.",
+    "Cleanup must not delete user-provided MINDORY_HOME values."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch is committed and merged back into master."
+  ]
+}

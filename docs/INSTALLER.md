@@ -109,6 +109,28 @@ The matrix uses fake dependency probes. It does not start Docker, download
 releases, install system dependencies or mutate host state outside the normal
 TypeScript build outputs.
 
+## Acceptance
+
+`TASK-63` adds the installer acceptance command:
+
+```bash
+pnpm installer:acceptance
+```
+
+By default it runs a dry-run acceptance: installer CLI plan, `repair`, `resume`,
+matrix validation and bootstrap validation. This default path is included in
+`pnpm check` and does not start Docker.
+
+To run the live Docker smoke path in a temporary `MINDORY_HOME`:
+
+```bash
+MINDORY_INSTALL_ACCEPTANCE_LIVE=true pnpm installer:acceptance
+```
+
+Live mode runs the existing MVP demo acceptance with disabled heavy model
+services, then calls the reset path and removes the temp install home. It is
+opt-in because it may need cached images or network access for Docker pulls.
+
 ## Wizard Prompts
 
 The wizard prompts for:
