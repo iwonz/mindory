@@ -81,11 +81,14 @@ for (const token of [
   "OpenAICompatibleChatProvider",
   "LocalHttpChatProvider",
   "LocalHttpTextEmbeddingsProvider",
+  "LocalHttpOcrProvider",
   "buildMindoryChatProvider",
+  "buildMindoryOcrProvider",
   "checkMindoryLlmProviderHealth",
   "healthCheck",
   "/chat/completions",
   "/health",
+  "/ocr",
   "inputTokens",
   "outputTokens",
   "LlmTextEmbeddingProvider",
@@ -324,6 +327,10 @@ const localConfig = loadMindoryConfig({
   MINDORY_LLM_TEXT_EMBEDDING_PROVIDER: "local-http",
   MINDORY_LLM_TEXT_EMBEDDING_MODEL: "local-embedding",
   MINDORY_LLM_TEXT_EMBEDDING_DIMENSIONS: "1536",
+  MINDORY_LLM_OCR_ENABLED: "true",
+  MINDORY_LLM_OCR_PROVIDER: "local-http",
+  MINDORY_LLM_OCR_MODEL: "local-ocr",
+  MINDORY_INSTALL_ALLOW_EXPERIMENTAL: "true",
   MINDORY_LLM_LOCAL_HTTP_BASE_URL: "http://llm.local:8080",
   MINDORY_LLM_OLLAMA_BASE_URL: "http://ollama.local:11434"
 });
@@ -348,6 +355,12 @@ const localRuntime = buildMindoryLlm(localConfig, {
         }
       }), { status: 200 });
     }
+    if (href.endsWith("/ocr")) {
+      return new Response(JSON.stringify({
+        text: "local http ocr text",
+        pages: [{ page_number: 1, text: "local http ocr text", confidence: 0.99 }]
+      }), { status: 200 });
+    }
     if (href.endsWith("/health") || href.endsWith("/api/tags")) {
       return new Response(JSON.stringify({ status: "ok" }), { status: 200 });
     }
@@ -356,6 +369,7 @@ const localRuntime = buildMindoryLlm(localConfig, {
 });
 assert(localRuntime.chat !== undefined, "Local HTTP chat provider must be built when chat is enabled.");
 assert(localRuntime.textEmbeddings !== undefined, "Local HTTP text embeddings provider must be built when text embeddings are enabled.");
+assert(localRuntime.ocr !== undefined, "Local HTTP OCR provider must be built when OCR is enabled.");
 const localChatResult = await localRuntime.chat.generateChat({
   messages: [{ role: "user", content: "hello" }]
 }, {
@@ -366,8 +380,18 @@ assert(localChatResult.status === "success", "Local HTTP chat provider must retu
 assert(localChatResult.value?.text === "hello from local http", "Local HTTP chat provider must parse simple text output.");
 const localEmbeddingResult = await localRuntime.textEmbeddings.embedTexts({ texts: ["semantic text"] });
 assert(localEmbeddingResult[0]?.embedding.length === 1536, "Local HTTP embeddings provider must return 1536-dimensional embeddings.");
+const localOcrResult = await localRuntime.ocr.recognizeText({
+  bytes: new TextEncoder().encode("fake pdf bytes"),
+  mimeType: "application/pdf"
+}, {
+  role: localRuntime.registry.require("ocr"),
+  refs: { documentId: "doc-local" }
+});
+assert(localOcrResult.status === "success", "Local HTTP OCR provider must return success.");
+assert(localOcrResult.value?.pages?.[0]?.text === "local http ocr text", "Local HTTP OCR provider must parse page text.");
 assert(localRequests.some((request) => request.url === "http://llm.local:8080/chat/completions"), "Local HTTP chat provider must call /chat/completions.");
 assert(localRequests.some((request) => request.url === "http://llm.local:8080/embeddings"), "Local HTTP embeddings provider must call /embeddings.");
+assert(localRequests.some((request) => request.url === "http://llm.local:8080/ocr"), "Local HTTP OCR provider must call /ocr.");
 const localHealth = await localRuntime.healthCheck("local-http");
 assert(localHealth.status === "ok", "Local HTTP health check must succeed against /health.");
 const ollamaHealth = await localRuntime.healthCheck("ollama");
@@ -376,6 +400,7 @@ assert(localRequests.some((request) => request.url === "http://llm.local:8080/he
 assert(localRequests.some((request) => request.url === "http://ollama.local:11434/api/tags"), "Ollama health check must call /api/tags.");
 assert(localAudits.some((audit) => audit.role === "chat" && audit.provider === "local-http" && audit.status === "success"), "Local HTTP chat must emit success audit.");
 assert(localAudits.some((audit) => audit.role === "text-embedding" && audit.provider === "local-http" && audit.status === "success"), "Local HTTP embeddings must emit success audit.");
+assert(localAudits.some((audit) => audit.role === "ocr" && audit.provider === "local-http" && audit.status === "success"), "Local HTTP OCR must emit success audit.");
 
 console.log("LLM SDK adapter validated.");
 

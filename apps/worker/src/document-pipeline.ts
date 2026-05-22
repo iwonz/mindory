@@ -44,7 +44,7 @@ import { FaceService } from "@mindory/core/faces";
 import type { ObjectStorage } from "@mindory/core/storage";
 import { AudioTranscriptExtractor } from "@mindory/extractor-audio-transcript";
 import { BuiltinTextExtractor } from "@mindory/extractor-builtin-text";
-import { DoclingPdfExtractor } from "@mindory/extractor-docling";
+import { DoclingPdfExtractor, type DoclingPdfExtractorOptions } from "@mindory/extractor-docling";
 import { ImageSemanticExtractor } from "@mindory/extractor-image-semantic";
 import { readVideoManifest, VideoKeyframeExtractor } from "@mindory/extractor-video-keyframe";
 import { buildMindoryLlm, llmRoleState, type MindoryLlm } from "@mindory/llm";
@@ -87,9 +87,7 @@ export function buildDocumentPipelineProcessors(options: DocumentPipelineProcess
     new VideoKeyframeExtractor({
       maxKeyframes: options.config.documentProcessing.video.maxKeyframes
     }),
-    new DoclingPdfExtractor({
-      ocr: llmRoleState(llm, "ocr")
-    }),
+    new DoclingPdfExtractor(doclingPdfExtractorOptions(llm)),
     new ImageSemanticExtractor({
       faceDetection: llmRoleState(llm, "face-detection"),
       faceRecognition: llmRoleState(llm, "face-recognition"),
@@ -188,6 +186,17 @@ export function buildDocumentPipelineProcessors(options: DocumentPipelineProcess
 
 export function buildEmbeddingsProvider(config: MindoryConfig): EmbeddingsProvider | undefined {
   return buildMindoryLlm(config).textEmbeddings;
+}
+
+function doclingPdfExtractorOptions(llm: MindoryLlm): DoclingPdfExtractorOptions {
+  const options: DoclingPdfExtractorOptions = {
+    ocr: llmRoleState(llm, "ocr"),
+    ocrRole: llm.registry.require("ocr")
+  };
+  if (llm.ocr !== undefined) {
+    options.ocrProvider = llm.ocr;
+  }
+  return options;
 }
 
 class DocumentRecomputeProcessor implements ProcessingJobProcessor {

@@ -6,7 +6,7 @@ The repository should be described with the support levels in
 
 ## Current Baseline
 
-The repository is complete through `TASK-75`.
+The repository is complete through `TASK-76`.
 
 Supported local MVP path:
 
@@ -25,6 +25,8 @@ Supported local MVP path:
   HTTP and Ollama services are implemented through `@mindory/llm`.
 - `pnpm mvp:demo --model-profile local --require-indexed` can exercise the
   indexed pgvector path with a deterministic local HTTP embeddings service.
+- Scanned-PDF OCR can run through `@mindory/llm` local HTTP OCR when the
+  experimental OCR role is enabled.
 
 Public GitHub hygiene baseline:
 

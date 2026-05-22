@@ -1,0 +1,66 @@
+{
+  "id": "TASK-76",
+  "title": "Add PDF OCR supported pipeline",
+  "status": "done",
+  "type": "feature",
+  "priority": "high",
+  "branch": "task/TASK-76-pdf-ocr-supported-pipeline",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Make scanned-PDF OCR run through @mindory/llm when the OCR role is enabled and persist OCR page artifacts/source refs.",
+    "background": "Native-text PDF extraction already creates page artifacts. OCR capability state was recorded but did not call a concrete adapter."
+  },
+  "scope": {
+    "in": [
+      "Expose an OCR provider role from @mindory/llm.",
+      "Implement local-http OCR calls through @mindory/llm.",
+      "Wire the OCR provider into the PDF extractor.",
+      "Persist OCR page text as pdf_page artifacts and ocr_text spans with source refs.",
+      "Handle disabled, skipped, failed and required OCR states in metadata/errors.",
+      "Add integration coverage with a fake local OCR provider and scanned-PDF fixture.",
+      "Update docs and validators for the supported PDF OCR path."
+    ],
+    "out": [
+      "Image OCR hardening.",
+      "PDF page rasterization with a native renderer.",
+      "OpenAI-compatible OCR adapter implementation.",
+      "Downloading or running heavy OCR model weights."
+    ]
+  },
+  "acceptance_criteria": [
+    "@mindory/llm exposes an OCR provider when OCR is enabled with local-http.",
+    "Local HTTP OCR calls POST /ocr and emits operation audit metadata.",
+    "Scanned PDFs with no native text can produce OCR page text through the OCR provider.",
+    "OCR page text is stored as pdf_page artifacts and ocr_text spans.",
+    "Document search can find OCR-derived PDF text with page source refs.",
+    "Required OCR failures surface as processing errors; disabled OCR remains non-blocking.",
+    "pnpm check passes."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm llm:validate",
+      "pnpm processing:validate",
+      "pnpm documents:validate",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-76.",
+      "Confirm RAW PDF objects remain immutable and OCR output is derived state."
+    ]
+  },
+  "dependencies": [
+    "TASK-75"
+  ],
+  "risks": [
+    "OCR must not run when the role is disabled.",
+    "A failed non-required OCR call must not corrupt native text extraction.",
+    "The OCR endpoint contract must stay inside @mindory/llm."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to done.",
+    "Branch is committed and merged back into master."
+  ]
+}

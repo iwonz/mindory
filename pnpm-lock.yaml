@@ -202,6 +202,9 @@ importers:
       '@mindory/core':
         specifier: workspace:*
         version: link:../../../core
+      '@mindory/llm':
+        specifier: workspace:*
+        version: link:../../../llm
 
   packages/processors/extractors/image-semantic:
     dependencies:

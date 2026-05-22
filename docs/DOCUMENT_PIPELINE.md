@@ -13,7 +13,8 @@ classifies uploaded files and creates only the enabled downstream jobs.
 `TASK-40` adds recompute flow for derived state.
 `TASK-41` moves the text pipeline onto the derived artifact model.
 `TASK-42` adds typed attachment metadata indexing for search filters.
-`TASK-43` adds PDF native text extraction on page-level artifacts.
+`TASK-43` adds PDF native text extraction on page-level artifacts. `TASK-76`
+adds model-backed scanned-PDF OCR through `@mindory/llm`.
 `TASK-44` adds the first image semantic extraction path.
 `TASK-46` adds the first audio transcript extraction path.
 `TASK-47` adds the first video keyframe extraction path.
@@ -32,7 +33,7 @@ index
 derive memory candidates
 ```
 
-Text, Markdown, PDF native text, image semantic extraction, audio transcript
+Text, Markdown, PDF native text/OCR, image semantic extraction, audio transcript
 extraction and video keyframe extraction are the currently implemented routes.
 
 Processing status must be durable in PostgreSQL, not only in BullMQ.
@@ -43,7 +44,7 @@ Processing status must be durable in PostgreSQL, not only in BullMQ.
 | --- | --- |
 | Text and Markdown | Supported local MVP. Extracts text, chunks it, stores spans and can search through full-text or pgvector when embeddings are enabled. |
 | Native-text PDF | Supported local MVP. Extracts page-level native text and source refs. |
-| Scanned PDF OCR | Future model-backed work. OCR configuration is recorded, but no real OCR adapter runs by default. |
+| Scanned PDF OCR | Supported when the OCR role is enabled with a local HTTP OCR provider; disabled by default. |
 | Image | Supported deterministic fallback. Stores derived caption/analysis text from file metadata and embedded text signals. Future work adds real OCR, vision labels, image embeddings and object detection. |
 | Face observations | Supported deterministic fallback only when explicit people-count signals are present. Future work adds real face detection and recognition adapters. |
 | Audio | Supported deterministic fallback for WAV metadata and embedded `INFO/ICMT` transcript text. Future work adds real ASR. |
@@ -165,8 +166,13 @@ native PDF text streams without mutating the RAW object. It writes:
 - chunk metadata and source refs that point back to overlapping page artifacts.
 
 OCR configuration is recorded in extraction metadata. The default runtime keeps
-OCR disabled. Scanned-PDF OCR is future model-backed work; native-text PDFs are
-searchable now.
+OCR disabled. When `MINDORY_LLM_OCR_ENABLED=true` and
+`MINDORY_LLM_OCR_PROVIDER=local-http`, the extractor calls `@mindory/llm` OCR
+over `POST /ocr` for pages without native text. OCR output is derived state
+only: it writes `pdf_page` artifacts with `ocr=true`, page-level `ocr_text`
+spans and chunk source refs back to the page artifact. If OCR is required and
+the provider fails or returns no text, extraction fails with a readable
+processing error.
 
 ## Image Processing
 

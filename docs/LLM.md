@@ -133,10 +133,16 @@ The local HTTP contract is intentionally small:
   `{ text }` / `{ output }` body.
 - `POST /embeddings` accepts `{ model, input, dimensions }` and returns either
   OpenAI-compatible `{ data: [{ index, embedding }] }` or `{ embeddings }`.
+- `POST /ocr` accepts `{ model, mime_type, data_base64 }` and returns `{ text }`
+  or `{ pages: [{ page_number, text, confidence }] }` for OCR-capable roles.
 
 `buildMindoryLlm(config).healthCheck("local-http")` checks `/health`.
 `healthCheck("ollama")` checks Ollama `/api/tags`; this verifies that the
 service is reachable without performing a model operation.
+
+The OCR role remains experimental and requires
+`MINDORY_INSTALL_ALLOW_EXPERIMENTAL=true` when enabled. The scanned-PDF pipeline
+uses this local HTTP OCR contract for pages without native PDF text.
 
 ## Runtime Boundary
 
@@ -154,7 +160,7 @@ current pgvector dimension guard.
 
 `buildMindoryLlm` accepts an optional `auditSink` callback. The SDK calls it for
 disabled role attempts through `disabledResult` and for current chat/text
-embedding provider calls with `success` or `failed` status, role, provider,
+embedding/OCR provider calls with `success` or `failed` status, role, provider,
 model, duration, usage details when available and optional
 project/document/job/session refs. TASK-55 keeps this as an in-process hook;
 durable audit persistence is future work.

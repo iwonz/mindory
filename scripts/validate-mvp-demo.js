@@ -65,7 +65,7 @@ for (const token of [
   assertIncludes(demoScript, token, "scripts/mvp-demo.js");
 }
 
-for (const token of ["/health", "/embeddings", "/chat/completions", "deterministicEmbedding", "1536"]) {
+for (const token of ["/health", "/embeddings", "/ocr", "/chat/completions", "deterministicEmbedding", "1536"]) {
   assertIncludes(localModelServer, token, "scripts/local-model-server.mjs");
 }
 

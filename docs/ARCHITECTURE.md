@@ -187,8 +187,8 @@ returns explicit `not_implemented` responses when dependencies are omitted.
   normalization for `.txt`, `.md` and `.markdown` inputs.
 - `@mindory/core/document-routing` classifies uploads by MIME, extension and
   magic bytes, then plans only enabled downstream jobs.
-- `@mindory/llm` is the runtime adapter entrypoint for text
-  embeddings and future OCR, ASR, vision and face capabilities, including
+- `@mindory/llm` is the runtime adapter entrypoint for text embeddings,
+  scanned-PDF OCR and future ASR, vision and face capabilities, including
   OpenAI-compatible API key or OAuth bearer auth.
 - `@mindory/vector-pgvector` implements the default PostgreSQL vector index.
 - `@mindory/vector-qdrant` remains an optional future vector adapter.

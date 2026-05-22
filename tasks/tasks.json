@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-75",
+  "current_task_id": "TASK-76",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -561,6 +561,13 @@
       "status": "done",
       "branch": "task/TASK-75-real-text-embeddings-acceptance",
       "file": "tasks/TASK-75.json"
+    },
+    {
+      "id": "TASK-76",
+      "title": "Add PDF OCR supported pipeline",
+      "status": "done",
+      "branch": "task/TASK-76-pdf-ocr-supported-pipeline",
+      "file": "tasks/TASK-76.json"
     }
   ]
 }

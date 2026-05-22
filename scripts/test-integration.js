@@ -103,7 +103,20 @@ test("API request guard rate-limits non-health requests", async () => {
 });
 
 test("MVP runtime integration covers auth, upload, worker jobs and context", { timeout: 120_000 }, async () => {
-  const config = modules.loadMindoryConfig(testEnv);
+  const fakeOcr = await startLocalHttpOcrServer({
+    pages: [{
+      pageNumber: 1,
+      text: "Scanned PDF OCR provider text keeps page source refs searchable.",
+      confidence: 0.98
+    }]
+  });
+  const config = modules.loadMindoryConfig({
+    ...testEnv,
+    MINDORY_LLM_OCR_ENABLED: "true",
+    MINDORY_LLM_OCR_PROVIDER: "local-http",
+    MINDORY_LLM_OCR_MODEL: "mindory-test-ocr",
+    MINDORY_LLM_LOCAL_HTTP_BASE_URL: fakeOcr.baseUrl
+  });
   let apiApp = null;
   let workerRuntime = null;
   let managementDatabase = null;
@@ -138,6 +151,7 @@ test("MVP runtime integration covers auth, upload, worker jobs and context", { t
     const { sessionId, messageId } = await createConversation(apiUrl);
     const { documentId, routeJobId } = await uploadAndProcessDocument(apiUrl);
     await uploadAndProcessPdfDocument(apiUrl);
+    await uploadAndProcessScannedPdfDocument(apiUrl);
     const imageDocument = await uploadAndProcessImageDocument(apiUrl);
     await assertFaceSubsystem(apiUrl, imageDocument.documentId);
     const audioDocument = await uploadAndProcessAudioDocument(apiUrl);
@@ -165,6 +179,7 @@ test("MVP runtime integration covers auth, upload, worker jobs and context", { t
     if (managementDatabase) {
       await managementDatabase.close();
     }
+    await fakeOcr.close();
     await cleanupProject(projectId);
     await rm(storagePath, { recursive: true, force: true });
   }
@@ -469,6 +484,53 @@ async function uploadAndProcessPdfDocument(apiUrl) {
   assert.equal(pageArtifacts, 2, "PDF extraction should persist one pdf_page artifact per page.");
   const pageSpans = await countDocumentTextSpans(projectId, documentId, "pdf_native_text", databaseUrl);
   assert.equal(pageSpans, 2, "PDF extraction should persist page-level native text spans.");
+}
+
+async function uploadAndProcessScannedPdfDocument(apiUrl) {
+  const pdf = buildMinimalPdf([""]);
+  const form = new FormData();
+  form.append("projectId", projectId);
+  form.append("title", "Integration scanned PDF document");
+  form.append("file", new Blob([pdf], { type: "application/pdf" }), "integration-scanned.pdf");
+
+  const uploadResponse = await fetch(`${apiUrl}/v1/documents`, {
+    method: "POST",
+    headers: {
+      accept: "application/json",
+      authorization: `Bearer ${bootstrapToken}`
+    },
+    body: form
+  });
+  if (uploadResponse.status !== 202) {
+    throw new Error(`Scanned PDF document upload failed ${uploadResponse.status}: ${await uploadResponse.text()}`);
+  }
+  const upload = await uploadResponse.json();
+  const documentId = upload.document.id;
+
+  await waitFor(async () => {
+    const status = await requestJson(apiUrl, "GET", `/v1/documents/${encodeURIComponent(documentId)}/status?projectId=${encodeURIComponent(projectId)}`);
+    return status.status === "chunked";
+  }, "scanned PDF document to reach chunked status");
+
+  const document = await requestJson(apiUrl, "GET", `/v1/documents/${encodeURIComponent(documentId)}?projectId=${encodeURIComponent(projectId)}`);
+  assert.equal(document.metadata.extraction.ocr.status, "succeeded");
+  assert.equal(document.metadata.extraction.ocr.pages_extracted, 1);
+
+  const search = await requestJson(apiUrl, "POST", "/v1/documents/search", {
+    projectIds: [projectId],
+    query: "Scanned PDF OCR provider text",
+    limit: 5,
+    metadataFilters: [{ key: "extension", valueText: "pdf" }]
+  });
+  const pdfHit = search.hits.find((hit) => hit.documentId === documentId);
+  assert.ok(pdfHit, "Scanned PDF document search should find OCR text.");
+  assert.ok(pdfHit.sourceRefs.some((ref) => ref.type === "artifact"), "Scanned PDF search should include artifact source refs.");
+  assert.ok(pdfHit.metadata.page_numbers.includes(1), "Scanned PDF chunk metadata should include OCR page number.");
+
+  const pageArtifacts = await countDocumentArtifacts(projectId, documentId, "pdf_page", databaseUrl);
+  assert.equal(pageArtifacts, 1, "Scanned PDF OCR should persist one pdf_page artifact.");
+  const ocrSpans = await countDocumentTextSpans(projectId, documentId, "ocr_text", databaseUrl);
+  assert.equal(ocrSpans, 1, "Scanned PDF OCR should persist page-level OCR text spans.");
 }
 
 async function uploadAndProcessImageDocument(apiUrl) {
@@ -1153,6 +1215,55 @@ function startOpenAiCompatibleEmbeddingServer(options) {
     server.listen(0, "127.0.0.1", () => {
       const address = server.address();
       assert.ok(address && typeof address !== "string", "Fake embeddings server must listen on a TCP address.");
+      resolve({
+        baseUrl: `http://127.0.0.1:${address.port}`,
+        calls,
+        close: () => new Promise((closeResolve, closeReject) => {
+          server.close((error) => {
+            if (error) {
+              closeReject(error);
+              return;
+            }
+            closeResolve();
+          });
+        })
+      });
+    });
+  });
+}
+
+function startLocalHttpOcrServer(options) {
+  const calls = [];
+  const server = http.createServer(async (request, response) => {
+    if (request.method !== "POST" || request.url !== "/ocr") {
+      response.writeHead(404, { "content-type": "application/json" });
+      response.end(JSON.stringify({ error: "not_found" }));
+      return;
+    }
+
+    try {
+      const body = JSON.parse(await readRequestBody(request));
+      calls.push({ model: body.model, mimeType: body.mime_type });
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({
+        model: body.model ?? "mindory-test-ocr",
+        text: options.pages.map((page) => page.text).join("\n\n"),
+        pages: options.pages.map((page) => ({
+          page_number: page.pageNumber,
+          text: page.text,
+          confidence: page.confidence
+        }))
+      }));
+    } catch (error) {
+      response.writeHead(500, { "content-type": "application/json" });
+      response.end(JSON.stringify({ error: error instanceof Error ? error.message : "ocr_server_error" }));
+    }
+  });
+
+  return new Promise((resolve) => {
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      assert.ok(address && typeof address !== "string", "Fake OCR server must listen on a TCP address.");
       resolve({
         baseUrl: `http://127.0.0.1:${address.port}`,
         calls,

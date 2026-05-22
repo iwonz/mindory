@@ -20,6 +20,8 @@ documentation.
 
 ### Added
 
+- `TASK-76`: scanned-PDF OCR pipeline through `@mindory/llm` local HTTP OCR,
+  with OCR page artifacts, `ocr_text` spans and integration coverage.
 - `TASK-75`: self-contained local strict indexed acceptance with deterministic
   local HTTP embeddings for the `local-models` profile.
 - `TASK-74`: local HTTP chat/text embedding adapters in `@mindory/llm`, plus
