@@ -93,6 +93,22 @@ mindory-installer resume --home ~/.mindory
 `repair` inspects lock and journal state. `resume` reports the stored journal
 and makes clear that full resume execution is added by a later task.
 
+## Dev/Test Matrix
+
+`TASK-62` adds a dry-run matrix for Linux, macOS and Windows under
+`packages/installer/fixtures/matrix`. Each fixture contains answer-file
+snapshots plus expected Compose profiles and dependency diagnostics.
+
+Run:
+
+```bash
+pnpm installer:matrix:validate
+```
+
+The matrix uses fake dependency probes. It does not start Docker, download
+releases, install system dependencies or mutate host state outside the normal
+TypeScript build outputs.
+
 ## Wizard Prompts
 
 The wizard prompts for:

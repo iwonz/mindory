@@ -1,0 +1,61 @@
+{
+  "id": "TASK-62",
+  "title": "Add dev/test installer matrix",
+  "status": "done",
+  "type": "chore",
+  "priority": "high",
+  "branch": "task/TASK-62-dev-test-installer-matrix",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Add dry-run installer validation across Linux, macOS and Windows fixtures.",
+    "background": "The installer needs test coverage for different host environments without mutating the developer machine or requiring real dependency installation."
+  },
+  "scope": {
+    "in": [
+      "Add Linux/macOS/Windows installer answer-file snapshots.",
+      "Add dry-run matrix validator using fake dependency probes.",
+      "Validate plan generation, redaction, compose profile selection and dependency diagnostics per OS fixture.",
+      "Add matrix validation to pnpm check.",
+      "Update installer docs."
+    ],
+    "out": [
+      "Real CI service configuration.",
+      "Mutating host dependency installation.",
+      "Full Docker install acceptance."
+    ]
+  },
+  "acceptance_criteria": [
+    "Fixture answer files exist for Linux, macOS and Windows.",
+    "Matrix validator runs without Docker, network or filesystem mutation outside temp paths.",
+    "Each fixture produces a valid install plan and redacted summary.",
+    "Dependency failures are represented as diagnostics rather than uncaught errors.",
+    "pnpm check includes installer matrix validation."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "pnpm installer:matrix:validate",
+      "pnpm installer:validate",
+      "pnpm lint",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-62.",
+      "Confirm validator uses fake probes and does not start Docker."
+    ]
+  },
+  "dependencies": [
+    "TASK-61"
+  ],
+  "risks": [
+    "Fixtures must not contain real secrets.",
+    "The matrix must stay deterministic across host OSes."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch is committed and merged back into master."
+  ]
+}
