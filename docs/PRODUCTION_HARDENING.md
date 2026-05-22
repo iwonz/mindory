@@ -12,9 +12,9 @@ minimum baseline for the MVP release path.
 | Local demo | Supported local MVP through Docker Compose and `pnpm mvp:demo`. |
 | Release images | Supported baseline. The release workflow runs `pnpm check` and builds a Docker image for the target version. Registry push policy is future hardening. |
 | Release bundles | Supported baseline. The release workflow generates bundle, manifest and checksum artifacts, then runs smoke-release-install. Signature verification remains future work. |
-| Installer execution | Partial baseline. Current installer can prepare `$MINDORY_HOME`, start Compose through health checks, provision the first token, refresh local assets, create/restore runtime backups, encrypt and upload remote backup archives and uninstall with explicit confirmation, but remote release update is future work. |
+| Installer execution | Partial baseline. Current installer can prepare `$MINDORY_HOME`, start Compose through health checks, provision the first token, refresh local assets, create/restore runtime backups, encrypt and upload remote backup archives, stream external S3 object backups and uninstall with explicit confirmation, but remote release update is future work. |
 | Public self-host acceptance | Supported gate. `pnpm selfhost:acceptance` dry-runs the public self-host path; opt-in live mode runs installer start, MVP acceptance, backup, reset and uninstall in a temporary home. |
-| Backup and restore | Supported MVP. Installer commands cover config, installer metadata, PostgreSQL dumps, local object storage state, scheduled local backup runs, local Compose PostgreSQL PITR with WAL archive/base backup/restore-to-time and encrypted S3-compatible remote backup archives. |
+| Backup and restore | Supported MVP. Installer commands cover config, installer metadata, PostgreSQL dumps, local object storage state, scheduled local backup runs, local Compose PostgreSQL PITR with WAL archive/base backup/restore-to-time, encrypted S3-compatible remote backup archives and external S3 object streaming backups. |
 | Observability | Supported baseline. Structured logs, model operation audit helpers, Prometheus metrics exporters, OpenTelemetry OTLP tracing/log export, in-process job/stage metrics, health snapshots and rate-limit strategy are documented in `docs/OBSERVABILITY.md`. |
 | Public GitHub readiness | Supported baseline. The repo includes license, contribution guide, root security policy, issue/PR templates, changelog/release notes policy, support matrix and repository status docs. |
 
@@ -190,6 +190,26 @@ mindory-installer restore --home "$MINDORY_HOME" \
   --backup "$MINDORY_HOME/backups/decrypted/<archive-dir>" \
   --yes --no-postgres
 ```
+
+For deployments where RAW object storage is an external S3-compatible bucket,
+validate bucket inventory and streaming backup separately from database restore:
+
+```bash
+mindory-installer s3-inventory --home "$MINDORY_HOME" --prefix documents/
+mindory-installer s3-backup --home "$MINDORY_HOME" \
+  --prefix documents/ \
+  --key "$MINDORY_BACKUP_ENCRYPTION_KEY" \
+  --key-id local-2026-05
+mindory-installer s3-restore --home "$MINDORY_HOME" \
+  --archive "$MINDORY_HOME/backups/<archive>.mindorys3bak" \
+  --key "$MINDORY_BACKUP_ENCRYPTION_KEY" \
+  --yes
+```
+
+The streaming archive records ListObjectsV2 page progress, object chunks,
+metadata and SHA-256 verification data. Use `--resume-after-key` with the last
+completed key printed by progress diagnostics when restarting an interrupted
+external S3 backup.
 
 The MVP uses forward migrations. If a migration or release must be rolled back,
 stop API and worker traffic, restore the verified backup, redeploy the previous

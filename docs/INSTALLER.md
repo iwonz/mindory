@@ -25,6 +25,7 @@ artifacts.
 | PostgreSQL PITR | Supported local baseline. `pitr-backup` creates a `pg_basebackup` base backup and `pitr-restore` stages recovery with WAL archive refs and a target time. |
 | Scheduled local backups | Supported. `backup-schedule` uses config-driven intervals, a lock file, retention, logs and health state under `$MINDORY_HOME`. |
 | Encrypted remote backups | Supported. `backup-archive`, `backup-upload`, `backup-download` and `backup-restore-archive` encrypt backup sets and verify S3-compatible object integrity. |
+| External S3 object streaming backups | Supported. `s3-inventory`, `s3-backup` and `s3-restore` list external object storage, create encrypted streaming archives and restore object keys/metadata without local object files. |
 | Uninstall | Supported with explicit `--yes`; optional backup is written next to the removed home. |
 | Dependency detection | Supported through injectable probes and diagnostics. |
 | Lock, journal and recovery diagnostics | Supported. `repair` and `resume` inspect current state. |
@@ -488,6 +489,51 @@ The restore step recreates the original `backup-manifest.json` or
 `$MINDORY_HOME/backups/decrypted`. Keep the encryption key outside the
 repository and outside installer logs; losing it makes remote archives
 unrecoverable.
+
+### External S3 Object Streaming Backups
+
+When `MINDORY_STORAGE_PROVIDER=s3`, RAW objects may live only in an external
+S3-compatible bucket. Export an inventory without reading local object files:
+
+```bash
+mindory-installer s3-inventory --home ~/.mindory --prefix documents/ --page-size 1000
+```
+
+The inventory uses S3 ListObjectsV2 pagination, HEAD metadata reads and reports
+object count, total bytes, pages and the last processed key.
+
+Create an encrypted streaming archive:
+
+```bash
+mindory-installer s3-backup --home ~/.mindory \
+  --prefix documents/ \
+  --key "$MINDORY_BACKUP_ENCRYPTION_KEY" \
+  --key-id local-2026-05
+```
+
+The archive is written as `.mindorys3bak` under `$MINDORY_HOME/backups`. Object
+bodies are read as streams from S3, chunked into an encrypted
+`ndjson-gzip-aes-256-gcm` payload and accompanied by SHA-256 verification data.
+If a run is interrupted after a known key, resume with:
+
+```bash
+mindory-installer s3-backup --home ~/.mindory \
+  --prefix documents/ \
+  --resume-after-key documents/last-good-key \
+  --key "$MINDORY_BACKUP_ENCRYPTION_KEY"
+```
+
+Restore objects and metadata into the configured S3-compatible bucket:
+
+```bash
+mindory-installer s3-restore --home ~/.mindory \
+  --archive ~/.mindory/backups/<archive>.mindorys3bak \
+  --key "$MINDORY_BACKUP_ENCRYPTION_KEY" \
+  --yes
+```
+
+Restore verifies the archive ciphertext, plaintext, object SHA-256 values,
+object counts and total bytes before reporting success.
 
 ## Generated State
 

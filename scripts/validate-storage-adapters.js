@@ -66,7 +66,7 @@ for (const token of ["path.isAbsolute(key)", "segment === \"..\"", "path.relativ
 for (const symbol of ["S3ObjectStorageOptions", "S3ObjectStorage"]) {
   assert(s3.includes(symbol), `S3 adapter must define ${symbol}.`);
 }
-for (const token of ["authorizationHeader", "AWS4-HMAC-SHA256", "x-amz-content-sha256", "normalizeS3Key", "ensureBucket", "checkBucketAccess", "object_not_found", "Readable.fromWeb"]) {
+for (const token of ["authorizationHeader", "AWS4-HMAC-SHA256", "x-amz-content-sha256", "normalizeS3Key", "ensureBucket", "checkBucketAccess", "listObjectsPage", "ListObjectsV2", "continuation-token", "object_not_found", "Readable.fromWeb"]) {
   assert(s3.includes(token), `S3 adapter must include ${token}.`);
 }
 assert(!s3.includes("storage_" + "not" + "_implemented"), "S3 adapter must remain fully implemented.");

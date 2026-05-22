@@ -1,8 +1,10 @@
 #!/usr/bin/env node
+import { writeFileSync } from "node:fs";
 import {
   acquireInstallLock,
   buildRedactedInstallSummary,
   createEncryptedMindoryBackupArchive,
+  createExternalS3StreamingBackupArchive,
   createMindoryPostgresPitrBaseBackup,
   createMindoryRuntimeBackup,
   createDefaultInstallAnswers,
@@ -13,12 +15,14 @@ import {
   installJournalPath,
   installLockPath,
   inspectInstallState,
+  exportExternalS3ObjectInventory,
   readScheduledBackupHealth,
   readInstallJournal,
   readInstallLock,
   renderEnvFile,
   renderMindoryConfigJson,
   restoreEncryptedMindoryBackupArchive,
+  restoreExternalS3StreamingBackupArchive,
   restoreMindoryPostgresPitrBackup,
   restoreMindoryRuntimeBackup,
   runScheduledMindoryBackup,
@@ -62,6 +66,12 @@ try {
     await runBackupDownloadCommand();
   } else if (command === "backup-restore-archive") {
     await runBackupRestoreArchiveCommand();
+  } else if (command === "s3-inventory") {
+    await runExternalS3InventoryCommand();
+  } else if (command === "s3-backup") {
+    await runExternalS3BackupCommand();
+  } else if (command === "s3-restore") {
+    await runExternalS3RestoreCommand();
   } else if (command === "backup-schedule") {
     await runBackupScheduleCommand();
   } else if (command === "pitr-backup") {
@@ -297,6 +307,82 @@ async function runBackupDownloadCommand(): Promise<void> {
   }
 }
 
+async function runExternalS3InventoryCommand(): Promise<void> {
+  const home = optionValue("--home") ?? createDefaultInstallAnswers().mindoryHome;
+  const prefix = optionValue("--prefix");
+  const outputFile = optionValue("--output");
+  const pageSize = parseOptionalNumber("--page-size");
+  try {
+    const manifest = await exportExternalS3ObjectInventory(home, {
+      ...(prefix === undefined ? {} : { prefix }),
+      ...(pageSize === undefined ? {} : { pageSize })
+    });
+    if (outputFile !== undefined) {
+      writeFileSync(outputFile, `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o600 });
+    }
+    printJson({
+      status: "external_s3_inventory_exported",
+      mindoryHome: home,
+      ...(outputFile === undefined ? {} : { outputFile }),
+      inventory: manifest
+    });
+  } catch (error) {
+    printJson({ diagnostic: formatInstallerDiagnostic(error) });
+    process.exitCode = 1;
+  }
+}
+
+async function runExternalS3BackupCommand(): Promise<void> {
+  const home = optionValue("--home") ?? createDefaultInstallAnswers().mindoryHome;
+  const prefix = optionValue("--prefix");
+  const outputFile = optionValue("--output");
+  const encryptionKey = optionValue("--key");
+  const keyId = optionValue("--key-id");
+  const pageSize = parseOptionalNumber("--page-size");
+  const resumeAfterKey = optionValue("--resume-after-key");
+  try {
+    const report = await createExternalS3StreamingBackupArchive(home, {
+      ...(prefix === undefined ? {} : { prefix }),
+      ...(outputFile === undefined ? {} : { outputFile }),
+      ...(encryptionKey === undefined ? {} : { encryptionKey }),
+      ...(keyId === undefined ? {} : { keyId }),
+      ...(pageSize === undefined ? {} : { pageSize }),
+      ...(resumeAfterKey === undefined ? {} : { resumeAfterKey })
+    });
+    printJson({
+      status: "external_s3_streaming_backup_created",
+      mindoryHome: home,
+      ...report
+    });
+  } catch (error) {
+    printJson({ diagnostic: formatInstallerDiagnostic(error) });
+    process.exitCode = 1;
+  }
+}
+
+async function runExternalS3RestoreCommand(): Promise<void> {
+  const home = optionValue("--home") ?? createDefaultInstallAnswers().mindoryHome;
+  const archivePath = optionValue("--archive");
+  const encryptionKey = optionValue("--key");
+  if (archivePath === undefined) {
+    throw new Error("s3-restore requires --archive <path>.");
+  }
+  try {
+    const report = await restoreExternalS3StreamingBackupArchive(home, archivePath, {
+      yes: args.includes("--yes"),
+      ...(encryptionKey === undefined ? {} : { encryptionKey })
+    });
+    printJson({
+      status: "external_s3_streaming_backup_restored",
+      mindoryHome: home,
+      ...report
+    });
+  } catch (error) {
+    printJson({ diagnostic: formatInstallerDiagnostic(error) });
+    process.exitCode = 1;
+  }
+}
+
 async function runRestoreCommand(): Promise<void> {
   const home = optionValue("--home") ?? createDefaultInstallAnswers().mindoryHome;
   const backupPath = optionValue("--backup");
@@ -495,6 +581,9 @@ Usage:
   mindory-installer backup-upload --home <path> --archive <path> [--object-key <key>]
   mindory-installer backup-download --home <path> --object-key <key> [--output <path>]
   mindory-installer backup-restore-archive --home <path> --archive <path> --yes [--key <secret>] [--output <path>]
+  mindory-installer s3-inventory --home <path> [--prefix <key-prefix>] [--page-size <n>] [--output <path>]
+  mindory-installer s3-backup --home <path> [--prefix <key-prefix>] [--output <path>] [--key <secret>] [--key-id <id>] [--page-size <n>] [--resume-after-key <key>]
+  mindory-installer s3-restore --home <path> --archive <path> --yes [--key <secret>]
   mindory-installer backup-schedule [--home <path>] [--status] [--run-now] [--label <name>] [--dry-run] [--no-postgres] [--no-objects]
   mindory-installer pitr-backup [--home <path>] [--output <path>] [--label <name>] [--dry-run]
   mindory-installer pitr-restore --home <path> --backup <path> --target-time <iso> --yes [--restore-directory <path>] [--replace-live-data]
@@ -514,6 +603,18 @@ function optionValue(name: string): string | undefined {
     return undefined;
   }
   return args[index + 1];
+}
+
+function parseOptionalNumber(name: string): number | undefined {
+  const value = optionValue(name);
+  if (value === undefined) {
+    return undefined;
+  }
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new Error(`${name} must be a positive integer.`);
+  }
+  return parsed;
 }
 
 function installSignalHandlers(cleanup: () => void): () => void {

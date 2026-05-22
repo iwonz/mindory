@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-105",
+  "current_task_id": "TASK-106",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -775,7 +775,7 @@
     {
       "id": "TASK-106",
       "title": "Add external S3 streaming backup",
-      "status": "draft",
+      "status": "done",
       "branch": "task/TASK-106-external-s3-streaming-backup",
       "file": "tasks/TASK-106.json"
     },

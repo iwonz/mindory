@@ -4,10 +4,13 @@ import {
   closeSync,
   constants,
   cpSync,
+  createReadStream,
+  createWriteStream,
   existsSync,
   accessSync,
   mkdirSync,
   openSync,
+  readSync,
   readdirSync,
   readFileSync,
   rmSync,
@@ -18,7 +21,9 @@ import {
 import path from "node:path";
 import { cwd as processCwd, env as processEnv, pid as processPid, stdin as defaultInput, stdout as defaultOutput } from "node:process";
 import { createInterface, type Interface as ReadlineInterface } from "node:readline/promises";
-import { gunzipSync, gzipSync } from "node:zlib";
+import type { Writable } from "node:stream";
+import { finished } from "node:stream/promises";
+import { createGunzip, createGzip, gunzipSync, gzipSync } from "node:zlib";
 import {
   CONFIG_CATALOG,
   loadMindoryConfig,
@@ -42,6 +47,7 @@ import {
   type LlmProviderHealth
 } from "@mindory/llm";
 import { S3ObjectStorage, normalizeS3Key } from "@mindory/storage-s3";
+import type { S3ListedObject } from "@mindory/storage-s3";
 
 export const INSTALLER_SCHEMA_VERSION = 1;
 
@@ -643,6 +649,90 @@ export interface RemoteBackupDownloadReport {
   bucket: string;
   sizeBytes: number;
   sha256: string;
+}
+
+export interface ExternalS3ObjectInventoryEntry {
+  key: string;
+  sizeBytes: number;
+  etag?: string;
+  lastModified?: string;
+  contentType?: string;
+  metadata: Record<string, string>;
+}
+
+export interface ExternalS3ObjectInventoryManifest {
+  schema_version: InstallerSchemaVersion;
+  kind: "mindory-external-s3-object-inventory";
+  created_at: string;
+  source: {
+    endpoint: string;
+    region: string;
+    bucket: string;
+    prefix: string;
+  };
+  object_count: number;
+  total_size_bytes: number;
+  page_count: number;
+  complete: boolean;
+  last_key: string | null;
+  objects: ExternalS3ObjectInventoryEntry[];
+}
+
+export interface ExternalS3StreamingBackupOptions extends InstallExecutionOptions {
+  s3?: Partial<RemoteBackupS3Config>;
+  prefix?: string;
+  outputFile?: string;
+  encryptionKey?: string;
+  keyId?: string;
+  pageSize?: number;
+  resumeAfterKey?: string;
+  progressSink?: (event: ExternalS3StreamingBackupProgressEvent) => void;
+}
+
+export interface ExternalS3StreamingBackupProgressEvent {
+  phase: "inventory_page" | "object_started" | "object_completed" | "archive_completed";
+  objectKey?: string;
+  objectCount: number;
+  bytesProcessed: number;
+  pageCount: number;
+  continuationToken?: string;
+}
+
+export interface ExternalS3StreamingBackupReport {
+  archivePath: string;
+  keyId: string;
+  sourceBucket: string;
+  sourcePrefix: string;
+  objectCount: number;
+  totalSizeBytes: number;
+  pageCount: number;
+  plaintextSha256: string;
+  ciphertextSha256: string;
+  sizeBytes: number;
+  lastKey: string | null;
+}
+
+export interface ExternalS3StreamingRestoreOptions extends InstallExecutionOptions {
+  s3?: Partial<RemoteBackupS3Config>;
+  yes: boolean;
+  encryptionKey?: string;
+  progressSink?: (event: ExternalS3StreamingRestoreProgressEvent) => void;
+}
+
+export interface ExternalS3StreamingRestoreProgressEvent {
+  phase: "object_started" | "object_restored" | "archive_completed";
+  objectKey?: string;
+  objectCount: number;
+  bytesProcessed: number;
+}
+
+export interface ExternalS3StreamingRestoreReport {
+  archivePath: string;
+  targetBucket: string;
+  objectCount: number;
+  totalSizeBytes: number;
+  plaintextSha256: string;
+  ciphertextSha256: string;
 }
 
 export interface ScheduledBackupConfig {
@@ -1836,6 +1926,325 @@ export async function downloadEncryptedMindoryBackupArchive(
     bucket: config.bucket,
     sizeBytes: body.length,
     sha256
+  };
+}
+
+export async function exportExternalS3ObjectInventory(
+  mindoryHome: string,
+  options: ExternalS3StreamingBackupOptions = {}
+): Promise<ExternalS3ObjectInventoryManifest> {
+  const resolvedHome = assertSafeMindoryHome(mindoryHome);
+  const config = readExternalObjectStorageS3Config(resolvedHome, options.s3, options.prefix);
+  const storage = createRemoteBackupS3Storage(config, options.s3FetchImpl);
+  await storage.checkBucketAccess();
+  const objects: ExternalS3ObjectInventoryEntry[] = [];
+  let continuationToken: string | undefined;
+  let pageCount = 0;
+  let totalSizeBytes = 0;
+  let lastKey: string | null = null;
+  do {
+    const page = await storage.listObjectsPage({
+      prefix: config.prefix,
+      ...(continuationToken === undefined ? {} : { continuationToken }),
+      ...(options.pageSize === undefined ? {} : { maxKeys: options.pageSize })
+    });
+    pageCount += 1;
+    for (const listed of page.objects) {
+      if (options.resumeAfterKey !== undefined && listed.key <= options.resumeAfterKey) {
+        continue;
+      }
+      const stat = await storage.statObject(listed.key);
+      const entry: ExternalS3ObjectInventoryEntry = {
+        key: listed.key,
+        sizeBytes: listed.sizeBytes,
+        metadata: stat.metadata
+      };
+      if (listed.etag !== undefined) {
+        entry.etag = listed.etag;
+      }
+      if (listed.lastModified !== undefined) {
+        entry.lastModified = listed.lastModified;
+      }
+      if (stat.contentType !== undefined) {
+        entry.contentType = stat.contentType;
+      }
+      objects.push(entry);
+      totalSizeBytes += entry.sizeBytes;
+      lastKey = entry.key;
+    }
+    continuationToken = page.nextContinuationToken;
+  } while (continuationToken !== undefined);
+
+  return {
+    schema_version: INSTALLER_SCHEMA_VERSION,
+    kind: "mindory-external-s3-object-inventory",
+    created_at: new Date().toISOString(),
+    source: {
+      endpoint: config.endpoint,
+      region: config.region,
+      bucket: config.bucket,
+      prefix: config.prefix
+    },
+    object_count: objects.length,
+    total_size_bytes: totalSizeBytes,
+    page_count: pageCount,
+    complete: true,
+    last_key: lastKey,
+    objects
+  };
+}
+
+export async function createExternalS3StreamingBackupArchive(
+  mindoryHome: string,
+  options: ExternalS3StreamingBackupOptions = {}
+): Promise<ExternalS3StreamingBackupReport> {
+  const resolvedHome = assertSafeMindoryHome(mindoryHome);
+  const source = readExternalObjectStorageS3Config(resolvedHome, options.s3, options.prefix);
+  const storage = createRemoteBackupS3Storage(source, options.s3FetchImpl);
+  await storage.checkBucketAccess();
+  const keyMaterial = resolveBackupEncryptionMaterial(resolvedHome, {
+    encryptionKey: options.encryptionKey,
+    keyId: options.keyId
+  });
+  const salt = randomBytes(16);
+  const iv = randomBytes(12);
+  const gzip = createGzip();
+  const cipher = createCipheriv("aes-256-gcm", deriveBackupEncryptionKey(keyMaterial.secret, salt), iv);
+  const plaintextHash = createHash("sha256");
+  const ciphertextHash = createHash("sha256");
+  const outputFile = path.resolve(options.outputFile ?? path.join(
+    resolvedHome,
+    "backups",
+    `${timestampLabel()}-${sanitizeBackupLabel(source.bucket)}-external-s3.mindorys3bak`
+  ));
+  assertPathInside(outputFile, path.join(resolvedHome, "backups"));
+  mkdirSync(path.dirname(outputFile), { recursive: true, mode: 0o700 });
+  const out = createWriteStream(outputFile, { mode: 0o600 });
+  const header: ExternalS3StreamArchiveHeader = {
+    schema_version: INSTALLER_SCHEMA_VERSION,
+    kind: "mindory-external-s3-streaming-backup",
+    created_at: new Date().toISOString(),
+    archive_format: "ndjson-gzip-aes-256-gcm",
+    key_id: keyMaterial.keyId,
+    cipher: "aes-256-gcm",
+    kdf: "scrypt-sha256",
+    salt_base64: salt.toString("base64"),
+    iv_base64: iv.toString("base64"),
+    source: {
+      endpoint: source.endpoint,
+      region: source.region,
+      bucket: source.bucket,
+      prefix: source.prefix
+    },
+    resume_after_key: options.resumeAfterKey ?? null
+  };
+  await writeRaw(out, Buffer.from(`${EXTERNAL_S3_STREAM_MAGIC}${JSON.stringify(header)}\n\n`, "utf8"));
+  const streamDone = finished(out);
+  const cipherDone = finished(cipher);
+  cipher.on("data", (chunk: Buffer) => ciphertextHash.update(chunk));
+  gzip.pipe(cipher).pipe(out, { end: false });
+
+  let continuationToken: string | undefined;
+  let pageCount = 0;
+  let objectCount = 0;
+  let totalSizeBytes = 0;
+  let lastKey: string | null = null;
+  await writeArchiveLine(gzip, plaintextHash, {
+    type: "inventory_start",
+    schema_version: INSTALLER_SCHEMA_VERSION,
+    source: header.source,
+    created_at: header.created_at,
+    resume_after_key: header.resume_after_key
+  });
+
+  try {
+    do {
+      const page = await storage.listObjectsPage({
+        prefix: source.prefix,
+        ...(continuationToken === undefined ? {} : { continuationToken }),
+        ...(options.pageSize === undefined ? {} : { maxKeys: options.pageSize })
+      });
+      pageCount += 1;
+      options.progressSink?.({
+        phase: "inventory_page",
+        objectCount,
+        bytesProcessed: totalSizeBytes,
+        pageCount,
+        ...(page.nextContinuationToken === undefined ? {} : { continuationToken: page.nextContinuationToken })
+      });
+      for (const listed of page.objects) {
+        if (options.resumeAfterKey !== undefined && listed.key <= options.resumeAfterKey) {
+          continue;
+        }
+        options.progressSink?.({
+          phase: "object_started",
+          objectKey: listed.key,
+          objectCount,
+          bytesProcessed: totalSizeBytes,
+          pageCount
+        });
+        const completed = await streamExternalS3ObjectIntoArchive(storage, listed, gzip, plaintextHash);
+        objectCount += 1;
+        totalSizeBytes += completed.sizeBytes;
+        lastKey = listed.key;
+        options.progressSink?.({
+          phase: "object_completed",
+          objectKey: listed.key,
+          objectCount,
+          bytesProcessed: totalSizeBytes,
+          pageCount
+        });
+      }
+      continuationToken = page.nextContinuationToken;
+    } while (continuationToken !== undefined);
+    await writeArchiveLine(gzip, plaintextHash, {
+      type: "inventory_end",
+      object_count: objectCount,
+      total_size_bytes: totalSizeBytes,
+      page_count: pageCount,
+      last_key: lastKey
+    });
+    gzip.end();
+    await cipherDone;
+    const authTag = cipher.getAuthTag();
+    const trailer: ExternalS3StreamArchiveTrailer = {
+      auth_tag_base64: authTag.toString("base64"),
+      plaintext_sha256: plaintextHash.digest("hex"),
+      ciphertext_sha256: ciphertextHash.digest("hex"),
+      object_count: objectCount,
+      total_size_bytes: totalSizeBytes,
+      page_count: pageCount,
+      last_key: lastKey,
+      complete: true
+    };
+    await writeRaw(out, Buffer.from(JSON.stringify(trailer), "utf8"));
+    const trailerLength = Buffer.alloc(4);
+    trailerLength.writeUInt32BE(Buffer.byteLength(JSON.stringify(trailer), "utf8"), 0);
+    await writeRaw(out, trailerLength);
+    out.end();
+    await streamDone;
+    options.progressSink?.({
+      phase: "archive_completed",
+      objectCount,
+      bytesProcessed: totalSizeBytes,
+      pageCount
+    });
+    return {
+      archivePath: outputFile,
+      keyId: keyMaterial.keyId,
+      sourceBucket: source.bucket,
+      sourcePrefix: source.prefix,
+      objectCount,
+      totalSizeBytes,
+      pageCount,
+      plaintextSha256: trailer.plaintext_sha256,
+      ciphertextSha256: trailer.ciphertext_sha256,
+      sizeBytes: statSync(outputFile).size,
+      lastKey
+    };
+  } catch (error) {
+    gzip.destroy(error instanceof Error ? error : new Error(String(error)));
+    cipher.destroy(error instanceof Error ? error : new Error(String(error)));
+    out.destroy(error instanceof Error ? error : new Error(String(error)));
+    throw error;
+  }
+}
+
+export async function restoreExternalS3StreamingBackupArchive(
+  mindoryHome: string,
+  archivePath: string,
+  options: ExternalS3StreamingRestoreOptions
+): Promise<ExternalS3StreamingRestoreReport> {
+  if (!options.yes) {
+    throw new Error("External S3 streaming restore requires explicit confirmation through yes=true or --yes.");
+  }
+  const resolvedHome = assertSafeMindoryHome(mindoryHome);
+  const resolvedArchive = path.resolve(archivePath);
+  const parsedArchive = readExternalS3StreamArchiveIndex(resolvedArchive);
+  const target = readExternalObjectStorageS3Config(resolvedHome, options.s3, parsedArchive.header.source.prefix);
+  const storage = createRemoteBackupS3Storage(target, options.s3FetchImpl);
+  await storage.ensureBucket();
+  await storage.checkBucketAccess();
+  const keyMaterial = resolveBackupEncryptionMaterial(resolvedHome, {
+    encryptionKey: options.encryptionKey,
+    keyId: parsedArchive.header.key_id
+  });
+  const ciphertextHash = await hashFileRange(resolvedArchive, parsedArchive.ciphertextStart, parsedArchive.ciphertextEnd);
+  if (ciphertextHash !== parsedArchive.trailer.ciphertext_sha256) {
+    throw new Error("External S3 streaming archive ciphertext hash verification failed.");
+  }
+  const decipher = createDecipheriv(
+    "aes-256-gcm",
+    deriveBackupEncryptionKey(keyMaterial.secret, Buffer.from(parsedArchive.header.salt_base64, "base64")),
+    Buffer.from(parsedArchive.header.iv_base64, "base64")
+  );
+  decipher.setAuthTag(Buffer.from(parsedArchive.trailer.auth_tag_base64, "base64"));
+  const gunzip = createGunzip();
+  const plaintextHash = createHash("sha256");
+  let lineBuffer = "";
+  let current: ExternalS3RestoreObjectState | null = null;
+  let objectCount = 0;
+  let totalSizeBytes = 0;
+  const plaintext = createReadStream(resolvedArchive, {
+    start: parsedArchive.ciphertextStart,
+    end: parsedArchive.ciphertextEnd
+  }).pipe(decipher).pipe(gunzip);
+
+  for await (const chunk of plaintext) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    plaintextHash.update(buffer);
+    lineBuffer += buffer.toString("utf8");
+    let newlineIndex = lineBuffer.indexOf("\n");
+    while (newlineIndex !== -1) {
+      const line = lineBuffer.slice(0, newlineIndex);
+      lineBuffer = lineBuffer.slice(newlineIndex + 1);
+      if (line.trim() !== "") {
+        const result = await processExternalS3RestoreLine(line, current, storage, options);
+        current = result.current;
+        if (result.completed !== null) {
+          objectCount += 1;
+          totalSizeBytes += result.completed.sizeBytes;
+          options.progressSink?.({
+            phase: "object_restored",
+            objectKey: result.completed.key,
+            objectCount,
+            bytesProcessed: totalSizeBytes
+          });
+        }
+      }
+      newlineIndex = lineBuffer.indexOf("\n");
+    }
+  }
+  if (lineBuffer.trim() !== "") {
+    const result = await processExternalS3RestoreLine(lineBuffer, current, storage, options);
+    current = result.current;
+    if (result.completed !== null) {
+      objectCount += 1;
+      totalSizeBytes += result.completed.sizeBytes;
+    }
+  }
+  if (current !== null) {
+    throw new Error(`External S3 streaming archive ended before object ${current.key} completed.`);
+  }
+  const plaintextSha256 = plaintextHash.digest("hex");
+  if (plaintextSha256 !== parsedArchive.trailer.plaintext_sha256) {
+    throw new Error("External S3 streaming archive plaintext hash verification failed.");
+  }
+  if (objectCount !== parsedArchive.trailer.object_count || totalSizeBytes !== parsedArchive.trailer.total_size_bytes) {
+    throw new Error("External S3 streaming archive object count or size verification failed.");
+  }
+  options.progressSink?.({
+    phase: "archive_completed",
+    objectCount,
+    bytesProcessed: totalSizeBytes
+  });
+  return {
+    archivePath: resolvedArchive,
+    targetBucket: target.bucket,
+    objectCount,
+    totalSizeBytes,
+    plaintextSha256,
+    ciphertextSha256: parsedArchive.trailer.ciphertext_sha256
   };
 }
 
@@ -3813,6 +4222,35 @@ function readRemoteBackupS3Config(
   return config;
 }
 
+function readExternalObjectStorageS3Config(
+  mindoryHome: string,
+  overrides: Partial<RemoteBackupS3Config> | undefined,
+  prefixOverride: string | undefined
+): RemoteBackupS3Config {
+  const env = readMindoryHomeEnvironment(mindoryHome);
+  const provider = env.MINDORY_STORAGE_PROVIDER ?? catalogDefault("MINDORY_STORAGE_PROVIDER");
+  if (provider !== "s3" && overrides === undefined) {
+    throw new Error("External S3 streaming backup requires MINDORY_STORAGE_PROVIDER=s3 or explicit S3 options.");
+  }
+  const config: RemoteBackupS3Config = {
+    endpoint: overrides?.endpoint ?? env.MINDORY_S3_ENDPOINT ?? catalogDefault("MINDORY_S3_ENDPOINT"),
+    region: overrides?.region ?? env.MINDORY_S3_REGION ?? catalogDefault("MINDORY_S3_REGION"),
+    bucket: overrides?.bucket ?? env.MINDORY_S3_BUCKET ?? catalogDefault("MINDORY_S3_BUCKET"),
+    accessKeyId: overrides?.accessKeyId ?? env.MINDORY_S3_ACCESS_KEY_ID ?? catalogDefault("MINDORY_S3_ACCESS_KEY_ID"),
+    secretAccessKey: overrides?.secretAccessKey ?? env.MINDORY_S3_SECRET_ACCESS_KEY ?? catalogDefault("MINDORY_S3_SECRET_ACCESS_KEY"),
+    forcePathStyle: overrides?.forcePathStyle ?? (env.MINDORY_S3_FORCE_PATH_STYLE ?? catalogDefault("MINDORY_S3_FORCE_PATH_STYLE")) === "true",
+    prefix: prefixOverride ?? overrides?.prefix ?? ""
+  };
+  const errors = validateS3StorageAnswers(config);
+  if (config.prefix !== "" && !isValidObjectKeyPrefix(config.prefix)) {
+    errors.push("external S3 object prefix must be relative and cannot contain path traversal.");
+  }
+  if (errors.length > 0) {
+    throw new Error(`Invalid external S3 object storage config: ${errors.join(" ")}`);
+  }
+  return config;
+}
+
 function createRemoteBackupS3Storage(config: RemoteBackupS3Config, fetchImpl?: typeof fetch): S3ObjectStorage {
   const options = {
     endpoint: config.endpoint,
@@ -3835,6 +4273,289 @@ async function readableBodyToBuffer(body: AsyncIterable<Buffer | Uint8Array | st
     chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
   }
   return Buffer.concat(chunks);
+}
+
+const EXTERNAL_S3_STREAM_MAGIC = "MINDORY-S3-STREAM-BACKUP-1\n";
+
+interface ExternalS3StreamArchiveHeader {
+  schema_version: InstallerSchemaVersion;
+  kind: "mindory-external-s3-streaming-backup";
+  created_at: string;
+  archive_format: "ndjson-gzip-aes-256-gcm";
+  key_id: string;
+  cipher: "aes-256-gcm";
+  kdf: "scrypt-sha256";
+  salt_base64: string;
+  iv_base64: string;
+  source: {
+    endpoint: string;
+    region: string;
+    bucket: string;
+    prefix: string;
+  };
+  resume_after_key: string | null;
+}
+
+interface ExternalS3StreamArchiveTrailer {
+  auth_tag_base64: string;
+  plaintext_sha256: string;
+  ciphertext_sha256: string;
+  object_count: number;
+  total_size_bytes: number;
+  page_count: number;
+  last_key: string | null;
+  complete: boolean;
+}
+
+interface ExternalS3StreamArchiveIndex {
+  header: ExternalS3StreamArchiveHeader;
+  trailer: ExternalS3StreamArchiveTrailer;
+  ciphertextStart: number;
+  ciphertextEnd: number;
+}
+
+interface ExternalS3RestoreObjectState {
+  key: string;
+  contentType?: string;
+  metadata: Record<string, string>;
+  chunks: Buffer[];
+  hash: ReturnType<typeof createHash>;
+  bytes: number;
+}
+
+async function streamExternalS3ObjectIntoArchive(
+  storage: S3ObjectStorage,
+  listed: S3ListedObject,
+  gzip: ReturnType<typeof createGzip>,
+  plaintextHash: ReturnType<typeof createHash>
+): Promise<{ key: string; sizeBytes: number; sha256: string }> {
+  const object = await storage.getObject(listed.key);
+  await writeArchiveLine(gzip, plaintextHash, {
+    type: "object_start",
+    key: listed.key,
+    size_bytes: listed.sizeBytes,
+    etag: listed.etag ?? object.etag ?? null,
+    last_modified: listed.lastModified ?? null,
+    content_type: object.contentType ?? null,
+    metadata: object.metadata
+  });
+  const objectHash = createHash("sha256");
+  let bytes = 0;
+  for await (const chunk of object.body) {
+    const body = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    objectHash.update(body);
+    bytes += body.length;
+    await writeArchiveLine(gzip, plaintextHash, {
+      type: "object_chunk",
+      key: listed.key,
+      data_base64: body.toString("base64")
+    });
+  }
+  const sha256 = objectHash.digest("hex");
+  if (bytes !== listed.sizeBytes) {
+    throw new Error(`External S3 object ${listed.key} size changed during backup: listed=${listed.sizeBytes} streamed=${bytes}.`);
+  }
+  await writeArchiveLine(gzip, plaintextHash, {
+    type: "object_end",
+    key: listed.key,
+    size_bytes: bytes,
+    sha256
+  });
+  return { key: listed.key, sizeBytes: bytes, sha256 };
+}
+
+async function writeArchiveLine(
+  stream: Writable,
+  plaintextHash: ReturnType<typeof createHash>,
+  value: Record<string, unknown>
+): Promise<void> {
+  const line = Buffer.from(`${JSON.stringify(value)}\n`, "utf8");
+  plaintextHash.update(line);
+  await writeRaw(stream, line);
+}
+
+function writeRaw(stream: Writable, buffer: Buffer): Promise<void> {
+  if (stream.write(buffer)) {
+    return Promise.resolve();
+  }
+  return new Promise((resolve, reject) => {
+    const onDrain = (): void => {
+      cleanup();
+      resolve();
+    };
+    const onError = (error: Error): void => {
+      cleanup();
+      reject(error);
+    };
+    const cleanup = (): void => {
+      stream.off("drain", onDrain);
+      stream.off("error", onError);
+    };
+    stream.once("drain", onDrain);
+    stream.once("error", onError);
+  });
+}
+
+function readExternalS3StreamArchiveIndex(archivePath: string): ExternalS3StreamArchiveIndex {
+  if (!existsSync(archivePath)) {
+    throw new Error(`External S3 streaming archive not found at ${archivePath}.`);
+  }
+  const size = statSync(archivePath).size;
+  const fd = openSync(archivePath, "r");
+  try {
+    const trailerLengthBuffer = Buffer.alloc(4);
+    readSync(fd, trailerLengthBuffer, 0, 4, size - 4);
+    const trailerLength = trailerLengthBuffer.readUInt32BE(0);
+    const trailerStart = size - 4 - trailerLength;
+    if (trailerStart <= EXTERNAL_S3_STREAM_MAGIC.length) {
+      throw new Error("External S3 streaming archive trailer is invalid.");
+    }
+    const trailerBuffer = Buffer.alloc(trailerLength);
+    readSync(fd, trailerBuffer, 0, trailerLength, trailerStart);
+    const headBuffer = Buffer.alloc(Math.min(65536, trailerStart));
+    readSync(fd, headBuffer, 0, headBuffer.length, 0);
+    const headerText = headBuffer.toString("utf8");
+    if (!headerText.startsWith(EXTERNAL_S3_STREAM_MAGIC)) {
+      throw new Error("External S3 streaming archive magic header is invalid.");
+    }
+    const separatorIndex = headerText.indexOf("\n\n");
+    if (separatorIndex === -1) {
+      throw new Error("External S3 streaming archive header terminator was not found.");
+    }
+    const headerJson = headerText.slice(EXTERNAL_S3_STREAM_MAGIC.length, separatorIndex);
+    const header = JSON.parse(headerJson) as ExternalS3StreamArchiveHeader;
+    validateExternalS3StreamHeader(header);
+    const trailer = JSON.parse(trailerBuffer.toString("utf8")) as ExternalS3StreamArchiveTrailer;
+    validateExternalS3StreamTrailer(trailer);
+    return {
+      header,
+      trailer,
+      ciphertextStart: Buffer.byteLength(headerText.slice(0, separatorIndex + 2), "utf8"),
+      ciphertextEnd: trailerStart - 1
+    };
+  } finally {
+    closeSync(fd);
+  }
+}
+
+function validateExternalS3StreamHeader(header: ExternalS3StreamArchiveHeader): void {
+  if (
+    header.kind !== "mindory-external-s3-streaming-backup" ||
+    header.schema_version !== INSTALLER_SCHEMA_VERSION ||
+    header.archive_format !== "ndjson-gzip-aes-256-gcm" ||
+    header.cipher !== "aes-256-gcm" ||
+    header.kdf !== "scrypt-sha256"
+  ) {
+    throw new Error("Unsupported external S3 streaming archive header.");
+  }
+}
+
+function validateExternalS3StreamTrailer(trailer: ExternalS3StreamArchiveTrailer): void {
+  if (!trailer.complete || trailer.object_count < 0 || trailer.total_size_bytes < 0 || trailer.page_count < 0) {
+    throw new Error("Unsupported external S3 streaming archive trailer.");
+  }
+}
+
+async function hashFileRange(filePath: string, start: number, end: number): Promise<string> {
+  const hash = createHash("sha256");
+  const stream = createReadStream(filePath, { start, end });
+  for await (const chunk of stream) {
+    hash.update(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return hash.digest("hex");
+}
+
+async function processExternalS3RestoreLine(
+  line: string,
+  current: ExternalS3RestoreObjectState | null,
+  storage: S3ObjectStorage,
+  options: ExternalS3StreamingRestoreOptions
+): Promise<{
+  current: ExternalS3RestoreObjectState | null;
+  completed: { key: string; sizeBytes: number } | null;
+}> {
+  const event = JSON.parse(line) as Record<string, unknown>;
+  if (event.type === "inventory_start" || event.type === "inventory_end") {
+    return { current, completed: null };
+  }
+  if (event.type === "object_start") {
+    if (current !== null) {
+      throw new Error(`External S3 streaming archive started ${String(event.key)} before completing ${current.key}.`);
+    }
+    const key = parseArchiveObjectKey(event);
+    options.progressSink?.({
+      phase: "object_started",
+      objectKey: key,
+      objectCount: 0,
+      bytesProcessed: 0
+    });
+    const metadata = typeof event.metadata === "object" && event.metadata !== null
+      ? Object.fromEntries(Object.entries(event.metadata).map(([name, value]) => [name, String(value)]))
+      : {};
+    const next: ExternalS3RestoreObjectState = {
+      key,
+      metadata,
+      chunks: [],
+      hash: createHash("sha256"),
+      bytes: 0
+    };
+    if (typeof event.content_type === "string" && event.content_type !== "") {
+      next.contentType = event.content_type;
+    }
+    return { current: next, completed: null };
+  }
+  if (event.type === "object_chunk") {
+    if (current === null) {
+      throw new Error("External S3 streaming archive contains object_chunk without object_start.");
+    }
+    const key = parseArchiveObjectKey(event);
+    if (key !== current.key) {
+      throw new Error(`External S3 streaming archive chunk key ${key} does not match current object ${current.key}.`);
+    }
+    if (typeof event.data_base64 !== "string") {
+      throw new Error(`External S3 streaming archive chunk for ${key} is missing data_base64.`);
+    }
+    const body = Buffer.from(event.data_base64, "base64");
+    current.hash.update(body);
+    current.bytes += body.length;
+    current.chunks.push(body);
+    return { current, completed: null };
+  }
+  if (event.type === "object_end") {
+    if (current === null) {
+      throw new Error("External S3 streaming archive contains object_end without object_start.");
+    }
+    const key = parseArchiveObjectKey(event);
+    if (key !== current.key) {
+      throw new Error(`External S3 streaming archive end key ${key} does not match current object ${current.key}.`);
+    }
+    const expectedSize = typeof event.size_bytes === "number" ? event.size_bytes : Number(event.size_bytes);
+    const expectedSha256 = typeof event.sha256 === "string" ? event.sha256 : "";
+    if (current.bytes !== expectedSize || current.hash.digest("hex") !== expectedSha256) {
+      throw new Error(`External S3 streaming archive object verification failed for ${current.key}.`);
+    }
+    await storage.putObject({
+      key: current.key,
+      body: Buffer.concat(current.chunks),
+      ...(current.contentType === undefined ? {} : { contentType: current.contentType }),
+      metadata: current.metadata
+    });
+    return {
+      current: null,
+      completed: {
+        key: current.key,
+        sizeBytes: current.bytes
+      }
+    };
+  }
+  throw new Error(`Unsupported external S3 streaming archive line type ${String(event.type)}.`);
+}
+
+function parseArchiveObjectKey(event: Record<string, unknown>): string {
+  if (typeof event.key !== "string") {
+    throw new Error("External S3 streaming archive object line is missing key.");
+  }
+  return normalizeS3Key(event.key);
 }
 
 function restoreFilesystemComponent(

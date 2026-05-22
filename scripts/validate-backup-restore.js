@@ -31,7 +31,11 @@ for (const token of [
   "restoreEncryptedMindoryBackupArchive",
   "uploadEncryptedMindoryBackupArchive",
   "downloadEncryptedMindoryBackupArchive",
+  "exportExternalS3ObjectInventory",
+  "createExternalS3StreamingBackupArchive",
+  "restoreExternalS3StreamingBackupArchive",
   "aes-256-gcm",
+  "mindory-external-s3-streaming-backup",
   "runScheduledMindoryBackup",
   "ScheduledBackupHealth",
   "RuntimeBackupManifest",
@@ -52,15 +56,16 @@ for (const token of [
   assert(installerSource.includes(token), `Installer source must include ${token}.`);
 }
 
-for (const token of ["command === \"backup\"", "command === \"backup-archive\"", "command === \"backup-upload\"", "command === \"backup-download\"", "command === \"backup-restore-archive\"", "command === \"backup-schedule\"", "command === \"pitr-backup\"", "command === \"pitr-restore\"", "command === \"restore\"", "mindory-installer backup", "mindory-installer backup-archive", "mindory-installer backup-upload", "mindory-installer backup-download", "mindory-installer backup-restore-archive", "mindory-installer backup-schedule", "mindory-installer pitr-backup", "mindory-installer pitr-restore", "mindory-installer restore"]) {
+for (const token of ["command === \"backup\"", "command === \"backup-archive\"", "command === \"backup-upload\"", "command === \"backup-download\"", "command === \"backup-restore-archive\"", "command === \"s3-inventory\"", "command === \"s3-backup\"", "command === \"s3-restore\"", "command === \"backup-schedule\"", "command === \"pitr-backup\"", "command === \"pitr-restore\"", "command === \"restore\"", "mindory-installer backup", "mindory-installer backup-archive", "mindory-installer backup-upload", "mindory-installer backup-download", "mindory-installer backup-restore-archive", "mindory-installer s3-inventory", "mindory-installer s3-backup", "mindory-installer s3-restore", "mindory-installer backup-schedule", "mindory-installer pitr-backup", "mindory-installer pitr-restore", "mindory-installer restore"]) {
   assert(installerCli.includes(token), `Installer CLI must expose ${token}.`);
 }
 
-for (const token of ["backup-manifest.json", "pitr-manifest.json", "pg_dump", "pg_basebackup", "restore --home", "backup-archive --home", "backup-upload --home", "backup-download --home", "backup-restore-archive --home", "backup-schedule --home", "pitr-backup --home", "pitr-restore --home", "scheduled-backup-health.json", "scheduled-backup.log", "MINDORY_BACKUP_RETENTION_COUNT", "MINDORY_POSTGRES_WAL_ARCHIVE_ENABLED", "MINDORY_REMOTE_BACKUP_ENABLED", "External S3-compatible bucket data"]) {
+for (const token of ["backup-manifest.json", "pitr-manifest.json", "pg_dump", "pg_basebackup", "restore --home", "backup-archive --home", "backup-upload --home", "backup-download --home", "backup-restore-archive --home", "s3-inventory --home", "s3-backup --home", "s3-restore --home", "backup-schedule --home", "pitr-backup --home", "pitr-restore --home", "scheduled-backup-health.json", "scheduled-backup.log", "MINDORY_BACKUP_RETENTION_COUNT", "MINDORY_POSTGRES_WAL_ARCHIVE_ENABLED", "MINDORY_REMOTE_BACKUP_ENABLED", "External S3-compatible bucket data"]) {
   assert(installerDocs.includes(token), `Installer docs must describe ${token}.`);
 }
 assert(productionDocs.includes("mindory-installer backup"), "Production hardening docs must use the installer backup command.");
 assert(productionDocs.includes("mindory-installer backup-archive"), "Production hardening docs must use the encrypted backup archive command.");
+assert(productionDocs.includes("mindory-installer s3-backup"), "Production hardening docs must use the external S3 streaming backup command.");
 assert(productionDocs.includes("mindory-installer pitr-backup"), "Production hardening docs must use the PITR backup command.");
 assert(productionDocs.includes("MINDORY_BACKUP_SCHEDULE_ENABLED"), "Production hardening docs must document scheduled backup config.");
 assert(productionDocs.includes("MINDORY_REMOTE_BACKUP_S3_ENDPOINT"), "Production hardening docs must document remote backup config.");
@@ -373,14 +378,120 @@ const externalReport = await installer.createMindoryRuntimeBackup(externalHome, 
 });
 assert(externalReport.components.some((component) => component.component === "external_s3" && component.status === "skipped"), "External S3 backup must be explicitly skipped with a reason.");
 
+fs.writeFileSync(path.join(externalHome, "config", ".env"), [
+  `MINDORY_HOME=${externalHome}`,
+  "MINDORY_STORAGE_PROVIDER=s3",
+  "MINDORY_S3_ENDPOINT=http://s3.example.test",
+  "MINDORY_S3_REGION=us-east-1",
+  "MINDORY_S3_BUCKET=mindory",
+  "MINDORY_S3_ACCESS_KEY_ID=external-access",
+  "MINDORY_S3_SECRET_ACCESS_KEY=external-secret",
+  "MINDORY_S3_FORCE_PATH_STYLE=true",
+  "MINDORY_BACKUP_ENCRYPTION_KEY_ID=external-key",
+  "MINDORY_BACKUP_ENCRYPTION_KEY=external-encryption-key"
+].join("\n"));
+const externalS3Fetch = createInMemoryS3Fetch([
+  {
+    bucket: "mindory",
+    key: "documents/a.txt",
+    body: Buffer.from("alpha external object\n"),
+    contentType: "text/plain",
+    metadata: { source: "validator" }
+  },
+  {
+    bucket: "mindory",
+    key: "documents/b.txt",
+    body: Buffer.from("beta external object\n"),
+    contentType: "text/plain",
+    metadata: { source: "validator" }
+  }
+]);
+const directExternalListProbe = await externalS3Fetch("http://s3.example.test/mindory?list-type=2&prefix=documents%2F&max-keys=1", {
+  method: "GET",
+  headers: new Headers()
+});
+assert((await directExternalListProbe.text()).includes("documents/a.txt"), "External S3 fake must list seeded objects.");
+const externalInventory = await installer.exportExternalS3ObjectInventory(externalHome, {
+  prefix: "documents/",
+  pageSize: 1,
+  s3FetchImpl: externalS3Fetch
+});
+assert(externalInventory.object_count === 2, "External S3 inventory must list objects from S3-compatible storage.");
+assert(externalInventory.page_count === 2, "External S3 inventory must support paginated listing.");
+assert(externalInventory.objects.every((object) => object.metadata.source === "validator"), "External S3 inventory must preserve metadata from object HEAD calls.");
+const streamingProgress = [];
+const externalStreamingReport = await installer.createExternalS3StreamingBackupArchive(externalHome, {
+  prefix: "documents/",
+  pageSize: 1,
+  encryptionKey: "external-encryption-key",
+  keyId: "external-key",
+  s3FetchImpl: externalS3Fetch,
+  progressSink: (event) => streamingProgress.push(event)
+});
+assert(fs.existsSync(externalStreamingReport.archivePath), "External S3 streaming backup must write an encrypted archive.");
+assert(externalStreamingReport.objectCount === 2, "External S3 streaming backup must include all listed objects.");
+assert(streamingProgress.some((event) => event.phase === "inventory_page"), "External S3 streaming backup must report paginated progress.");
+assert(streamingProgress.some((event) => event.phase === "archive_completed"), "External S3 streaming backup must report completion progress.");
+
+const externalRestoreHome = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-backup-external-s3-restore-"));
+fs.mkdirSync(path.join(externalRestoreHome, "config"), { recursive: true });
+fs.writeFileSync(path.join(externalRestoreHome, "config", ".env"), [
+  `MINDORY_HOME=${externalRestoreHome}`,
+  "MINDORY_STORAGE_PROVIDER=s3",
+  "MINDORY_S3_ENDPOINT=http://s3.example.test",
+  "MINDORY_S3_REGION=us-east-1",
+  "MINDORY_S3_BUCKET=mindory",
+  "MINDORY_S3_ACCESS_KEY_ID=external-access",
+  "MINDORY_S3_SECRET_ACCESS_KEY=external-secret",
+  "MINDORY_S3_FORCE_PATH_STYLE=true",
+  "MINDORY_BACKUP_ENCRYPTION_KEY_ID=external-key",
+  "MINDORY_BACKUP_ENCRYPTION_KEY=external-encryption-key"
+].join("\n"));
+const externalRestoreFetch = createInMemoryS3Fetch();
+let streamingRestoreRejected = false;
+try {
+  await installer.restoreExternalS3StreamingBackupArchive(externalRestoreHome, externalStreamingReport.archivePath, {
+    yes: false,
+    encryptionKey: "external-encryption-key",
+    s3FetchImpl: externalRestoreFetch
+  });
+} catch (error) {
+  streamingRestoreRejected = String(error).includes("requires explicit confirmation");
+}
+assert(streamingRestoreRejected, "External S3 streaming restore must require explicit confirmation.");
+const externalRestoreReport = await installer.restoreExternalS3StreamingBackupArchive(externalRestoreHome, externalStreamingReport.archivePath, {
+  yes: true,
+  encryptionKey: "external-encryption-key",
+  s3FetchImpl: externalRestoreFetch
+});
+assert(externalRestoreReport.objectCount === 2, "External S3 streaming restore must restore archived objects.");
+const restoredInventory = await installer.exportExternalS3ObjectInventory(externalRestoreHome, {
+  prefix: "documents/",
+  pageSize: 10,
+  s3FetchImpl: externalRestoreFetch
+});
+assert(restoredInventory.object_count === 2, "External S3 streaming restore must recreate object keys.");
+assert(restoredInventory.objects.some((object) => object.key === "documents/a.txt"), "External S3 streaming restore must preserve source keys.");
+assert(restoredInventory.objects.every((object) => object.metadata.source === "validator"), "External S3 streaming restore must preserve object metadata.");
+
 fs.rmSync(home, { recursive: true, force: true });
 fs.rmSync(externalHome, { recursive: true, force: true });
+fs.rmSync(externalRestoreHome, { recursive: true, force: true });
 
 console.log("Backup and restore MVP validated.");
 
-function createInMemoryS3Fetch() {
+function createInMemoryS3Fetch(initialObjects = []) {
   const buckets = new Set();
   const objects = new Map();
+  for (const object of initialObjects) {
+    buckets.add(object.bucket);
+    objects.set(`${object.bucket}/${object.key}`, {
+      body: Buffer.from(object.body),
+      contentType: object.contentType,
+      metadata: object.metadata ?? {},
+      etag: object.etag ?? `etag-${Buffer.from(object.body).length}`
+    });
+  }
   return async (url, init = {}) => {
     const method = init.method ?? "GET";
     const parsed = new URL(String(url));
@@ -393,6 +504,23 @@ function createInMemoryS3Fetch() {
     if (key === "") {
       if (method === "HEAD") {
         return new Response("", { status: buckets.has(bucket) ? 200 : 404 });
+      }
+      if (method === "GET" && parsed.searchParams.get("list-type") === "2") {
+        const prefix = parsed.searchParams.get("prefix") ?? "";
+        const maxKeys = Number.parseInt(parsed.searchParams.get("max-keys") ?? "1000", 10);
+        const continuationToken = parsed.searchParams.get("continuation-token");
+        const sorted = Array.from(objects.entries())
+          .filter(([objectId]) => objectId.startsWith(`${bucket}/`))
+          .map(([objectId, object]) => [objectId.slice(bucket.length + 1), object])
+          .filter(([objectKey]) => objectKey.startsWith(prefix))
+          .sort(([left], [right]) => left.localeCompare(right));
+        const startIndex = continuationToken === null ? 0 : Math.max(sorted.findIndex(([objectKey]) => objectKey === continuationToken) + 1, 0);
+        const page = sorted.slice(startIndex, startIndex + maxKeys);
+        const next = sorted.length > startIndex + maxKeys ? page.at(-1)?.[0] : undefined;
+        return new Response(renderS3ListObjectsResponse(page, next), {
+          status: 200,
+          headers: { "content-type": "application/xml" }
+        });
       }
       if (method === "PUT") {
         buckets.add(bucket);
@@ -416,9 +544,10 @@ function createInMemoryS3Fetch() {
       objects.set(objectId, {
         body,
         contentType: headers.get("content-type") ?? "application/octet-stream",
-        metadata
+        metadata,
+        etag: `etag-${body.length}`
       });
-      return new Response("", { status: 200 });
+      return new Response("", { status: 200, headers: { etag: `"etag-${body.length}"` } });
     }
     const stored = objects.get(objectId);
     if (stored === undefined) {
@@ -427,7 +556,7 @@ function createInMemoryS3Fetch() {
     const headers = new Headers({
       "content-length": String(stored.body.length),
       "content-type": stored.contentType,
-      etag: `"${stored.metadata.sha256 ?? "etag"}"`
+      etag: `"${stored.etag}"`
     });
     for (const [name, value] of Object.entries(stored.metadata)) {
       headers.set(`x-amz-meta-${name}`, value);
@@ -440,6 +569,33 @@ function createInMemoryS3Fetch() {
     }
     return new Response("unsupported object method", { status: 405 });
   };
+}
+
+function renderS3ListObjectsResponse(entries, nextContinuationToken) {
+  return [
+    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
+    "<ListBucketResult>",
+    `<IsTruncated>${nextContinuationToken === undefined ? "false" : "true"}</IsTruncated>`,
+    ...entries.map(([key, object]) => [
+      "<Contents>",
+      `<Key>${escapeXml(key)}</Key>`,
+      "<LastModified>2026-05-22T00:00:00.000Z</LastModified>",
+      `<ETag>&quot;${escapeXml(object.etag)}&quot;</ETag>`,
+      `<Size>${object.body.length}</Size>`,
+      "</Contents>"
+    ].join("")),
+    nextContinuationToken === undefined ? "" : `<NextContinuationToken>${escapeXml(nextContinuationToken)}</NextContinuationToken>`,
+    "</ListBucketResult>"
+  ].join("");
+}
+
+function escapeXml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll("\"", "&quot;")
+    .replaceAll("'", "&apos;");
 }
 
 async function requestBodyBuffer(body) {
