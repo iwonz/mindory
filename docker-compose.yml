@@ -318,16 +318,22 @@ services:
       - ${MINDORY_HOME:-${HOME}/.mindory}/data/ollama:/root/.ollama
 
   llm:
-    image: node:24-alpine
+    <<: *mindory-app
     profiles: ["local-models"]
     restart: unless-stopped
-    command:
-      [
-        "node",
-        "-e",
-        "require('http').createServer((req,res)=>{res.setHeader('content-type','application/json');res.end(JSON.stringify({status:'ok',service:'llm',placeholder:true}))}).listen(8080,'0.0.0.0')"
-      ]
+    command: ["node", "scripts/local-model-server.mjs"]
     ports:
       - "8080:8080"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8080/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1));"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     volumes:
       - ${MINDORY_HOME:-${HOME}/.mindory}/logs:/data/mindory/logs

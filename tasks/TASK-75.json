@@ -1,0 +1,64 @@
+{
+  "id": "TASK-75",
+  "title": "Add real text embeddings acceptance profile",
+  "status": "done",
+  "type": "feature",
+  "priority": "high",
+  "branch": "task/TASK-75-real-text-embeddings-acceptance",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Make the local demo path able to prove upload -> chunk -> embedding -> pgvector index -> semantic search with a fake-compatible local model service.",
+    "background": "Integration tests already cover OpenAI-compatible embeddings with a fake provider. The local Docker demo still needs a self-contained strict indexed profile so users can run acceptance without external model credentials."
+  },
+  "scope": {
+    "in": [
+      "Add a lightweight local model HTTP service for the local-models Compose profile.",
+      "Support /health, /embeddings and /chat/completions in the local service.",
+      "Configure pnpm mvp:demo --model-profile local to enable local-http text embeddings with 1536 dimensions.",
+      "Make strict indexed live acceptance work with the local model profile.",
+      "Validate that docs and demo scripts describe the local strict indexed path."
+    ],
+    "out": [
+      "Downloading or running heavy local model weights.",
+      "Changing the default disabled model profile.",
+      "Implementing OCR, ASR, vision, face or generation adapters.",
+      "Adding production-grade model serving."
+    ]
+  },
+  "acceptance_criteria": [
+    "The local-models Compose profile runs a local HTTP model service instead of a health-only placeholder.",
+    "The local service returns deterministic 1536-dimensional embeddings.",
+    "mvp-demo local model profile sets local-http text embedding env defaults.",
+    "Strict indexed acceptance can be selected with --model-profile local --require-indexed.",
+    "Integration tests still cover fake OpenAI-compatible embedding indexing and semantic search.",
+    "Docs describe the self-contained local strict indexed acceptance command.",
+    "pnpm check passes."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm mvp:demo:validate",
+      "pnpm compose:validate",
+      "pnpm processing:validate",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-75.",
+      "Confirm the default mvp demo profile remains disabled."
+    ]
+  },
+  "dependencies": [
+    "TASK-74"
+  ],
+  "risks": [
+    "The local profile must remain lightweight and deterministic.",
+    "The demo helper must not override user-provided external embedding env values.",
+    "The local fake-compatible service must not be documented as production model serving."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to done.",
+    "Branch is committed and merged back into master."
+  ]
+}

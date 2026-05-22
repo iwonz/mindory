@@ -299,7 +299,7 @@ documents return `blocked_by_scan`, required skipped stages can surface
 `partial_failed`, and each processor can report stage progress and child jobs in
 the Jobs API `details` response.
 
-`TASK-31` adds strict indexed acceptance: with
-`MINDORY_E2E_REQUIRE_INDEXED=true`, the live acceptance script waits for
-`indexed` document status and verifies document search returns source-backed
-chunk hits.
+`TASK-75` keeps strict indexed acceptance self-contained for local testing:
+`pnpm mvp:demo --model-profile local --require-indexed` starts the deterministic
+local HTTP embedding service, waits for `indexed` document status and verifies
+document search returns source-backed chunk hits.

@@ -116,9 +116,9 @@ pnpm mvp:demo --model-profile ollama
 ```
 
 `disabled` is the default and starts no heavy model containers. `local` adds the
-`local-models` profile, which currently runs a lightweight profile-smoke HTTP
-service for wiring checks. It is not a real model runner. `ollama` adds the real
-Ollama service for local model experiments.
+`local-models` profile, which runs a lightweight deterministic local HTTP model
+service for embeddings acceptance. `ollama` adds the real Ollama service for
+local model experiments.
 
 ## Base Services
 
@@ -190,11 +190,10 @@ S3-compatible storage option and stores its data under
 compatibility testing and stores data under `$MINDORY_HOME/data/minio`.
 
 The `local-models` profile is intentionally lightweight and does not download
-model weights or execute model inference. The `ollama` profile is optional for
-local text embeddings. The selected embedding model must produce
-1536-dimensional vectors for the current pgvector MVP schema; otherwise keep
-`MINDORY_LLM_TEXT_EMBEDDING_ENABLED=false` for the default chunked
-fallback.
+model weights. It serves deterministic 1536-dimensional embeddings for local
+acceptance. The `ollama` profile is optional for local text embeddings. External
+and Ollama embedding models must also produce 1536-dimensional vectors for the
+current pgvector MVP schema.
 
 `docling` is experimental and not required by the default local MVP path.
 Running Compose may require network access to pull images and to install

@@ -50,8 +50,8 @@ Mindory-owned directory so installer update/uninstall flows can reason about a
 single root.
 
 Optional profiles define LibreFS, MinIO, ClamAV, Qdrant, Docling, Ollama and a
-lightweight local LLM placeholder without making those services mandatory for
-the base stack.
+lightweight deterministic local LLM service without making those services
+mandatory for the base stack.
 
 ## Database Schema
 

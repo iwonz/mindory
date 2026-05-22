@@ -115,6 +115,12 @@ function runLiveAcceptance() {
 
 async function waitForComposeServices(timeoutMs) {
   const required = ["postgres", "redis", "api", "worker", "mcp"];
+  if (profiles.includes("local-models")) {
+    required.push("llm");
+  }
+  if (profiles.includes("ollama")) {
+    required.push("ollama");
+  }
   const completed = ["migrate"];
   const deadline = Date.now() + timeoutMs;
   let lastStatus = "";
@@ -268,7 +274,7 @@ function resolveDockerBinary() {
 }
 
 function dockerEnv() {
-  return {
+  const env = {
     ...process.env,
     MINDORY_HOME: demoHome,
     MINDORY_DOCUMENT_PROCESSING_PDF_ENABLED: process.env.MINDORY_DOCUMENT_PROCESSING_PDF_ENABLED ?? "true",
@@ -282,6 +288,16 @@ function dockerEnv() {
       process.env.PATH ?? ""
     ].join(":")
   };
+
+  if (options.modelProfile === "local") {
+    env.MINDORY_LLM_TEXT_EMBEDDING_ENABLED = process.env.MINDORY_LLM_TEXT_EMBEDDING_ENABLED ?? "true";
+    env.MINDORY_LLM_TEXT_EMBEDDING_PROVIDER = process.env.MINDORY_LLM_TEXT_EMBEDDING_PROVIDER ?? "local-http";
+    env.MINDORY_LLM_TEXT_EMBEDDING_MODEL = process.env.MINDORY_LLM_TEXT_EMBEDDING_MODEL ?? "mindory-local-embedding";
+    env.MINDORY_LLM_TEXT_EMBEDDING_DIMENSIONS = process.env.MINDORY_LLM_TEXT_EMBEDDING_DIMENSIONS ?? "1536";
+    env.MINDORY_LLM_LOCAL_HTTP_BASE_URL = process.env.MINDORY_LLM_LOCAL_HTTP_BASE_URL ?? "http://llm:8080";
+  }
+
+  return env;
 }
 
 function removeDemoHome() {

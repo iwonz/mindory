@@ -25,6 +25,7 @@ function assertIncludes(content, token, label) {
 const rootPackage = readJson("package.json");
 const checkRepo = read("scripts/check-repo.js");
 const demoScript = read("scripts/mvp-demo.js");
+const localModelServer = read("scripts/local-model-server.mjs");
 const readme = read("README.md");
 const deployment = read("docs/DEPLOYMENT.md");
 const acceptance = read("docs/MVP_ACCEPTANCE.md");
@@ -53,12 +54,19 @@ for (const token of [
   "local-models",
   "MINDORY_DOCUMENT_PROCESSING_PDF_ENABLED",
   "MINDORY_E2E_MODEL_PROFILE",
+  "MINDORY_LLM_TEXT_EMBEDDING_PROVIDER",
+  "mindory-local-embedding",
+  "MINDORY_LLM_LOCAL_HTTP_BASE_URL",
   "/ready",
   "migrate",
   "--volumes",
   "Docker Compose is unavailable"
 ]) {
   assertIncludes(demoScript, token, "scripts/mvp-demo.js");
+}
+
+for (const token of ["/health", "/embeddings", "/chat/completions", "deterministicEmbedding", "1536"]) {
+  assertIncludes(localModelServer, token, "scripts/local-model-server.mjs");
 }
 
 for (const token of ["pnpm mvp:demo", "pnpm mvp:up", "pnpm mvp:down", "pnpm mvp:reset"]) {

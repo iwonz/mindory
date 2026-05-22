@@ -20,7 +20,7 @@ writing README, issues, release notes and docs.
 | Package manager | Supported | pnpm 10 with committed lockfile. |
 | Linux/macOS source development | Supported | Primary contributor path. |
 | Windows source development | Experimental | PowerShell bootstrap exists; full native matrix is dry-run validated. |
-| Docker Compose local demo | Supported | `pnpm mvp:demo` is the local MVP demo path. |
+| Docker Compose local demo | Supported | `pnpm mvp:demo` is the local MVP demo path; `--model-profile local --require-indexed` proves indexed pgvector search with deterministic local embeddings. |
 | One-home installer layout | Supported baseline | `$MINDORY_HOME` config, logs, data, install and backups layout is implemented. |
 | Remote release update | Future | Local asset update exists; remote release orchestration is later work. |
 | Release artifact publishing | Supported baseline | Release workflow generates bundle, manifest and checksum artifacts; tag builds upload them to a draft GitHub Release. |
