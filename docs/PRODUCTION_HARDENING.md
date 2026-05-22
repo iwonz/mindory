@@ -12,7 +12,7 @@ minimum baseline for the MVP release path.
 | Local demo | Supported local MVP through Docker Compose and `pnpm mvp:demo`. |
 | Release images | Manual baseline documented. Automated build, tag and publish workflow is future release work. |
 | Release bundles | Bootstrap and manifest shape exist, but public artifact publication and signature verification are future work. |
-| Installer execution | Partial baseline. Current installer can prepare `$MINDORY_HOME` files and assets, but Compose startup, provisioning, update and uninstall are future work. |
+| Installer execution | Partial baseline. Current installer can prepare `$MINDORY_HOME`, start Compose through health checks and roll back startup failures, but provisioning, update and uninstall are future work. |
 | Backup and restore | Manual guidance only. Scripted backup/restore and restore acceptance are future hardening work. |
 | Observability | Structured logs baseline exists. Metrics, tracing, log aggregation and alerting are future hardening work. |
 | Public GitHub readiness | Future work. The repo still needs public license, contribution guide, security policy, issue/PR templates and release notes policy before it should be treated as a public self-host product. |

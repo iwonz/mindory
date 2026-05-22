@@ -25,7 +25,7 @@ experimental/profile-smoke surfaces and future work:
 | Vectors | Supported local MVP: pgvector for 1536-dimensional text embeddings when a compatible provider is configured. Supported fallback: PostgreSQL full-text search when embeddings are disabled. Future: Qdrant adapter. |
 | LLM/model runtime | Supported boundary: all model operations route through `@mindory/llm`, with disabled behavior and audit hooks. Supported providers are limited to implemented adapters; unsupported roles remain disabled or experimental until concrete adapters land. |
 | Interfaces | Supported local MVP: HTTP API, CLI and MCP stdio tools call the API. Hermes adapter exposes the lifecycle surface but does not import or verify against a real Hermes SDK yet. |
-| Installer | Supported today: wizard, plan/dry-run, prepare-only execution for `$MINDORY_HOME` directories/config/compose assets, dependency detection, lock/journal diagnostics, bootstrap staging and installer acceptance. Future: Docker startup, provisioning, update and uninstall execution. |
+| Installer | Supported today: wizard, plan/dry-run, prepare execution for `$MINDORY_HOME` directories/config/compose assets, Docker Compose startup through health checks, dependency detection, lock/journal diagnostics, bootstrap staging and installer acceptance. Future: first-token provisioning, update and uninstall execution. |
 | Deployment | Supported local MVP: Compose stack with single-home bind mounts under `MINDORY_HOME`, defaulting to `${HOME}/.mindory` outside demo scripts. Future: release artifact publishing and production-grade update/rollback automation. |
 
 ## Development Process

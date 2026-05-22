@@ -14,7 +14,8 @@ secrets, rate limits and structured logs are maintained in
 | Persistent local Compose | Supported for development and self-host testing when `MINDORY_HOME` is set intentionally. |
 | Installer wizard and dry-run | Supported. It can collect answers, render config previews and validate plans. |
 | Installer prepare execution | Supported. It can create `$MINDORY_HOME`, write config/env files and copy Compose assets. |
-| Installer Compose startup and provisioning | Future work. The installer does not yet start services, run migrations, create the first token, update or uninstall. |
+| Installer Compose startup | Supported as an explicit start step. It can pull/build, start infrastructure, run migrations, start API/worker/MCP and wait for health checks. |
+| Installer provisioning | Future work. The installer does not yet create the first project/token, update or uninstall. |
 | Release images and bundles | Manual baseline only. Publishing automation and signed release manifests are future release tasks. |
 | Heavy local models | Experimental. Profiles exist for wiring checks or local experiments, not as a guaranteed default install. |
 

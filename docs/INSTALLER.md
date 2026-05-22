@@ -2,9 +2,10 @@
 
 The installer is built in layers. The current implementation supports planning,
 interactive answer collection, config rendering, dependency diagnostics,
-bootstrap staging, prepare-only execution and dry-run/live acceptance checks. It
-can write the local `$MINDORY_HOME` file layout, but it does not yet start
-Docker Compose or provision a complete running deployment.
+bootstrap staging, prepare execution, Docker Compose startup through health
+checks and dry-run/live acceptance checks. It can write the local
+`$MINDORY_HOME` file layout and start the runtime, but it does not yet provision
+the first project/token.
 
 ## Current Support Level
 
@@ -14,10 +15,11 @@ Docker Compose or provision a complete running deployment.
 | Plan/dry-run | Supported. It renders deterministic install plans without mutating host state. |
 | Config rendering | Supported in the installer core for generated `.env` and `mindory.config.json` content. |
 | Prepare execution | Supported. It creates `$MINDORY_HOME`, writes generated config/env files and copies release Compose assets with journaled rollback. |
+| Compose startup | Supported. It can pull/build, start infrastructure, run migrations, start API/worker/MCP and wait for Compose/API readiness. |
 | Dependency detection | Supported through injectable probes and diagnostics. |
 | Lock, journal and recovery diagnostics | Supported. `repair` and `resume` inspect current state. |
 | Bootstrap staging and checksum verification | Supported for source/release-style bundles. |
-| Compose startup and provisioning | Future work. The CLI does not yet pull/build images, start Compose, run migrations or provision credentials. |
+| First project/token provisioning | Future work. The CLI does not yet create initial credentials. |
 | Update, uninstall and real resume execution | Future work. Current surfaces are diagnostics/planning only. |
 
 ## Core Package
@@ -40,8 +42,9 @@ not duplicate env names, secret flags or enum values outside the config catalog.
 The core package is deterministic and testable without mutating the host when
 used in plan/dry-run mode. Its explicit prepare execution API mutates only the
 selected `$MINDORY_HOME`: it creates the directory tree, writes generated
-config/env files and copies release Compose assets. It does not install Docker,
-start Compose or download releases.
+config/env files, copies release Compose assets and can run Docker Compose
+startup commands when explicitly requested. It does not install Docker or
+download releases.
 
 The wizard is also testable without a terminal through injectable IO. A Node
 readline adapter is available for real interactive use, but the wizard only
@@ -74,6 +77,15 @@ For dev/test mode, pass a local source or release directory:
 ./install.ps1 -Source C:\path\to\mindory
 ```
 
+After a source checkout has been built, the explicit startup command is:
+
+```bash
+node packages/installer/dist/cli.js start --home ~/.mindory --source /path/to/mindory
+```
+
+This command runs through health checks and stops before first project/token
+provisioning.
+
 For release mode, provide a manifest URL or manifest file. The manifest is a
 simple env-style file:
 
@@ -90,9 +102,11 @@ work.
 The bootstrap launches `bin/mindory-installer` when a packaged binary exists, or
 falls back to `node packages/installer/dist/cli.js wizard` for source-style
 bundles. The installer CLI currently supports `wizard`, `plan`/`dry-run`,
-`prepare`, `render-defaults`, `repair` and `resume`. `prepare` executes only
-the local file preparation steps and reports Docker/provisioning steps as
-pending future work.
+`prepare`, `start`, `render-defaults`, `repair` and `resume`. `prepare`
+executes only the local file preparation steps. `start` additionally runs
+Docker Compose pull/build, infrastructure startup, migrations, API/worker/MCP
+startup and health checks, then reports first-token provisioning as pending
+future work.
 
 ## Recovery Surface
 
@@ -148,9 +162,11 @@ MINDORY_INSTALL_ACCEPTANCE_LIVE=true pnpm installer:acceptance
 Live mode runs the existing MVP demo acceptance with disabled heavy model
 services, then calls the reset path and removes the temp install home. Dry-run
 acceptance also runs the prepare command in a temporary home. Live mode proves
-that the current repo can run the local demo stack, while full installer-driven
-Compose startup remains future work. It is opt-in because it may need cached
-images or network access for Docker pulls.
+that the current repo can run the local demo stack. The default installer
+acceptance validates the installer Compose startup path with fake command and
+health runners; real installer-driven startup is available through the explicit
+`start` command. Live mode is opt-in because it may need cached images or
+network access for Docker pulls.
 
 ## Wizard Prompts
 
@@ -176,8 +192,8 @@ completed, failed and rollback events. On failure, completed actions are rolled
 back in reverse order when they expose a rollback step. Actions with no local
 rollback are recorded as skipped so the diagnosis can tell the user what may
 require manual cleanup. Prepare execution uses this model for filesystem,
-config and Compose asset writes. Docker, migration, runtime and token actions
-remain pending future steps.
+config and Compose asset writes. Startup execution adds `compose_down` rollback
+for started services. Token/provisioning actions remain pending future steps.
 
 ## Generated State
 

@@ -25,6 +25,8 @@ try {
     printJson(buildRedactedInstallSummary(createDefaultInstallAnswers()));
   } else if (command === "prepare") {
     await runPrepareCommand();
+  } else if (command === "start") {
+    await runStartCommand();
   } else if (command === "render-defaults") {
     const answers = createDefaultInstallAnswers();
     printJson({
@@ -57,6 +59,37 @@ async function runPrepareCommand(): Promise<void> {
     });
     printJson({
       status: "prepared",
+      mindoryHome: report.plan.mindoryHome,
+      summary: report.summary,
+      journalPath: report.journalPath,
+      executedStepIds: report.executedStepIds,
+      pendingStepIds: report.pendingStepIds
+    });
+  } catch (error) {
+    printJson({ diagnostic: formatInstallerDiagnostic(error) });
+    process.exitCode = 1;
+  }
+}
+
+async function runStartCommand(): Promise<void> {
+  const answers = createDefaultInstallAnswers({
+    mindoryHome: optionValue("--home") ?? createDefaultInstallAnswers().mindoryHome
+  });
+  const sourceRoot = optionValue("--source");
+  const timeoutMs = optionValue("--timeout-ms");
+  const parsedTimeoutMs = timeoutMs === undefined ? undefined : Number.parseInt(timeoutMs, 10);
+  if (parsedTimeoutMs !== undefined && (!Number.isFinite(parsedTimeoutMs) || parsedTimeoutMs <= 0)) {
+    throw new Error("--timeout-ms must be greater than zero.");
+  }
+  try {
+    const report = await executeInstallPlan(answers, {
+      owner: "mindory-installer-cli",
+      stopBeforeStepId: "create-first-token",
+      ...(sourceRoot === undefined ? {} : { sourceRoot }),
+      ...(parsedTimeoutMs === undefined ? {} : { timeoutMs: parsedTimeoutMs })
+    });
+    printJson({
+      status: "started",
       mindoryHome: report.plan.mindoryHome,
       summary: report.summary,
       journalPath: report.journalPath,
@@ -129,13 +162,16 @@ Usage:
   mindory-installer wizard
   mindory-installer plan
   mindory-installer prepare [--home <path>] [--source <path>]
+  mindory-installer start [--home <path>] [--source <path>] [--timeout-ms <n>]
   mindory-installer render-defaults
   mindory-installer resume [--home <path>]
   mindory-installer repair [--home <path>]
 
 The prepare command writes the local MINDORY_HOME directory tree, generated
-config and release Compose assets. Docker startup, provisioning and full resume
-execution are added by later installer tasks.
+config and release Compose assets. The start command additionally runs Docker
+Compose startup and health checks, then stops before first project/token
+provisioning. Provisioning and full resume execution are added by later
+installer tasks.
 `);
 }
 
