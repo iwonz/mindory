@@ -187,6 +187,11 @@ MINDORY_LLM_OLLAMA_BASE_URL=http://ollama:11434
 service used by `local-http` roles. `MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS`
 controls the default guardrail for future `local-command` adapters.
 
+Runtime consumers must obtain operation providers and role snapshots from
+`@mindory/llm`. Worker processors may receive simple capability snapshots, but
+those snapshots are projected from the SDK registry rather than assembled from
+`config.llm` in each consumer.
+
 `MINDORY_VECTOR_PROVIDER` accepts `pgvector` or `qdrant`. `pgvector` is the
 default MVP runtime after `TASK-20`; Qdrant remains optional and profile-gated
 in Compose.

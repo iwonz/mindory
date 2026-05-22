@@ -98,6 +98,11 @@ API and worker code call `buildMindoryLlm` or
 Provider-specific packages remain low-level adapters; runtime packages must not
 instantiate them directly.
 
+Workers that need OCR, ASR, vision, face or future generation state use
+`llmRoleState(runtime, role)` snapshots from the SDK registry. They should not
+read `config.llm.<role>` directly except for non-operation plumbing such as the
+current pgvector dimension guard.
+
 ## Docker Profiles
 
 ```bash

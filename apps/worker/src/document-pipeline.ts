@@ -47,7 +47,7 @@ import { BuiltinTextExtractor } from "@mindory/extractor-builtin-text";
 import { DoclingPdfExtractor } from "@mindory/extractor-docling";
 import { ImageSemanticExtractor } from "@mindory/extractor-image-semantic";
 import { readVideoManifest, VideoKeyframeExtractor } from "@mindory/extractor-video-keyframe";
-import { buildMindoryTextEmbeddingsProvider } from "@mindory/llm";
+import { buildMindoryLlm, llmRoleState, type MindoryLlm } from "@mindory/llm";
 import { ClamAvDocumentScanProcessor, ClamAvScanner } from "@mindory/processor-antivirus-clamav";
 
 export interface DocumentPipelineProcessorOptions {
@@ -62,6 +62,7 @@ export interface DocumentPipelineProcessorOptions {
   extractors?: TextExtractor[];
   chunker?: TextChunker;
   routeConfig?: DocumentProcessingRouteConfig;
+  llm?: MindoryLlm;
 }
 
 export class DocumentPipelineProcessorRegistry implements ProcessingJobProcessorRegistry {
@@ -77,58 +78,24 @@ export class DocumentPipelineProcessorRegistry implements ProcessingJobProcessor
 }
 
 export function buildDocumentPipelineProcessors(options: DocumentPipelineProcessorOptions): DocumentPipelineProcessorRegistry {
+  const llm = options.llm ?? buildMindoryLlm(options.config);
   const extractors = options.extractors ?? [
     new BuiltinTextExtractor(),
     new AudioTranscriptExtractor({
-      asr: {
-        enabled: options.config.llm.asr.enabled,
-        provider: options.config.llm.asr.provider,
-        model: options.config.llm.asr.model,
-        required: options.config.llm.asr.required
-      }
+      asr: llmRoleState(llm, "asr")
     }),
     new VideoKeyframeExtractor({
       maxKeyframes: options.config.documentProcessing.video.maxKeyframes
     }),
     new DoclingPdfExtractor({
-      ocr: {
-        enabled: options.config.llm.ocr.enabled,
-        provider: options.config.llm.ocr.provider,
-        model: options.config.llm.ocr.model,
-        required: options.config.llm.ocr.required
-      }
+      ocr: llmRoleState(llm, "ocr")
     }),
     new ImageSemanticExtractor({
-      faceDetection: {
-        enabled: options.config.llm.faceDetection.enabled,
-        provider: options.config.llm.faceDetection.provider,
-        model: options.config.llm.faceDetection.model,
-        required: options.config.llm.faceDetection.required
-      },
-      faceRecognition: {
-        enabled: options.config.llm.faceRecognition.enabled,
-        provider: options.config.llm.faceRecognition.provider,
-        model: options.config.llm.faceRecognition.model,
-        required: options.config.llm.faceRecognition.required
-      },
-      imageCaptioning: {
-        enabled: options.config.llm.visionCaptioning.enabled,
-        provider: options.config.llm.visionCaptioning.provider,
-        model: options.config.llm.visionCaptioning.model,
-        required: options.config.llm.visionCaptioning.required
-      },
-      imageEmbedding: {
-        enabled: options.config.llm.imageEmbedding.enabled,
-        provider: options.config.llm.imageEmbedding.provider,
-        model: options.config.llm.imageEmbedding.model,
-        required: options.config.llm.imageEmbedding.required
-      },
-      ocr: {
-        enabled: options.config.llm.ocr.enabled,
-        provider: options.config.llm.ocr.provider,
-        model: options.config.llm.ocr.model,
-        required: options.config.llm.ocr.required
-      }
+      faceDetection: llmRoleState(llm, "face-detection"),
+      faceRecognition: llmRoleState(llm, "face-recognition"),
+      imageCaptioning: llmRoleState(llm, "vision-captioning"),
+      imageEmbedding: llmRoleState(llm, "image-embedding"),
+      ocr: llmRoleState(llm, "ocr")
     })
   ];
   const chunker = options.chunker ?? new FixedSizeTextChunker({
@@ -220,7 +187,7 @@ export function buildDocumentPipelineProcessors(options: DocumentPipelineProcess
 }
 
 export function buildEmbeddingsProvider(config: MindoryConfig): EmbeddingsProvider | undefined {
-  return buildMindoryTextEmbeddingsProvider(config);
+  return buildMindoryLlm(config).textEmbeddings;
 }
 
 class DocumentRecomputeProcessor implements ProcessingJobProcessor {

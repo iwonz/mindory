@@ -60,6 +60,7 @@ assertNotIncludes(workspaceValidator, "[\"packages/model-runtime\", \"@mindory/m
 for (const token of [
   "buildMindoryLlm",
   "buildMindoryTextEmbeddingsProvider",
+  "llmRoleState",
   "LlmRoleRegistry",
   "LlmRoleDescriptor",
   "LlmProviderDescriptor",
@@ -189,6 +190,24 @@ for (const source of [apiRuntime, workerPipeline]) {
 assertIncludes(apiRuntime, "config.llm.textEmbedding.dimensions", "apps/api/src/runtime.ts");
 assertIncludes(workerRuntime, "config.llm.textEmbedding.dimensions", "apps/worker/src/runtime.ts");
 assertIncludes(integration, "MINDORY_LLM_TEXT_EMBEDDING_ENABLED", "scripts/test-integration.js");
+assertIncludes(workerPipeline, "llmRoleState(llm, \"asr\")", "apps/worker/src/document-pipeline.ts");
+assertIncludes(workerPipeline, "llmRoleState(llm, \"ocr\")", "apps/worker/src/document-pipeline.ts");
+assertIncludes(workerPipeline, "llmRoleState(llm, \"vision-captioning\")", "apps/worker/src/document-pipeline.ts");
+assertIncludes(workerPipeline, "llmRoleState(llm, \"face-detection\")", "apps/worker/src/document-pipeline.ts");
+assertIncludes(workerPipeline, "llmRoleState(llm, \"face-recognition\")", "apps/worker/src/document-pipeline.ts");
+for (const token of [
+  "options.config.llm.asr",
+  "options.config.llm.ocr",
+  "options.config.llm.faceDetection",
+  "options.config.llm.faceRecognition",
+  "options.config.llm.visionCaptioning",
+  "options.config.llm.imageEmbedding"
+]) {
+  assertNotIncludes(workerPipeline, token, "worker document pipeline must use @mindory/llm role snapshots.");
+}
+for (const violation of directProviderImportsOutsideLlm()) {
+  throw new Error(`${violation}: provider packages must only be imported by packages/llm.`);
+}
 
 for (const [label, content] of [
   ["package/config/runtime/docs", [
@@ -214,3 +233,38 @@ for (const [label, content] of [
 }
 
 console.log("LLM SDK adapter validated.");
+
+function directProviderImportsOutsideLlm() {
+  const violations = [];
+  for (const filePath of walk(path.join(root, "apps")).concat(walk(path.join(root, "packages")))) {
+    const relativePath = path.relative(root, filePath);
+    if (relativePath.startsWith("packages/llm/") || relativePath.startsWith("packages/processors/embeddings/")) {
+      continue;
+    }
+    const content = fs.readFileSync(filePath, "utf8");
+    if (content.includes("@mindory/embeddings-openai-compatible") || content.includes("@mindory/embeddings-ollama")) {
+      violations.push(relativePath);
+    }
+  }
+  return violations;
+}
+
+function walk(directory) {
+  const files = [];
+  if (!fs.existsSync(directory)) {
+    return files;
+  }
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    const absolutePath = path.join(directory, entry.name);
+    if (entry.isDirectory()) {
+      if (!["dist", "lib", "node_modules"].includes(entry.name)) {
+        files.push(...walk(absolutePath));
+      }
+      continue;
+    }
+    if (entry.isFile() && /\.(ts|js|json)$/.test(entry.name)) {
+      files.push(absolutePath);
+    }
+  }
+  return files;
+}
