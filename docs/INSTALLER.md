@@ -2,9 +2,9 @@
 
 The installer is built in layers. The current implementation supports planning,
 interactive answer collection, config rendering, dependency diagnostics,
-bootstrap staging and dry-run/live acceptance checks. It does not yet mutate a
-host into a complete installed Mindory deployment; that execution engine is the
-next installer milestone.
+bootstrap staging, prepare-only execution and dry-run/live acceptance checks. It
+can write the local `$MINDORY_HOME` file layout, but it does not yet start
+Docker Compose or provision a complete running deployment.
 
 ## Current Support Level
 
@@ -13,10 +13,11 @@ next installer milestone.
 | Interactive wizard | Supported. It collects and validates answers and shows a redacted summary. |
 | Plan/dry-run | Supported. It renders deterministic install plans without mutating host state. |
 | Config rendering | Supported in the installer core for generated `.env` and `mindory.config.json` content. |
+| Prepare execution | Supported. It creates `$MINDORY_HOME`, writes generated config/env files and copies release Compose assets with journaled rollback. |
 | Dependency detection | Supported through injectable probes and diagnostics. |
 | Lock, journal and recovery diagnostics | Supported. `repair` and `resume` inspect current state. |
 | Bootstrap staging and checksum verification | Supported for source/release-style bundles. |
-| Full install execution | Future work. The CLI does not yet write all assets, start Compose, run migrations or provision credentials. |
+| Compose startup and provisioning | Future work. The CLI does not yet pull/build images, start Compose, run migrations or provision credentials. |
 | Update, uninstall and real resume execution | Future work. Current surfaces are diagnostics/planning only. |
 
 ## Core Package
@@ -36,9 +37,11 @@ not duplicate env names, secret flags or enum values outside the config catalog.
 
 ## Boundaries
 
-The core package is deterministic and testable without mutating the host. It can
-detect dependencies through an injectable probe, but it does not install Docker,
-write files, start Compose or download releases.
+The core package is deterministic and testable without mutating the host when
+used in plan/dry-run mode. Its explicit prepare execution API mutates only the
+selected `$MINDORY_HOME`: it creates the directory tree, writes generated
+config/env files and copies release Compose assets. It does not install Docker,
+start Compose or download releases.
 
 The wizard is also testable without a terminal through injectable IO. A Node
 readline adapter is available for real interactive use, but the wizard only
@@ -87,8 +90,9 @@ work.
 The bootstrap launches `bin/mindory-installer` when a packaged binary exists, or
 falls back to `node packages/installer/dist/cli.js wizard` for source-style
 bundles. The installer CLI currently supports `wizard`, `plan`/`dry-run`,
-`render-defaults`, `repair` and `resume`; it collects and validates answers but
-does not execute the install plan yet.
+`prepare`, `render-defaults`, `repair` and `resume`. `prepare` executes only
+the local file preparation steps and reports Docker/provisioning steps as
+pending future work.
 
 ## Recovery Surface
 
@@ -142,9 +146,10 @@ MINDORY_INSTALL_ACCEPTANCE_LIVE=true pnpm installer:acceptance
 ```
 
 Live mode runs the existing MVP demo acceptance with disabled heavy model
-services, then calls the reset path and removes the temp install home. It proves
-that the current repo can run the local demo stack, not that the installer has
-performed a full host-mutating install. It is opt-in because it may need cached
+services, then calls the reset path and removes the temp install home. Dry-run
+acceptance also runs the prepare command in a temporary home. Live mode proves
+that the current repo can run the local demo stack, while full installer-driven
+Compose startup remains future work. It is opt-in because it may need cached
 images or network access for Docker pulls.
 
 ## Wizard Prompts
@@ -170,12 +175,13 @@ Every install action is planned before execution. The journal records planned,
 completed, failed and rollback events. On failure, completed actions are rolled
 back in reverse order when they expose a rollback step. Actions with no local
 rollback are recorded as skipped so the diagnosis can tell the user what may
-require manual cleanup. The current task set provides these primitives and
-tests; actual host-mutating action execution is future work.
+require manual cleanup. Prepare execution uses this model for filesystem,
+config and Compose asset writes. Docker, migration, runtime and token actions
+remain pending future steps.
 
 ## Generated State
 
-The installer core can render:
+The installer core can render, and the `prepare` command can write:
 
 - `$MINDORY_HOME/config/mindory.config.json`
 - `$MINDORY_HOME/config/.env`

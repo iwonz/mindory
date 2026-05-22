@@ -1,0 +1,63 @@
+{
+  "id": "TASK-65",
+  "title": "Add installer execution engine",
+  "status": "done",
+  "type": "feature",
+  "priority": "high",
+  "branch": "task/TASK-65-installer-execution-engine",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Add the first host-mutating installer execution layer for local file preparation under MINDORY_HOME.",
+    "background": "The installer can already collect answers, render config, detect dependencies and write lock/journal diagnostics. The next step is a safe execution engine for filesystem/config/compose preparation before Docker startup tasks."
+  },
+  "scope": {
+    "in": [
+      "Execute install plan steps that create MINDORY_HOME directories.",
+      "Write generated mindory.config.json and .env under MINDORY_HOME/config.",
+      "Copy release Compose assets into MINDORY_HOME/install/compose.",
+      "Persist journal updates before and after each executed step.",
+      "Implement rollback for created directories and overwritten files/assets.",
+      "Expose a CLI command for preparation execution and a redacted execution summary.",
+      "Update installer docs for the new prepare-only execution boundary."
+    ],
+    "out": [
+      "Docker Compose startup.",
+      "Image pull/build execution.",
+      "Database migrations.",
+      "First project/token provisioning.",
+      "Update/uninstall/repair execution."
+    ]
+  },
+  "acceptance_criteria": [
+    "Installer core exposes an execution API for the supported prepare steps.",
+    "Execution creates MINDORY_HOME directory tree, config file, env file and compose asset directory.",
+    "Journal is written under MINDORY_HOME/install and records planned/completed/failed/rollback events.",
+    "Failure during a later prepare step rolls back completed prepare actions in reverse order.",
+    "CLI exposes a prepare command that runs the supported prepare steps and reports pending future steps.",
+    "Docs state that prepare execution is supported while Docker startup remains TASK-66 scope."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm installer:validate",
+      "pnpm installer:acceptance",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-65.",
+      "Confirm execution only writes inside the selected MINDORY_HOME."
+    ]
+  },
+  "dependencies": [
+    "TASK-64"
+  ],
+  "risks": [
+    "Rollback could delete a user-owned directory if created-path tracking is too broad.",
+    "CLI naming could imply a complete install before Compose startup exists."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch is committed and merged back into master."
+  ]
+}

@@ -2,17 +2,19 @@ import { spawnSync } from "node:child_process";
 import {
   closeSync,
   constants,
+  cpSync,
   existsSync,
   accessSync,
   mkdirSync,
   openSync,
   readFileSync,
+  rmSync,
   statSync,
   unlinkSync,
   writeFileSync
 } from "node:fs";
 import path from "node:path";
-import { pid as processPid, stdin as defaultInput, stdout as defaultOutput } from "node:process";
+import { cwd as processCwd, pid as processPid, stdin as defaultInput, stdout as defaultOutput } from "node:process";
 import { createInterface, type Interface as ReadlineInterface } from "node:readline/promises";
 import {
   CONFIG_CATALOG,
@@ -159,6 +161,9 @@ export interface InstallRollbackStep {
   kind: RollbackStepKind;
   target?: string;
   description: string;
+  backupTarget?: string;
+  createdPaths?: string[];
+  restoreMode?: "delete" | "restore";
 }
 
 export interface InstallPlanStep {
@@ -275,6 +280,24 @@ export interface InstallerDiagnostic {
   summary: string;
   nextSteps: string[];
   dependencyFailures: DependencyCheck[];
+}
+
+export interface InstallExecutionOptions {
+  sourceRoot?: string;
+  owner?: string;
+  stopBeforeStepId?: string;
+  rollbackOnFailure?: boolean;
+  beforeStep?: (step: InstallPlanStep, plan: InstallPlan) => void;
+}
+
+export interface InstallExecutionReport {
+  plan: InstallPlan;
+  summary: Record<string, unknown>;
+  journalPath: string;
+  journal: InstallJournalEntry[];
+  executedStepIds: string[];
+  pendingStepIds: string[];
+  rollbackReport?: RollbackReport;
 }
 
 export function createDefaultInstallAnswers(overrides: Partial<MindoryInstallAnswers> = {}): MindoryInstallAnswers {
@@ -657,6 +680,55 @@ export function formatInstallerDiagnostic(error: unknown, dependencyChecks: read
   };
 }
 
+export async function executeInstallPlan(
+  answers: MindoryInstallAnswers,
+  options: InstallExecutionOptions = {}
+): Promise<InstallExecutionReport> {
+  const plan = createInstallPlan(answers);
+  const lock = acquireInstallLock(plan.mindoryHome, options.owner ?? "mindory-installer-executor");
+  const journal = new InstallTransactionJournal();
+  const executedStepIds: string[] = [];
+  const stopBeforeStepId = options.stopBeforeStepId ?? "pull-images";
+  let rollbackReport: RollbackReport | undefined;
+
+  try {
+    for (const stepItem of plan.steps) {
+      if (stepItem.id === stopBeforeStepId) {
+        break;
+      }
+      journal.recordPlanned(stepItem);
+      writeInstallJournal(plan.mindoryHome, journal);
+      try {
+        options.beforeStep?.(stepItem, plan);
+        executeSupportedInstallStep(stepItem, answers, plan, options);
+        journal.markCompleted(stepItem);
+        executedStepIds.push(stepItem.id);
+        writeInstallJournal(plan.mindoryHome, journal);
+      } catch (error) {
+        journal.markFailed(stepItem, error);
+        writeInstallJournal(plan.mindoryHome, journal);
+        if (options.rollbackOnFailure ?? answers.rollbackOnFailure) {
+          rollbackReport = await rollbackCompletedActions(plan, journal, defaultRollbackExecutor);
+          writeInstallJournal(plan.mindoryHome, journal);
+        }
+        throw error;
+      }
+    }
+
+    return {
+      plan,
+      summary: buildRedactedInstallSummary(answers),
+      journalPath: installJournalPath(plan.mindoryHome),
+      journal: journal.toJSON(),
+      executedStepIds,
+      pendingStepIds: pendingStepIds(plan, executedStepIds),
+      ...(rollbackReport === undefined ? {} : { rollbackReport })
+    };
+  } finally {
+    lock.release();
+  }
+}
+
 export function answersToEnvMap(answers: MindoryInstallAnswers): Record<string, string> {
   const env = Object.fromEntries(FLAT_CONFIG_CATALOG.map((entry) => [entry.name, entry.defaultValue]));
   assign(env, "MINDORY_HOME", answers.mindoryHome);
@@ -1037,6 +1109,128 @@ function formatWizardQuestion(promptItem: WizardPrompt): string {
   const resource = promptItem.resourceHint === undefined ? "" : ` [resources: ${Object.entries(promptItem.resourceHint).map(([key, value]) => `${key} ${value}`).join(", ")}]`;
   const secret = promptItem.secret ? " [secret]" : "";
   return `${promptItem.label}${choices}${secret}${resource}\n${promptItem.help}\nDefault: ${promptItem.defaultValue}\n> `;
+}
+
+function executeSupportedInstallStep(
+  stepItem: InstallPlanStep,
+  answers: MindoryInstallAnswers,
+  plan: InstallPlan,
+  options: InstallExecutionOptions
+): void {
+  if (stepItem.id === "ensure-home") {
+    ensureMindoryHomeTree(plan, stepItem);
+    return;
+  }
+  if (stepItem.id === "write-config") {
+    writeGeneratedFile(path.join(plan.mindoryHome, "config", "mindory.config.json"), renderMindoryConfigJson(answers), 0o600, stepItem, plan.mindoryHome);
+    return;
+  }
+  if (stepItem.id === "write-env") {
+    writeGeneratedFile(path.join(plan.mindoryHome, "config", ".env"), renderEnvFile(answers), 0o600, stepItem, plan.mindoryHome);
+    return;
+  }
+  if (stepItem.id === "write-compose-assets") {
+    writeComposeAssets(options.sourceRoot ?? processCwd(), plan, stepItem);
+    return;
+  }
+  throw new Error(`Install step ${stepItem.id} is not implemented by the prepare execution engine.`);
+}
+
+function ensureMindoryHomeTree(plan: InstallPlan, stepItem: InstallPlanStep): void {
+  const createdPaths: string[] = [];
+  ensureDirectory(plan.mindoryHome, createdPaths);
+  for (const directory of plan.homeDirectories) {
+    ensureDirectory(path.join(plan.mindoryHome, directory), createdPaths);
+  }
+  stepItem.rollback.createdPaths = createdPaths;
+  stepItem.rollback.restoreMode = "delete";
+}
+
+function writeGeneratedFile(targetPath: string, contents: string, mode: number, stepItem: InstallPlanStep, mindoryHome: string): void {
+  mkdirSync(path.dirname(targetPath), { recursive: true, mode: 0o700 });
+  prepareTargetRollback(targetPath, stepItem, mindoryHome);
+  writeFileSync(targetPath, contents, { mode });
+}
+
+function writeComposeAssets(sourceRoot: string, plan: InstallPlan, stepItem: InstallPlanStep): void {
+  const targetDirectory = path.join(plan.mindoryHome, "install", "compose");
+  prepareTargetRollback(targetDirectory, stepItem, plan.mindoryHome);
+  rmSync(targetDirectory, { recursive: true, force: true });
+  mkdirSync(targetDirectory, { recursive: true, mode: 0o700 });
+
+  const manifestPath = path.join(sourceRoot, "deploy", "compose", "release-manifest.json");
+  if (!existsSync(manifestPath)) {
+    throw new Error(`Release manifest not found at ${manifestPath}.`);
+  }
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {
+    assets?: Array<{ path: string; required?: boolean }>;
+  };
+  writeFileSync(path.join(targetDirectory, "release-manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o600 });
+  for (const asset of manifest.assets ?? []) {
+    const sourcePath = path.join(sourceRoot, asset.path);
+    if (!existsSync(sourcePath)) {
+      if (asset.required === false) {
+        continue;
+      }
+      throw new Error(`Required release asset not found at ${sourcePath}.`);
+    }
+    const targetPath = path.join(targetDirectory, asset.path);
+    mkdirSync(path.dirname(targetPath), { recursive: true, mode: 0o700 });
+    cpSync(sourcePath, targetPath, { recursive: true });
+  }
+}
+
+function prepareTargetRollback(targetPath: string, stepItem: InstallPlanStep, mindoryHome: string): void {
+  stepItem.rollback.target = targetPath;
+  if (!existsSync(targetPath)) {
+    stepItem.rollback.restoreMode = "delete";
+    return;
+  }
+  const backupTarget = rollbackBackupPath(mindoryHome, stepItem.id, path.basename(targetPath));
+  mkdirSync(path.dirname(backupTarget), { recursive: true, mode: 0o700 });
+  cpSync(targetPath, backupTarget, { recursive: true });
+  stepItem.rollback.backupTarget = backupTarget;
+  stepItem.rollback.restoreMode = "restore";
+}
+
+function defaultRollbackExecutor(rollback: InstallRollbackStep): void {
+  if (rollback.kind === "delete_path") {
+    const createdPaths = rollback.createdPaths ?? (rollback.target === undefined ? [] : [rollback.target]);
+    for (const createdPath of [...createdPaths].sort((a, b) => b.length - a.length)) {
+      rmSync(createdPath, { recursive: true, force: true });
+    }
+    return;
+  }
+  if (rollback.kind === "restore_file") {
+    if (rollback.target === undefined) {
+      return;
+    }
+    if (rollback.restoreMode === "restore" && rollback.backupTarget !== undefined && existsSync(rollback.backupTarget)) {
+      rmSync(rollback.target, { recursive: true, force: true });
+      mkdirSync(path.dirname(rollback.target), { recursive: true, mode: 0o700 });
+      cpSync(rollback.backupTarget, rollback.target, { recursive: true });
+      return;
+    }
+    rmSync(rollback.target, { recursive: true, force: true });
+    return;
+  }
+  throw new Error(`Rollback kind ${rollback.kind} is not implemented by the prepare execution engine.`);
+}
+
+function pendingStepIds(plan: InstallPlan, executedStepIds: readonly string[]): string[] {
+  const executed = new Set(executedStepIds);
+  return plan.steps.filter((stepItem) => !executed.has(stepItem.id)).map((stepItem) => stepItem.id);
+}
+
+function ensureDirectory(targetPath: string, createdPaths: string[]): void {
+  if (!existsSync(targetPath)) {
+    mkdirSync(targetPath, { recursive: true, mode: 0o700 });
+    createdPaths.push(targetPath);
+  }
+}
+
+function rollbackBackupPath(mindoryHome: string, stepId: string, basename: string): string {
+  return path.join(mindoryHome, "install", "rollback", stepId, basename);
 }
 
 function promptIdToEnvName(promptId: string): string | undefined {

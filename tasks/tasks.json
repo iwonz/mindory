@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-64",
+  "current_task_id": "TASK-65",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -484,6 +484,13 @@
       "status": "done",
       "branch": "task/TASK-64-public-state-documentation-audit",
       "file": "tasks/TASK-64.json"
+    },
+    {
+      "id": "TASK-65",
+      "title": "Add installer execution engine",
+      "status": "done",
+      "branch": "task/TASK-65-installer-execution-engine",
+      "file": "tasks/TASK-65.json"
     }
   ]
 }
