@@ -56,6 +56,13 @@ for (const token of ["MINDORY_BACKUP_SCHEDULE_ENABLED", "MINDORY_BACKUP_SCHEDULE
   assertIncludes(configuration, token, "docs/CONFIGURATION.md");
   assertIncludes(productionHardening, token, "docs/PRODUCTION_HARDENING.md");
 }
+for (const token of ["MINDORY_REMOTE_BACKUP_ENABLED", "MINDORY_BACKUP_ENCRYPTION_KEY_ID", "MINDORY_BACKUP_ENCRYPTION_KEY", "MINDORY_REMOTE_BACKUP_S3_ENDPOINT", "MINDORY_REMOTE_BACKUP_S3_BUCKET", "MINDORY_REMOTE_BACKUP_S3_ACCESS_KEY_ID", "MINDORY_REMOTE_BACKUP_S3_SECRET_ACCESS_KEY", "MINDORY_REMOTE_BACKUP_S3_PREFIX"]) {
+  assertIncludes(envExample, token, ".env.example");
+  assertIncludes(compose, token, "docker-compose.yml");
+  assertIncludes(config, token, "packages/config/src/index.ts");
+  assertIncludes(configuration, token, "docs/CONFIGURATION.md");
+  assertIncludes(productionHardening, token, "docs/PRODUCTION_HARDENING.md");
+}
 
 for (const token of ["registerRequestGuards", "rateLimit", "ApiError(429", "x-ratelimit-limit", "createHash"]) {
   assertIncludes(requestGuard, token, "apps/api/src/request-guard.ts");
@@ -73,6 +80,10 @@ for (const token of [
   "docker build",
   "pnpm check",
   "backup",
+  "backup-archive",
+  "backup-upload",
+  "backup-download",
+  "backup-restore-archive",
   "pitr-backup",
   "pitr-restore",
   "recovery_target_time",

@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, randomBytes, scryptSync } from "node:crypto";
 import {
   closeSync,
   constants,
@@ -18,6 +18,7 @@ import {
 import path from "node:path";
 import { cwd as processCwd, env as processEnv, pid as processPid, stdin as defaultInput, stdout as defaultOutput } from "node:process";
 import { createInterface, type Interface as ReadlineInterface } from "node:readline/promises";
+import { gunzipSync, gzipSync } from "node:zlib";
 import {
   CONFIG_CATALOG,
   loadMindoryConfig,
@@ -40,7 +41,7 @@ import {
   type LlmLocalCommandRunner,
   type LlmProviderHealth
 } from "@mindory/llm";
-import { S3ObjectStorage } from "@mindory/storage-s3";
+import { S3ObjectStorage, normalizeS3Key } from "@mindory/storage-s3";
 
 export const INSTALLER_SCHEMA_VERSION = 1;
 
@@ -104,6 +105,14 @@ export interface StorageAnswers {
   provider: StorageProvider;
   localPath: string;
   s3: S3StorageAnswers;
+}
+
+export interface RemoteBackupAnswers {
+  enabled: boolean;
+  encryptionKeyId: string;
+  encryptionKey: string;
+  s3: S3StorageAnswers;
+  prefix: string;
 }
 
 export interface AntivirusAnswers {
@@ -186,6 +195,7 @@ export interface MindoryInstallAnswers {
   devMode: boolean;
   publicUrl: string;
   storage: StorageAnswers;
+  remoteBackup: RemoteBackupAnswers;
   vector: VectorAnswers;
   docling: DoclingAnswers;
   antivirus: AntivirusAnswers;
@@ -534,6 +544,107 @@ export interface PostgresPitrRestoreReport {
   liveDataBackupPath?: string;
 }
 
+export type EncryptedBackupSourceKind = RuntimeBackupManifest["kind"] | PostgresPitrBackupManifest["kind"];
+
+export interface EncryptedBackupPlainFile {
+  path: string;
+  size_bytes: number;
+  sha256: string;
+  data_base64: string;
+}
+
+export interface EncryptedBackupPlainPayload {
+  schema_version: InstallerSchemaVersion;
+  kind: "mindory-backup-archive-plain";
+  created_at: string;
+  source_backup_kind: EncryptedBackupSourceKind;
+  source_backup_manifest: RuntimeBackupManifest | PostgresPitrBackupManifest;
+  files: EncryptedBackupPlainFile[];
+}
+
+export interface EncryptedBackupArchiveManifest {
+  schema_version: InstallerSchemaVersion;
+  kind: "mindory-encrypted-backup-archive";
+  created_at: string;
+  source_backup_path: string;
+  source_backup_kind: EncryptedBackupSourceKind;
+  key_id: string;
+  cipher: "aes-256-gcm";
+  kdf: "scrypt-sha256";
+  salt_base64: string;
+  iv_base64: string;
+  auth_tag_base64: string;
+  plaintext_sha256: string;
+  ciphertext_sha256: string;
+  ciphertext_base64: string;
+  files_count: number;
+  archive_size_bytes: number;
+}
+
+export interface EncryptedBackupArchiveOptions extends InstallExecutionOptions {
+  outputFile?: string;
+  encryptionKey?: string;
+  keyId?: string;
+}
+
+export interface EncryptedBackupArchiveReport {
+  archivePath: string;
+  keyId: string;
+  sourceBackupPath: string;
+  sourceBackupKind: EncryptedBackupSourceKind;
+  plaintextSha256: string;
+  ciphertextSha256: string;
+  filesCount: number;
+  sizeBytes: number;
+}
+
+export interface EncryptedBackupArchiveRestoreOptions extends InstallExecutionOptions {
+  yes: boolean;
+  encryptionKey?: string;
+  outputDirectory?: string;
+}
+
+export interface EncryptedBackupArchiveRestoreReport {
+  archivePath: string;
+  outputDirectory: string;
+  sourceBackupKind: EncryptedBackupSourceKind;
+  sourceBackupManifestPath: string;
+  filesRestored: number;
+  plaintextSha256: string;
+}
+
+export interface RemoteBackupS3Config {
+  endpoint: string;
+  region: string;
+  bucket: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  forcePathStyle: boolean;
+  prefix: string;
+}
+
+export interface RemoteBackupTransferOptions extends InstallExecutionOptions {
+  s3?: Partial<RemoteBackupS3Config>;
+  objectKey?: string;
+  outputFile?: string;
+}
+
+export interface RemoteBackupUploadReport {
+  archivePath: string;
+  objectKey: string;
+  bucket: string;
+  sizeBytes: number;
+  sha256: string;
+}
+
+export interface RemoteBackupDownloadReport {
+  outputFile: string;
+  objectKey: string;
+  bucket: string;
+  sizeBytes: number;
+  sha256: string;
+}
+
 export interface ScheduledBackupConfig {
   enabled: boolean;
   intervalMinutes: number;
@@ -612,6 +723,20 @@ export function createDefaultInstallAnswers(overrides: Partial<MindoryInstallAns
         forcePathStyle: catalogDefault("MINDORY_S3_FORCE_PATH_STYLE") === "true"
       }
     },
+    remoteBackup: {
+      enabled: catalogDefault("MINDORY_REMOTE_BACKUP_ENABLED") === "true",
+      encryptionKeyId: catalogDefault("MINDORY_BACKUP_ENCRYPTION_KEY_ID"),
+      encryptionKey: catalogDefault("MINDORY_BACKUP_ENCRYPTION_KEY"),
+      s3: {
+        endpoint: catalogDefault("MINDORY_REMOTE_BACKUP_S3_ENDPOINT"),
+        region: catalogDefault("MINDORY_REMOTE_BACKUP_S3_REGION"),
+        bucket: catalogDefault("MINDORY_REMOTE_BACKUP_S3_BUCKET"),
+        accessKeyId: catalogDefault("MINDORY_REMOTE_BACKUP_S3_ACCESS_KEY_ID"),
+        secretAccessKey: catalogDefault("MINDORY_REMOTE_BACKUP_S3_SECRET_ACCESS_KEY"),
+        forcePathStyle: catalogDefault("MINDORY_REMOTE_BACKUP_S3_FORCE_PATH_STYLE") === "true"
+      },
+      prefix: catalogDefault("MINDORY_REMOTE_BACKUP_S3_PREFIX")
+    },
     vector: {
       provider: catalogDefault("MINDORY_VECTOR_PROVIDER") as VectorProvider,
       qdrantUrl: catalogDefault("MINDORY_QDRANT_URL"),
@@ -686,6 +811,7 @@ export function validateInstallAnswers(answers: MindoryInstallAnswers): string[]
   if (answers.storage.provider === "s3") {
     errors.push(...validateS3StorageAnswers(answers.storage.s3));
   }
+  validateRemoteBackupAnswers(errors, answers.remoteBackup);
   if (answers.vector.provider === "qdrant") {
     try {
       const parsed = new URL(answers.vector.qdrantUrl);
@@ -808,6 +934,31 @@ export function validateS3StorageAnswers(answers: S3StorageAnswers): string[] {
     errors.push("storage.s3.secretAccessKey is required.");
   }
   return errors;
+}
+
+function validateRemoteBackupAnswers(errors: string[], answers: RemoteBackupAnswers): void {
+  if (answers.encryptionKeyId.trim() === "") {
+    errors.push("remoteBackup.encryptionKeyId is required.");
+  }
+  if (!isValidObjectKeyPrefix(answers.prefix)) {
+    errors.push("remoteBackup.prefix must be a relative S3 object prefix without path traversal.");
+  }
+  if (!answers.enabled) {
+    return;
+  }
+  if (answers.encryptionKey.trim() === "") {
+    errors.push("remoteBackup.encryptionKey is required when encrypted remote backups are enabled.");
+  }
+  for (const error of validateS3StorageAnswers(answers.s3)) {
+    errors.push(error.replace("storage.s3.", "remoteBackup.s3."));
+  }
+}
+
+function isValidObjectKeyPrefix(prefix: string): boolean {
+  if (prefix.trim() === "" || prefix.startsWith("/") || prefix.includes("\0")) {
+    return false;
+  }
+  return prefix.split("/").filter(Boolean).every((segment) => segment !== "." && segment !== "..");
 }
 
 export function createInstallPlan(answers: MindoryInstallAnswers): InstallPlan {
@@ -1464,6 +1615,230 @@ export async function restoreMindoryPostgresPitrBackup(
   };
 }
 
+export async function createEncryptedMindoryBackupArchive(
+  mindoryHome: string,
+  backupPath: string,
+  options: EncryptedBackupArchiveOptions = {}
+): Promise<EncryptedBackupArchiveReport> {
+  const resolvedHome = assertSafeMindoryHome(mindoryHome);
+  const resolvedBackup = path.resolve(backupPath);
+  assertPathInside(resolvedBackup, path.join(resolvedHome, "backups"));
+  if (!existsSync(resolvedBackup)) {
+    throw new Error(`Backup path not found: ${resolvedBackup}.`);
+  }
+  const sourceManifest = readBackupSourceManifest(resolvedBackup);
+  const files = listBackupPlainFiles(resolvedBackup);
+  if (files.length === 0) {
+    throw new Error(`Backup path ${resolvedBackup} does not contain files to archive.`);
+  }
+  const keyMaterial = resolveBackupEncryptionMaterial(resolvedHome, {
+    encryptionKey: options.encryptionKey,
+    keyId: options.keyId
+  });
+  const payload: EncryptedBackupPlainPayload = {
+    schema_version: INSTALLER_SCHEMA_VERSION,
+    kind: "mindory-backup-archive-plain",
+    created_at: new Date().toISOString(),
+    source_backup_kind: sourceManifest.kind,
+    source_backup_manifest: sourceManifest,
+    files
+  };
+  const plaintext = gzipSync(Buffer.from(JSON.stringify(payload), "utf8"));
+  const plaintextSha256 = sha256HexBuffer(plaintext);
+  const salt = randomBytes(16);
+  const iv = randomBytes(12);
+  const key = deriveBackupEncryptionKey(keyMaterial.secret, salt);
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()]);
+  const authTag = cipher.getAuthTag();
+  const ciphertextSha256 = sha256HexBuffer(ciphertext);
+  const archive: EncryptedBackupArchiveManifest = {
+    schema_version: INSTALLER_SCHEMA_VERSION,
+    kind: "mindory-encrypted-backup-archive",
+    created_at: new Date().toISOString(),
+    source_backup_path: resolvedBackup,
+    source_backup_kind: sourceManifest.kind,
+    key_id: keyMaterial.keyId,
+    cipher: "aes-256-gcm",
+    kdf: "scrypt-sha256",
+    salt_base64: salt.toString("base64"),
+    iv_base64: iv.toString("base64"),
+    auth_tag_base64: authTag.toString("base64"),
+    plaintext_sha256: plaintextSha256,
+    ciphertext_sha256: ciphertextSha256,
+    ciphertext_base64: ciphertext.toString("base64"),
+    files_count: files.length,
+    archive_size_bytes: ciphertext.length
+  };
+  const outputFile = path.resolve(options.outputFile ?? path.join(
+    resolvedHome,
+    "backups",
+    `${timestampLabel()}-${sanitizeBackupLabel(path.basename(resolvedBackup))}.mindorybak`
+  ));
+  assertPathInside(outputFile, path.join(resolvedHome, "backups"));
+  mkdirSync(path.dirname(outputFile), { recursive: true, mode: 0o700 });
+  writeFileSync(outputFile, `${JSON.stringify(archive, null, 2)}\n`, { mode: 0o600 });
+
+  return {
+    archivePath: outputFile,
+    keyId: archive.key_id,
+    sourceBackupPath: resolvedBackup,
+    sourceBackupKind: archive.source_backup_kind,
+    plaintextSha256,
+    ciphertextSha256,
+    filesCount: files.length,
+    sizeBytes: statSync(outputFile).size
+  };
+}
+
+export async function restoreEncryptedMindoryBackupArchive(
+  mindoryHome: string,
+  archivePath: string,
+  options: EncryptedBackupArchiveRestoreOptions
+): Promise<EncryptedBackupArchiveRestoreReport> {
+  if (!options.yes) {
+    throw new Error("Encrypted backup archive restore requires explicit confirmation through yes=true or --yes.");
+  }
+  const resolvedHome = assertSafeMindoryHome(mindoryHome);
+  const resolvedArchive = path.resolve(archivePath);
+  const archive = readEncryptedBackupArchiveManifest(resolvedArchive);
+  const keyMaterial = resolveBackupEncryptionMaterial(resolvedHome, {
+    encryptionKey: options.encryptionKey,
+    keyId: archive.key_id
+  });
+  const salt = Buffer.from(archive.salt_base64, "base64");
+  const iv = Buffer.from(archive.iv_base64, "base64");
+  const authTag = Buffer.from(archive.auth_tag_base64, "base64");
+  const ciphertext = Buffer.from(archive.ciphertext_base64, "base64");
+  if (sha256HexBuffer(ciphertext) !== archive.ciphertext_sha256) {
+    throw new Error("Encrypted backup archive ciphertext hash verification failed.");
+  }
+
+  const decipher = createDecipheriv("aes-256-gcm", deriveBackupEncryptionKey(keyMaterial.secret, salt), iv);
+  decipher.setAuthTag(authTag);
+  const plaintext = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+  if (sha256HexBuffer(plaintext) !== archive.plaintext_sha256) {
+    throw new Error("Encrypted backup archive plaintext hash verification failed.");
+  }
+  const payload = JSON.parse(gunzipSync(plaintext).toString("utf8")) as EncryptedBackupPlainPayload;
+  validatePlainBackupPayload(payload, archive);
+
+  const outputDirectory = path.resolve(options.outputDirectory ?? path.join(
+    resolvedHome,
+    "backups",
+    "decrypted",
+    `${timestampLabel()}-${sanitizeBackupLabel(path.basename(resolvedArchive).replace(/\.mindorybak$/i, ""))}`
+  ));
+  assertPathInside(outputDirectory, path.join(resolvedHome, "backups"));
+  rmSync(outputDirectory, { recursive: true, force: true });
+  mkdirSync(outputDirectory, { recursive: true, mode: 0o700 });
+
+  for (const file of payload.files) {
+    const relativePath = normalizeArchiveRelativePath(file.path);
+    const target = path.join(outputDirectory, ...relativePath.split("/"));
+    assertPathInside(target, outputDirectory);
+    const body = Buffer.from(file.data_base64, "base64");
+    if (body.length !== file.size_bytes || sha256HexBuffer(body) !== file.sha256) {
+      throw new Error(`Encrypted backup archive file verification failed for ${file.path}.`);
+    }
+    mkdirSync(path.dirname(target), { recursive: true, mode: 0o700 });
+    writeFileSync(target, body, { mode: 0o600 });
+  }
+
+  const sourceBackupManifestPath = path.join(
+    outputDirectory,
+    payload.source_backup_kind === "mindory-runtime-backup" ? "backup-manifest.json" : "pitr-manifest.json"
+  );
+  return {
+    archivePath: resolvedArchive,
+    outputDirectory,
+    sourceBackupKind: payload.source_backup_kind,
+    sourceBackupManifestPath,
+    filesRestored: payload.files.length,
+    plaintextSha256: archive.plaintext_sha256
+  };
+}
+
+export async function uploadEncryptedMindoryBackupArchive(
+  mindoryHome: string,
+  archivePath: string,
+  options: RemoteBackupTransferOptions = {}
+): Promise<RemoteBackupUploadReport> {
+  const resolvedHome = assertSafeMindoryHome(mindoryHome);
+  const resolvedArchive = path.resolve(archivePath);
+  if (!existsSync(resolvedArchive)) {
+    throw new Error(`Encrypted backup archive not found at ${resolvedArchive}.`);
+  }
+  const config = readRemoteBackupS3Config(resolvedHome, options.s3);
+  const objectKey = normalizeRemoteBackupObjectKey(config, options.objectKey, path.basename(resolvedArchive));
+  const body = readFileSync(resolvedArchive);
+  const sha256 = sha256HexBuffer(body);
+  const storage = createRemoteBackupS3Storage(config, options.s3FetchImpl);
+  await storage.ensureBucket();
+  await storage.checkBucketAccess();
+  await storage.putObject({
+    key: objectKey,
+    body,
+    contentType: "application/vnd.mindory.backup+json",
+    metadata: {
+      "mindory-kind": "encrypted-backup-archive",
+      sha256,
+      "size-bytes": String(body.length)
+    }
+  });
+  const stored = await storage.statObject(objectKey);
+  if (stored.sizeBytes !== body.length || stored.metadata.sha256 !== sha256) {
+    throw new Error(`Remote backup upload integrity check failed for ${objectKey}.`);
+  }
+  return {
+    archivePath: resolvedArchive,
+    objectKey,
+    bucket: config.bucket,
+    sizeBytes: body.length,
+    sha256
+  };
+}
+
+export async function downloadEncryptedMindoryBackupArchive(
+  mindoryHome: string,
+  options: RemoteBackupTransferOptions
+): Promise<RemoteBackupDownloadReport> {
+  const resolvedHome = assertSafeMindoryHome(mindoryHome);
+  const config = readRemoteBackupS3Config(resolvedHome, options.s3);
+  if (options.objectKey === undefined) {
+    throw new Error("Encrypted remote backup download requires objectKey.");
+  }
+  const objectKey = normalizeS3Key(options.objectKey);
+  const storage = createRemoteBackupS3Storage(config, options.s3FetchImpl);
+  await storage.checkBucketAccess();
+  const stored = await storage.getObject(objectKey);
+  const body = await readableBodyToBuffer(stored.body);
+  const expectedSha256 = stored.metadata.sha256;
+  const sha256 = sha256HexBuffer(body);
+  if (stored.sizeBytes !== body.length) {
+    throw new Error(`Remote backup download size check failed for ${objectKey}.`);
+  }
+  if (expectedSha256 !== undefined && expectedSha256 !== sha256) {
+    throw new Error(`Remote backup download hash check failed for ${objectKey}.`);
+  }
+  const outputFile = path.resolve(options.outputFile ?? path.join(
+    resolvedHome,
+    "backups",
+    "remote-downloads",
+    path.basename(objectKey)
+  ));
+  assertPathInside(outputFile, path.join(resolvedHome, "backups"));
+  mkdirSync(path.dirname(outputFile), { recursive: true, mode: 0o700 });
+  writeFileSync(outputFile, body, { mode: 0o600 });
+  return {
+    outputFile,
+    objectKey,
+    bucket: config.bucket,
+    sizeBytes: body.length,
+    sha256
+  };
+}
+
 export async function runScheduledMindoryBackup(
   mindoryHome: string,
   options: ScheduledBackupOptions = {}
@@ -1652,6 +2027,16 @@ export function answersToEnvMap(answers: MindoryInstallAnswers): Record<string, 
   assign(env, "MINDORY_S3_ACCESS_KEY_ID", answers.storage.s3.accessKeyId);
   assign(env, "MINDORY_S3_SECRET_ACCESS_KEY", answers.storage.s3.secretAccessKey);
   assign(env, "MINDORY_S3_FORCE_PATH_STYLE", bool(answers.storage.s3.forcePathStyle));
+  assign(env, "MINDORY_REMOTE_BACKUP_ENABLED", bool(answers.remoteBackup.enabled));
+  assign(env, "MINDORY_BACKUP_ENCRYPTION_KEY_ID", answers.remoteBackup.encryptionKeyId);
+  assign(env, "MINDORY_BACKUP_ENCRYPTION_KEY", answers.remoteBackup.encryptionKey);
+  assign(env, "MINDORY_REMOTE_BACKUP_S3_ENDPOINT", answers.remoteBackup.s3.endpoint);
+  assign(env, "MINDORY_REMOTE_BACKUP_S3_REGION", answers.remoteBackup.s3.region);
+  assign(env, "MINDORY_REMOTE_BACKUP_S3_BUCKET", answers.remoteBackup.s3.bucket);
+  assign(env, "MINDORY_REMOTE_BACKUP_S3_ACCESS_KEY_ID", answers.remoteBackup.s3.accessKeyId);
+  assign(env, "MINDORY_REMOTE_BACKUP_S3_SECRET_ACCESS_KEY", answers.remoteBackup.s3.secretAccessKey);
+  assign(env, "MINDORY_REMOTE_BACKUP_S3_FORCE_PATH_STYLE", bool(answers.remoteBackup.s3.forcePathStyle));
+  assign(env, "MINDORY_REMOTE_BACKUP_S3_PREFIX", answers.remoteBackup.prefix);
   assign(env, "MINDORY_VECTOR_PROVIDER", answers.vector.provider);
   assign(env, "MINDORY_QDRANT_URL", answers.vector.qdrantUrl);
   assign(env, "MINDORY_QDRANT_COLLECTION_PREFIX", answers.vector.qdrantCollectionPrefix);
@@ -1721,6 +2106,7 @@ export function renderMindoryConfigJson(answers: MindoryInstallAnswers): string 
     profile: answers.profile,
     public_url: answers.publicUrl,
     storage: answers.storage,
+    remote_backup: answers.remoteBackup,
     vector: answers.vector,
     docling: answers.docling,
     antivirus: answers.antivirus,
@@ -1810,6 +2196,15 @@ export function buildWizardPromptPlan(options: WizardOptions = {}): WizardPrompt
     promptFromCatalog("storage.s3.bucket", "MINDORY_S3_BUCKET", "text"),
     promptFromCatalog("storage.s3.access_key_id", "MINDORY_S3_ACCESS_KEY_ID", "secret"),
     promptFromCatalog("storage.s3.secret_access_key", "MINDORY_S3_SECRET_ACCESS_KEY", "secret"),
+    promptFromCatalog("backup.remote.enabled", "MINDORY_REMOTE_BACKUP_ENABLED", "boolean"),
+    promptFromCatalog("backup.encryption.key_id", "MINDORY_BACKUP_ENCRYPTION_KEY_ID", "text"),
+    promptFromCatalog("backup.encryption.key", "MINDORY_BACKUP_ENCRYPTION_KEY", "secret"),
+    promptFromCatalog("backup.remote.s3.endpoint", "MINDORY_REMOTE_BACKUP_S3_ENDPOINT", "text"),
+    promptFromCatalog("backup.remote.s3.region", "MINDORY_REMOTE_BACKUP_S3_REGION", "text"),
+    promptFromCatalog("backup.remote.s3.bucket", "MINDORY_REMOTE_BACKUP_S3_BUCKET", "text"),
+    promptFromCatalog("backup.remote.s3.access_key_id", "MINDORY_REMOTE_BACKUP_S3_ACCESS_KEY_ID", "secret"),
+    promptFromCatalog("backup.remote.s3.secret_access_key", "MINDORY_REMOTE_BACKUP_S3_SECRET_ACCESS_KEY", "secret"),
+    promptFromCatalog("backup.remote.s3.prefix", "MINDORY_REMOTE_BACKUP_S3_PREFIX", "text"),
     promptFromCatalog("vector.provider", "MINDORY_VECTOR_PROVIDER", "choice"),
     promptFromCatalog("vector.qdrant_url", "MINDORY_QDRANT_URL", "text"),
     promptFromCatalog("vector.qdrant_collection_prefix", "MINDORY_QDRANT_COLLECTION_PREFIX", "text"),
@@ -1886,6 +2281,18 @@ export async function runInstallWizard(io: WizardIo, options: WizardOptions = {}
     answers.storage.s3.bucket = await askString(io, promptFromCatalog("storage.s3.bucket", "MINDORY_S3_BUCKET", "text", { defaultValue: answers.storage.s3.bucket }));
     answers.storage.s3.accessKeyId = await askString(io, promptFromCatalog("storage.s3.access_key_id", "MINDORY_S3_ACCESS_KEY_ID", "secret", { defaultValue: answers.storage.s3.accessKeyId }));
     answers.storage.s3.secretAccessKey = await askString(io, promptFromCatalog("storage.s3.secret_access_key", "MINDORY_S3_SECRET_ACCESS_KEY", "secret", { defaultValue: answers.storage.s3.secretAccessKey }));
+  }
+
+  answers.remoteBackup.enabled = await askBoolean(io, promptFromCatalog("backup.remote.enabled", "MINDORY_REMOTE_BACKUP_ENABLED", "boolean"));
+  if (answers.remoteBackup.enabled) {
+    answers.remoteBackup.encryptionKeyId = await askString(io, promptFromCatalog("backup.encryption.key_id", "MINDORY_BACKUP_ENCRYPTION_KEY_ID", "text", { defaultValue: answers.remoteBackup.encryptionKeyId }));
+    answers.remoteBackup.encryptionKey = await askString(io, promptFromCatalog("backup.encryption.key", "MINDORY_BACKUP_ENCRYPTION_KEY", "secret", { defaultValue: answers.remoteBackup.encryptionKey }));
+    answers.remoteBackup.s3.endpoint = await askString(io, promptFromCatalog("backup.remote.s3.endpoint", "MINDORY_REMOTE_BACKUP_S3_ENDPOINT", "text", { defaultValue: answers.remoteBackup.s3.endpoint }));
+    answers.remoteBackup.s3.region = await askString(io, promptFromCatalog("backup.remote.s3.region", "MINDORY_REMOTE_BACKUP_S3_REGION", "text", { defaultValue: answers.remoteBackup.s3.region }));
+    answers.remoteBackup.s3.bucket = await askString(io, promptFromCatalog("backup.remote.s3.bucket", "MINDORY_REMOTE_BACKUP_S3_BUCKET", "text", { defaultValue: answers.remoteBackup.s3.bucket }));
+    answers.remoteBackup.s3.accessKeyId = await askString(io, promptFromCatalog("backup.remote.s3.access_key_id", "MINDORY_REMOTE_BACKUP_S3_ACCESS_KEY_ID", "secret", { defaultValue: answers.remoteBackup.s3.accessKeyId }));
+    answers.remoteBackup.s3.secretAccessKey = await askString(io, promptFromCatalog("backup.remote.s3.secret_access_key", "MINDORY_REMOTE_BACKUP_S3_SECRET_ACCESS_KEY", "secret", { defaultValue: answers.remoteBackup.s3.secretAccessKey }));
+    answers.remoteBackup.prefix = await askString(io, promptFromCatalog("backup.remote.s3.prefix", "MINDORY_REMOTE_BACKUP_S3_PREFIX", "text", { defaultValue: answers.remoteBackup.prefix }));
   }
 
   answers.vector.provider = await askChoice(io, promptFromCatalog("vector.provider", "MINDORY_VECTOR_PROVIDER", "choice")) as VectorProvider;
@@ -2761,6 +3168,10 @@ function randomHex(bytes: number): string {
   return randomBytes(bytes).toString("hex");
 }
 
+function sha256HexBuffer(value: Buffer): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
 function createInstallBackup(mindoryHome: string, label: string): InstallBackupReport {
   const backupPath = path.join(mindoryHome, "backups", `${timestampLabel()}-${label}`);
   const copiedPaths: string[] = [];
@@ -3266,6 +3677,166 @@ function readPostgresPitrBackupManifest(manifestPath: string): PostgresPitrBacku
   return manifest;
 }
 
+function readBackupSourceManifest(backupPath: string): RuntimeBackupManifest | PostgresPitrBackupManifest {
+  const runtimeManifestPath = path.join(backupPath, "backup-manifest.json");
+  if (existsSync(runtimeManifestPath)) {
+    return readRuntimeBackupManifest(runtimeManifestPath);
+  }
+  const pitrManifestPath = path.join(backupPath, "pitr-manifest.json");
+  if (existsSync(pitrManifestPath)) {
+    return readPostgresPitrBackupManifest(pitrManifestPath);
+  }
+  throw new Error(`No supported Mindory backup manifest found under ${backupPath}.`);
+}
+
+function readEncryptedBackupArchiveManifest(archivePath: string): EncryptedBackupArchiveManifest {
+  if (!existsSync(archivePath)) {
+    throw new Error(`Encrypted backup archive not found at ${archivePath}.`);
+  }
+  const archive = JSON.parse(readFileSync(archivePath, "utf8")) as EncryptedBackupArchiveManifest;
+  if (
+    archive.kind !== "mindory-encrypted-backup-archive" ||
+    archive.schema_version !== INSTALLER_SCHEMA_VERSION ||
+    archive.cipher !== "aes-256-gcm" ||
+    archive.kdf !== "scrypt-sha256"
+  ) {
+    throw new Error(`Unsupported encrypted backup archive at ${archivePath}.`);
+  }
+  return archive;
+}
+
+function listBackupPlainFiles(backupPath: string): EncryptedBackupPlainFile[] {
+  const root = path.resolve(backupPath);
+  const files: EncryptedBackupPlainFile[] = [];
+  const visit = (directory: string): void => {
+    for (const entry of readdirSync(directory, { withFileTypes: true }).sort((left, right) => left.name.localeCompare(right.name))) {
+      const entryPath = path.join(directory, entry.name);
+      if (entry.isDirectory()) {
+        visit(entryPath);
+        continue;
+      }
+      if (!entry.isFile()) {
+        continue;
+      }
+      const relativePath = normalizeArchiveRelativePath(path.relative(root, entryPath).split(path.sep).join("/"));
+      const body = readFileSync(entryPath);
+      files.push({
+        path: relativePath,
+        size_bytes: body.length,
+        sha256: sha256HexBuffer(body),
+        data_base64: body.toString("base64")
+      });
+    }
+  };
+  visit(root);
+  return files;
+}
+
+function validatePlainBackupPayload(payload: EncryptedBackupPlainPayload, archive: EncryptedBackupArchiveManifest): void {
+  if (payload.kind !== "mindory-backup-archive-plain" || payload.schema_version !== INSTALLER_SCHEMA_VERSION) {
+    throw new Error("Encrypted backup archive plaintext payload has an unsupported schema.");
+  }
+  if (payload.source_backup_kind !== archive.source_backup_kind) {
+    throw new Error("Encrypted backup archive source kind does not match the plaintext payload.");
+  }
+  if (payload.files.length !== archive.files_count) {
+    throw new Error("Encrypted backup archive file count verification failed.");
+  }
+  const requiredManifest = payload.source_backup_kind === "mindory-runtime-backup" ? "backup-manifest.json" : "pitr-manifest.json";
+  if (!payload.files.some((file) => file.path === requiredManifest)) {
+    throw new Error(`Encrypted backup archive is missing ${requiredManifest}.`);
+  }
+}
+
+function normalizeArchiveRelativePath(relativePath: string): string {
+  if (relativePath.trim() === "" || relativePath.startsWith("/") || relativePath.includes("\0")) {
+    throw new Error(`Invalid encrypted backup archive path ${relativePath}.`);
+  }
+  const segments = relativePath.split("/").filter(Boolean);
+  if (segments.length === 0 || segments.some((segment) => segment === "." || segment === "..")) {
+    throw new Error(`Invalid encrypted backup archive path ${relativePath}.`);
+  }
+  return segments.join("/");
+}
+
+function resolveBackupEncryptionMaterial(
+  mindoryHome: string,
+  options: {
+    encryptionKey: string | undefined;
+    keyId: string | undefined;
+  }
+): { keyId: string; secret: string } {
+  const env = readMindoryHomeEnvironment(mindoryHome);
+  const secret = options.encryptionKey ?? env.MINDORY_BACKUP_ENCRYPTION_KEY ?? processEnv.MINDORY_BACKUP_ENCRYPTION_KEY ?? "";
+  const keyId = options.keyId ?? env.MINDORY_BACKUP_ENCRYPTION_KEY_ID ?? catalogDefault("MINDORY_BACKUP_ENCRYPTION_KEY_ID");
+  if (keyId.trim() === "") {
+    throw new Error("MINDORY_BACKUP_ENCRYPTION_KEY_ID must not be empty.");
+  }
+  if (secret.trim() === "") {
+    throw new Error("MINDORY_BACKUP_ENCRYPTION_KEY or --key is required for encrypted backup archives.");
+  }
+  return { keyId, secret };
+}
+
+function deriveBackupEncryptionKey(secret: string, salt: Buffer): Buffer {
+  if (secret.startsWith("base64:")) {
+    const key = Buffer.from(secret.slice("base64:".length), "base64");
+    if (key.length !== 32) {
+      throw new Error("Base64 backup encryption keys must decode to exactly 32 bytes.");
+    }
+    return key;
+  }
+  return scryptSync(secret, salt, 32);
+}
+
+function readRemoteBackupS3Config(
+  mindoryHome: string,
+  overrides: Partial<RemoteBackupS3Config> | undefined
+): RemoteBackupS3Config {
+  const env = readMindoryHomeEnvironment(mindoryHome);
+  const config: RemoteBackupS3Config = {
+    endpoint: overrides?.endpoint ?? env.MINDORY_REMOTE_BACKUP_S3_ENDPOINT ?? catalogDefault("MINDORY_REMOTE_BACKUP_S3_ENDPOINT"),
+    region: overrides?.region ?? env.MINDORY_REMOTE_BACKUP_S3_REGION ?? catalogDefault("MINDORY_REMOTE_BACKUP_S3_REGION"),
+    bucket: overrides?.bucket ?? env.MINDORY_REMOTE_BACKUP_S3_BUCKET ?? catalogDefault("MINDORY_REMOTE_BACKUP_S3_BUCKET"),
+    accessKeyId: overrides?.accessKeyId ?? env.MINDORY_REMOTE_BACKUP_S3_ACCESS_KEY_ID ?? catalogDefault("MINDORY_REMOTE_BACKUP_S3_ACCESS_KEY_ID"),
+    secretAccessKey: overrides?.secretAccessKey ?? env.MINDORY_REMOTE_BACKUP_S3_SECRET_ACCESS_KEY ?? catalogDefault("MINDORY_REMOTE_BACKUP_S3_SECRET_ACCESS_KEY"),
+    forcePathStyle: overrides?.forcePathStyle ?? (env.MINDORY_REMOTE_BACKUP_S3_FORCE_PATH_STYLE ?? catalogDefault("MINDORY_REMOTE_BACKUP_S3_FORCE_PATH_STYLE")) === "true",
+    prefix: overrides?.prefix ?? env.MINDORY_REMOTE_BACKUP_S3_PREFIX ?? catalogDefault("MINDORY_REMOTE_BACKUP_S3_PREFIX")
+  };
+  const errors = validateS3StorageAnswers(config);
+  if (!isValidObjectKeyPrefix(config.prefix)) {
+    errors.push("remote backup S3 prefix must be a relative object key prefix without path traversal.");
+  }
+  if (errors.length > 0) {
+    throw new Error(`Invalid encrypted remote backup S3 config: ${errors.join(" ")}`);
+  }
+  return config;
+}
+
+function createRemoteBackupS3Storage(config: RemoteBackupS3Config, fetchImpl?: typeof fetch): S3ObjectStorage {
+  const options = {
+    endpoint: config.endpoint,
+    region: config.region,
+    bucket: config.bucket,
+    accessKeyId: config.accessKeyId,
+    secretAccessKey: config.secretAccessKey,
+    forcePathStyle: config.forcePathStyle
+  };
+  return new S3ObjectStorage(fetchImpl === undefined ? options : { ...options, fetchImpl });
+}
+
+function normalizeRemoteBackupObjectKey(config: RemoteBackupS3Config, objectKey: string | undefined, archiveBasename: string): string {
+  return normalizeS3Key(objectKey ?? `${config.prefix}/${archiveBasename}`);
+}
+
+async function readableBodyToBuffer(body: AsyncIterable<Buffer | Uint8Array | string>): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of body) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks);
+}
+
 function restoreFilesystemComponent(
   manifest: RuntimeBackupManifest,
   backupPath: string,
@@ -3511,6 +4082,15 @@ function promptIdToEnvName(promptId: string): string | undefined {
     "storage.s3.bucket": "MINDORY_S3_BUCKET",
     "storage.s3.access_key_id": "MINDORY_S3_ACCESS_KEY_ID",
     "storage.s3.secret_access_key": "MINDORY_S3_SECRET_ACCESS_KEY",
+    "backup.remote.enabled": "MINDORY_REMOTE_BACKUP_ENABLED",
+    "backup.encryption.key_id": "MINDORY_BACKUP_ENCRYPTION_KEY_ID",
+    "backup.encryption.key": "MINDORY_BACKUP_ENCRYPTION_KEY",
+    "backup.remote.s3.endpoint": "MINDORY_REMOTE_BACKUP_S3_ENDPOINT",
+    "backup.remote.s3.region": "MINDORY_REMOTE_BACKUP_S3_REGION",
+    "backup.remote.s3.bucket": "MINDORY_REMOTE_BACKUP_S3_BUCKET",
+    "backup.remote.s3.access_key_id": "MINDORY_REMOTE_BACKUP_S3_ACCESS_KEY_ID",
+    "backup.remote.s3.secret_access_key": "MINDORY_REMOTE_BACKUP_S3_SECRET_ACCESS_KEY",
+    "backup.remote.s3.prefix": "MINDORY_REMOTE_BACKUP_S3_PREFIX",
     "vector.provider": "MINDORY_VECTOR_PROVIDER",
     "vector.qdrant_url": "MINDORY_QDRANT_URL",
     "vector.qdrant_collection_prefix": "MINDORY_QDRANT_COLLECTION_PREFIX",
@@ -3573,6 +4153,7 @@ function mergeAnswers(defaults: MindoryInstallAnswers, overrides: Partial<Mindor
     ...defaults,
     ...overrides,
     storage: { ...defaults.storage, ...overrides.storage, s3: { ...defaults.storage.s3, ...overrides.storage?.s3 } },
+    remoteBackup: { ...defaults.remoteBackup, ...overrides.remoteBackup, s3: { ...defaults.remoteBackup.s3, ...overrides.remoteBackup?.s3 } },
     vector: { ...defaults.vector, ...overrides.vector },
     docling: { ...defaults.docling, ...overrides.docling },
     antivirus: { ...defaults.antivirus, ...overrides.antivirus },

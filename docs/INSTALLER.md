@@ -5,7 +5,8 @@ interactive answer collection, config rendering, dependency diagnostics,
 bootstrap staging, prepare execution, Docker Compose startup through health
 checks and dry-run/live acceptance checks. It can write the local
 `$MINDORY_HOME` file layout, start the runtime and provision the first
-project/token.
+project/token, then create local, scheduled, PITR and encrypted remote backup
+artifacts.
 
 ## Current Support Level
 
@@ -23,6 +24,7 @@ project/token.
 | Runtime backup/restore | Supported MVP. It writes `backup-manifest.json`, config, installer metadata, PostgreSQL dumps and local object storage copies. |
 | PostgreSQL PITR | Supported local baseline. `pitr-backup` creates a `pg_basebackup` base backup and `pitr-restore` stages recovery with WAL archive refs and a target time. |
 | Scheduled local backups | Supported. `backup-schedule` uses config-driven intervals, a lock file, retention, logs and health state under `$MINDORY_HOME`. |
+| Encrypted remote backups | Supported. `backup-archive`, `backup-upload`, `backup-download` and `backup-restore-archive` encrypt backup sets and verify S3-compatible object integrity. |
 | Uninstall | Supported with explicit `--yes`; optional backup is written next to the removed home. |
 | Dependency detection | Supported through injectable probes and diagnostics. |
 | Lock, journal and recovery diagnostics | Supported. `repair` and `resume` inspect current state. |
@@ -430,6 +432,62 @@ Only one scheduled run executes at a time. A second runner reports
 directories below `$MINDORY_HOME/backups` that contain a Mindory
 `backup-manifest.json`, so active runtime directories such as
 `$MINDORY_HOME/data/objects` are outside the deletion set.
+
+### Encrypted Remote Backups
+
+Create an encrypted archive from any runtime backup or PITR base backup before
+copying it off host:
+
+```bash
+mindory-installer backup-archive --home ~/.mindory \
+  --backup ~/.mindory/backups/<backup-dir> \
+  --key-id local-2026-05 \
+  --key "$MINDORY_BACKUP_ENCRYPTION_KEY"
+```
+
+The command writes a `.mindorybak` JSON archive under
+`$MINDORY_HOME/backups`. It uses `aes-256-gcm`, a `scrypt-sha256` derived key
+for passphrases, SHA-256 integrity metadata for every file and never stores the
+raw `MINDORY_BACKUP_ENCRYPTION_KEY`.
+
+Configure the remote S3-compatible backup target independently from RAW object
+storage:
+
+```env
+MINDORY_REMOTE_BACKUP_ENABLED=true
+MINDORY_BACKUP_ENCRYPTION_KEY_ID=local-2026-05
+MINDORY_BACKUP_ENCRYPTION_KEY=base64:<32-byte-key>
+MINDORY_REMOTE_BACKUP_S3_ENDPOINT=https://s3.example.test
+MINDORY_REMOTE_BACKUP_S3_REGION=us-east-1
+MINDORY_REMOTE_BACKUP_S3_BUCKET=mindory-backups
+MINDORY_REMOTE_BACKUP_S3_ACCESS_KEY_ID=<access-key>
+MINDORY_REMOTE_BACKUP_S3_SECRET_ACCESS_KEY=<secret-key>
+MINDORY_REMOTE_BACKUP_S3_FORCE_PATH_STYLE=true
+MINDORY_REMOTE_BACKUP_S3_PREFIX=mindory
+```
+
+Upload and download verify bucket access, object size and SHA-256 metadata:
+
+```bash
+mindory-installer backup-upload --home ~/.mindory --archive ~/.mindory/backups/<archive>.mindorybak
+mindory-installer backup-download --home ~/.mindory --object-key mindory/<archive>.mindorybak
+```
+
+Decrypt and restore the archive to a staging backup directory before running
+the normal restore command:
+
+```bash
+mindory-installer backup-restore-archive --home ~/.mindory \
+  --archive ~/.mindory/backups/remote-downloads/<archive>.mindorybak \
+  --key "$MINDORY_BACKUP_ENCRYPTION_KEY" \
+  --yes
+```
+
+The restore step recreates the original `backup-manifest.json` or
+`pitr-manifest.json` plus every archived file under
+`$MINDORY_HOME/backups/decrypted`. Keep the encryption key outside the
+repository and outside installer logs; losing it makes remote archives
+unrecoverable.
 
 ## Generated State
 

@@ -2,10 +2,12 @@
 import {
   acquireInstallLock,
   buildRedactedInstallSummary,
+  createEncryptedMindoryBackupArchive,
   createMindoryPostgresPitrBaseBackup,
   createMindoryRuntimeBackup,
   createDefaultInstallAnswers,
   createReadlineWizardIo,
+  downloadEncryptedMindoryBackupArchive,
   executeInstallPlan,
   formatInstallerDiagnostic,
   installJournalPath,
@@ -16,11 +18,13 @@ import {
   readInstallLock,
   renderEnvFile,
   renderMindoryConfigJson,
+  restoreEncryptedMindoryBackupArchive,
   restoreMindoryPostgresPitrBackup,
   restoreMindoryRuntimeBackup,
   runScheduledMindoryBackup,
   runInstallWizard,
   uninstallMindoryHome,
+  uploadEncryptedMindoryBackupArchive,
   updateInstallAssets
 } from "./index.js";
 
@@ -50,6 +54,14 @@ try {
     await runUpdateCommand();
   } else if (command === "backup") {
     await runBackupCommand();
+  } else if (command === "backup-archive") {
+    await runBackupArchiveCommand();
+  } else if (command === "backup-upload") {
+    await runBackupUploadCommand();
+  } else if (command === "backup-download") {
+    await runBackupDownloadCommand();
+  } else if (command === "backup-restore-archive") {
+    await runBackupRestoreArchiveCommand();
   } else if (command === "backup-schedule") {
     await runBackupScheduleCommand();
   } else if (command === "pitr-backup") {
@@ -180,6 +192,102 @@ async function runBackupCommand(): Promise<void> {
     });
     printJson({
       status: report.dryRun ? "backup_dry_run" : "backed_up",
+      mindoryHome: home,
+      ...report
+    });
+  } catch (error) {
+    printJson({ diagnostic: formatInstallerDiagnostic(error) });
+    process.exitCode = 1;
+  }
+}
+
+async function runBackupArchiveCommand(): Promise<void> {
+  const home = optionValue("--home") ?? createDefaultInstallAnswers().mindoryHome;
+  const backupPath = optionValue("--backup");
+  const outputFile = optionValue("--output");
+  const encryptionKey = optionValue("--key");
+  const keyId = optionValue("--key-id");
+  if (backupPath === undefined) {
+    throw new Error("backup-archive requires --backup <path>.");
+  }
+  try {
+    const report = await createEncryptedMindoryBackupArchive(home, backupPath, {
+      ...(outputFile === undefined ? {} : { outputFile }),
+      ...(encryptionKey === undefined ? {} : { encryptionKey }),
+      ...(keyId === undefined ? {} : { keyId })
+    });
+    printJson({
+      status: "encrypted_backup_archive_created",
+      mindoryHome: home,
+      ...report
+    });
+  } catch (error) {
+    printJson({ diagnostic: formatInstallerDiagnostic(error) });
+    process.exitCode = 1;
+  }
+}
+
+async function runBackupRestoreArchiveCommand(): Promise<void> {
+  const home = optionValue("--home") ?? createDefaultInstallAnswers().mindoryHome;
+  const archivePath = optionValue("--archive");
+  const outputDirectory = optionValue("--output");
+  const encryptionKey = optionValue("--key");
+  if (archivePath === undefined) {
+    throw new Error("backup-restore-archive requires --archive <path>.");
+  }
+  try {
+    const report = await restoreEncryptedMindoryBackupArchive(home, archivePath, {
+      yes: args.includes("--yes"),
+      ...(outputDirectory === undefined ? {} : { outputDirectory }),
+      ...(encryptionKey === undefined ? {} : { encryptionKey })
+    });
+    printJson({
+      status: "encrypted_backup_archive_restored",
+      mindoryHome: home,
+      ...report
+    });
+  } catch (error) {
+    printJson({ diagnostic: formatInstallerDiagnostic(error) });
+    process.exitCode = 1;
+  }
+}
+
+async function runBackupUploadCommand(): Promise<void> {
+  const home = optionValue("--home") ?? createDefaultInstallAnswers().mindoryHome;
+  const archivePath = optionValue("--archive");
+  const objectKey = optionValue("--object-key");
+  if (archivePath === undefined) {
+    throw new Error("backup-upload requires --archive <path>.");
+  }
+  try {
+    const report = await uploadEncryptedMindoryBackupArchive(home, archivePath, {
+      ...(objectKey === undefined ? {} : { objectKey })
+    });
+    printJson({
+      status: "encrypted_backup_uploaded",
+      mindoryHome: home,
+      ...report
+    });
+  } catch (error) {
+    printJson({ diagnostic: formatInstallerDiagnostic(error) });
+    process.exitCode = 1;
+  }
+}
+
+async function runBackupDownloadCommand(): Promise<void> {
+  const home = optionValue("--home") ?? createDefaultInstallAnswers().mindoryHome;
+  const objectKey = optionValue("--object-key");
+  const outputFile = optionValue("--output");
+  if (objectKey === undefined) {
+    throw new Error("backup-download requires --object-key <key>.");
+  }
+  try {
+    const report = await downloadEncryptedMindoryBackupArchive(home, {
+      objectKey,
+      ...(outputFile === undefined ? {} : { outputFile })
+    });
+    printJson({
+      status: "encrypted_backup_downloaded",
       mindoryHome: home,
       ...report
     });
@@ -383,6 +491,10 @@ Usage:
   mindory-installer repair [--home <path>]
   mindory-installer update [--home <path>] [--source <path>] [--dry-run]
   mindory-installer backup [--home <path>] [--output <path>] [--label <name>] [--dry-run] [--no-postgres] [--no-objects]
+  mindory-installer backup-archive --home <path> --backup <path> [--output <path>] [--key <secret>] [--key-id <id>]
+  mindory-installer backup-upload --home <path> --archive <path> [--object-key <key>]
+  mindory-installer backup-download --home <path> --object-key <key> [--output <path>]
+  mindory-installer backup-restore-archive --home <path> --archive <path> --yes [--key <secret>] [--output <path>]
   mindory-installer backup-schedule [--home <path>] [--status] [--run-now] [--label <name>] [--dry-run] [--no-postgres] [--no-objects]
   mindory-installer pitr-backup [--home <path>] [--output <path>] [--label <name>] [--dry-run]
   mindory-installer pitr-restore --home <path> --backup <path> --target-time <iso> --yes [--restore-directory <path>] [--replace-live-data]

@@ -108,11 +108,18 @@ for (const token of ["MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_PROVIDER", "MIN
   assert(envExample.includes(token), `.env.example must include ${token}.`);
   assert(composeFile.includes(token), `docker-compose.yml must include ${token}.`);
 }
+for (const token of ["createEncryptedMindoryBackupArchive", "restoreEncryptedMindoryBackupArchive", "uploadEncryptedMindoryBackupArchive", "downloadEncryptedMindoryBackupArchive", "aes-256-gcm"]) {
+  assert(installerSource.includes(token), `Installer encrypted remote backup support must include ${token}.`);
+}
+for (const token of ["MINDORY_BACKUP_ENCRYPTION_KEY", "MINDORY_REMOTE_BACKUP_S3_ENDPOINT"]) {
+  assert(installerSource.includes(token), `Installer encrypted remote backup support must include ${token}.`);
+  assert(envExample.includes(token), `.env.example must include ${token}.`);
+}
 for (const token of ["infected_probe_not_detected", "unexpected_infected_result", "daemon_unavailable", "protocol_failure"]) {
   assert(installerSource.includes(token), `Installer ClamAV health must include ${token}.`);
 }
 assert(composeFile.includes("clamdscan --no-summary"), "ClamAV Compose service must include a real daemon healthcheck.");
-for (const token of ["command === \"start\"", "stopBeforeStepId: null", "initialTokenPath", "mindory-installer start", "command === \"update\"", "command === \"backup\"", "command === \"pitr-backup\"", "command === \"pitr-restore\"", "command === \"restore\"", "command === \"uninstall\""]) {
+for (const token of ["command === \"start\"", "stopBeforeStepId: null", "initialTokenPath", "mindory-installer start", "command === \"update\"", "command === \"backup\"", "command === \"backup-archive\"", "command === \"backup-upload\"", "command === \"backup-download\"", "command === \"backup-restore-archive\"", "command === \"pitr-backup\"", "command === \"pitr-restore\"", "command === \"restore\"", "command === \"uninstall\""]) {
   assert(installerCli.includes(token), `Installer CLI must expose startup command token ${token}.`);
 }
 
@@ -125,6 +132,15 @@ for (const promptId of [
   "install.public_url",
   "av.mode",
   "storage.choice",
+  "backup.remote.enabled",
+  "backup.encryption.key_id",
+  "backup.encryption.key",
+  "backup.remote.s3.endpoint",
+  "backup.remote.s3.region",
+  "backup.remote.s3.bucket",
+  "backup.remote.s3.access_key_id",
+  "backup.remote.s3.secret_access_key",
+  "backup.remote.s3.prefix",
   "vector.provider",
   "vector.qdrant_url",
   "docling.enabled",
@@ -161,6 +177,20 @@ const answers = installer.createDefaultInstallAnswers({
       secretAccessKey: "installer-secret",
       forcePathStyle: true
     }
+  },
+  remoteBackup: {
+    enabled: true,
+    encryptionKeyId: "validator-key",
+    encryptionKey: "validator-encryption-secret",
+    s3: {
+      endpoint: "http://librefs:9000",
+      region: "us-east-1",
+      bucket: "mindory-backups",
+      accessKeyId: "backup-access",
+      secretAccessKey: "backup-secret",
+      forcePathStyle: true
+    },
+    prefix: "mindory-validator"
   },
   llmRoles: {
     TEXT_EMBEDDING: {
@@ -206,6 +236,8 @@ const env = installer.answersToEnvMap(answers);
 assert(env.MINDORY_HOME === "/tmp/mindory-installer-test", "Rendered env must include MINDORY_HOME.");
 assert(env.MINDORY_STORAGE_PROVIDER === "s3", "Rendered env must include selected storage provider.");
 assert(env.MINDORY_S3_SECRET_ACCESS_KEY === "installer-secret", "Rendered env must include raw secrets for generated .env.");
+assert(env.MINDORY_REMOTE_BACKUP_ENABLED === "true", "Rendered env must include encrypted remote backup switch.");
+assert(env.MINDORY_REMOTE_BACKUP_S3_SECRET_ACCESS_KEY === "backup-secret", "Rendered env must include remote backup S3 secret for generated .env.");
 assert(env.MINDORY_LLM_TEXT_EMBEDDING_PROVIDER === "ollama", "Rendered env must include LLM role provider.");
 
 const envFile = installer.renderEnvFile(answers);
@@ -215,6 +247,7 @@ assert(envFile.includes("MINDORY_LLM_TEXT_EMBEDDING_DIMENSIONS=1536"), "Env file
 const configJson = JSON.parse(installer.renderMindoryConfigJson(answers));
 assert(configJson.mindory_home === "/tmp/mindory-installer-test", "Config JSON must include mindory_home.");
 assert(configJson.storage.provider === "s3", "Config JSON must include storage provider.");
+assert(configJson.remote_backup.enabled === true, "Config JSON must include remote backup settings.");
 assert(configJson.docling.enabled === false, "Config JSON must include Docling service settings.");
 
 const plan = installer.createInstallPlan(answers);
@@ -230,8 +263,12 @@ for (const stepId of ["ensure-home", "write-config", "write-env", "write-compose
 
 const summary = installer.buildRedactedInstallSummary(answers);
 assert(summary.environment.MINDORY_S3_SECRET_ACCESS_KEY === "<redacted>", "Summary must redact S3 secret.");
+assert(summary.environment.MINDORY_BACKUP_ENCRYPTION_KEY === "<redacted>", "Summary must redact backup encryption key.");
+assert(summary.environment.MINDORY_REMOTE_BACKUP_S3_SECRET_ACCESS_KEY === "<redacted>", "Summary must redact remote backup S3 secret.");
 assert(summary.environment.MINDORY_CLI_API_TOKEN === "<redacted>", "Summary must redact CLI token.");
 assert(!JSON.stringify(summary).includes("installer-secret"), "Summary must not contain raw S3 secret.");
+assert(!JSON.stringify(summary).includes("validator-encryption-secret"), "Summary must not contain raw backup encryption key.");
+assert(!JSON.stringify(summary).includes("backup-secret"), "Summary must not contain raw remote backup S3 secret.");
 assert(!JSON.stringify(summary).includes("cli-secret"), "Summary must not contain raw CLI token.");
 
 const executionHome = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-installer-exec-"));

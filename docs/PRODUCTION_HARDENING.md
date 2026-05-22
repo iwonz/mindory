@@ -12,9 +12,9 @@ minimum baseline for the MVP release path.
 | Local demo | Supported local MVP through Docker Compose and `pnpm mvp:demo`. |
 | Release images | Supported baseline. The release workflow runs `pnpm check` and builds a Docker image for the target version. Registry push policy is future hardening. |
 | Release bundles | Supported baseline. The release workflow generates bundle, manifest and checksum artifacts, then runs smoke-release-install. Signature verification remains future work. |
-| Installer execution | Partial baseline. Current installer can prepare `$MINDORY_HOME`, start Compose through health checks, provision the first token, refresh local assets, create/restore runtime backups and uninstall with explicit confirmation, but remote release update is future work. |
+| Installer execution | Partial baseline. Current installer can prepare `$MINDORY_HOME`, start Compose through health checks, provision the first token, refresh local assets, create/restore runtime backups, encrypt and upload remote backup archives and uninstall with explicit confirmation, but remote release update is future work. |
 | Public self-host acceptance | Supported gate. `pnpm selfhost:acceptance` dry-runs the public self-host path; opt-in live mode runs installer start, MVP acceptance, backup, reset and uninstall in a temporary home. |
-| Backup and restore | Supported MVP. Installer commands cover config, installer metadata, PostgreSQL dumps, local object storage state, scheduled local backup runs and local Compose PostgreSQL PITR with WAL archive/base backup/restore-to-time. Encrypted remote backups are future hardening work. |
+| Backup and restore | Supported MVP. Installer commands cover config, installer metadata, PostgreSQL dumps, local object storage state, scheduled local backup runs, local Compose PostgreSQL PITR with WAL archive/base backup/restore-to-time and encrypted S3-compatible remote backup archives. |
 | Observability | Supported baseline. Structured logs, model operation audit helpers, Prometheus metrics exporters, OpenTelemetry OTLP tracing/log export, in-process job/stage metrics, health snapshots and rate-limit strategy are documented in `docs/OBSERVABILITY.md`. |
 | Public GitHub readiness | Supported baseline. The repo includes license, contribution guide, root security policy, issue/PR templates, changelog/release notes policy, support matrix and repository status docs. |
 
@@ -157,6 +157,39 @@ directory, rerun with `--replace-live-data`; the installer stops Compose and
 backs up the current `$MINDORY_HOME/data/postgres` first. Keep enough disk for
 base backups plus retained WAL segments, and prune old PITR backup directories
 only after newer base backups and their required WAL ranges are verified.
+
+Encrypt a verified backup before copying it off host:
+
+```bash
+mindory-installer backup-archive --home "$MINDORY_HOME" \
+  --backup "$MINDORY_HOME/backups/<backup-dir>" \
+  --key-id local-2026-05 \
+  --key "$MINDORY_BACKUP_ENCRYPTION_KEY"
+mindory-installer backup-upload --home "$MINDORY_HOME" \
+  --archive "$MINDORY_HOME/backups/<archive>.mindorybak"
+```
+
+Remote backup upload uses S3-compatible bucket health checks, writes SHA-256
+metadata and verifies the remote object after upload. Configure it with
+`MINDORY_REMOTE_BACKUP_ENABLED`, `MINDORY_BACKUP_ENCRYPTION_KEY_ID`,
+`MINDORY_BACKUP_ENCRYPTION_KEY`, `MINDORY_REMOTE_BACKUP_S3_ENDPOINT`,
+`MINDORY_REMOTE_BACKUP_S3_BUCKET`, `MINDORY_REMOTE_BACKUP_S3_ACCESS_KEY_ID`,
+`MINDORY_REMOTE_BACKUP_S3_SECRET_ACCESS_KEY` and
+`MINDORY_REMOTE_BACKUP_S3_PREFIX`. Store the encryption key in a secret manager
+or offline password vault; a lost key makes `.mindorybak` archives unrecoverable.
+
+Verify a remote restore path before depending on it:
+
+```bash
+mindory-installer backup-download --home "$MINDORY_HOME" --object-key mindory/<archive>.mindorybak
+mindory-installer backup-restore-archive --home "$MINDORY_HOME" \
+  --archive "$MINDORY_HOME/backups/remote-downloads/<archive>.mindorybak" \
+  --key "$MINDORY_BACKUP_ENCRYPTION_KEY" \
+  --yes
+mindory-installer restore --home "$MINDORY_HOME" \
+  --backup "$MINDORY_HOME/backups/decrypted/<archive-dir>" \
+  --yes --no-postgres
+```
 
 The MVP uses forward migrations. If a migration or release must be rolled back,
 stop API and worker traffic, restore the verified backup, redeploy the previous

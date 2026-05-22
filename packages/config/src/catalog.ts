@@ -192,8 +192,8 @@ export const CONFIG_CATALOG_SECTIONS = [
   },
   {
     id: "backups",
-    title: "Scheduled Backups",
-    description: "Local scheduled backup runner and retention settings."
+    title: "Backups",
+    description: "Local, scheduled, PITR and encrypted remote backup settings."
   },
   {
     id: "database",
@@ -335,6 +335,22 @@ export const CONFIG_CATALOG = [
 
   entry("MINDORY_POSTGRES_WAL_ARCHIVE_ENABLED", "backups", "boolean", "true", "Enable local PostgreSQL WAL archiving for PITR-capable Compose deployments.", "both", "supported"),
   entry("MINDORY_POSTGRES_WAL_ARCHIVE_TIMEOUT_SECONDS", "backups", "number", "60", "Maximum seconds before PostgreSQL rotates WAL for archiving.", "both", "supported"),
+  entry("MINDORY_REMOTE_BACKUP_ENABLED", "backups", "boolean", "false", "Enable encrypted remote backup upload/download settings.", "both", "supported"),
+  entry("MINDORY_BACKUP_ENCRYPTION_KEY_ID", "backups", "string", "local", "Non-secret identifier for the backup encryption key.", "both", "supported"),
+  entry("MINDORY_BACKUP_ENCRYPTION_KEY", "backups", "string", "", "Secret passphrase or base64 32-byte key for encrypted backup archives.", "both", "supported", {
+    secret: true
+  }),
+  entry("MINDORY_REMOTE_BACKUP_S3_ENDPOINT", "backups", "string", "http://librefs:9000", "S3-compatible endpoint for encrypted remote backup archives.", "both", "supported"),
+  entry("MINDORY_REMOTE_BACKUP_S3_REGION", "backups", "string", "us-east-1", "S3-compatible region for encrypted remote backup archives.", "both", "supported"),
+  entry("MINDORY_REMOTE_BACKUP_S3_BUCKET", "backups", "string", "mindory-backups", "S3-compatible bucket for encrypted remote backup archives.", "both", "supported"),
+  entry("MINDORY_REMOTE_BACKUP_S3_ACCESS_KEY_ID", "backups", "string", "", "S3-compatible access key id for encrypted remote backups.", "both", "supported", {
+    secret: true
+  }),
+  entry("MINDORY_REMOTE_BACKUP_S3_SECRET_ACCESS_KEY", "backups", "string", "", "S3-compatible secret access key for encrypted remote backups.", "both", "supported", {
+    secret: true
+  }),
+  entry("MINDORY_REMOTE_BACKUP_S3_FORCE_PATH_STYLE", "backups", "boolean", "true", "Use path-style S3 requests for encrypted remote backup archives.", "both", "supported"),
+  entry("MINDORY_REMOTE_BACKUP_S3_PREFIX", "backups", "string", "mindory", "Object key prefix for encrypted remote backup archives.", "both", "supported"),
 
   entry("MINDORY_DATABASE_URL", "database", "string", "postgresql://mindory:mindory@postgres:5432/mindory", "PostgreSQL database URL.", "both", "supported", {
     secret: true

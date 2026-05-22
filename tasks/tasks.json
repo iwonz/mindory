@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-104",
+  "current_task_id": "TASK-105",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -768,7 +768,7 @@
     {
       "id": "TASK-105",
       "title": "Add encrypted remote backups",
-      "status": "draft",
+      "status": "done",
       "branch": "task/TASK-105-encrypted-remote-backups",
       "file": "tasks/TASK-105.json"
     },
