@@ -11,7 +11,7 @@ minimum baseline for the MVP release path.
 | CI gate | Supported baseline. GitHub Actions runs `pnpm check` for pushes and pull requests to `master`. |
 | Local demo | Supported local MVP through Docker Compose and `pnpm mvp:demo`. |
 | Release images | Supported baseline. The release workflow runs `pnpm check` and builds a Docker image for the target version. Registry push policy is future hardening. |
-| Release bundles | Supported baseline. The release workflow generates bundle, manifest and checksum artifacts, then runs smoke-release-install. Signature verification remains future work. |
+| Release bundles | Supported baseline. The release workflow generates bundle, RSA-SHA256 signed manifest, public key sidecar and checksum artifacts, then runs smoke-release-install with signature and checksum verification. |
 | Installer execution | Partial baseline. Current installer can prepare `$MINDORY_HOME`, start Compose through health checks, provision the first token, refresh local assets, create/restore runtime backups, encrypt and upload remote backup archives, stream external S3 object backups and uninstall with explicit confirmation, but remote release update is future work. |
 | Public self-host acceptance | Supported gate. `pnpm selfhost:acceptance` dry-runs the public self-host path; opt-in live mode runs installer start, MVP acceptance, backup, reset and uninstall in a temporary home. |
 | Backup and restore | Supported MVP. Installer commands cover config, installer metadata, PostgreSQL dumps, local object storage state, scheduled local backup runs, local Compose PostgreSQL PITR with WAL archive/base backup/restore-to-time, encrypted S3-compatible remote backup archives and external S3 object streaming backups. |
@@ -37,19 +37,22 @@ verified by separate environment-specific checks.
 ### Release Workflow
 
 `.github/workflows/release.yml` runs on `v*` tags and manual dispatch. It uses
-only GitHub-provided automation credentials, not repository-stored secrets.
+GitHub-provided automation credentials plus the release signing private key
+stored in `MINDORY_RELEASE_SIGNING_PRIVATE_KEY_PEM`. The private key is never
+stored in repository files.
 
 The release workflow:
 
 - installs the locked pnpm dependency graph;
 - runs `pnpm check`;
 - builds the Docker image with `docker build`;
-- runs `pnpm release:bundle`;
-- publishes a `.sha256` checksum file next to the bundle and manifest;
+- runs `pnpm release:bundle -- --require-signing-key`;
+- publishes a `.sha256` checksum file next to the bundle, signed manifest and
+  public key sidecar;
 - runs `scripts/smoke-release-install.js` as a dry-run install smoke;
 - uploads release artifacts to the workflow run;
-- uploads bundle, manifest and checksum to a draft GitHub Release for tag
-  builds.
+- uploads bundle, signed manifest, public key sidecar and checksum to a draft
+  GitHub Release for tag builds.
 
 Validate the release path locally without publishing:
 
@@ -58,9 +61,18 @@ pnpm release:validate
 pnpm selfhost:acceptance
 ```
 
-`release:validate` generates a temporary bundle, verifies the checksum and runs
-the packaged installer `plan` command from the extracted release. It does not
-start Docker or publish artifacts.
+`release:validate` generates a temporary bundle, verifies the signed manifest
+signature, records the manifest signature check as a release gate, rejects
+tampered manifest and artifact cases, verifies the checksum
+and runs the packaged installer `plan` command from the extracted release. It
+does not start Docker or publish artifacts.
+
+Rotate release signing keys by updating the `MINDORY_RELEASE_SIGNING_PRIVATE_KEY_PEM`
+secret, recording the new public key fingerprint from the generated manifest in
+release notes and keeping old public keys accessible for old release
+verification. Bootstrap users should pass the trusted public key through
+`MINDORY_RELEASE_PUBLIC_KEY_PATH`, `MINDORY_RELEASE_PUBLIC_KEY_PEM` or the
+`--public-key-path` argument.
 
 Build release images from a verified `master` commit or signed release tag after
 `pnpm check` passes.

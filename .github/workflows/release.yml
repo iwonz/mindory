@@ -68,16 +68,18 @@ jobs:
           echo "image=$IMAGE:$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Generate release bundle
-        run: pnpm release:bundle -- --version "${{ steps.version.outputs.version }}" --url-base "${{ steps.version.outputs.url_base }}"
+        run: pnpm release:bundle -- --version "${{ steps.version.outputs.version }}" --url-base "${{ steps.version.outputs.url_base }}" --require-signing-key
+        env:
+          MINDORY_RELEASE_SIGNING_PRIVATE_KEY_PEM: ${{ secrets.MINDORY_RELEASE_SIGNING_PRIVATE_KEY_PEM }}
 
       - name: Publish checksum file
         shell: bash
         run: |
           cd dist/releases
-          sha256sum mindory-${{ steps.version.outputs.version }}.tar.gz mindory-${{ steps.version.outputs.version }}.manifest.env > mindory-${{ steps.version.outputs.version }}.sha256
+          sha256sum mindory-${{ steps.version.outputs.version }}.tar.gz mindory-${{ steps.version.outputs.version }}.manifest.env mindory-${{ steps.version.outputs.version }}.manifest.env.public.pem > mindory-${{ steps.version.outputs.version }}.sha256
 
       - name: Smoke release install
-        run: node scripts/smoke-release-install.js --manifest "dist/releases/mindory-${{ steps.version.outputs.version }}.manifest.env" --home "$RUNNER_TEMP/mindory-release-smoke"
+        run: node scripts/smoke-release-install.js --manifest "dist/releases/mindory-${{ steps.version.outputs.version }}.manifest.env" --public-key "dist/releases/mindory-${{ steps.version.outputs.version }}.manifest.env.public.pem" --home "$RUNNER_TEMP/mindory-release-smoke"
 
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4
@@ -86,6 +88,7 @@ jobs:
           path: |
             dist/releases/mindory-${{ steps.version.outputs.version }}.tar.gz
             dist/releases/mindory-${{ steps.version.outputs.version }}.manifest.env
+            dist/releases/mindory-${{ steps.version.outputs.version }}.manifest.env.public.pem
             dist/releases/mindory-${{ steps.version.outputs.version }}.sha256
           if-no-files-found: error
 
@@ -97,4 +100,4 @@ jobs:
         run: |
           TAG="${{ steps.version.outputs.tag }}"
           gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --draft --title "$TAG" --notes-file CHANGELOG.md
-          gh release upload "$TAG" dist/releases/mindory-${{ steps.version.outputs.version }}.tar.gz dist/releases/mindory-${{ steps.version.outputs.version }}.manifest.env dist/releases/mindory-${{ steps.version.outputs.version }}.sha256 --clobber
+          gh release upload "$TAG" dist/releases/mindory-${{ steps.version.outputs.version }}.tar.gz dist/releases/mindory-${{ steps.version.outputs.version }}.manifest.env dist/releases/mindory-${{ steps.version.outputs.version }}.manifest.env.public.pem dist/releases/mindory-${{ steps.version.outputs.version }}.sha256 --clobber

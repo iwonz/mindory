@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 function parseArgs(argv) {
   const options = {
     manifestPath: "",
+    publicKeyPath: "",
     home: "",
     keep: false
   };
@@ -15,6 +16,8 @@ function parseArgs(argv) {
     const arg = argv[index];
     if (arg === "--manifest") {
       options.manifestPath = path.resolve(argv[++index] ?? "");
+    } else if (arg === "--public-key") {
+      options.publicKeyPath = path.resolve(argv[++index] ?? "");
     } else if (arg === "--home") {
       options.home = path.resolve(argv[++index] ?? "");
     } else if (arg === "--keep") {
@@ -32,11 +35,12 @@ function usage() {
   console.log(`Mindory release install smoke
 
 Usage:
-  node scripts/smoke-release-install.js --manifest <manifest.env> [--home <dir>] [--keep]
+  node scripts/smoke-release-install.js --manifest <manifest.env> [--public-key <public.pem>] [--home <dir>] [--keep]
 
-The smoke verifies the manifest checksum, extracts the release bundle into a
-temporary MINDORY_HOME-style release directory and runs the packaged installer
-plan command. It does not start Docker or write outside the selected home.
+The smoke verifies the signed release manifest, checks the bundle checksum,
+extracts the release bundle into a temporary MINDORY_HOME-style release
+directory and runs the packaged installer plan command. It does not start
+Docker or write outside the selected home.
 `);
 }
 
@@ -53,6 +57,41 @@ function manifestValue(content, key) {
 
 function sha256File(filePath) {
   return crypto.createHash("sha256").update(fs.readFileSync(filePath)).digest("hex");
+}
+
+function sha256Text(content) {
+  return crypto.createHash("sha256").update(content, "utf8").digest("hex");
+}
+
+function unsignedManifestContent(content) {
+  return `${content
+    .split(/\r?\n/)
+    .filter((line) => !line.startsWith("MINDORY_RELEASE_MANIFEST_SIGNATURE="))
+    .join("\n")
+    .replace(/\n*$/, "")}\n`;
+}
+
+function verifyManifestSignature(manifestPath, manifest, publicKeyPath) {
+  const resolvedPublicKeyPath = publicKeyPath || `${manifestPath}.public.pem`;
+  assert(fs.existsSync(resolvedPublicKeyPath), `Release manifest public key is missing: ${resolvedPublicKeyPath}.`);
+  const algorithm = manifestValue(manifest, "MINDORY_RELEASE_MANIFEST_SIGNATURE_ALGORITHM");
+  const signature = manifestValue(manifest, "MINDORY_RELEASE_MANIFEST_SIGNATURE");
+  const expectedPublicKeySha256 = manifestValue(manifest, "MINDORY_RELEASE_PUBLIC_KEY_SHA256");
+  assert(algorithm === "RSA-SHA256", `Unsupported release manifest signature algorithm: ${algorithm || "<missing>"}.`);
+  assert(signature, "Manifest is missing MINDORY_RELEASE_MANIFEST_SIGNATURE.");
+  assert(expectedPublicKeySha256, "Manifest is missing MINDORY_RELEASE_PUBLIC_KEY_SHA256.");
+
+  const publicKeyPem = fs.readFileSync(resolvedPublicKeyPath, "utf8");
+  const actualPublicKeySha256 = sha256Text(publicKeyPem);
+  assert(actualPublicKeySha256 === expectedPublicKeySha256, `Release public key SHA-256 mismatch. Expected ${expectedPublicKeySha256}, got ${actualPublicKeySha256}.`);
+
+  const ok = crypto.verify(
+    "sha256",
+    Buffer.from(unsignedManifestContent(manifest), "utf8"),
+    crypto.createPublicKey(publicKeyPem),
+    Buffer.from(signature, "base64")
+  );
+  assert(ok, "Manifest signature verification failed.");
 }
 
 function resolveBundlePath(manifestPath, bundleUrl, bundleName) {
@@ -125,6 +164,7 @@ if (options.help) {
 assert(options.manifestPath, "Pass --manifest <manifest.env>.");
 const manifestPath = options.manifestPath;
 const manifest = fs.readFileSync(manifestPath, "utf8");
+verifyManifestSignature(manifestPath, manifest, options.publicKeyPath);
 const version = manifestValue(manifest, "MINDORY_RELEASE_VERSION");
 const bundleUrl = manifestValue(manifest, "MINDORY_RELEASE_BUNDLE_URL");
 const checksum = manifestValue(manifest, "MINDORY_RELEASE_BUNDLE_SHA256");

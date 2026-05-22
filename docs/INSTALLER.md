@@ -30,7 +30,7 @@ artifacts.
 | Dependency detection | Supported through injectable probes and diagnostics. |
 | Lock, journal and recovery diagnostics | Supported. `repair` and `resume` inspect current state. |
 | Release bundle generation | Supported baseline through `pnpm release:bundle`. |
-| Bootstrap staging and checksum verification | Supported for source/release-style bundles, including local file paths and `file://` URLs. |
+| Bootstrap staging, signature and checksum verification | Supported for source/release-style bundles, including local file paths and `file://` URLs. Manifest signatures are verified before bundle checksums are trusted. |
 | Real resume execution | Future work. Current resume output is diagnostic and tells the user what to rerun. |
 
 ## Core Package
@@ -117,15 +117,44 @@ simple env-style file:
 MINDORY_RELEASE_VERSION=1.2.3
 MINDORY_RELEASE_BUNDLE_URL=https://example.com/mindory-1.2.3.tar.gz
 MINDORY_RELEASE_BUNDLE_SHA256=<sha256>
+MINDORY_RELEASE_BUNDLE_NAME=mindory-1.2.3.tar.gz
+MINDORY_RELEASE_CREATED_AT=2026-05-22T00:00:00.000Z
+MINDORY_RELEASE_MANIFEST_SIGNATURE_ALGORITHM=RSA-SHA256
+MINDORY_RELEASE_PUBLIC_KEY_SHA256=<trusted-public-key-sha256>
+MINDORY_RELEASE_MANIFEST_SIGNATURE=<base64-signature>
 ```
 
 `MINDORY_RELEASE_BUNDLE_URL` can be an HTTPS URL, an absolute or relative local
-path, or a `file://` URL. The bootstrap verifies the bundle checksum before
-extraction, extracts into a temporary staging directory and promotes the
-staged release only after extraction succeeds. If extraction or promotion fails,
-the previous release directory is left in place when present. Signature
-verification and release publication automation are future release hardening
-work.
+path, or a `file://` URL. The bootstrap verifies the manifest signature first,
+then verifies the bundle checksum before extraction, extracts into a temporary
+staging directory and promotes the staged release only after extraction
+succeeds. If extraction or promotion fails, the previous release directory is
+left in place when present.
+
+Provide the trusted signing public key with one of:
+
+```bash
+./install.sh --manifest-url https://example.com/mindory.manifest.env --public-key-path ./mindory-release.public.pem
+MINDORY_RELEASE_PUBLIC_KEY_PATH=./mindory-release.public.pem ./install.sh --manifest-path ./mindory.manifest.env
+MINDORY_RELEASE_PUBLIC_KEY_PEM="$(cat ./mindory-release.public.pem)" ./install.sh --manifest-path ./mindory.manifest.env
+```
+
+```powershell
+./install.ps1 -ManifestUrl https://example.com/mindory.manifest.env -PublicKeyPath .\mindory-release.public.pem
+```
+
+For local dev/test bundles, `pnpm release:bundle` also writes
+`<manifest>.public.pem` next to the manifest, and the bootstrap can use that
+sidecar automatically. Hosted production installs should pin a trusted public
+key path or PEM from project release notes rather than relying on a downloaded
+sidecar as the trust anchor.
+
+Use verify-only mode to test downloads, signatures and checksums without
+extracting or launching the wizard:
+
+```bash
+./install.sh --manifest-path dist/releases/mindory-0.1.0.manifest.env --verify-only
+```
 
 Create a local release-style bundle and matching manifest with:
 
@@ -138,6 +167,7 @@ By default this writes:
 ```text
 dist/releases/mindory-0.1.0.tar.gz
 dist/releases/mindory-0.1.0.manifest.env
+dist/releases/mindory-0.1.0.manifest.env.public.pem
 ```
 
 When `--url-base` is omitted, the generated manifest points at the bundle with a
@@ -146,6 +176,13 @@ local `file://` URL for dev/test installs. For hosted releases, pass a base URL:
 ```bash
 pnpm release:bundle -- --version 0.1.0 --url-base https://downloads.example.com/mindory
 ```
+
+Production release publishing should pass a real RSA private key through
+`MINDORY_RELEASE_SIGNING_PRIVATE_KEY_PEM` or
+`MINDORY_RELEASE_SIGNING_PRIVATE_KEY_PATH`. The repository never stores the
+private signing key. `--require-signing-key` makes release generation fail if
+the key is missing; local validation omits that flag and generates an ephemeral
+dev/test key only for the temporary manifest being tested.
 
 The bootstrap launches `bin/mindory-installer` when a packaged binary exists, or
 falls back to `node packages/installer/dist/cli.js wizard` for source-style

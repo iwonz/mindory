@@ -6,7 +6,7 @@ The repository should be described with the support levels in
 
 ## Current Baseline
 
-The repository is complete through `TASK-106`.
+The repository is complete through `TASK-107`.
 
 Supported local MVP path:
 
@@ -19,7 +19,9 @@ Supported local MVP path:
 - The installer can plan, prepare, start through health checks, provision the
   first project/token, update local assets, create runtime backups, restore
   runtime backups and uninstall with confirmation.
-- Release-style bundles can be generated with `pnpm release:bundle`.
+- Release-style bundles can be generated with `pnpm release:bundle`; generated
+  manifests are RSA-SHA256 signed and bootstrap scripts verify signatures
+  before trusting bundle checksums.
 - Release validation can be run locally with `pnpm release:validate`.
 - LLM role/provider support levels are centralized and enforced by config and
   installer validation.
@@ -79,12 +81,11 @@ Public GitHub hygiene baseline:
 - Issue and pull request templates.
 - Changelog and release notes policy.
 - Support matrix.
-- Release workflow for checks, Docker image build, bundle artifacts, checksum
-  publication and packaged installer smoke.
+- Release workflow for checks, Docker image build, signed bundle manifests,
+  checksum publication and packaged installer smoke.
 
 ## Known Limits
 
-- Signed release manifests are future work.
 - Registry push policy for Docker images is future hardening.
 - Full automated installer resume is future work.
 - Alerting policy is not bundled; route Prometheus and OTLP exports to the
