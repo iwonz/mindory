@@ -1,0 +1,67 @@
+{
+  "id": "TASK-61",
+  "title": "Add installer failure handling and recovery",
+  "status": "done",
+  "type": "chore",
+  "priority": "high",
+  "branch": "task/TASK-61-failure-handling-recovery",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Add installer locking, diagnostics, journal persistence and recovery command surfaces.",
+    "background": "Bootstrap and wizard entrypoints exist, but interrupted or failed installs need clear diagnostics, single-run locking and resume/repair surfaces before a real executor is added."
+  },
+  "scope": {
+    "in": [
+      "Add install lock primitives under MINDORY_HOME/install.",
+      "Add journal persistence helpers.",
+      "Add user-facing dependency/failure diagnostic formatting.",
+      "Add CLI resume and repair command surfaces.",
+      "Add SIGINT/SIGTERM cleanup handling for installer CLI and bootstrap scripts.",
+      "Add rollback failure validator coverage.",
+      "Update docs."
+    ],
+    "out": [
+      "Full install executor.",
+      "Actual dependency auto-install.",
+      "Automatic migration rollback.",
+      "Full resume execution of an interrupted install plan."
+    ]
+  },
+  "acceptance_criteria": [
+    "Installer core can acquire/release a lock under MINDORY_HOME/install and reject concurrent runs.",
+    "Installer core can persist/read a transaction journal.",
+    "Rollback validator covers failed rollback outcomes.",
+    "CLI exposes resume and repair commands with clear diagnostics.",
+    "Bootstrap scripts print clear interrupted/failed messages and stop further steps.",
+    "Full check remains green."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "sh -n install.sh",
+      "pnpm --filter @mindory/installer typecheck",
+      "pnpm installer:validate",
+      "pnpm bootstrap:validate",
+      "pnpm lint",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-61.",
+      "Confirm no full install executor or dependency auto-install is added."
+    ]
+  },
+  "dependencies": [
+    "TASK-60"
+  ],
+  "risks": [
+    "Lock handling must not delete arbitrary user data.",
+    "Recovery commands should be explicit that full resume execution is a later task."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch is committed and merged back into master."
+  ]
+}

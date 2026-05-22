@@ -1,7 +1,18 @@
 import { spawnSync } from "node:child_process";
-import { constants, existsSync, accessSync, statSync } from "node:fs";
+import {
+  closeSync,
+  constants,
+  existsSync,
+  accessSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  statSync,
+  unlinkSync,
+  writeFileSync
+} from "node:fs";
 import path from "node:path";
-import { stdin as defaultInput, stdout as defaultOutput } from "node:process";
+import { pid as processPid, stdin as defaultInput, stdout as defaultOutput } from "node:process";
 import { createInterface, type Interface as ReadlineInterface } from "node:readline/promises";
 import {
   CONFIG_CATALOG,
@@ -246,6 +257,24 @@ export interface WizardIo {
 export interface WizardOptions {
   initialAnswers?: Partial<MindoryInstallAnswers>;
   allowExperimental?: boolean;
+}
+
+export interface InstallLockRecord {
+  owner: string;
+  pid: number;
+  createdAt: string;
+}
+
+export interface InstallLock {
+  path: string;
+  record: InstallLockRecord;
+  release(): void;
+}
+
+export interface InstallerDiagnostic {
+  summary: string;
+  nextSteps: string[];
+  dependencyFailures: DependencyCheck[];
 }
 
 export function createDefaultInstallAnswers(overrides: Partial<MindoryInstallAnswers> = {}): MindoryInstallAnswers {
@@ -531,6 +560,101 @@ export function detectHostDependencies(answers: MindoryInstallAnswers, probe: De
   });
 
   return checks;
+}
+
+export function installLockPath(mindoryHome: string): string {
+  return path.join(mindoryHome, "install", "install.lock");
+}
+
+export function installJournalPath(mindoryHome: string): string {
+  return path.join(mindoryHome, "install", "install-journal.json");
+}
+
+export function acquireInstallLock(mindoryHome: string, owner = "mindory-installer"): InstallLock {
+  const lockPath = installLockPath(mindoryHome);
+  mkdirSync(path.dirname(lockPath), { recursive: true, mode: 0o700 });
+  const record: InstallLockRecord = {
+    owner,
+    pid: processPid,
+    createdAt: new Date().toISOString()
+  };
+  try {
+    const fd = openSync(lockPath, "wx", 0o600);
+    try {
+      writeFileSync(fd, `${JSON.stringify(record, null, 2)}\n`);
+    } finally {
+      closeSync(fd);
+    }
+  } catch (error) {
+    const existing = readInstallLock(mindoryHome);
+    const detail = existing === null ? "" : ` Existing lock owner=${existing.owner} pid=${existing.pid} createdAt=${existing.createdAt}.`;
+    throw new Error(`Another Mindory installer run appears to be active at ${lockPath}.${detail}`);
+  }
+  return {
+    path: lockPath,
+    record,
+    release() {
+      if (existsSync(lockPath)) {
+        unlinkSync(lockPath);
+      }
+    }
+  };
+}
+
+export function readInstallLock(mindoryHome: string): InstallLockRecord | null {
+  const lockPath = installLockPath(mindoryHome);
+  if (!existsSync(lockPath)) {
+    return null;
+  }
+  try {
+    return JSON.parse(readFileSync(lockPath, "utf8")) as InstallLockRecord;
+  } catch {
+    return {
+      owner: "unknown",
+      pid: 0,
+      createdAt: "unknown"
+    };
+  }
+}
+
+export function writeInstallJournal(mindoryHome: string, journal: InstallTransactionJournal | readonly InstallJournalEntry[]): string {
+  const journalPath = installJournalPath(mindoryHome);
+  mkdirSync(path.dirname(journalPath), { recursive: true, mode: 0o700 });
+  const entries = journal instanceof InstallTransactionJournal ? journal.toJSON() : journal;
+  writeFileSync(journalPath, `${JSON.stringify(entries, null, 2)}\n`, { mode: 0o600 });
+  return journalPath;
+}
+
+export function readInstallJournal(mindoryHome: string): InstallJournalEntry[] | null {
+  const journalPath = installJournalPath(mindoryHome);
+  if (!existsSync(journalPath)) {
+    return null;
+  }
+  return JSON.parse(readFileSync(journalPath, "utf8")) as InstallJournalEntry[];
+}
+
+export function formatDependencyDiagnostics(checks: readonly DependencyCheck[]): string[] {
+  return checks
+    .filter((check) => check.required && check.status !== "ok" && check.status !== "skipped")
+    .map((check) => {
+      const details = check.diagnosis === undefined ? "" : ` ${check.diagnosis}`;
+      const fix = check.manualFix === undefined ? "" : ` Fix: ${check.manualFix}`;
+      return `${check.label}: ${check.status}.${details}${fix}`;
+    });
+}
+
+export function formatInstallerDiagnostic(error: unknown, dependencyChecks: readonly DependencyCheck[] = []): InstallerDiagnostic {
+  const dependencyFailures = dependencyChecks.filter((check) => check.required && check.status !== "ok" && check.status !== "skipped");
+  const nextSteps = formatDependencyDiagnostics(dependencyChecks);
+  if (nextSteps.length === 0) {
+    nextSteps.push("Review the installer log, fix the reported issue and rerun the installer.");
+  }
+  nextSteps.push("Run the repair command to inspect lock and journal state before retrying.");
+  return {
+    summary: errorToString(error),
+    nextSteps,
+    dependencyFailures
+  };
 }
 
 export function answersToEnvMap(answers: MindoryInstallAnswers): Record<string, string> {

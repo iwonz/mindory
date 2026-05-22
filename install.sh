@@ -7,6 +7,13 @@ MINDORY_RELEASE_MANIFEST_URL="${MINDORY_RELEASE_MANIFEST_URL:-}"
 MINDORY_RELEASE_MANIFEST_PATH="${MINDORY_RELEASE_MANIFEST_PATH:-}"
 MINDORY_SOURCE_PATH=""
 
+on_interrupt() {
+  echo "Mindory bootstrap interrupted. No further install steps will run. Use the repair command after relaunch to inspect staged state." >&2
+  exit 130
+}
+
+trap on_interrupt INT TERM
+
 usage() {
   cat <<'USAGE'
 Mindory installer bootstrap

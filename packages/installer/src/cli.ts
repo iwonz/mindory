@@ -1,8 +1,14 @@
 #!/usr/bin/env node
 import {
+  acquireInstallLock,
   buildRedactedInstallSummary,
   createDefaultInstallAnswers,
   createReadlineWizardIo,
+  formatInstallerDiagnostic,
+  installJournalPath,
+  installLockPath,
+  readInstallJournal,
+  readInstallLock,
   renderEnvFile,
   renderMindoryConfigJson,
   runInstallWizard
@@ -22,6 +28,10 @@ try {
       config: JSON.parse(renderMindoryConfigJson(answers)),
       env: renderEnvFile(answers)
     });
+  } else if (command === "resume") {
+    runResumeCommand();
+  } else if (command === "repair") {
+    runRepairCommand();
   } else if (command === "--help" || command === "-h" || command === "help") {
     printHelp();
   } else {
@@ -33,16 +43,52 @@ try {
 }
 
 async function runWizardCommand(): Promise<void> {
+  const home = optionValue("--home") ?? createDefaultInstallAnswers().mindoryHome;
+  const lock = acquireInstallLock(home, "mindory-installer-cli");
   const io = createReadlineWizardIo();
+  const cleanup = installSignalHandlers(() => {
+    lock.release();
+    io.close();
+  });
   try {
     const answers = await runInstallWizard(io);
     printJson({
       answers: JSON.parse(renderMindoryConfigJson(answers)),
       summary: buildRedactedInstallSummary(answers)
     });
+  } catch (error) {
+    printJson({ diagnostic: formatInstallerDiagnostic(error) });
+    process.exitCode = 1;
   } finally {
+    cleanup();
+    lock.release();
     io.close();
   }
+}
+
+function runResumeCommand(): void {
+  const home = optionValue("--home") ?? createDefaultInstallAnswers().mindoryHome;
+  const journal = readInstallJournal(home);
+  printJson({
+    status: journal === null ? "no_journal" : "journal_found",
+    message: "Full resume execution is added by a later installer task.",
+    journalPath: installJournalPath(home),
+    entries: journal ?? []
+  });
+}
+
+function runRepairCommand(): void {
+  const home = optionValue("--home") ?? createDefaultInstallAnswers().mindoryHome;
+  const lock = readInstallLock(home);
+  const journal = readInstallJournal(home);
+  printJson({
+    status: "repair_inspection",
+    message: "Inspect lock and journal state, resolve the issue, then rerun the installer.",
+    lockPath: installLockPath(home),
+    lock,
+    journalPath: installJournalPath(home),
+    journalEntries: journal?.length ?? 0
+  });
 }
 
 function printJson(value: unknown): void {
@@ -56,8 +102,32 @@ Usage:
   mindory-installer wizard
   mindory-installer plan
   mindory-installer render-defaults
+  mindory-installer resume [--home <path>]
+  mindory-installer repair [--home <path>]
 
 The installer CLI currently collects and validates answers. Execution, recovery
-and resume commands are added by later installer tasks.
+and full resume execution are added by later installer tasks.
 `);
+}
+
+function optionValue(name: string): string | undefined {
+  const index = args.indexOf(name);
+  if (index === -1) {
+    return undefined;
+  }
+  return args[index + 1];
+}
+
+function installSignalHandlers(cleanup: () => void): () => void {
+  const onSignal = (signal: NodeJS.Signals): void => {
+    cleanup();
+    console.error(`Mindory installer interrupted by ${signal}. Rollback/resume inspection is available through the repair command.`);
+    process.exit(130);
+  };
+  process.once("SIGINT", onSignal);
+  process.once("SIGTERM", onSignal);
+  return () => {
+    process.off("SIGINT", onSignal);
+    process.off("SIGTERM", onSignal);
+  };
 }

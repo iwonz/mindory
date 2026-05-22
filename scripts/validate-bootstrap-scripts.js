@@ -37,6 +37,8 @@ for (const token of [
   "MINDORY_RELEASE_MANIFEST_URL",
   "MINDORY_RELEASE_BUNDLE_SHA256",
   "sha256_file",
+  "trap on_interrupt INT TERM",
+  "repair command",
   "tar -xzf",
   "--source",
   "packages/installer/dist/cli.js",
@@ -53,6 +55,8 @@ for (const token of [
   "MINDORY_RELEASE_MANIFEST_URL",
   "MINDORY_RELEASE_BUNDLE_SHA256",
   "Get-FileHash -Algorithm SHA256",
+  "trap {",
+  "repair command",
   "tar -xzf",
   "$Source",
   "packages/installer/dist/cli.js",
@@ -61,7 +65,7 @@ for (const token of [
   assert(powershell.includes(token), `install.ps1 must include ${token}.`);
 }
 
-for (const token of ["createReadlineWizardIo", "runInstallWizard", "render-defaults", "dry-run", "mindory-installer"]) {
+for (const token of ["createReadlineWizardIo", "runInstallWizard", "render-defaults", "dry-run", "resume", "repair", "acquireInstallLock", "formatInstallerDiagnostic", "SIGINT", "mindory-installer"]) {
   assert(cli.includes(token), `Installer CLI must include ${token}.`);
 }
 
