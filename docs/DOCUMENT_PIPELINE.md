@@ -179,6 +179,12 @@ spans and chunk source refs back to the page artifact. If OCR is required and
 the provider fails or returns no text, extraction fails with a readable
 processing error.
 
+When `MINDORY_DOCLING_ENABLED=true`, the worker sends PDF bytes to the
+Docling-compatible service at `MINDORY_DOCLING_URL` instead of running the PDF
+extractor in-process. The service exposes `GET /health` and `POST /v1/extract`,
+returns normalized page text, and the worker stores the same derived artifacts,
+spans and source refs as the local path.
+
 ## Image Processing
 
 When `MINDORY_DOCUMENT_PROCESSING_IMAGE_ENABLED=true`, routing sends image

@@ -47,6 +47,10 @@ x-mindory-env: &mindory-env
   MINDORY_DOCUMENT_PROCESSING_VIDEO_ENABLED: ${MINDORY_DOCUMENT_PROCESSING_VIDEO_ENABLED:-true}
   MINDORY_DOCUMENT_PROCESSING_VIDEO_REQUIRED: ${MINDORY_DOCUMENT_PROCESSING_VIDEO_REQUIRED:-false}
   MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES: ${MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES:-10}
+  MINDORY_DOCLING_ENABLED: ${MINDORY_DOCLING_ENABLED:-false}
+  MINDORY_DOCLING_URL: ${MINDORY_DOCLING_URL:-http://docling:8081}
+  MINDORY_DOCLING_TIMEOUT_MS: ${MINDORY_DOCLING_TIMEOUT_MS:-120000}
+  MINDORY_DOCLING_PORT: ${MINDORY_DOCLING_PORT:-8081}
   MINDORY_LLM_CHAT_ENABLED: ${MINDORY_LLM_CHAT_ENABLED:-false}
   MINDORY_LLM_CHAT_PROVIDER: ${MINDORY_LLM_CHAT_PROVIDER:-disabled}
   MINDORY_LLM_CHAT_MODEL: ${MINDORY_LLM_CHAT_MODEL:-}
@@ -356,13 +360,27 @@ services:
       - ${MINDORY_HOME:-${HOME}/.mindory}/data/qdrant:/qdrant/storage
 
   docling:
-    image: node:24-alpine
+    <<: *mindory-app
     profiles: ["docling"]
     restart: unless-stopped
-    working_dir: /workspace
-    command: ["node", "scripts/docker-placeholder-service.mjs", "docling"]
+    command: ["node", "scripts/docling-service.mjs"]
+    environment:
+      <<: *mindory-env
+      NODE_ENV: production
+    ports:
+      - "${MINDORY_DOCLING_PORT:-8081}:${MINDORY_DOCLING_PORT:-8081}"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "const port=process.env.MINDORY_DOCLING_PORT||8081; fetch('http://127.0.0.1:'+port+'/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1));"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
     volumes:
-      - ./:/workspace:ro
       - ${MINDORY_HOME:-${HOME}/.mindory}/logs:/data/mindory/logs
 
   ollama:

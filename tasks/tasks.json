@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-91",
+  "current_task_id": "TASK-92",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -677,7 +677,7 @@
     {
       "id": "TASK-92",
       "title": "Replace Docling placeholder with real service profile",
-      "status": "draft",
+      "status": "done",
       "branch": "task/TASK-92-real-docling-service-profile",
       "file": "tasks/TASK-92.json"
     },

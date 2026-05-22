@@ -12,6 +12,7 @@ const requiredFiles = [
   "packages/processors/extractors/builtin-text/src/index.ts",
   "packages/processors/extractors/audio-transcript/src/index.ts",
   "packages/processors/extractors/docling/src/index.ts",
+  "scripts/docling-service.mjs",
   "packages/processors/extractors/image-semantic/src/index.ts",
   "packages/processors/extractors/video-keyframe/src/index.ts",
   "packages/processors/embeddings/openai-compatible/src/index.ts",
@@ -74,6 +75,7 @@ const recompute = read("packages/core/src/recompute.ts");
 const extractor = read("packages/processors/extractors/builtin-text/src/index.ts");
 const audioTranscript = read("packages/processors/extractors/audio-transcript/src/index.ts");
 const docling = read("packages/processors/extractors/docling/src/index.ts");
+const doclingService = read("scripts/docling-service.mjs");
 const imageSemantic = read("packages/processors/extractors/image-semantic/src/index.ts");
 const videoKeyframe = read("packages/processors/extractors/video-keyframe/src/index.ts");
 const openAi = read("packages/processors/embeddings/openai-compatible/src/index.ts");
@@ -168,8 +170,11 @@ assert(doclingPackage.dependencies?.["@mindory/llm"] === "workspace:*", "Docling
 assert(doclingPackage.exports?.["."], "Docling PDF extractor must export its root module.");
 assert(doclingTsconfig.references?.some((reference) => reference.path === "../../../../packages/core"), "Docling PDF extractor must reference @mindory/core.");
 assert(doclingTsconfig.references?.some((reference) => reference.path === "../../../../packages/llm"), "Docling PDF extractor must reference @mindory/llm.");
-for (const token of ["DoclingPdfExtractor", "extractPdfPageText", "\"application/pdf\"", "\".pdf\"", "native_text_pages", "ocr", "ocrProvider", "recognizeText", "ocr_text_pages"]) {
+for (const token of ["DoclingPdfExtractor", "extractPdfPageText", "\"application/pdf\"", "\".pdf\"", "native_text_pages", "ocr", "ocrProvider", "recognizeText", "ocr_text_pages", "service", "/v1/extract", "AbortController", "docling_service"]) {
   assert(docling.includes(token), `Docling PDF extractor must include ${token}.`);
+}
+for (const token of ["DoclingPdfExtractor", "/health", "/v1/extract", "Readable.from", "data_base64", "docling_service_runtime"]) {
+  assert(doclingService.includes(token), `Docling service must include ${token}.`);
 }
 
 assert(imageSemanticPackage.dependencies?.["@mindory/core"] === "workspace:*", "Image semantic extractor must depend on @mindory/core.");
@@ -318,6 +323,8 @@ for (const token of [
   "createExtractedSemanticArtifacts",
   "createExtractedTranscriptArtifacts",
   "createExtractedFaceObservations",
+  "doclingPdfExtractorOptions(options.config, llm)",
+  "config.docling",
   "ClamAvDocumentScanProcessor",
   "document.recompute",
   "document.route",

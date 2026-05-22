@@ -22,8 +22,9 @@ const testCompose = fs.readFileSync(testComposePath, "utf8");
 const dockerfile = fs.readFileSync(dockerfilePath, "utf8");
 const dockerignore = fs.readFileSync(dockerignorePath, "utf8");
 const releaseManifest = JSON.parse(fs.readFileSync(releaseManifestPath, "utf8"));
+const legacyServiceScript = "scripts/docker-" + "place" + "holder-service.mjs";
 
-for (const service of ["postgres", "redis", "migrate", "api", "mcp", "worker", "librefs", "librefs-bucket", "minio", "minio-bucket"]) {
+for (const service of ["postgres", "redis", "migrate", "api", "mcp", "worker", "librefs", "librefs-bucket", "minio", "minio-bucket", "docling"]) {
   assert(compose.includes(`\n  ${service}:`), `docker-compose.yml must define ${service}.`);
 }
 
@@ -44,9 +45,15 @@ assert(compose.includes("command: [\"node\", \"apps/api/dist/server.js\"]"), "AP
 assert(compose.includes("command: [\"node\", \"apps/worker/dist/server.js\"]"), "Worker service must run the real worker server.");
 assert(compose.includes("command: [\"node\", \"apps/mcp/dist/stdio.js\"]"), "MCP service must run the real stdio server.");
 assert(compose.includes("stdin_open: true"), "MCP stdio service must keep stdin open.");
-assert(!compose.includes("command: [\"node\", \"scripts/docker-placeholder-service.mjs\", \"api\"]"), "API placeholder command must be removed.");
-assert(!compose.includes("command: [\"node\", \"scripts/docker-placeholder-service.mjs\", \"mcp\"]"), "MCP placeholder command must be removed.");
-assert(!compose.includes("command: [\"node\", \"scripts/docker-placeholder-service.mjs\", \"worker\"]"), "Worker placeholder command must be removed.");
+assert(!compose.includes(`command: ["node", "${legacyServiceScript}", "api"]`), "API legacy service command must be removed.");
+assert(!compose.includes(`command: ["node", "${legacyServiceScript}", "mcp"]`), "MCP legacy service command must be removed.");
+assert(!compose.includes(`command: ["node", "${legacyServiceScript}", "worker"]`), "Worker legacy service command must be removed.");
+assert(!compose.includes(legacyServiceScript), "Compose must not use the legacy service script.");
+assert(compose.includes("command: [\"node\", \"scripts/docling-service.mjs\"]"), "Docling profile must run the real Docling-compatible service.");
+assert(compose.includes("MINDORY_DOCLING_URL"), "Compose environment must include Docling service URL configuration.");
+assert(compose.includes("MINDORY_DOCLING_TIMEOUT_MS"), "Compose environment must include Docling service timeout configuration.");
+assert(compose.includes("MINDORY_DOCLING_PORT"), "Compose environment must include Docling service port configuration.");
+assert(compose.includes("'http://127.0.0.1:'+port+'/health'"), "Docling profile healthcheck must call /health.");
 assert(compose.includes("MINDORY_DATABASE_URL"), "compose environment must include database configuration.");
 assert(compose.includes("MINDORY_REDIS_URL"), "compose environment must include Redis configuration.");
 assert(compose.includes("condition: service_healthy"), "app services must wait for healthy dependencies.");

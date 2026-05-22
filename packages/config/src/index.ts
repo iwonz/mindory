@@ -47,6 +47,13 @@ export interface DocumentProcessingVideoConfig extends DocumentProcessingModalit
   keyframeTimeoutMs: number;
 }
 
+export interface DoclingServiceConfig {
+  enabled: boolean;
+  url: string;
+  timeoutMs: number;
+  port: number;
+}
+
 export interface MindoryConfig {
   install: {
     home: string;
@@ -119,6 +126,7 @@ export interface MindoryConfig {
     audio: DocumentProcessingModalityConfig;
     video: DocumentProcessingVideoConfig;
   };
+  docling: DoclingServiceConfig;
   llm: {
     chat: LlmCapabilityConfig;
     textEmbedding: LlmEmbeddingCapabilityConfig;
@@ -371,6 +379,12 @@ export function loadMindoryConfig(env: EnvSource = process.env): MindoryConfig {
         keyframeTimeoutMs: readNumber(env, "MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_TIMEOUT_MS", catalogNumber("MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_TIMEOUT_MS"))
       }
     },
+    docling: {
+      enabled: readBoolean(env, "MINDORY_DOCLING_ENABLED", catalogBoolean("MINDORY_DOCLING_ENABLED")),
+      url: readString(env, "MINDORY_DOCLING_URL", catalogString("MINDORY_DOCLING_URL")),
+      timeoutMs: readNumber(env, "MINDORY_DOCLING_TIMEOUT_MS", catalogNumber("MINDORY_DOCLING_TIMEOUT_MS")),
+      port: readNumber(env, "MINDORY_DOCLING_PORT", catalogNumber("MINDORY_DOCLING_PORT"))
+    },
     llm: {
       chat: readLlmCapabilityConfig(env, "CHAT"),
       textEmbedding: readLlmEmbeddingCapabilityConfig(env, "TEXT_EMBEDDING"),
@@ -426,6 +440,7 @@ export function loadMindoryConfig(env: EnvSource = process.env): MindoryConfig {
 export function validateMindoryConfig(config: MindoryConfig): void {
   validateApiConfig(config);
   validateDocumentProcessingConfig(config);
+  validateDoclingConfig(config);
   validateLlmConfig(config);
 }
 
@@ -452,6 +467,26 @@ function validateDocumentProcessingConfig(config: MindoryConfig): void {
   }
   if (config.documentProcessing.video.keyframeProvider === "local-command" && config.documentProcessing.video.keyframeCommand.trim() === "") {
     throw new Error("MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_COMMAND is required when local-command video keyframe extraction is enabled.");
+  }
+}
+
+function validateDoclingConfig(config: MindoryConfig): void {
+  if (config.docling.timeoutMs <= 0) {
+    throw new Error("MINDORY_DOCLING_TIMEOUT_MS must be greater than zero.");
+  }
+  if (config.docling.port <= 0 || config.docling.port > 65535) {
+    throw new Error("MINDORY_DOCLING_PORT must be a valid TCP port.");
+  }
+  if (!config.docling.enabled) {
+    return;
+  }
+  try {
+    const parsed = new URL(config.docling.url);
+    if (!["http:", "https:"].includes(parsed.protocol)) {
+      throw new Error("protocol");
+    }
+  } catch {
+    throw new Error("MINDORY_DOCLING_URL must be a valid http or https URL when Docling is enabled.");
   }
 }
 

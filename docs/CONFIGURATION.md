@@ -126,12 +126,10 @@ disabled. It defaults to `true`.
 
 Each modality has `MINDORY_DOCUMENT_PROCESSING_<TYPE>_ENABLED` and
 `MINDORY_DOCUMENT_PROCESSING_<TYPE>_REQUIRED` settings. Current types are
-`TEXT`, `PDF`, `IMAGE`, `AUDIO` and `VIDEO`. The bare runtime defaults remain
-conservative: text is enabled and PDF/image/audio/video are disabled unless the
-environment enables them. `.env.example`, Docker Compose and `pnpm mvp:demo`
-enable all five modality routers for the local MVP so text, PDF, image, audio
-and video fixtures can flow through derived-artifact processing without large
-model services.
+`TEXT`, `PDF`, `IMAGE`, `AUDIO` and `VIDEO`. The local MVP defaults enable all
+five routers so fixtures can flow through derived-artifact processing without
+large model services. Disable individual modalities when a self-host profile
+should not enqueue that media type.
 
 `MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES` sets the video keyframe cap
 and defaults to `10`. `MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_PROVIDER`
@@ -140,6 +138,18 @@ defaults to `manifest`; set it to `local-command` with
 `MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_ARGS` and
 `MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_TIMEOUT_MS` to run an external
 keyframe extractor.
+
+## Docling Extraction Service
+
+`MINDORY_DOCLING_ENABLED=true` routes PDF extraction through the
+Docling-compatible HTTP service started by the `docling` Compose profile. The
+worker calls `MINDORY_DOCLING_URL` with `MINDORY_DOCLING_TIMEOUT_MS`; the
+service listens on `MINDORY_DOCLING_PORT` and exposes `/health` plus
+`POST /v1/extract`.
+
+When Docling is disabled, the worker uses the in-process
+`@mindory/extractor-docling` PDF extractor. Both paths produce the same derived
+text/page artifact shape and never mutate RAW originals.
 
 ## LLM SDK And Vector Indexes
 

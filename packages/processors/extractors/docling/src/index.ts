@@ -9,6 +9,12 @@ import {
 import type { LlmOcrOutput, LlmOcrProvider, LlmRoleDescriptor } from "@mindory/llm";
 
 export interface DoclingPdfExtractorOptions {
+  service?: {
+    enabled: boolean;
+    url: string;
+    timeoutMs: number;
+    fetch?: FetchLike;
+  };
   ocr?: {
     enabled: boolean;
     provider: string;
@@ -17,6 +23,32 @@ export interface DoclingPdfExtractorOptions {
   };
   ocrProvider?: LlmOcrProvider;
   ocrRole?: LlmRoleDescriptor;
+}
+
+export type FetchLike = (input: string | URL, init?: RequestInit) => Promise<Response>;
+
+interface DoclingServicePage {
+  page_number?: number;
+  pageNumber?: number;
+  text?: string;
+  width?: number | null;
+  height?: number | null;
+  confidence?: number | null;
+  metadata?: Record<string, unknown>;
+}
+
+interface DoclingServiceExtractionResponse {
+  status?: string;
+  extractor?: string;
+  version?: string;
+  text?: string;
+  mime_type?: string;
+  pages?: DoclingServicePage[];
+  metadata?: Record<string, unknown>;
+  error?: {
+    code?: string;
+    message?: string;
+  };
 }
 
 interface PdfObject {
@@ -40,11 +72,18 @@ const supportedExtensions = new Set([".pdf"]);
 export class DoclingPdfExtractor implements TextExtractor {
   readonly name = "docling-pdf";
   readonly version = "docling-pdf-v2";
+  private readonly service: Required<NonNullable<DoclingPdfExtractorOptions["service"]>>;
   private readonly ocr: Required<DoclingPdfExtractorOptions>["ocr"];
   private readonly ocrProvider: LlmOcrProvider | undefined;
   private readonly ocrRole: LlmRoleDescriptor | undefined;
 
   constructor(options: DoclingPdfExtractorOptions = {}) {
+    this.service = {
+      enabled: options.service?.enabled ?? false,
+      url: options.service?.url ?? "http://docling:8081",
+      timeoutMs: options.service?.timeoutMs ?? 120_000,
+      fetch: options.service?.fetch ?? fetch
+    };
     this.ocr = options.ocr ?? {
       enabled: false,
       provider: "disabled",
@@ -69,6 +108,9 @@ export class DoclingPdfExtractor implements TextExtractor {
 
     try {
       const bytes = await readAllBytes(input.body);
+      if (this.service.enabled) {
+        return await this.extractWithService(bytes, input);
+      }
       const nativePages = extractPdfPageText(bytes);
       const ocrResult = await this.applyOcr({
         bytes,
@@ -109,6 +151,82 @@ export class DoclingPdfExtractor implements TextExtractor {
       }
       throw new ProcessingError("text_extraction_failed", "Failed to extract PDF document content.", error);
     }
+  }
+
+  private async extractWithService(bytes: Buffer, input: ExtractTextInput): Promise<ExtractedText> {
+    if (this.service.url.trim() === "") {
+      throw new ProcessingError("text_extraction_failed", "Docling service is enabled, but the service URL is empty.");
+    }
+    if (this.service.timeoutMs <= 0) {
+      throw new ProcessingError("text_extraction_failed", "Docling service timeout must be greater than zero.");
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.service.timeoutMs);
+    let response: Response;
+    try {
+      response = await this.service.fetch(serviceEndpoint(this.service.url, "/v1/extract"), {
+        method: "POST",
+        headers: {
+          accept: "application/json",
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          document: {
+            project_id: input.document.projectId,
+            document_id: input.document.id,
+            original_filename: input.document.originalFilename,
+            mime_type: input.document.mimeType,
+            size_bytes: input.document.sizeBytes
+          },
+          data_base64: bytes.toString("base64")
+        }),
+        signal: controller.signal
+      });
+    } catch (error) {
+      throw new ProcessingError("text_extraction_failed", "Docling service request failed.", error);
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    const payload = await readServiceJson(response);
+    if (!response.ok) {
+      throw new ProcessingError(
+        "text_extraction_failed",
+        payload.error?.message ?? `Docling service returned HTTP ${response.status}.`
+      );
+    }
+    if (payload.status !== undefined && payload.status !== "succeeded") {
+      throw new ProcessingError(
+        "text_extraction_failed",
+        payload.error?.message ?? `Docling service extraction ended with status ${payload.status}.`
+      );
+    }
+
+    const servicePages = pagesFromServiceResponse(payload);
+    const extractedPages = withTextOffsets(servicePages);
+    const text = payload.text ?? extractedPages.map((page) => page.text).join("\n\n").trim();
+    return {
+      projectId: input.document.projectId,
+      documentId: input.document.id,
+      text,
+      mimeType: payload.mime_type ?? input.document.mimeType,
+      pages: extractedPages,
+      metadata: {
+        ...(payload.metadata ?? {}),
+        extractor: this.name,
+        extractor_version: this.version,
+        original_filename: input.document.originalFilename,
+        page_count: extractedPages.length,
+        docling_service: {
+          enabled: true,
+          url: this.service.url,
+          status: "succeeded",
+          extractor: payload.extractor ?? this.name,
+          version: payload.version ?? this.version
+        }
+      }
+    };
   }
 
   private async applyOcr(input: {
@@ -438,6 +556,57 @@ function withTextOffsets(pages: PageText[]): ExtractedTextPage[] {
       metadata: page.metadata
     };
   });
+}
+
+function serviceEndpoint(baseUrl: string, pathname: string): string {
+  const url = new URL(pathname, baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`);
+  return url.toString();
+}
+
+async function readServiceJson(response: Response): Promise<DoclingServiceExtractionResponse> {
+  let payload: unknown;
+  try {
+    payload = await response.json();
+  } catch (error) {
+    throw new ProcessingError("text_extraction_failed", "Docling service returned invalid JSON.", error);
+  }
+  if (payload === null || typeof payload !== "object" || Array.isArray(payload)) {
+    throw new ProcessingError("text_extraction_failed", "Docling service returned an invalid response object.");
+  }
+  return payload as DoclingServiceExtractionResponse;
+}
+
+function pagesFromServiceResponse(payload: DoclingServiceExtractionResponse): PageText[] {
+  if (Array.isArray(payload.pages) && payload.pages.length > 0) {
+    return payload.pages.map((page, index) => {
+      const pageNumber = page.pageNumber ?? page.page_number ?? index + 1;
+      return {
+        pageNumber,
+        text: normalizeExtractedPdfText(page.text ?? ""),
+        width: typeof page.width === "number" ? page.width : null,
+        height: typeof page.height === "number" ? page.height : null,
+        confidence: typeof page.confidence === "number" ? page.confidence : null,
+        metadata: {
+          ...(page.metadata ?? {}),
+          docling_service_page: true
+        }
+      };
+    });
+  }
+
+  const text = normalizeExtractedPdfText(payload.text ?? "");
+  return text.length === 0
+    ? []
+    : [{
+      pageNumber: 1,
+      text,
+      width: null,
+      height: null,
+      confidence: null,
+      metadata: {
+        docling_service_page: true
+      }
+    }];
 }
 
 function ocrPagesFromOutput(output: LlmOcrOutput): PageText[] {

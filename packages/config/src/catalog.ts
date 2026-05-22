@@ -216,6 +216,11 @@ export const CONFIG_CATALOG_SECTIONS = [
     description: "File-type routing and modality switches."
   },
   {
+    id: "docling",
+    title: "Docling Extraction Service",
+    description: "Optional Docling-compatible PDF extraction service profile."
+  },
+  {
     id: "llm",
     title: "LLM SDK",
     description: "Central model-backed role and provider settings."
@@ -362,6 +367,16 @@ export const CONFIG_CATALOG = [
   entry("MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_COMMAND", "document-processing", "string", "", "Executable for local-command video keyframe extraction.", "runtime", "experimental"),
   entry("MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_ARGS", "document-processing", "string", "", "JSON string array of local-command keyframe extraction arguments.", "runtime", "experimental"),
   entry("MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_TIMEOUT_MS", "document-processing", "number", "120000", "Timeout for local-command video keyframe extraction.", "runtime", "experimental"),
+
+  entry("MINDORY_DOCLING_ENABLED", "docling", "boolean", "false", "Route PDF extraction through the Docling-compatible HTTP service.", "both", "supported", {
+    prompt: {
+      label: "Enable Docling service",
+      help: "Starts the Docling-compatible Compose profile and makes workers call it for PDF extraction."
+    }
+  }),
+  entry("MINDORY_DOCLING_URL", "docling", "string", "http://docling:8081", "Docling-compatible extraction service base URL.", "both", "supported"),
+  entry("MINDORY_DOCLING_TIMEOUT_MS", "docling", "number", "120000", "Docling extraction request timeout in milliseconds.", "both", "supported"),
+  entry("MINDORY_DOCLING_PORT", "docling", "number", "8081", "Docling service container and host HTTP port.", "both", "supported"),
 
   llmRoleEntries("CHAT", "Chat/completion calls for agent-facing LLM features."),
   llmRoleEntries("TEXT_EMBEDDING", "Text embeddings for semantic document search.", { dimensions: true }),

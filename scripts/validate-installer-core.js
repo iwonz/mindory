@@ -77,6 +77,10 @@ for (const promptId of [
   "storage.choice",
   "vector.provider",
   "vector.qdrant_url",
+  "docling.enabled",
+  "docling.url",
+  "docling.timeout_ms",
+  "docling.port",
   "modalities.video_max_keyframes",
   "interfaces.api_port",
   "tokens.cli_api_token",
@@ -129,6 +133,17 @@ const qdrantAnswers = installer.createDefaultInstallAnswers({
 });
 assert(installer.composeProfilesForAnswers(qdrantAnswers).includes("qdrant"), "Qdrant vector provider must enable qdrant Compose profile.");
 assert(installer.answersToEnvMap(qdrantAnswers).MINDORY_VECTOR_PROVIDER === "qdrant", "Installer must render selected Qdrant vector provider.");
+const doclingAnswers = installer.createDefaultInstallAnswers({
+  docling: {
+    enabled: true,
+    url: "http://docling:8081",
+    timeoutMs: 120000,
+    port: 8081
+  }
+});
+assert(installer.composeProfilesForAnswers(doclingAnswers).includes("docling"), "Docling answers must enable docling Compose profile.");
+assert(installer.answersToEnvMap(doclingAnswers).MINDORY_DOCLING_ENABLED === "true", "Installer must render enabled Docling service configuration.");
+assert(installer.answersToEnvMap(doclingAnswers).MINDORY_DOCLING_URL === "http://docling:8081", "Installer must render Docling service URL.");
 
 const env = installer.answersToEnvMap(answers);
 assert(env.MINDORY_HOME === "/tmp/mindory-installer-test", "Rendered env must include MINDORY_HOME.");
@@ -143,6 +158,7 @@ assert(envFile.includes("MINDORY_LLM_TEXT_EMBEDDING_DIMENSIONS=1536"), "Env file
 const configJson = JSON.parse(installer.renderMindoryConfigJson(answers));
 assert(configJson.mindory_home === "/tmp/mindory-installer-test", "Config JSON must include mindory_home.");
 assert(configJson.storage.provider === "s3", "Config JSON must include storage provider.");
+assert(configJson.docling.enabled === false, "Config JSON must include Docling service settings.");
 
 const plan = installer.createInstallPlan(answers);
 assert(plan.composeProfiles.includes("librefs"), "S3 LibreFS answers must add the librefs profile.");
@@ -193,6 +209,16 @@ const healthyQdrantComposePs = JSON.stringify([
   { Service: "redis", State: "running", Health: "healthy" },
   { Service: "clamav", State: "running" },
   { Service: "qdrant", State: "running", Health: "healthy" },
+  { Service: "api", State: "running", Health: "healthy" },
+  { Service: "worker", State: "running", Health: "healthy" },
+  { Service: "mcp", State: "running", Health: "healthy" },
+  { Service: "migrate", State: "exited", ExitCode: "0" }
+]);
+const healthyDoclingComposePs = JSON.stringify([
+  { Service: "postgres", State: "running", Health: "healthy" },
+  { Service: "redis", State: "running", Health: "healthy" },
+  { Service: "clamav", State: "running" },
+  { Service: "docling", State: "running", Health: "healthy" },
   { Service: "api", State: "running", Health: "healthy" },
   { Service: "worker", State: "running", Health: "healthy" },
   { Service: "mcp", State: "running", Health: "healthy" },
@@ -252,6 +278,38 @@ await installer.executeInstallPlan(installer.createDefaultInstallAnswers({
 assert(qdrantComposeCommands.some((command) => command.includes("--profile qdrant")), "Qdrant vector provider must enable the qdrant Compose profile.");
 assert(qdrantComposeCommands.some((command) => command.includes("up -d postgres redis clamav qdrant")), "Qdrant vector provider must start and health-check the qdrant service.");
 fs.rmSync(qdrantComposeHome, { recursive: true, force: true });
+
+const doclingComposeHome = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-installer-docling-compose-"));
+fs.rmSync(doclingComposeHome, { recursive: true, force: true });
+const doclingComposeCommands = [];
+await installer.executeInstallPlan(installer.createDefaultInstallAnswers({
+  mindoryHome: doclingComposeHome,
+  docling: {
+    enabled: true,
+    url: "http://docling:8081",
+    timeoutMs: 120000,
+    port: 8081
+  }
+}), {
+  sourceRoot: root,
+  owner: "validator",
+  stopBeforeStepId: "create-first-token",
+  timeoutMs: 100,
+  pollIntervalMs: 1,
+  apiReadyCheck: async () => true,
+  commandRunner: {
+    async run(command, args) {
+      doclingComposeCommands.push(`${command} ${args.join(" ")}`);
+      if (args.includes("ps")) {
+        return { status: 0, stdout: healthyDoclingComposePs, stderr: "" };
+      }
+      return { status: 0, stdout: "ok", stderr: "" };
+    }
+  }
+});
+assert(doclingComposeCommands.some((command) => command.includes("--profile docling")), "Docling service answers must enable the docling Compose profile.");
+assert(doclingComposeCommands.some((command) => command.includes("up -d postgres redis clamav docling")), "Docling service answers must start and health-check the docling service.");
+fs.rmSync(doclingComposeHome, { recursive: true, force: true });
 
 const librefsHome = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-installer-librefs-"));
 fs.rmSync(librefsHome, { recursive: true, force: true });

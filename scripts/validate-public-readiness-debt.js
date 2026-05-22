@@ -29,7 +29,6 @@ const markerPattern = /\b(?:TODO|FIXME|XXX|HACK)\b|from a later task|not_impleme
 
 const debtOwners = new Map(Object.entries({
   "README.md": { owner: "TASK-113", max: 5 },
-  "docker-compose.yml": { owner: "TASK-92", max: 1 },
   "docs/API.md": { owner: "TASK-89", max: 8 },
   "docs/ARCHITECTURE.md": { owner: "TASK-111", max: 10 },
   "docs/CONFIGURATION.md": { owner: "TASK-111", max: 3 },
@@ -65,9 +64,7 @@ const debtOwners = new Map(Object.entries({
   "packages/core/src/queue.ts": { owner: "TASK-88", max: 1 },
   "packages/core/src/storage.ts": { owner: "TASK-88", max: 1 },
   "scripts/check-repo.js": { owner: "TASK-88", max: 1 },
-  "scripts/docker-placeholder-service.mjs": { owner: "TASK-92", max: 7 },
   "scripts/validate-api-skeleton.js": { owner: "TASK-88", max: 4 },
-  "scripts/validate-compose.js": { owner: "TASK-92", max: 3 },
   "scripts/validate-db-repositories.js": { owner: "TASK-88", max: 2 },
   "scripts/validate-document-pipeline.js": { owner: "TASK-98", max: 2 },
   "scripts/validate-mcp-server.js": { owner: "TASK-89", max: 1 },

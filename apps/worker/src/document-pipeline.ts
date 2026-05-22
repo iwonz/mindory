@@ -83,7 +83,7 @@ export function buildDocumentPipelineProcessors(options: DocumentPipelineProcess
     new BuiltinTextExtractor(),
     new AudioTranscriptExtractor(audioTranscriptExtractorOptions(llm)),
     new VideoKeyframeExtractor(videoKeyframeExtractorOptions(options.config, llm)),
-    new DoclingPdfExtractor(doclingPdfExtractorOptions(llm)),
+    new DoclingPdfExtractor(doclingPdfExtractorOptions(options.config, llm)),
     new ImageSemanticExtractor(imageSemanticExtractorOptions(llm))
   ];
   const chunker = options.chunker ?? new FixedSizeTextChunker({
@@ -178,8 +178,13 @@ export function buildEmbeddingsProvider(config: MindoryConfig): EmbeddingsProvid
   return buildMindoryLlm(config).textEmbeddings;
 }
 
-function doclingPdfExtractorOptions(llm: MindoryLlm): DoclingPdfExtractorOptions {
+function doclingPdfExtractorOptions(config: MindoryConfig, llm: MindoryLlm): DoclingPdfExtractorOptions {
   const options: DoclingPdfExtractorOptions = {
+    service: {
+      enabled: config.docling.enabled,
+      url: config.docling.url,
+      timeoutMs: config.docling.timeoutMs
+    },
     ocr: llmRoleState(llm, "ocr"),
     ocrRole: llm.registry.require("ocr")
   };

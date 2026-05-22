@@ -150,6 +150,13 @@ export interface VectorAnswers {
   qdrantCollectionPrefix: string;
 }
 
+export interface DoclingAnswers {
+  enabled: boolean;
+  url: string;
+  timeoutMs: number;
+  port: number;
+}
+
 export interface MindoryInstallAnswers {
   schemaVersion: InstallerSchemaVersion;
   mindoryHome: string;
@@ -162,6 +169,7 @@ export interface MindoryInstallAnswers {
   publicUrl: string;
   storage: StorageAnswers;
   vector: VectorAnswers;
+  docling: DoclingAnswers;
   antivirus: AntivirusAnswers;
   modalities: ModalityAnswers;
   llmRoles: Partial<Record<InstallerLlmRoleKey, LlmRoleAnswers>>;
@@ -462,6 +470,12 @@ export function createDefaultInstallAnswers(overrides: Partial<MindoryInstallAns
       qdrantUrl: catalogDefault("MINDORY_QDRANT_URL"),
       qdrantCollectionPrefix: catalogDefault("MINDORY_QDRANT_COLLECTION_PREFIX")
     },
+    docling: {
+      enabled: catalogDefault("MINDORY_DOCLING_ENABLED") === "true",
+      url: catalogDefault("MINDORY_DOCLING_URL"),
+      timeoutMs: Number.parseInt(catalogDefault("MINDORY_DOCLING_TIMEOUT_MS"), 10),
+      port: Number.parseInt(catalogDefault("MINDORY_DOCLING_PORT"), 10)
+    },
     antivirus: {
       mode: catalogDefault("MINDORY_AV_MODE") as AntivirusMode,
       provider: catalogDefault("MINDORY_AV_PROVIDER"),
@@ -512,6 +526,7 @@ export function validateInstallAnswers(answers: MindoryInstallAnswers): string[]
   validateCatalogValue(errors, "MINDORY_INSTALL_DEPENDENCY_POLICY", answers.dependencyPolicy);
   validateCatalogValue(errors, "MINDORY_STORAGE_PROVIDER", answers.storage.provider);
   validateCatalogValue(errors, "MINDORY_VECTOR_PROVIDER", answers.vector.provider);
+  validateDoclingAnswers(errors, answers.docling);
   if (answers.storage.provider === "s3") {
     errors.push(...validateS3StorageAnswers(answers.storage.s3));
   }
@@ -568,6 +583,26 @@ export function validateInstallAnswers(answers: MindoryInstallAnswers): string[]
     }
   }
   return errors;
+}
+
+function validateDoclingAnswers(errors: string[], answers: DoclingAnswers): void {
+  if (answers.timeoutMs <= 0) {
+    errors.push("docling.timeoutMs must be greater than zero.");
+  }
+  if (answers.port <= 0 || answers.port > 65535) {
+    errors.push("docling.port must be a valid TCP port.");
+  }
+  if (!answers.enabled) {
+    return;
+  }
+  try {
+    const parsed = new URL(answers.url);
+    if (!["http:", "https:"].includes(parsed.protocol)) {
+      errors.push("docling.url must use http or https.");
+    }
+  } catch {
+    errors.push("docling.url must be a valid URL.");
+  }
 }
 
 export function validateS3StorageAnswers(answers: S3StorageAnswers): string[] {
@@ -1128,6 +1163,10 @@ export function answersToEnvMap(answers: MindoryInstallAnswers): Record<string, 
   assign(env, "MINDORY_VECTOR_PROVIDER", answers.vector.provider);
   assign(env, "MINDORY_QDRANT_URL", answers.vector.qdrantUrl);
   assign(env, "MINDORY_QDRANT_COLLECTION_PREFIX", answers.vector.qdrantCollectionPrefix);
+  assign(env, "MINDORY_DOCLING_ENABLED", bool(answers.docling.enabled));
+  assign(env, "MINDORY_DOCLING_URL", answers.docling.url);
+  assign(env, "MINDORY_DOCLING_TIMEOUT_MS", String(answers.docling.timeoutMs));
+  assign(env, "MINDORY_DOCLING_PORT", String(answers.docling.port));
   assign(env, "MINDORY_AV_MODE", answers.antivirus.mode);
   assign(env, "MINDORY_AV_PROVIDER", answers.antivirus.provider);
   assign(env, "MINDORY_CLAMAV_PLATFORM", answers.antivirus.clamavPlatform);
@@ -1182,6 +1221,7 @@ export function renderMindoryConfigJson(answers: MindoryInstallAnswers): string 
     public_url: answers.publicUrl,
     storage: answers.storage,
     vector: answers.vector,
+    docling: answers.docling,
     antivirus: answers.antivirus,
     modalities: answers.modalities,
     llm_roles: answers.llmRoles,
@@ -1229,6 +1269,9 @@ export function composeProfilesForAnswers(answers: MindoryInstallAnswers): strin
   if (answers.vector.provider === "qdrant") {
     profiles.add("qdrant");
   }
+  if (answers.docling.enabled) {
+    profiles.add("docling");
+  }
   for (const roleAnswers of Object.values(answers.llmRoles)) {
     if (roleAnswers?.enabled && roleAnswers.provider === "ollama") {
       profiles.add("ollama");
@@ -1264,6 +1307,10 @@ export function buildWizardPromptPlan(options: WizardOptions = {}): WizardPrompt
     promptFromCatalog("vector.provider", "MINDORY_VECTOR_PROVIDER", "choice"),
     promptFromCatalog("vector.qdrant_url", "MINDORY_QDRANT_URL", "text"),
     promptFromCatalog("vector.qdrant_collection_prefix", "MINDORY_QDRANT_COLLECTION_PREFIX", "text"),
+    promptFromCatalog("docling.enabled", "MINDORY_DOCLING_ENABLED", "boolean"),
+    promptFromCatalog("docling.url", "MINDORY_DOCLING_URL", "text"),
+    promptFromCatalog("docling.timeout_ms", "MINDORY_DOCLING_TIMEOUT_MS", "number"),
+    promptFromCatalog("docling.port", "MINDORY_DOCLING_PORT", "number"),
     promptFromCatalog("modalities.text", "MINDORY_DOCUMENT_PROCESSING_TEXT_ENABLED", "boolean"),
     promptFromCatalog("modalities.pdf", "MINDORY_DOCUMENT_PROCESSING_PDF_ENABLED", "boolean"),
     promptFromCatalog("modalities.image", "MINDORY_DOCUMENT_PROCESSING_IMAGE_ENABLED", "boolean"),
@@ -1332,6 +1379,13 @@ export async function runInstallWizard(io: WizardIo, options: WizardOptions = {}
   if (answers.vector.provider === "qdrant") {
     answers.vector.qdrantUrl = await askString(io, promptFromCatalog("vector.qdrant_url", "MINDORY_QDRANT_URL", "text", { defaultValue: answers.vector.qdrantUrl }));
     answers.vector.qdrantCollectionPrefix = await askString(io, promptFromCatalog("vector.qdrant_collection_prefix", "MINDORY_QDRANT_COLLECTION_PREFIX", "text", { defaultValue: answers.vector.qdrantCollectionPrefix }));
+  }
+
+  answers.docling.enabled = await askBoolean(io, promptFromCatalog("docling.enabled", "MINDORY_DOCLING_ENABLED", "boolean"));
+  if (answers.docling.enabled) {
+    answers.docling.url = await askString(io, promptFromCatalog("docling.url", "MINDORY_DOCLING_URL", "text", { defaultValue: answers.docling.url }));
+    answers.docling.timeoutMs = await askNumber(io, promptFromCatalog("docling.timeout_ms", "MINDORY_DOCLING_TIMEOUT_MS", "number", { defaultValue: String(answers.docling.timeoutMs) }));
+    answers.docling.port = await askNumber(io, promptFromCatalog("docling.port", "MINDORY_DOCLING_PORT", "number", { defaultValue: String(answers.docling.port) }));
   }
 
   answers.modalities.text = await askBoolean(io, promptFromCatalog("modalities.text", "MINDORY_DOCUMENT_PROCESSING_TEXT_ENABLED", "boolean"));
@@ -1981,6 +2035,17 @@ function createRuntimePlanFromHome(mindoryHome: string, homeEnv: Record<string, 
         forcePathStyle: (homeEnv.MINDORY_S3_FORCE_PATH_STYLE ?? catalogDefault("MINDORY_S3_FORCE_PATH_STYLE")) === "true"
       }
     },
+    vector: {
+      provider: (homeEnv.MINDORY_VECTOR_PROVIDER ?? catalogDefault("MINDORY_VECTOR_PROVIDER")) as VectorProvider,
+      qdrantUrl: homeEnv.MINDORY_QDRANT_URL ?? catalogDefault("MINDORY_QDRANT_URL"),
+      qdrantCollectionPrefix: homeEnv.MINDORY_QDRANT_COLLECTION_PREFIX ?? catalogDefault("MINDORY_QDRANT_COLLECTION_PREFIX")
+    },
+    docling: {
+      enabled: (homeEnv.MINDORY_DOCLING_ENABLED ?? catalogDefault("MINDORY_DOCLING_ENABLED")) === "true",
+      url: homeEnv.MINDORY_DOCLING_URL ?? catalogDefault("MINDORY_DOCLING_URL"),
+      timeoutMs: Number.parseInt(homeEnv.MINDORY_DOCLING_TIMEOUT_MS ?? catalogDefault("MINDORY_DOCLING_TIMEOUT_MS"), 10),
+      port: Number.parseInt(homeEnv.MINDORY_DOCLING_PORT ?? catalogDefault("MINDORY_DOCLING_PORT"), 10)
+    },
     antivirus: {
       mode: (homeEnv.MINDORY_AV_MODE ?? catalogDefault("MINDORY_AV_MODE")) as AntivirusMode,
       provider: homeEnv.MINDORY_AV_PROVIDER ?? catalogDefault("MINDORY_AV_PROVIDER"),
@@ -2413,6 +2478,13 @@ function promptIdToEnvName(promptId: string): string | undefined {
     "storage.s3.bucket": "MINDORY_S3_BUCKET",
     "storage.s3.access_key_id": "MINDORY_S3_ACCESS_KEY_ID",
     "storage.s3.secret_access_key": "MINDORY_S3_SECRET_ACCESS_KEY",
+    "vector.provider": "MINDORY_VECTOR_PROVIDER",
+    "vector.qdrant_url": "MINDORY_QDRANT_URL",
+    "vector.qdrant_collection_prefix": "MINDORY_QDRANT_COLLECTION_PREFIX",
+    "docling.enabled": "MINDORY_DOCLING_ENABLED",
+    "docling.url": "MINDORY_DOCLING_URL",
+    "docling.timeout_ms": "MINDORY_DOCLING_TIMEOUT_MS",
+    "docling.port": "MINDORY_DOCLING_PORT",
     "modalities.text": "MINDORY_DOCUMENT_PROCESSING_TEXT_ENABLED",
     "modalities.pdf": "MINDORY_DOCUMENT_PROCESSING_PDF_ENABLED",
     "modalities.image": "MINDORY_DOCUMENT_PROCESSING_IMAGE_ENABLED",
@@ -2462,6 +2534,7 @@ function mergeAnswers(defaults: MindoryInstallAnswers, overrides: Partial<Mindor
     ...overrides,
     storage: { ...defaults.storage, ...overrides.storage, s3: { ...defaults.storage.s3, ...overrides.storage?.s3 } },
     vector: { ...defaults.vector, ...overrides.vector },
+    docling: { ...defaults.docling, ...overrides.docling },
     antivirus: { ...defaults.antivirus, ...overrides.antivirus },
     modalities: { ...defaults.modalities, ...overrides.modalities },
     llmRoles: { ...defaults.llmRoles, ...overrides.llmRoles },

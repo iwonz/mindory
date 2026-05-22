@@ -233,6 +233,9 @@ acceptance. The `ollama` profile is optional for local text embeddings. External
 and Ollama embedding models must also produce 1536-dimensional vectors for the
 current pgvector MVP schema.
 
-`docling` is experimental and not required by the default local MVP path.
+The `docling` profile runs Mindory's Docling-compatible extraction service from
+the built application image. It exposes `/health` on `MINDORY_DOCLING_PORT`
+and `POST /v1/extract` for worker PDF extraction when
+`MINDORY_DOCLING_ENABLED=true`.
 Running Compose may require network access to pull images and to install
 dependencies during the first Docker build if the cache is cold.
