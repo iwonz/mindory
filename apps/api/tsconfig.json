@@ -15,6 +15,7 @@
     { "path": "../../packages/llm" },
     { "path": "../../packages/queue/bullmq" },
     { "path": "../../packages/storage/local-fs" },
+    { "path": "../../packages/storage/s3" },
     { "path": "../../packages/vector/pgvector" }
   ]
 }

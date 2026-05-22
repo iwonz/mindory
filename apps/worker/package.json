@@ -32,6 +32,7 @@
     "@mindory/processor-antivirus-clamav": "workspace:*",
     "@mindory/queue-bullmq": "workspace:*",
     "@mindory/storage-local-fs": "workspace:*",
+    "@mindory/storage-s3": "workspace:*",
     "@mindory/vector-pgvector": "workspace:*"
   }
 }

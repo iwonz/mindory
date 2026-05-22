@@ -70,8 +70,8 @@ function assertKnownSections(sectionById, entries) {
 function sectionNotes(sectionId) {
   if (sectionId === "storage") {
     return [
-      "# local-fs is currently implemented. S3-compatible storage is cataloged for",
-      "# LibreFS/external S3 installer work and remains adapter-gated until TASK-56."
+      "# local-fs and S3-compatible storage are implemented.",
+      "# LibreFS/external S3 installer profiles are configured by later installer tasks."
     ];
   }
   if (sectionId === "llm") {

@@ -114,13 +114,15 @@ default, support status, visibility and secret handling.
 ## Object Storage
 
 `TASK-6` adds the shared `ObjectStorage` contract in `@mindory/core` and adapter
-packages for local filesystem and S3/MinIO. The local filesystem adapter can
-write, read, stat, check and delete objects under a configured root path while
-rejecting absolute keys and path traversal.
+packages for local filesystem and S3-compatible storage. The local filesystem
+adapter can write, read, stat, check and delete objects under a configured root
+path while rejecting absolute keys and path traversal.
 
-The S3/MinIO package currently exposes the configuration and adapter class shape
-only. It throws explicit `storage_not_implemented` errors until a later task adds
-the real S3 client dependency and network behavior.
+`TASK-56` implements the S3-compatible adapter without a cloud-vendor SDK. It
+signs requests with AWS SigV4 and supports PUT, GET, HEAD and DELETE against
+path-style or virtual-host-style S3 endpoints. API and worker runtimes select it
+when `MINDORY_STORAGE_PROVIDER=s3`, so LibreFS, MinIO and external S3-compatible
+services share the same storage boundary.
 
 ## Queue And Workers
 
