@@ -1,7 +1,7 @@
 {
   "id": "TASK-106",
   "title": "Add external S3 streaming backup",
-  "status": "draft",
+  "status": "done",
   "type": "feature",
   "priority": "high",
   "branch": "task/TASK-106-external-s3-streaming-backup",

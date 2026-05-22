@@ -19,6 +19,25 @@ export interface S3ObjectStorageOptions {
   fetchImpl?: typeof fetch;
 }
 
+export interface S3ListedObject {
+  key: string;
+  sizeBytes: number;
+  etag?: string;
+  lastModified?: string;
+}
+
+export interface S3ListObjectsPageOptions {
+  prefix?: string;
+  continuationToken?: string;
+  maxKeys?: number;
+}
+
+export interface S3ListObjectsPage {
+  objects: S3ListedObject[];
+  isTruncated: boolean;
+  nextContinuationToken?: string;
+}
+
 interface S3Request {
   method: "DELETE" | "GET" | "HEAD" | "PUT";
   key: string;
@@ -139,6 +158,30 @@ export class S3ObjectStorage implements ObjectStorage {
     }
   }
 
+  async listObjectsPage(options: S3ListObjectsPageOptions = {}): Promise<S3ListObjectsPage> {
+    const prefix = options.prefix ?? "";
+    validateS3ListPrefix(prefix);
+    const query = new URLSearchParams();
+    query.set("list-type", "2");
+    if (prefix !== "") {
+      query.set("prefix", prefix);
+    }
+    if (options.continuationToken !== undefined) {
+      query.set("continuation-token", options.continuationToken);
+    }
+    if (options.maxKeys !== undefined) {
+      if (!Number.isInteger(options.maxKeys) || options.maxKeys <= 0 || options.maxKeys > 1000) {
+        throw new StorageError("invalid_storage_key", "S3 list maxKeys must be an integer from 1 to 1000.");
+      }
+      query.set("max-keys", String(options.maxKeys));
+    }
+    const response = await this.bucketRequest("GET", query);
+    if (!response.ok) {
+      await throwS3Error(response, `Could not list bucket ${this.options.bucket}.`);
+    }
+    return parseListObjectsV2Response(await response.text());
+  }
+
   private request(input: S3Request): Promise<Response> {
     const body = input.body ?? Buffer.alloc(0);
     const payloadHash = sha256Hex(body);
@@ -175,10 +218,13 @@ export class S3ObjectStorage implements ObjectStorage {
     return this.fetchImpl(target.url, init);
   }
 
-  private bucketRequest(method: "HEAD" | "PUT"): Promise<Response> {
+  private bucketRequest(method: "GET" | "HEAD" | "PUT", query?: URLSearchParams): Promise<Response> {
     const body = Buffer.alloc(0);
     const payloadHash = sha256Hex(body);
     const target = buildS3BucketUrl(this.options);
+    if (query !== undefined) {
+      target.url.search = canonicalQueryString(query);
+    }
     const headers = new Headers();
     headers.set("host", target.url.host);
     headers.set("x-amz-content-sha256", payloadHash);
@@ -210,6 +256,15 @@ export function normalizeS3Key(key: string): string {
     throw new StorageError("invalid_storage_key", "Object storage key cannot contain path traversal segments.");
   }
   return segments.join("/");
+}
+
+function validateS3ListPrefix(prefix: string): void {
+  if (prefix.startsWith("/") || prefix.includes("\0")) {
+    throw new StorageError("invalid_storage_key", "S3 list prefix must be a relative prefix.");
+  }
+  if (prefix.split("/").some((segment) => segment === "." || segment === "..")) {
+    throw new StorageError("invalid_storage_key", "S3 list prefix cannot contain path traversal segments.");
+  }
 }
 
 async function objectBodyToBuffer(body: ObjectBody): Promise<Buffer> {
@@ -256,6 +311,13 @@ function buildS3BucketUrl(options: S3ObjectStorageOptions): { url: URL; now: Dat
     url: endpoint,
     now: new Date()
   };
+}
+
+function canonicalQueryString(query: URLSearchParams): string {
+  return Array.from(query.entries())
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+    .join("&");
 }
 
 function joinUrlPath(...parts: string[]): string {
@@ -344,6 +406,55 @@ function storedObjectFromHeaders(key: string, headers: Headers): StoredObject {
     stored.etag = etag;
   }
   return stored;
+}
+
+function parseListObjectsV2Response(xml: string): S3ListObjectsPage {
+  const objects = xml.match(/<Contents\b[\s\S]*?<\/Contents>/g)?.map(parseListedObject).filter((object): object is S3ListedObject => object !== null) ?? [];
+  const nextContinuationToken = textFromXml(xml, "NextContinuationToken");
+  const page: S3ListObjectsPage = {
+    objects,
+    isTruncated: (textFromXml(xml, "IsTruncated") ?? "false").toLowerCase() === "true"
+  };
+  if (nextContinuationToken !== undefined) {
+    page.nextContinuationToken = nextContinuationToken;
+  }
+  return page;
+}
+
+function parseListedObject(xml: string): S3ListedObject | null {
+  const key = textFromXml(xml, "Key");
+  const size = textFromXml(xml, "Size");
+  if (key === undefined || size === undefined) {
+    return null;
+  }
+  const object: S3ListedObject = {
+    key,
+    sizeBytes: Number.parseInt(size, 10)
+  };
+  const etag = textFromXml(xml, "ETag")?.replace(/^"|"$/g, "");
+  if (etag !== undefined) {
+    object.etag = etag;
+  }
+  const lastModified = textFromXml(xml, "LastModified");
+  if (lastModified !== undefined) {
+    object.lastModified = lastModified;
+  }
+  return object;
+}
+
+function textFromXml(xml: string, tag: string): string | undefined {
+  const match = new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`).exec(xml);
+  const value = match?.[1];
+  return value === undefined ? undefined : decodeXmlEntities(value);
+}
+
+function decodeXmlEntities(value: string): string {
+  return value
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">")
+    .replaceAll("&quot;", "\"")
+    .replaceAll("&apos;", "'")
+    .replaceAll("&amp;", "&");
 }
 
 function metadataFromHeaders(headers: Headers): Record<string, string> {

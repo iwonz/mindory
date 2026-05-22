@@ -111,6 +111,9 @@ for (const token of ["MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_PROVIDER", "MIN
 for (const token of ["createEncryptedMindoryBackupArchive", "restoreEncryptedMindoryBackupArchive", "uploadEncryptedMindoryBackupArchive", "downloadEncryptedMindoryBackupArchive", "aes-256-gcm"]) {
   assert(installerSource.includes(token), `Installer encrypted remote backup support must include ${token}.`);
 }
+for (const token of ["exportExternalS3ObjectInventory", "createExternalS3StreamingBackupArchive", "restoreExternalS3StreamingBackupArchive", "mindory-external-s3-streaming-backup", "listObjectsPage"]) {
+  assert(installerSource.includes(token), `Installer external S3 streaming backup support must include ${token}.`);
+}
 for (const token of ["MINDORY_BACKUP_ENCRYPTION_KEY", "MINDORY_REMOTE_BACKUP_S3_ENDPOINT"]) {
   assert(installerSource.includes(token), `Installer encrypted remote backup support must include ${token}.`);
   assert(envExample.includes(token), `.env.example must include ${token}.`);
@@ -119,7 +122,7 @@ for (const token of ["infected_probe_not_detected", "unexpected_infected_result"
   assert(installerSource.includes(token), `Installer ClamAV health must include ${token}.`);
 }
 assert(composeFile.includes("clamdscan --no-summary"), "ClamAV Compose service must include a real daemon healthcheck.");
-for (const token of ["command === \"start\"", "stopBeforeStepId: null", "initialTokenPath", "mindory-installer start", "command === \"update\"", "command === \"backup\"", "command === \"backup-archive\"", "command === \"backup-upload\"", "command === \"backup-download\"", "command === \"backup-restore-archive\"", "command === \"pitr-backup\"", "command === \"pitr-restore\"", "command === \"restore\"", "command === \"uninstall\""]) {
+for (const token of ["command === \"start\"", "stopBeforeStepId: null", "initialTokenPath", "mindory-installer start", "command === \"update\"", "command === \"backup\"", "command === \"backup-archive\"", "command === \"backup-upload\"", "command === \"backup-download\"", "command === \"backup-restore-archive\"", "command === \"s3-inventory\"", "command === \"s3-backup\"", "command === \"s3-restore\"", "command === \"pitr-backup\"", "command === \"pitr-restore\"", "command === \"restore\"", "command === \"uninstall\""]) {
   assert(installerCli.includes(token), `Installer CLI must expose startup command token ${token}.`);
 }
 

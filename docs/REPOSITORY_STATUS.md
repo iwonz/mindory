@@ -6,7 +6,7 @@ The repository should be described with the support levels in
 
 ## Current Baseline
 
-The repository is complete through `TASK-105`.
+The repository is complete through `TASK-106`.
 
 Supported local MVP path:
 
@@ -64,6 +64,10 @@ Supported local MVP path:
 - Encrypted remote backups include `.mindorybak` archive generation, AES-GCM
   encryption, SHA-256 verification, S3-compatible upload/download integrity
   checks and decrypted restore staging under `$MINDORY_HOME/backups/decrypted`.
+- External S3 object storage backups include paginated bucket inventory,
+  `.mindorys3bak` streaming archive generation, progress events, encrypted
+  object chunk storage and restore into an S3-compatible bucket with integrity
+  validation.
 - Public self-host acceptance is documented as the release-readiness gate for
   local self-host users.
 
@@ -83,7 +87,6 @@ Public GitHub hygiene baseline:
 - Signed release manifests are future work.
 - Registry push policy for Docker images is future hardening.
 - Full automated installer resume is future work.
-- External S3 bucket streaming backups are future work.
 - Alerting policy is not bundled; route Prometheus and OTLP exports to the
   monitoring stack used by the deployment.
 - Official Hermes SDK certification is future work; the current supported path

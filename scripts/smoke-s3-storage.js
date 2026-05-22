@@ -35,6 +35,20 @@ const server = createServer(async (request, response) => {
         response.end();
         return;
       }
+      if (request.method === "GET" && url.searchParams.get("list-type") === "2") {
+        const prefix = url.searchParams.get("prefix") ?? "";
+        const maxKeys = Number.parseInt(url.searchParams.get("max-keys") ?? "1000", 10);
+        const continuationToken = url.searchParams.get("continuation-token");
+        const sorted = Array.from(objects.entries())
+          .filter(([objectKey]) => objectKey.startsWith(prefix))
+          .sort(([left], [right]) => left.localeCompare(right));
+        const startIndex = continuationToken === null ? 0 : Math.max(sorted.findIndex(([objectKey]) => objectKey === continuationToken) + 1, 0);
+        const page = sorted.slice(startIndex, startIndex + maxKeys);
+        const next = sorted.length > startIndex + maxKeys ? page.at(-1)?.[0] : undefined;
+        response.writeHead(200, { "content-type": "application/xml" });
+        response.end(renderListObjectsResponse(page, next));
+        return;
+      }
       if (request.method === "PUT") {
         const existed = buckets.has(pathBucket);
         buckets.add(pathBucket);
@@ -134,6 +148,10 @@ try {
   const stat = await storage.statObject("docs/hello.txt");
   assert(stat.sizeBytes === 13, "statObject should return object size.");
   assert(await storage.objectExists("docs/hello.txt"), "objectExists should return true.");
+  const listed = await storage.listObjectsPage({ prefix: "docs/", maxKeys: 1 });
+  assert(listed.objects.length === 1, "listObjectsPage should list objects by prefix.");
+  assert(listed.objects[0]?.key === "docs/hello.txt", "listObjectsPage should preserve object keys.");
+  assert(listed.objects[0]?.etag === "etag-13", "listObjectsPage should parse object ETags.");
 
   const get = await storage.getObject("docs/hello.txt");
   const content = await streamToString(get.body);
@@ -172,6 +190,33 @@ function objectHeaders(object) {
     etag: `"${object.etag}"`,
     ...Object.fromEntries(Object.entries(object.metadata).map(([key, value]) => [`x-amz-meta-${key}`, value]))
   };
+}
+
+function renderListObjectsResponse(entries, nextContinuationToken) {
+  return [
+    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
+    "<ListBucketResult>",
+    `<IsTruncated>${nextContinuationToken === undefined ? "false" : "true"}</IsTruncated>`,
+    ...entries.map(([key, object]) => [
+      "<Contents>",
+      `<Key>${escapeXml(key)}</Key>`,
+      "<LastModified>2026-05-22T00:00:00.000Z</LastModified>",
+      `<ETag>&quot;${escapeXml(object.etag)}&quot;</ETag>`,
+      `<Size>${object.body.length}</Size>`,
+      "</Contents>"
+    ].join("")),
+    nextContinuationToken === undefined ? "" : `<NextContinuationToken>${escapeXml(nextContinuationToken)}</NextContinuationToken>`,
+    "</ListBucketResult>"
+  ].join("");
+}
+
+function escapeXml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll("\"", "&quot;")
+    .replaceAll("'", "&apos;");
 }
 
 async function readBody(request) {
