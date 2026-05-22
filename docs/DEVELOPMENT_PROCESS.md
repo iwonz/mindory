@@ -115,6 +115,9 @@ pnpm memory:validate
 pnpm mcp:validate
 pnpm cli:validate
 pnpm hermes:validate
+pnpm hermes:smoke
+pnpm hermes:contract
+pnpm hermes:harness
 pnpm production:validate
 pnpm mvp:demo:validate
 ```

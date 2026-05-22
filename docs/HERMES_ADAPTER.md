@@ -25,11 +25,13 @@ HTTP runtime surface. `@mindory/adapter-hermes` now exposes:
 - `HermesMindoryApiClient`
 - `mapHermesIdentity`
 - `MindoryHermesRuntimeBridge`
+- `installMindoryHermesRuntime`
 - `buildMindoryHermesTools`
 - `handleTurn`
 
-The adapter remains runtime-agnostic and does not import a Hermes SDK. A Hermes
-host should call these methods from its lifecycle hooks.
+The adapter remains independent from the API and does not import a Hermes SDK.
+A Hermes host can either call the bridge methods directly or pass a compatible
+hook registrar to `installMindoryHermesRuntime`.
 
 ## Runtime Contract Fixture
 
@@ -59,6 +61,26 @@ The fixture mirrors the normalized host surface the adapter expects:
 `MindoryHermesAdapter` methods. A real Hermes host should adapt its native hook
 payloads into this contract rather than giving the adapter direct access to
 Hermes internals.
+
+## Runtime Integration Harness
+
+`TASK-83` adds `installMindoryHermesRuntime`, a small host integration layer for
+Hermes-like runtimes. It supports runtimes exposing `registerHook`, `addHook`,
+`on` or `hooks.beforePrompt`/`hooks.afterResponse`/`hooks.completedTurn`
+registrars. The installed handlers:
+
+- run `before_prompt` through `preparePromptContext` and return a prompt payload
+  augmented with Mindory context before model prompt construction;
+- run `after_response` through `saveTurn`, uploading attachments when the host
+  exposes them and saving user/assistant messages through HTTP;
+- run `completed_turn` through `handleTurn` for hosts that emit one combined
+  lifecycle event.
+
+The fake-compatible harness in `scripts/smoke-hermes-runtime-harness.js`
+registers these hooks on a local runtime stub and verifies context-before-prompt
+ordering, stable identity/session mapping, attachment upload, saved turns and
+later-session recall through the real `HermesMindoryApiClient` against a fake
+Mindory HTTP API.
 
 ## Identity Mapping
 
@@ -99,8 +121,10 @@ The adapter calls only implemented MVP HTTP route surfaces for project, peer,
 session, message, document upload, memory, document search and context build.
 `pnpm hermes:smoke` validates the lifecycle order with an injectable HTTP
 client. `pnpm hermes:contract` validates the local Hermes runtime fixture over
-the real `HermesMindoryApiClient` against a fake HTTP API: deterministic
-identity mapping, context-before-save ordering, attachment upload, user and
+the real `HermesMindoryApiClient` against a fake HTTP API. `pnpm hermes:harness`
+validates runtime hook registration and execution against a fake-compatible
+Hermes runtime. Together they cover deterministic identity
+mapping, context-before-prompt/save ordering, attachment upload, user and
 assistant message persistence, later-session recall and optional tool recall.
 Live API acceptance remains part of the end-to-end hardening task.
 
@@ -121,6 +145,8 @@ MINDORY_HERMES_CONTEXT_TOKEN_BUDGET=3000
 Limitations:
 
 - The adapter intentionally does not import a Hermes SDK.
+- Official Hermes SDK certification remains future work until a stable SDK or
+  generated hook contract is available in the repo.
 - Attachment linking is currently represented in saved message metadata until a
   dedicated attachment linking API is added.
 - Hermes host implementations must provide stable external session ids; empty

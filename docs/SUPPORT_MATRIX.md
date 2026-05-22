@@ -33,7 +33,7 @@ writing README, issues, release notes and docs.
 | Worker document pipeline | Supported local MVP | Scan, route, extract, chunk, embed/index and status transitions are wired. |
 | CLI | Supported local MVP | Calls HTTP API; no direct database access. |
 | MCP stdio | Supported local MVP | Tools call HTTP API; Compose service is a packaging smoke artifact. |
-| Hermes adapter | Experimental | Lifecycle surface is implemented; real Hermes SDK/runtime verification is future work. |
+| Hermes adapter | Supported baseline | Lifecycle helpers, HTTP client, optional tools and fake-compatible runtime hook harness are covered by `pnpm check`; official Hermes SDK certification is future work. |
 | Web UI | Future | Not part of the MVP. |
 
 ## Storage And Search

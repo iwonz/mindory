@@ -1952,7 +1952,10 @@ Why do you remember this?
 `TASK-33` adds a local Hermes runtime contract fixture dated 2026-05-21 because
 no Hermes SDK is vendored in this repository. The fixture documents
 `before_prompt`, `after_response` and `completed_turn` hook assumptions and is
-validated by `pnpm hermes:contract`.
+validated by `pnpm hermes:contract`. `TASK-83` adds a fake-compatible Hermes
+runtime hook harness validated by `pnpm hermes:harness`; official Hermes SDK
+certification remains future work until a stable SDK or generated hook contract
+is available in the repository.
 
 ---
 

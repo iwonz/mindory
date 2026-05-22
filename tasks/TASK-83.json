@@ -1,0 +1,68 @@
+{
+  "id": "TASK-83",
+  "title": "Integrate Hermes runtime lifecycle harness",
+  "status": "done",
+  "type": "feature",
+  "priority": "high",
+  "branch": "task/TASK-83-hermes-real-runtime-integration",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Connect the Hermes adapter to a concrete runtime hook registration surface and verify the lifecycle against a fake-compatible Hermes harness.",
+    "background": "The adapter already exposes normalized lifecycle methods and a local contract fixture. TASK-83 adds a host-runtime integration layer that registers Mindory into Hermes-like hooks, mutates prompt payloads with context before model calls, saves turns after responses and proves later-session recall through a fake-compatible runtime harness."
+  },
+  "scope": {
+    "in": [
+      "Add a Hermes runtime installation module that registers before_prompt, after_response and completed_turn hooks on supported host shapes.",
+      "Attach Mindory context to prompt payloads before model prompt construction.",
+      "Save user/assistant turns and upload exposed attachments through the existing HTTP-only adapter.",
+      "Preserve stable identity and session mapping across runtime hook calls.",
+      "Add a fake-compatible Hermes runtime harness smoke test covering context-before-prompt, attachment upload, saved turns and later-session recall.",
+      "Update docs, public status and validators for the supported runtime harness."
+    ],
+    "out": [
+      "Vendoring a real Hermes SDK.",
+      "Hermes-specific UI changes.",
+      "Direct database, Redis, object storage or worker access from the adapter.",
+      "Attachment linking schema beyond existing message metadata."
+    ]
+  },
+  "acceptance_criteria": [
+    "@mindory/adapter-hermes exports a runtime integration installer for Hermes-like hook registrars.",
+    "The integration registers before_prompt, after_response and completed_turn handlers.",
+    "before_prompt returns a prompt payload augmented with Mindory context before the model prompt is built.",
+    "after_response uploads attachments when provided and saves user/assistant turns through HTTP.",
+    "The harness verifies stable identity/session mapping and later-session recall.",
+    "The adapter remains HTTP-only and does not import a Hermes SDK or Mindory internals.",
+    "pnpm check passes."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm --filter @mindory/adapter-hermes typecheck",
+      "pnpm hermes:validate",
+      "pnpm hermes:smoke",
+      "pnpm hermes:contract",
+      "pnpm hermes:harness",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-83.",
+      "Confirm the adapter still depends only on @mindory/config among Mindory workspace packages.",
+      "Confirm fake-compatible Hermes runtime hooks call the HTTP API only through HermesMindoryApiClient."
+    ]
+  },
+  "dependencies": [
+    "TASK-82"
+  ],
+  "risks": [
+    "Runtime hook shapes may differ from a future official Hermes SDK.",
+    "Prompt augmentation must not drop host payload fields.",
+    "The harness must remain fake-compatible without pretending to certify an unavailable SDK."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to done.",
+    "Branch is committed and merged back into master."
+  ]
+}
