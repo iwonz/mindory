@@ -4,6 +4,19 @@ Mindory can run as a local MVP through Docker Compose, but non-demo use must
 separate demo defaults from production operations. This document records the
 minimum baseline for the MVP release path.
 
+## Current Support Level
+
+| Area | Current state |
+| --- | --- |
+| CI gate | Supported baseline. GitHub Actions runs `pnpm check` for pushes and pull requests to `master`. |
+| Local demo | Supported local MVP through Docker Compose and `pnpm mvp:demo`. |
+| Release images | Manual baseline documented. Automated build, tag and publish workflow is future release work. |
+| Release bundles | Bootstrap and manifest shape exist, but public artifact publication and signature verification are future work. |
+| Installer execution | Future work. Current installer surfaces plan/dry-run, diagnostics and acceptance, not a full host-mutating install. |
+| Backup and restore | Manual guidance only. Scripted backup/restore and restore acceptance are future hardening work. |
+| Observability | Structured logs baseline exists. Metrics, tracing, log aggregation and alerting are future hardening work. |
+| Public GitHub readiness | Future work. The repo still needs public license, contribution guide, security policy, issue/PR templates and release notes policy before it should be treated as a public self-host product. |
+
 ## CI Gate
 
 Pull requests and pushes to `master` run `.github/workflows/ci.yml`. The job

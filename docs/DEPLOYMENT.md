@@ -6,6 +6,17 @@ Production hardening expectations for CI, release images, backups, rollback,
 secrets, rate limits and structured logs are maintained in
 `docs/PRODUCTION_HARDENING.md`.
 
+## Current Support Level
+
+| Deployment path | Status |
+| --- | --- |
+| Local demo Compose | Supported local MVP. `pnpm mvp:demo` starts the stack, seeds demo credentials and runs live acceptance. |
+| Persistent local Compose | Supported for development and self-host testing when `MINDORY_HOME` is set intentionally. |
+| Installer wizard and dry-run | Supported. It can collect answers, render config previews and validate plans. |
+| Installer host-mutating execution | Future work. The installer does not yet perform the full write/start/provision/update/uninstall flow. |
+| Release images and bundles | Manual baseline only. Publishing automation and signed release manifests are future release tasks. |
+| Heavy local models | Experimental. Profiles exist for wiring checks or local experiments, not as a guaranteed default install. |
+
 The expected local demo flow is:
 
 ```bash
@@ -23,8 +34,8 @@ for the demo. The demo script uses `.mindory-demo` in the repository when
 `MINDORY_HOME` is not set, so it does not touch a real `~/.mindory`
 installation by default.
 
-`TASK-3` adds a base Compose scaffold. `TASK-26` replaces the API, MCP and
-worker placeholders with a shared built Node image and real runtime commands.
+The Compose runtime uses a shared built Node image and real API, worker,
+migration and MCP command entrypoints.
 
 The startup path is:
 
@@ -92,9 +103,9 @@ pnpm mvp:demo --model-profile ollama
 ```
 
 `disabled` is the default and starts no heavy model containers. `local` adds the
-`local-models` profile, which currently runs a lightweight LLM
-placeholder for profile wiring checks. `ollama` adds the real Ollama service for
-local model experiments.
+`local-models` profile, which currently runs a lightweight profile-smoke HTTP
+service for wiring checks. It is not a real model runner. `ollama` adds the real
+Ollama service for local model experiments.
 
 ## Base Services
 
@@ -147,12 +158,12 @@ S3-compatible storage option and stores its data under
 compatibility testing and stores data under `$MINDORY_HOME/data/minio`.
 
 The `local-models` profile is intentionally lightweight and does not download
-model weights. The `ollama` profile is optional for local text embeddings. The
-selected embedding model must produce 1536-dimensional vectors for the current
-pgvector MVP schema; otherwise keep
+model weights or execute model inference. The `ollama` profile is optional for
+local text embeddings. The selected embedding model must produce
+1536-dimensional vectors for the current pgvector MVP schema; otherwise keep
 `MINDORY_LLM_TEXT_EMBEDDING_ENABLED=false` for the default chunked
 fallback.
 
-`docling` is still a profile skeleton. Running Compose may require network
-access to pull images and to install dependencies during the first Docker build
-if the cache is cold.
+`docling` is experimental and not required by the default local MVP path.
+Running Compose may require network access to pull images and to install
+dependencies during the first Docker build if the cache is cold.

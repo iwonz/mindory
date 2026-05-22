@@ -1,10 +1,23 @@
 # Installer
 
-The installer is built in layers. `TASK-58` adds the non-interactive core in
-`@mindory/installer`; `TASK-59` adds the interactive wizard layer. `TASK-60`
-adds the cross-platform bootstrap scripts and installer CLI entrypoint.
-`TASK-61` adds lock, journal and diagnostic primitives. Later tasks add full
-install acceptance.
+The installer is built in layers. The current implementation supports planning,
+interactive answer collection, config rendering, dependency diagnostics,
+bootstrap staging and dry-run/live acceptance checks. It does not yet mutate a
+host into a complete installed Mindory deployment; that execution engine is the
+next installer milestone.
+
+## Current Support Level
+
+| Capability | Status |
+| --- | --- |
+| Interactive wizard | Supported. It collects and validates answers and shows a redacted summary. |
+| Plan/dry-run | Supported. It renders deterministic install plans without mutating host state. |
+| Config rendering | Supported in the installer core for generated `.env` and `mindory.config.json` content. |
+| Dependency detection | Supported through injectable probes and diagnostics. |
+| Lock, journal and recovery diagnostics | Supported. `repair` and `resume` inspect current state. |
+| Bootstrap staging and checksum verification | Supported for source/release-style bundles. |
+| Full install execution | Future work. The CLI does not yet write all assets, start Compose, run migrations or provision credentials. |
+| Update, uninstall and real resume execution | Future work. Current surfaces are diagnostics/planning only. |
 
 ## Core Package
 
@@ -68,13 +81,14 @@ MINDORY_RELEASE_BUNDLE_SHA256=<sha256>
 ```
 
 The bootstrap verifies the bundle checksum before extraction. Signature
-verification is added by a later task.
+verification and release publication automation are future release hardening
+work.
 
 The bootstrap launches `bin/mindory-installer` when a packaged binary exists, or
 falls back to `node packages/installer/dist/cli.js wizard` for source-style
-bundles. The installer CLI currently supports `wizard`, `plan`/`dry-run` and
-`render-defaults`; it collects and validates answers but does not execute the
-install plan yet.
+bundles. The installer CLI currently supports `wizard`, `plan`/`dry-run`,
+`render-defaults`, `repair` and `resume`; it collects and validates answers but
+does not execute the install plan yet.
 
 ## Recovery Surface
 
@@ -91,7 +105,7 @@ mindory-installer resume --home ~/.mindory
 ```
 
 `repair` inspects lock and journal state. `resume` reports the stored journal
-and makes clear that full resume execution is added by a later task.
+and makes clear that full resume execution is future work.
 
 ## Dev/Test Matrix
 
@@ -128,8 +142,10 @@ MINDORY_INSTALL_ACCEPTANCE_LIVE=true pnpm installer:acceptance
 ```
 
 Live mode runs the existing MVP demo acceptance with disabled heavy model
-services, then calls the reset path and removes the temp install home. It is
-opt-in because it may need cached images or network access for Docker pulls.
+services, then calls the reset path and removes the temp install home. It proves
+that the current repo can run the local demo stack, not that the installer has
+performed a full host-mutating install. It is opt-in because it may need cached
+images or network access for Docker pulls.
 
 ## Wizard Prompts
 
@@ -154,11 +170,12 @@ Every install action is planned before execution. The journal records planned,
 completed, failed and rollback events. On failure, completed actions are rolled
 back in reverse order when they expose a rollback step. Actions with no local
 rollback are recorded as skipped so the diagnosis can tell the user what may
-require manual cleanup.
+require manual cleanup. The current task set provides these primitives and
+tests; actual host-mutating action execution is future work.
 
 ## Generated State
 
-The installer core renders:
+The installer core can render:
 
 - `$MINDORY_HOME/config/mindory.config.json`
 - `$MINDORY_HOME/config/.env`

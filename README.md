@@ -8,34 +8,25 @@ The canonical product and engineering specification is `docs/PRD.md`.
 
 ## Repository Status
 
-This repository is currently bootstrapped through `TASK-53`. The repo has the
-operating model, documentation skeleton, configuration contract, pnpm monorepo
-layout, Docker Compose base scaffold, MVP database schema, Fastify API skeleton
-object storage abstraction, Redis/BullMQ queue scaffold and document upload/scan
-pipeline contracts. It also has text/Markdown extraction, deterministic
-chunking, a unified LLM adapter for embeddings, vector index scaffolding, and
-memory/context builder contracts. The MCP package now exposes HTTP-backed tool
-definitions and a server registry. The CLI package now exposes HTTP-backed
-commands. The Hermes adapter package maps Hermes lifecycle inputs to HTTP API
-calls. The database package now exposes Drizzle-backed repository skeletons.
-The API server now wires those repositories for core project, token, peer,
-session, message, memory, context and document read/search routes, and verifies
-project-scoped bearer tokens in the server runtime. Worker document processors
-are wired in the worker package, and pgvector is wired for document chunk
-embeddings/search. Jobs HTTP routes are wired. Message append now enqueues
-session summary and conservative memory derivation jobs; automatic derivation
-creates only candidate memories with source refs. The MCP stdio SDK transport is
-wired. Docker runtime commands, integration tests, indexed-search acceptance,
-MCP client packaging, Hermes runtime contract validation and the production
-hardening baseline are now present. The API includes a configurable in-process
-rate-limit guard, and CI runs `pnpm check` for pushes and pull requests to
-`master`. A one-command local MVP demo workflow now starts Compose, waits for
-readiness, seeds demo credentials and can run live acceptance. Runtime and first
-installer settings are now described in a typed config catalog that generates
-`.env.example` and validates `MINDORY_*` usage across code, scripts and Compose.
-Model-backed work now routes through the `@mindory/llm` SDK boundary with
-role-level configuration for chat, embeddings, OCR, ASR, vision, face and
-generation operations.
+This repository is complete through `TASK-63`. Mindory can run a local
+demo-MVP through Docker Compose, seed demo credentials, process uploaded
+documents through the worker pipeline and run live acceptance. `pnpm check`
+passes through the repo validation, typecheck, lint, tests and dry-run
+installer acceptance path.
+
+The current state is intentionally split into supported local-MVP surfaces,
+experimental/profile-smoke surfaces and future work:
+
+| Area | Current state |
+| --- | --- |
+| API | Supported local MVP: Fastify server runtime wires PostgreSQL repositories, bearer-token access control, projects, tokens, peers, sessions, messages, memories, context, documents, jobs and search routes. Bare app factories may return structured `501` responses when runtime dependencies are omitted for tests. |
+| Worker pipeline | Supported local MVP: scan, route, extract, chunk, embed and index processors are registered. Text and metadata fallback search work without external model credentials. |
+| Document modalities | Supported fallback: text/Markdown, native-text PDF, deterministic image metadata/caption text, embedded WAV transcript text and manifest-derived video keyframes. Future: real scanned-PDF OCR, cloud/local vision, ASR, ffmpeg keyframe extraction and model-backed face recognition. |
+| Vectors | Supported local MVP: pgvector for 1536-dimensional text embeddings when a compatible provider is configured. Supported fallback: PostgreSQL full-text search when embeddings are disabled. Future: Qdrant adapter. |
+| LLM/model runtime | Supported boundary: all model operations route through `@mindory/llm`, with disabled behavior and audit hooks. Supported providers are limited to implemented adapters; unsupported roles remain disabled or experimental until concrete adapters land. |
+| Interfaces | Supported local MVP: HTTP API, CLI and MCP stdio tools call the API. Hermes adapter exposes the lifecycle surface but does not import or verify against a real Hermes SDK yet. |
+| Installer | Supported today: wizard, plan/dry-run, config rendering, dependency detection, lock/journal diagnostics, bootstrap staging and installer acceptance. Future: real host-mutating install/update/uninstall execution. |
+| Deployment | Supported local MVP: Compose stack with single-home bind mounts under `MINDORY_HOME`, defaulting to `${HOME}/.mindory` outside demo scripts. Future: release artifact publishing and production-grade update/rollback automation. |
 
 ## Development Process
 
@@ -50,10 +41,30 @@ Mindory uses the Mindory Ralph-cycle:
 
 Task IDs use the `TASK-<number>` format, such as `TASK-1`.
 
-## Local Bootstrap
+## Local Demo And Development Checks
 
-`TASK-3` adds Docker Compose placeholders for API, MCP and worker services. They
-prove the self-hosted service shape but do not implement product behavior.
+The one-command local demo with live acceptance is:
+
+```bash
+pnpm mvp:demo
+```
+
+To start and seed the stack without running live acceptance:
+
+```bash
+pnpm mvp:up
+```
+
+Stop the demo stack with `pnpm mvp:down`. Remove containers and default demo
+home data with:
+
+```bash
+pnpm mvp:reset
+```
+
+The default demo keeps heavy model services disabled. It proves the runnable
+API, worker, MCP, CLI, Hermes-surface, document upload, job polling,
+source-backed memory and context flows with deterministic model fallbacks.
 
 Useful first checks:
 
@@ -96,31 +107,33 @@ provider credentials.
 The database package also exposes `pnpm db:generate`, `pnpm db:migrate` and
 `pnpm db:validate`. Local pnpm is required for Drizzle commands.
 
-The API package currently exposes a Fastify app skeleton with `GET /health`,
-`GET /ready` and project route stubs under `/v1/projects`.
+The API package exposes the Fastify app builder, server runtime and health,
+readiness and `/v1/*` route surfaces. The production-style server runtime wires
+repositories, auth, storage and queue dependencies. Bare app factories used by
+tests still return structured placeholders when required runtime dependencies
+are intentionally omitted.
 
 The storage packages expose the shared `ObjectStorage` interface, a local
 filesystem adapter and an S3-compatible adapter for LibreFS, MinIO or external
-S3-compatible endpoints.
+S3-compatible endpoints. Local filesystem storage is the default local-MVP
+path.
 
 The queue packages expose processing job queue contracts, a BullMQ adapter,
 worker base runner, document pipeline runtime builder and memory/context worker
 processors.
 
-The document pipeline code stores uploads through `ObjectStorage`, creates
-document metadata through an injected repository and enqueues `document.scan` or
-`document.route` through the queue dispatcher. The API server runtime now wires
-those dependencies for local-fs storage and BullMQ; the bare app factory still
-returns a structured placeholder when dependencies are omitted.
+The document pipeline stores uploads through `ObjectStorage`, creates document
+metadata through PostgreSQL repositories and enqueues `document.scan` or
+`document.route` through BullMQ. The API server runtime wires local-fs storage,
+S3-compatible storage configuration and the queue dispatcher; bare app factory
+placeholders are limited to dependency-free tests.
 
-The processing packages expose a built-in text/Markdown extractor, a fixed-size
-chunker, the `@mindory/llm` provider entrypoint, document routing, and
-explicit pgvector and Qdrant vector index scaffolds. The worker package
-registers scan, recompute, route, extract, chunk, embed and index processors;
-pgvector is the default vector storage/search path when text embeddings are
-configured. Text extraction/chunking now writes derived artifact rows and text
-spans, and fallback document search uses PostgreSQL full-text search over those
-spans.
+The processing packages expose built-in text/Markdown extraction, native-text
+PDF extraction, deterministic image/audio/video fallback extractors, chunking,
+the `@mindory/llm` provider entrypoint, document routing and pgvector search.
+Qdrant is documented as a future optional adapter. Text extraction/chunking
+writes derived artifact rows and text spans; fallback document search uses
+PostgreSQL full-text search over those spans.
 
 The memory/context packages expose `MemoryService`, `ConservativeMemoryDeriver`
 and `ContextBuilder` contracts plus Fastify route surfaces for `/v1/memories`
@@ -140,8 +153,9 @@ directly.
 
 The Hermes adapter package exposes identity mapping, HTTP client, lifecycle
 helpers and optional `memor_*` tools. It preserves external user/session/agent
-ids as stable Mindory ids, builds context before saving turns, preserves
-attachment metadata on saved messages, and does not import a Hermes SDK yet.
+ids as stable Mindory ids, builds context before saving turns and preserves
+attachment metadata on saved messages. Real Hermes SDK/runtime verification is
+future integration work.
 
 The database package exposes repository classes for projects, access tokens,
 peers, sessions, messages, documents, memory claims, document chunk text search
