@@ -6,7 +6,7 @@ The repository should be described with the support levels in
 
 ## Current Baseline
 
-The repository is complete through `TASK-77`.
+The repository is complete through `TASK-78`.
 
 Supported local MVP path:
 
@@ -30,6 +30,8 @@ Supported local MVP path:
 - Image OCR and vision captioning can run through `@mindory/llm` local HTTP
   providers when the experimental OCR and vision-captioning roles are enabled;
   their derived captions, labels and OCR text are searchable.
+- Audio ASR can run through `@mindory/llm` local HTTP when the experimental ASR
+  role is enabled; derived transcript segments keep time refs for search.
 
 Public GitHub hygiene baseline:
 

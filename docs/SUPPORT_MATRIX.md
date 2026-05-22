@@ -58,7 +58,7 @@ All model operations must go through `@mindory/llm`.
 | Chat | Supported SDK adapter | OpenAI-compatible API-key/OAuth modes and local HTTP chat are implemented in `@mindory/llm`; product flows do not require chat by default. |
 | OCR | Experimental role, supported PDF/image paths | Scanned-PDF and image OCR run through `@mindory/llm` local HTTP OCR when enabled. |
 | Vision captioning and image embeddings | Experimental | Image vision captioning runs through `@mindory/llm` local HTTP when enabled; image embeddings remain future hardening. |
-| ASR | Experimental | Transcript artifact shape exists; real adapters are future hardening. |
+| ASR | Experimental | Audio ASR runs through `@mindory/llm` local HTTP when enabled; embedded WAV transcript fallback remains supported. |
 | Face detection and recognition | Experimental | Workspace data model exists; real adapters are future hardening. |
 | Image/audio generation | Future | Role placeholders exist for configuration planning only. |
 

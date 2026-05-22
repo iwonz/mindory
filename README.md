@@ -8,7 +8,7 @@ The canonical product and engineering specification is `docs/PRD.md`.
 
 ## Repository Status
 
-This repository is complete through `TASK-77`. Mindory can run a local
+This repository is complete through `TASK-78`. Mindory can run a local
 demo-MVP through Docker Compose, seed demo credentials, process uploaded
 documents through the worker pipeline and run live acceptance. `pnpm check`
 passes through the repo validation, typecheck, lint, tests and dry-run
@@ -21,9 +21,9 @@ experimental/profile-smoke surfaces and future work:
 | --- | --- |
 | API | Supported local MVP: Fastify server runtime wires PostgreSQL repositories, bearer-token access control, projects, tokens, peers, sessions, messages, memories, context, documents, jobs and search routes. Bare app factories may return structured `501` responses when runtime dependencies are omitted for tests. |
 | Worker pipeline | Supported local MVP: scan, route, extract, chunk, embed and index processors are registered. Text and metadata fallback search work without external model credentials. |
-| Document modalities | Supported fallback: text/Markdown, native-text PDF, scanned-PDF OCR through local HTTP when enabled, image OCR/vision captioning through local HTTP when enabled plus deterministic image metadata fallback, embedded WAV transcript text and manifest-derived video keyframes. Future: ASR, ffmpeg keyframe extraction, image embeddings, object detection and model-backed face recognition. |
+| Document modalities | Supported fallback: text/Markdown, native-text PDF, scanned-PDF OCR through local HTTP when enabled, image OCR/vision captioning through local HTTP when enabled plus deterministic image metadata fallback, audio ASR through local HTTP when enabled plus embedded WAV transcript fallback, and manifest-derived video keyframes. Future: ffmpeg keyframe extraction, image embeddings, object detection and model-backed face recognition. |
 | Vectors | Supported local MVP: pgvector for 1536-dimensional text embeddings when a compatible provider is configured. Supported fallback: PostgreSQL full-text search when embeddings are disabled. Future: Qdrant adapter. |
-| LLM/model runtime | Supported boundary: all model operations route through `@mindory/llm`, with disabled behavior, audit hooks, OpenAI-compatible chat/embeddings, Ollama text embeddings, local HTTP chat/embeddings/OCR/vision captioning, local provider health checks and deterministic local acceptance profiles. Unsupported roles remain disabled or experimental until concrete adapters land. |
+| LLM/model runtime | Supported boundary: all model operations route through `@mindory/llm`, with disabled behavior, audit hooks, OpenAI-compatible chat/embeddings, Ollama text embeddings, local HTTP chat/embeddings/OCR/vision captioning/ASR, local provider health checks and deterministic local acceptance profiles. Unsupported roles remain disabled or experimental until concrete adapters land. |
 | Interfaces | Supported local MVP: HTTP API, CLI and MCP stdio tools call the API. Hermes adapter exposes the lifecycle surface but does not import or verify against a real Hermes SDK yet. |
 | Installer | Supported today: wizard, plan/dry-run, prepare execution for `$MINDORY_HOME` directories/config/compose assets, Docker Compose startup through health checks, first project/token provisioning, local asset update, guarded uninstall, dependency detection, lock/journal diagnostics, bootstrap staging and installer acceptance. Future: remote release update and full automated resume execution. |
 | Deployment | Supported local MVP: Compose stack with single-home bind mounts under `MINDORY_HOME`, defaulting to `${HOME}/.mindory` outside demo scripts. Future: release artifact publishing and production-grade update/rollback automation. |
@@ -142,8 +142,8 @@ S3-compatible storage configuration and the queue dispatcher; bare app factory
 placeholders are limited to dependency-free tests.
 
 The processing packages expose built-in text/Markdown extraction, native-text
-PDF extraction, scanned-PDF OCR, image OCR/vision captioning, deterministic
-audio/video fallback extractors, chunking, the `@mindory/llm` provider
+PDF extraction, scanned-PDF OCR, image OCR/vision captioning, audio ASR,
+deterministic video fallback extractors, chunking, the `@mindory/llm` provider
 entrypoint, document routing and pgvector search. Qdrant is documented as a
 future optional adapter. Text extraction/chunking writes derived artifact rows
 and text spans; fallback document search uses PostgreSQL full-text search over

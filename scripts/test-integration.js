@@ -111,7 +111,15 @@ test("MVP runtime integration covers auth, upload, worker jobs and context", { t
     }],
     imageText: "Image OCR provider text detects passport at airport.",
     visionCaption: "Vision provider caption sees passport in hand at airport with nature.",
-    labels: ["passport", "airport", "nature", "people"]
+    labels: ["passport", "airport", "nature", "people"],
+    asrText: "ASR provider transcript mentions source-backed context and durable memory recall.",
+    asrSegments: [{
+      segmentIndex: 0,
+      text: "ASR provider transcript mentions source-backed context and durable memory recall.",
+      startMs: 0,
+      endMs: 1000,
+      confidence: 0.98
+    }]
   });
   const config = modules.loadMindoryConfig({
     ...testEnv,
@@ -121,6 +129,9 @@ test("MVP runtime integration covers auth, upload, worker jobs and context", { t
     MINDORY_LLM_VISION_CAPTIONING_ENABLED: "true",
     MINDORY_LLM_VISION_CAPTIONING_PROVIDER: "local-http",
     MINDORY_LLM_VISION_CAPTIONING_MODEL: "mindory-test-vision",
+    MINDORY_LLM_ASR_ENABLED: "true",
+    MINDORY_LLM_ASR_PROVIDER: "local-http",
+    MINDORY_LLM_ASR_MODEL: "mindory-test-asr",
     MINDORY_LLM_LOCAL_HTTP_BASE_URL: fakeOcr.baseUrl
   });
   let apiApp = null;
@@ -677,10 +688,11 @@ async function uploadAndProcessAudioDocument(apiUrl) {
   assert.equal(document.metadata.extraction.processing_stage, "audio");
   assert.equal(document.metadata.extraction.audio_transcript, true);
   assert.equal(document.metadata.extraction.transcript_segment_count, 1);
+  assert.equal(document.metadata.extraction.capabilities.asr.status, "provider_asr");
 
   const search = await requestJson(apiUrl, "POST", "/v1/documents/search", {
     projectIds: [projectId],
-    query: "durable memory recall",
+    query: "ASR provider transcript durable memory recall",
     limit: 5,
     metadataFilters: [
       { key: "extension", valueText: "wav" },
@@ -1243,7 +1255,7 @@ function startOpenAiCompatibleEmbeddingServer(options) {
 function startLocalHttpOcrServer(options) {
   const calls = [];
   const server = http.createServer(async (request, response) => {
-    if (request.method !== "POST" || !["/ocr", "/vision/caption"].includes(request.url ?? "")) {
+    if (request.method !== "POST" || !["/ocr", "/vision/caption", "/asr"].includes(request.url ?? "")) {
       response.writeHead(404, { "content-type": "application/json" });
       response.end(JSON.stringify({ error: "not_found" }));
       return;
@@ -1258,6 +1270,22 @@ function startLocalHttpOcrServer(options) {
           model: body.model ?? "mindory-test-vision",
           caption: options.visionCaption,
           labels: options.labels
+        }));
+        return;
+      }
+      if (request.url === "/asr") {
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(JSON.stringify({
+          model: body.model ?? "mindory-test-asr",
+          text: options.asrText,
+          segments: options.asrSegments.map((segment) => ({
+            segment_index: segment.segmentIndex,
+            text: segment.text,
+            start_ms: segment.startMs,
+            end_ms: segment.endMs,
+            confidence: segment.confidence
+          })),
+          duration_seconds: 1
         }));
         return;
       }

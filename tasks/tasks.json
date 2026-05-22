@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-77",
+  "current_task_id": "TASK-78",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -575,6 +575,13 @@
       "status": "done",
       "branch": "task/TASK-77-image-ocr-vision-pipeline",
       "file": "tasks/TASK-77.json"
+    },
+    {
+      "id": "TASK-78",
+      "title": "Add audio ASR pipeline",
+      "status": "done",
+      "branch": "task/TASK-78-audio-asr-pipeline",
+      "file": "tasks/TASK-78.json"
     }
   ]
 }

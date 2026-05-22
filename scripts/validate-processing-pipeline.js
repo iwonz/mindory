@@ -155,9 +155,11 @@ for (const token of ["BuiltinTextExtractor", "supports(", "extract(", "normalize
 }
 
 assert(audioTranscriptPackage.dependencies?.["@mindory/core"] === "workspace:*", "Audio transcript extractor must depend on @mindory/core.");
+assert(audioTranscriptPackage.dependencies?.["@mindory/llm"] === "workspace:*", "Audio transcript extractor must route ASR through @mindory/llm.");
 assert(audioTranscriptPackage.exports?.["."], "Audio transcript extractor must export its root module.");
 assert(audioTranscriptTsconfig.references?.some((reference) => reference.path === "../../../../packages/core"), "Audio transcript extractor must reference @mindory/core.");
-for (const token of ["AudioTranscriptExtractor", "transcriptSegments", "transcript_segment", "readWavMetadata", "ICMT", "asr"]) {
+assert(audioTranscriptTsconfig.references?.some((reference) => reference.path === "../../../../packages/llm"), "Audio transcript extractor must reference @mindory/llm.");
+for (const token of ["AudioTranscriptExtractor", "transcriptSegments", "transcript_segment", "readWavMetadata", "ICMT", "asr", "asrProvider", "transcribe", "provider_asr", "llm_asr_provider"]) {
   assert(audioTranscript.includes(token), `Audio transcript extractor must include ${token}.`);
 }
 

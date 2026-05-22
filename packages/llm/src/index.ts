@@ -138,6 +138,20 @@ export interface LlmOcrOutput {
   usage?: LlmOperationUsage;
 }
 
+export interface LlmAsrSegment {
+  segmentIndex: number;
+  text: string;
+  startMs: number;
+  endMs: number;
+  confidence: number | null;
+}
+
+export interface LlmAsrOutput {
+  text: string;
+  segments: LlmAsrSegment[];
+  usage?: LlmOperationUsage;
+}
+
 export interface LlmVisionCaptionOutput {
   caption: string;
   labels?: string[];
@@ -187,7 +201,7 @@ export interface LlmOcrProvider {
 }
 
 export interface LlmAsrProvider {
-  transcribe(input: { bytes: Uint8Array; mimeType: string }, context: LlmProviderCallContext): Promise<LlmOperationResult<{ text: string }>>;
+  transcribe(input: { bytes: Uint8Array; mimeType: string }, context: LlmProviderCallContext): Promise<LlmOperationResult<LlmAsrOutput>>;
 }
 
 export interface LlmVisionProvider {
@@ -217,6 +231,7 @@ export interface MindoryLlm {
   chat?: LlmChatProvider;
   textEmbeddings?: EmbeddingsProvider;
   ocr?: LlmOcrProvider;
+  asr?: LlmAsrProvider;
   vision?: LlmVisionProvider;
   healthCheck(provider: Exclude<LlmProvider, "disabled">, options?: Omit<LlmProviderHealthCheckOptions, "fetchImpl">): Promise<LlmProviderHealth>;
   disabledResult<TValue>(role: LlmRole, refs?: LlmOperationRefs): LlmOperationResult<TValue>;
@@ -291,6 +306,10 @@ export function buildMindoryLlm(
   const ocr = buildMindoryOcrProvider(config, options);
   if (ocr !== undefined) {
     runtime.ocr = ocr;
+  }
+  const asr = buildMindoryAsrProvider(config, options);
+  if (asr !== undefined) {
+    runtime.asr = asr;
   }
   const vision = buildMindoryVisionProvider(config, options);
   if (vision !== undefined) {
@@ -490,6 +509,34 @@ export function buildMindoryVisionProvider(
   }
 
   throw new Error(`${vision.provider} vision captioning is configured but no vision adapter is installed.`);
+}
+
+export function buildMindoryAsrProvider(
+  config: MindoryConfig,
+  options: MindoryLlmOptions = {}
+): LlmAsrProvider | undefined {
+  const asr = config.llm.asr;
+  if (!asr.enabled || asr.provider === "disabled") {
+    return undefined;
+  }
+
+  if (asr.provider === "local-http") {
+    const providerOptions: LocalHttpModelOptions = {
+      baseUrl: config.llm.localHttp.baseUrl,
+      model: asr.model
+    };
+    if (options.fetchImpl !== undefined) {
+      providerOptions.fetchImpl = options.fetchImpl;
+    }
+    return new LocalHttpAsrProvider(
+      providerOptions,
+      descriptor("asr", asr),
+      options.auditSink,
+      options.operationRefs ?? {}
+    );
+  }
+
+  throw new Error(`${asr.provider} ASR is configured but no ASR adapter is installed.`);
 }
 
 export async function checkMindoryLlmProviderHealth(
@@ -813,6 +860,95 @@ export class LocalHttpOcrProvider implements LlmOcrProvider {
   }
 }
 
+export class LocalHttpAsrProvider implements LlmAsrProvider {
+  private readonly fetchImpl: typeof fetch;
+
+  constructor(
+    private readonly options: LocalHttpModelOptions,
+    private readonly role: LlmRoleDescriptor,
+    private readonly auditSink: LlmAuditSink | undefined,
+    private readonly refs: LlmOperationRefs
+  ) {
+    this.fetchImpl = options.fetchImpl ?? fetch;
+  }
+
+  async transcribe(input: { bytes: Uint8Array; mimeType: string }, context: LlmProviderCallContext): Promise<LlmOperationResult<LlmAsrOutput>> {
+    const startedAt = Date.now();
+    const model = context.role.model || this.options.model;
+    try {
+      const requestInit: RequestInit = {
+        method: "POST",
+        headers: {
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          model,
+          mime_type: input.mimeType,
+          data_base64: Buffer.from(input.bytes).toString("base64")
+        })
+      };
+      if (context.signal !== undefined) {
+        requestInit.signal = context.signal;
+      }
+      const response = await this.fetchImpl(`${trimTrailingSlash(this.options.baseUrl)}/asr`, requestInit);
+      const responseText = await response.text();
+      if (!response.ok) {
+        throw new Error(`Local HTTP ASR request failed with ${response.status}: ${responseText}`);
+      }
+      const payload = JSON.parse(responseText) as LocalHttpAsrResponse;
+      const segments = localHttpAsrSegments(payload);
+      const output: LlmAsrOutput = {
+        text: payload.text ?? segments.map((segment) => segment.text).join("\n").trim(),
+        segments,
+        usage: {
+          ...usageFromOpenAI(payload.usage),
+          ...(typeof payload.duration_ms === "number" ? { audioSeconds: payload.duration_ms / 1000 } : {}),
+          ...(typeof payload.duration_seconds === "number" ? { audioSeconds: payload.duration_seconds } : {})
+        }
+      };
+      return this.result("success", startedAt, model, output, context.refs);
+    } catch (error) {
+      return this.result("failed", startedAt, model, undefined, context.refs, error);
+    }
+  }
+
+  private result(
+    status: LlmOperationStatus,
+    startedAt: number,
+    model: string,
+    value?: LlmAsrOutput,
+    refs: LlmOperationRefs = {},
+    error?: unknown
+  ): LlmOperationResult<LlmAsrOutput> {
+    const durationMs = Date.now() - startedAt;
+    const audit: LlmOperationAudit = {
+      role: this.role.role,
+      provider: this.role.provider,
+      model,
+      status,
+      durationMs,
+      usage: {
+        ...value?.usage,
+        durationMs
+      },
+      refs: {
+        ...this.refs,
+        ...refs
+      }
+    };
+    if (error !== undefined) {
+      audit.errorCode = errorCode(error);
+      audit.errorMessage = errorMessage(error);
+    }
+    this.auditSink?.(audit);
+    return {
+      status,
+      ...(value === undefined ? {} : { value }),
+      audit
+    };
+  }
+}
+
 export class LocalHttpVisionProvider implements LlmVisionProvider {
   private readonly fetchImpl: typeof fetch;
 
@@ -1038,6 +1174,24 @@ interface LocalHttpOcrResponse {
   usage?: OpenAICompatibleChatResponse["usage"];
 }
 
+interface LocalHttpAsrResponse {
+  text?: string;
+  segments?: Array<{
+    index?: number;
+    segment_index?: number;
+    segmentIndex?: number;
+    text?: string;
+    start_ms?: number;
+    startMs?: number;
+    end_ms?: number;
+    endMs?: number;
+    confidence?: number | null;
+  }>;
+  duration_ms?: number;
+  duration_seconds?: number;
+  usage?: OpenAICompatibleChatResponse["usage"];
+}
+
 interface LocalHttpVisionCaptionResponse {
   caption?: string;
   text?: string;
@@ -1142,6 +1296,31 @@ function usageFromOpenAI(usage: OpenAICompatibleChatResponse["usage"]): LlmOpera
     result.totalTokens = usage.total_tokens;
   }
   return result;
+}
+
+function localHttpAsrSegments(response: LocalHttpAsrResponse): LlmAsrSegment[] {
+  if (!Array.isArray(response.segments)) {
+    return [];
+  }
+  return response.segments
+    .map((segment, index): LlmAsrSegment | null => {
+      const text = typeof segment.text === "string" ? segment.text.trim() : "";
+      if (text.length === 0) {
+        return null;
+      }
+      return {
+        segmentIndex: integerOrDefault(segment.segmentIndex ?? segment.segment_index ?? segment.index, index),
+        text,
+        startMs: integerOrDefault(segment.startMs ?? segment.start_ms, 0),
+        endMs: integerOrDefault(segment.endMs ?? segment.end_ms, 0),
+        confidence: typeof segment.confidence === "number" ? segment.confidence : null
+      };
+    })
+    .filter((segment): segment is LlmAsrSegment => segment !== null);
+}
+
+function integerOrDefault(value: unknown, fallback: number): number {
+  return Number.isFinite(value) ? Math.trunc(value as number) : fallback;
 }
 
 async function httpProviderHealth(
