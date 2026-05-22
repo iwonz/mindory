@@ -1,0 +1,62 @@
+{
+  "id": "TASK-57",
+  "title": "Add single-home Compose layout",
+  "status": "done",
+  "type": "chore",
+  "priority": "high",
+  "branch": "task/TASK-57-single-home-compose-layout",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Move Docker Compose runtime state into a single Mindory-owned home directory.",
+    "background": "The installer plan requires config, data, logs, backups and release assets to live under MINDORY_HOME so install, update and uninstall flows can operate on one root."
+  },
+  "scope": {
+    "in": [
+      "Replace Mindory runtime named volumes in docker-compose.yml with bind mounts under MINDORY_HOME.",
+      "Add host paths for config, logs, backups, install/release state and data directories.",
+      "Add a LibreFS local S3-compatible Compose profile placeholder with data mounted under MINDORY_HOME.",
+      "Update Compose validation to enforce the single-home layout.",
+      "Update deployment/configuration documentation for the new host directory contract."
+    ],
+    "out": [
+      "Interactive installer implementation.",
+      "Installer rollback/update logic.",
+      "S3 adapter changes beyond using existing S3-compatible env variables.",
+      "Production release image publishing."
+    ]
+  },
+  "acceptance_criteria": [
+    "docker-compose.yml no longer uses named Mindory runtime volumes for Postgres, Redis or object storage.",
+    "Postgres, Redis, local object storage and optional service data are bind-mounted below MINDORY_HOME.",
+    "Compose includes a LibreFS local S3-compatible profile with data under MINDORY_HOME.",
+    "Docs explain the MINDORY_HOME directory layout and reset implications.",
+    "Compose validation checks the single-home bind mount contract."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "pnpm compose:validate",
+      "pnpm config:validate",
+      "pnpm lint",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-57.",
+      "Confirm no installer wizard or rollback code is included."
+    ]
+  },
+  "dependencies": [
+    "TASK-56"
+  ],
+  "risks": [
+    "Compose interpolation for HOME defaults must remain portable enough for local development.",
+    "Reset scripts should avoid deleting arbitrary user paths."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch is committed and merged back into master."
+  ]
+}

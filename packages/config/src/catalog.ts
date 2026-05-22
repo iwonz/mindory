@@ -162,20 +162,20 @@ export const CONFIG_CATALOG = [
     allowedValues: ["local-fs", "s3"],
     prompt: {
       label: "Object storage",
-      help: "Use local-fs for current local installs. S3-compatible storage is cataloged for the installer but remains adapter-gated."
+      help: "Use local-fs for simple local installs or s3 for LibreFS/external S3-compatible storage."
     }
   }),
   entry("MINDORY_STORAGE_LOCAL_PATH", "storage", "string", "/data/mindory/objects", "Local filesystem object root inside the runtime container.", "both", "supported"),
-  entry("MINDORY_S3_ENDPOINT", "storage", "string", "http://minio:9000", "S3-compatible endpoint URL.", "both", "experimental"),
-  entry("MINDORY_S3_REGION", "storage", "string", "us-east-1", "S3-compatible region.", "both", "experimental"),
-  entry("MINDORY_S3_BUCKET", "storage", "string", "mindory", "S3-compatible bucket name.", "both", "experimental"),
-  entry("MINDORY_S3_ACCESS_KEY_ID", "storage", "string", "mindory", "S3-compatible access key id.", "both", "experimental", {
+  entry("MINDORY_S3_ENDPOINT", "storage", "string", "http://librefs:9000", "S3-compatible endpoint URL.", "both", "supported"),
+  entry("MINDORY_S3_REGION", "storage", "string", "us-east-1", "S3-compatible region.", "both", "supported"),
+  entry("MINDORY_S3_BUCKET", "storage", "string", "mindory", "S3-compatible bucket name.", "both", "supported"),
+  entry("MINDORY_S3_ACCESS_KEY_ID", "storage", "string", "mindory", "S3-compatible access key id.", "both", "supported", {
     secret: true
   }),
-  entry("MINDORY_S3_SECRET_ACCESS_KEY", "storage", "string", "mindory-secret", "S3-compatible secret access key.", "both", "experimental", {
+  entry("MINDORY_S3_SECRET_ACCESS_KEY", "storage", "string", "mindory-secret", "S3-compatible secret access key.", "both", "supported", {
     secret: true
   }),
-  entry("MINDORY_S3_FORCE_PATH_STYLE", "storage", "boolean", "true", "Use path-style S3-compatible addressing.", "both", "experimental"),
+  entry("MINDORY_S3_FORCE_PATH_STYLE", "storage", "boolean", "true", "Use path-style S3-compatible addressing.", "both", "supported"),
 
   entry("MINDORY_VECTOR_PROVIDER", "vector", "enum", "pgvector", "Vector index provider.", "both", "supported", {
     allowedValues: ["pgvector", "qdrant"]

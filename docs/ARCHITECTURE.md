@@ -9,7 +9,7 @@ PostgreSQL remains the canonical business-state store.
 - API: stateless Fastify service.
 - Database: PostgreSQL with Drizzle schema and migrations.
 - Queue/cache: Redis and BullMQ for async work, not durable business state.
-- Object storage: local filesystem or S3/MinIO for original files.
+- Object storage: local filesystem or S3-compatible storage for original files.
 - Vector index: replaceable index, with pgvector as the default MVP target.
 - Workers: independently scalable processors for scan, recompute, routing,
   extraction, chunking, embeddings, indexing, memory derivation and session
@@ -41,11 +41,17 @@ by later task-scoped changes.
 `TASK-3` adds Docker Compose services for Postgres, Redis, API, MCP and worker.
 `TASK-26` replaces API, MCP and worker placeholders with a shared built Node
 image, a `migrate` service running `pnpm db:migrate`, real dist entrypoints and
-local object storage volumes for API/worker.
+local object storage mounts for API/worker.
 
-Optional profiles define MinIO, ClamAV, Qdrant, Docling, Ollama and a
-lightweight local LLM placeholder without making those services
-mandatory for the base stack.
+`TASK-57` moves Compose runtime state from Docker named volumes into bind mounts
+under the host `MINDORY_HOME` root. Postgres, Redis, local object storage,
+LibreFS data, logs, config and future installer state now live in one
+Mindory-owned directory so installer update/uninstall flows can reason about a
+single root.
+
+Optional profiles define LibreFS, MinIO, ClamAV, Qdrant, Docling, Ollama and a
+lightweight local LLM placeholder without making those services mandatory for
+the base stack.
 
 ## Database Schema
 

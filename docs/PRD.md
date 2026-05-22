@@ -257,7 +257,7 @@ PostgreSQL remains the source of truth for document status, job status, chunks, 
 Adapter-based:
 
 - local filesystem adapter;
-- S3/MinIO adapter.
+- S3-compatible adapter.
 
 MVP must support:
 
@@ -265,7 +265,7 @@ MVP must support:
 storage.provider = local-fs | s3
 ```
 
-Local filesystem is acceptable for development and simple single-node self-hosted setups. MinIO/S3 is the production-like self-hosted mode.
+Local filesystem is acceptable for development and simple single-node self-hosted setups. LibreFS or another S3-compatible service is the production-like self-hosted mode.
 
 ### 8.5 Vector index
 
@@ -774,7 +774,7 @@ MINDORY_CACHE_PREFIX=mindory:cache
 MINDORY_STORAGE_PROVIDER=local-fs
 MINDORY_STORAGE_LOCAL_PATH=/data/mindory/objects
 
-MINDORY_S3_ENDPOINT=http://minio:9000
+MINDORY_S3_ENDPOINT=http://librefs:9000
 MINDORY_S3_REGION=us-east-1
 MINDORY_S3_BUCKET=mindory
 MINDORY_S3_ACCESS_KEY_ID=mindory
@@ -1728,7 +1728,7 @@ Architecture must support the future path:
 Docker Compose → Kubernetes
 single API → many API replicas
 single worker → independent worker pools
-local-fs → S3/MinIO
+local-fs → S3-compatible storage
 pgvector → Qdrant
 SourceSnapshot → SourceEvent/ProvenanceChain
 project-level ACL → fine-grained policy engine

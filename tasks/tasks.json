@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-56",
+  "current_task_id": "TASK-57",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -428,6 +428,13 @@
       "status": "done",
       "branch": "task/TASK-56-s3-compatible-storage-adapter",
       "file": "tasks/TASK-56.json"
+    },
+    {
+      "id": "TASK-57",
+      "title": "Add single-home Compose layout",
+      "status": "done",
+      "branch": "task/TASK-57-single-home-compose-layout",
+      "file": "tasks/TASK-57.json"
     }
   ]
 }

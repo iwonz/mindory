@@ -40,11 +40,29 @@ The default installation root is `~/.mindory`. Future installer tasks must use
 the catalog for prompts, defaults, validation and redacted summaries rather than
 hardcoding wizard choices in installer code.
 
+Docker Compose uses `MINDORY_HOME` on the host as the single Mindory-owned root.
+If it is not set, Compose falls back to `${HOME}/.mindory`. Runtime state is
+bound under this root:
+
+- `config`
+- `data/postgres`
+- `data/redis`
+- `data/objects`
+- `data/librefs`
+- `logs`
+- `backups`
+- `install`
+
 ## Docker Compose Defaults
 
 `docker-compose.yml` interpolates the same `MINDORY_*` variables documented by
 `.env.example` and provides matching defaults when `.env` is absent. For normal
 self-hosted use, copy `.env.example` to `.env` and change values there.
+
+Compose services bind host directories from `MINDORY_HOME` instead of using
+Docker named volumes. Deleting or moving `MINDORY_HOME` deletes or moves the
+local Mindory runtime state; system dependencies and Docker itself are outside
+that ownership boundary.
 
 The base Compose scaffold hardcodes the bundled Postgres service credentials to
 match the default `MINDORY_DATABASE_URL`. External database configuration can be
@@ -78,9 +96,10 @@ directory. Object keys are always treated as relative paths below that root.
 
 `s3` is implemented by `@mindory/storage-s3` and is wired into the API and worker
 runtimes. It uses the S3-compatible settings from `.env.example`: endpoint,
-region, bucket, access key, secret key and path-style mode. Path-style mode is
-the default so local S3-compatible services such as LibreFS or MinIO can be used
-without wildcard DNS.
+region, bucket, access key, secret key and path-style mode. The default endpoint
+targets the Compose `librefs` profile. Path-style mode is the default so local
+S3-compatible services such as LibreFS or MinIO can be used without wildcard
+DNS.
 
 ## Queue And Workers
 
