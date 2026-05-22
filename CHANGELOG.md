@@ -20,6 +20,8 @@ documentation.
 
 ### Added
 
+- `TASK-74`: local HTTP chat/text embedding adapters in `@mindory/llm`, plus
+  provider health checks for local HTTP and Ollama services.
 - `TASK-73`: OpenAI-compatible chat adapter in `@mindory/llm`, sharing API-key
   and OAuth bearer auth with embeddings plus operation audit output.
 - `TASK-72`: centralized LLM role/provider support matrix with config and

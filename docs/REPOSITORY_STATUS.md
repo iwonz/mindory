@@ -6,7 +6,7 @@ The repository should be described with the support levels in
 
 ## Current Baseline
 
-The repository is complete through `TASK-73`.
+The repository is complete through `TASK-74`.
 
 Supported local MVP path:
 
@@ -21,6 +21,8 @@ Supported local MVP path:
   installer validation.
 - OpenAI-compatible chat and text embedding operations support API-key and
   OAuth bearer auth through `@mindory/llm`.
+- Local HTTP chat/text embedding adapters and provider health checks for local
+  HTTP and Ollama services are implemented through `@mindory/llm`.
 
 Public GitHub hygiene baseline:
 

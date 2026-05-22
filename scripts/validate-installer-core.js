@@ -526,12 +526,12 @@ try {
 }
 assert(experimentalBlocked, "Wizard must block future LLM roles unless experimental mode is enabled.");
 
-const experimentalProviderAnswers = installer.createDefaultInstallAnswers({
+const futureProviderAnswers = installer.createDefaultInstallAnswers({
   llmRoles: {
     TEXT_EMBEDDING: {
       enabled: true,
-      provider: "local-http",
-      model: "local-embedding",
+      provider: "local-command",
+      model: "local-command-embedding",
       required: false,
       timeoutMs: 60000,
       concurrency: 1,
@@ -539,12 +539,12 @@ const experimentalProviderAnswers = installer.createDefaultInstallAnswers({
     }
   }
 });
-const experimentalProviderErrors = installer.validateInstallAnswers(experimentalProviderAnswers);
-assert(experimentalProviderErrors.some((error) => error.includes("provider local-http requires experimental mode")), "Installer validation must block experimental LLM providers unless experimental mode is enabled.");
-const allowedExperimentalProviderErrors = installer.validateInstallAnswers({
-  ...experimentalProviderAnswers,
+const futureProviderErrors = installer.validateInstallAnswers(futureProviderAnswers);
+assert(futureProviderErrors.some((error) => error.includes("provider local-command requires experimental mode")), "Installer validation must block future LLM providers unless experimental mode is enabled.");
+const allowedFutureProviderErrors = installer.validateInstallAnswers({
+  ...futureProviderAnswers,
   allowExperimental: true
 });
-assert(!allowedExperimentalProviderErrors.some((error) => error.includes("requires experimental mode")), "Installer validation must allow experimental LLM providers when experimental mode is enabled.");
+assert(!allowedFutureProviderErrors.some((error) => error.includes("requires experimental mode")), "Installer validation must allow future LLM providers when experimental mode is enabled.");
 
 console.log("Installer core and wizard validated.");

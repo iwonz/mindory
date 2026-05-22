@@ -7,7 +7,12 @@ import {
   type LlmRoleCatalogKey,
   type MindoryConfig
 } from "@mindory/config";
-import type { EmbeddingResult, EmbeddingsProvider, EmbedTextsInput } from "@mindory/core/processing";
+import {
+  ProcessingError,
+  type EmbeddingResult,
+  type EmbeddingsProvider,
+  type EmbedTextsInput
+} from "@mindory/core/processing";
 import { OpenAICompatibleEmbeddingsProvider, type OpenAICompatibleEmbeddingsOptions } from "@mindory/embeddings-openai-compatible";
 import { OllamaEmbeddingsProvider, type OllamaEmbeddingsOptions } from "@mindory/embeddings-ollama";
 
@@ -128,6 +133,29 @@ export interface OpenAICompatibleChatOptions {
   fetchImpl?: typeof fetch;
 }
 
+export interface LocalHttpModelOptions {
+  baseUrl: string;
+  model: string;
+  dimensions?: number;
+  fetchImpl?: typeof fetch;
+}
+
+export type LlmProviderHealthStatus = "ok" | "failed";
+
+export interface LlmProviderHealth {
+  provider: Exclude<LlmProvider, "disabled">;
+  status: LlmProviderHealthStatus;
+  durationMs: number;
+  baseUrl?: string;
+  errorCode?: string;
+  errorMessage?: string;
+}
+
+export interface LlmProviderHealthCheckOptions {
+  fetchImpl?: typeof fetch;
+  signal?: AbortSignal;
+}
+
 export interface LlmTextEmbeddingProvider {
   embedTexts(input: { texts: string[] }, context: LlmProviderCallContext): Promise<LlmOperationResult<number[][]>>;
 }
@@ -170,6 +198,7 @@ export interface MindoryLlm {
   providers: LlmProviderDescriptor[];
   chat?: LlmChatProvider;
   textEmbeddings?: EmbeddingsProvider;
+  healthCheck(provider: Exclude<LlmProvider, "disabled">, options?: Omit<LlmProviderHealthCheckOptions, "fetchImpl">): Promise<LlmProviderHealth>;
   disabledResult<TValue>(role: LlmRole, refs?: LlmOperationRefs): LlmOperationResult<TValue>;
 }
 
@@ -219,6 +248,16 @@ export function buildMindoryLlm(
     registry,
     roleSupport: LLM_ROLE_PROVIDER_SUPPORT_MATRIX,
     providers: llmProviders(config),
+    healthCheck: (provider, healthOptions = {}) => {
+      const checkOptions: LlmProviderHealthCheckOptions = {};
+      if (options.fetchImpl !== undefined) {
+        checkOptions.fetchImpl = options.fetchImpl;
+      }
+      if (healthOptions.signal !== undefined) {
+        checkOptions.signal = healthOptions.signal;
+      }
+      return checkMindoryLlmProviderHealth(config, provider, checkOptions);
+    },
     disabledResult: (role, refs) => disabledLlmOperationResult(registry.require(role), refs, options.auditSink)
   };
   const chat = buildMindoryChatProvider(config, options);
@@ -300,6 +339,24 @@ export function buildMindoryTextEmbeddingsProvider(
     );
   }
 
+  if (textEmbedding.provider === "local-http") {
+    const providerOptions: LocalHttpModelOptions = {
+      baseUrl: config.llm.localHttp.baseUrl,
+      model: textEmbedding.model
+    };
+    if (textEmbedding.dimensions !== null) {
+      providerOptions.dimensions = textEmbedding.dimensions;
+    }
+    if (options.fetchImpl !== undefined) {
+      providerOptions.fetchImpl = options.fetchImpl;
+    }
+    return auditedTextEmbeddingsProvider(
+      new LocalHttpTextEmbeddingsProvider(providerOptions),
+      descriptor("text-embedding", textEmbedding),
+      options
+    );
+  }
+
   throw new Error(`${textEmbedding.provider} text embeddings are configured but no text embedding adapter is installed.`);
 }
 
@@ -332,7 +389,41 @@ export function buildMindoryChatProvider(
     );
   }
 
+  if (chat.provider === "local-http") {
+    const providerOptions: LocalHttpModelOptions = {
+      baseUrl: config.llm.localHttp.baseUrl,
+      model: chat.model
+    };
+    if (options.fetchImpl !== undefined) {
+      providerOptions.fetchImpl = options.fetchImpl;
+    }
+    return new LocalHttpChatProvider(
+      providerOptions,
+      descriptor("chat", chat),
+      options.auditSink,
+      options.operationRefs ?? {}
+    );
+  }
+
   throw new Error(`${chat.provider} chat is configured but no chat adapter is installed.`);
+}
+
+export async function checkMindoryLlmProviderHealth(
+  config: MindoryConfig,
+  provider: Exclude<LlmProvider, "disabled">,
+  options: LlmProviderHealthCheckOptions = {}
+): Promise<LlmProviderHealth> {
+  const fetchImpl = options.fetchImpl ?? fetch;
+  if (provider === "openai-compatible") {
+    return httpProviderHealth(provider, config.llm.openaiCompatible.baseUrl, "/models", fetchImpl, options.signal);
+  }
+  if (provider === "ollama") {
+    return httpProviderHealth(provider, config.llm.ollama.baseUrl, "/api/tags", fetchImpl, options.signal);
+  }
+  if (provider === "local-http") {
+    return httpProviderHealth(provider, config.llm.localHttp.baseUrl, "/health", fetchImpl, options.signal);
+  }
+  return failedProviderHealth(provider, Date.now(), "unsupported_provider_healthcheck", "local-command provider health checks are not implemented.");
 }
 
 export function disabledLlmOperationResult<TValue>(
@@ -365,6 +456,55 @@ function auditedTextEmbeddingsProvider(
     return provider;
   }
   return new AuditedTextEmbeddingsProvider(provider, role, options.auditSink, options.operationRefs ?? {});
+}
+
+export class LocalHttpTextEmbeddingsProvider implements EmbeddingsProvider {
+  readonly provider = "local-http";
+  readonly model: string;
+  private readonly options: LocalHttpModelOptions;
+  private readonly fetchImpl: typeof fetch;
+
+  constructor(options: LocalHttpModelOptions) {
+    this.options = options;
+    this.model = options.model;
+    this.fetchImpl = options.fetchImpl ?? fetch;
+  }
+
+  async embedTexts(input: EmbedTextsInput): Promise<EmbeddingResult[]> {
+    const model = input.model ?? this.model;
+    const requestBody: LocalHttpEmbeddingsRequest = {
+      model,
+      input: input.texts
+    };
+    if (this.options.dimensions !== undefined) {
+      requestBody.dimensions = this.options.dimensions;
+    }
+    const response = await this.fetchImpl(`${trimTrailingSlash(this.options.baseUrl)}/embeddings`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json"
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (!response.ok) {
+      throw new ProcessingError("embedding_provider_error", `Local HTTP embedding request failed with ${response.status}.`);
+    }
+
+    const body = await response.json() as LocalHttpEmbeddingsResponse;
+    const embeddings = localHttpEmbeddings(body);
+    return embeddings.map((embedding, index) => {
+      if (!Array.isArray(embedding)) {
+        throw new ProcessingError("embedding_provider_error", "Local HTTP embedding response included an invalid embedding.");
+      }
+      return {
+        textIndex: localHttpEmbeddingTextIndex(body, index),
+        embedding,
+        model: body.model ?? model,
+        dimensions: embedding.length
+      };
+    });
+  }
 }
 
 class AuditedTextEmbeddingsProvider implements EmbeddingsProvider {
@@ -418,6 +558,90 @@ class AuditedTextEmbeddingsProvider implements EmbeddingsProvider {
       });
       throw error;
     }
+  }
+}
+
+export class LocalHttpChatProvider implements LlmChatProvider {
+  private readonly fetchImpl: typeof fetch;
+
+  constructor(
+    private readonly options: LocalHttpModelOptions,
+    private readonly role: LlmRoleDescriptor,
+    private readonly auditSink: LlmAuditSink | undefined,
+    private readonly refs: LlmOperationRefs
+  ) {
+    this.fetchImpl = options.fetchImpl ?? fetch;
+  }
+
+  async generateChat(input: LlmChatInput, context: LlmProviderCallContext): Promise<LlmOperationResult<LlmChatOutput>> {
+    const startedAt = Date.now();
+    const model = context.role.model || this.options.model;
+    try {
+      const requestInit: RequestInit = {
+        method: "POST",
+        headers: {
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          model,
+          messages: input.messages,
+          temperature: input.temperature,
+          max_tokens: input.maxOutputTokens
+        })
+      };
+      if (context.signal !== undefined) {
+        requestInit.signal = context.signal;
+      }
+      const response = await this.fetchImpl(`${trimTrailingSlash(this.options.baseUrl)}/chat/completions`, requestInit);
+      const responseText = await response.text();
+      if (!response.ok) {
+        throw new Error(`Local HTTP chat request failed with ${response.status}: ${responseText}`);
+      }
+      const payload = JSON.parse(responseText) as LocalHttpChatResponse;
+      const output: LlmChatOutput = {
+        text: localHttpChatText(payload),
+        usage: usageFromOpenAI(payload.usage)
+      };
+      return this.result("success", startedAt, model, output, context.refs);
+    } catch (error) {
+      return this.result("failed", startedAt, model, undefined, context.refs, error);
+    }
+  }
+
+  private result(
+    status: LlmOperationStatus,
+    startedAt: number,
+    model: string,
+    value?: LlmChatOutput,
+    refs: LlmOperationRefs = {},
+    error?: unknown
+  ): LlmOperationResult<LlmChatOutput> {
+    const durationMs = Date.now() - startedAt;
+    const audit: LlmOperationAudit = {
+      role: this.role.role,
+      provider: this.role.provider,
+      model,
+      status,
+      durationMs,
+      usage: {
+        ...value?.usage,
+        durationMs
+      },
+      refs: {
+        ...this.refs,
+        ...refs
+      }
+    };
+    if (error !== undefined) {
+      audit.errorCode = errorCode(error);
+      audit.errorMessage = errorMessage(error);
+    }
+    this.auditSink?.(audit);
+    return {
+      status,
+      ...(value === undefined ? {} : { value }),
+      audit
+    };
   }
 }
 
@@ -528,6 +752,29 @@ interface OpenAICompatibleChatResponse {
   };
 }
 
+interface LocalHttpEmbeddingsRequest {
+  model: string;
+  input: string[];
+  dimensions?: number;
+}
+
+interface LocalHttpEmbeddingsResponse {
+  embeddings?: number[][];
+  data?: Array<{
+    index?: number;
+    embedding?: number[];
+  }>;
+  model?: string;
+}
+
+interface LocalHttpChatResponse extends OpenAICompatibleChatResponse {
+  text?: string;
+  output?: string;
+  message?: {
+    content?: string;
+  };
+}
+
 export function openAiCompatibleBearerToken(config: MindoryConfig): string | undefined {
   if (config.llm.openaiCompatible.authMode === "api-key") {
     return nonEmpty(config.llm.openaiCompatible.apiKey);
@@ -625,6 +872,85 @@ function usageFromOpenAI(usage: OpenAICompatibleChatResponse["usage"]): LlmOpera
     result.totalTokens = usage.total_tokens;
   }
   return result;
+}
+
+async function httpProviderHealth(
+  provider: Exclude<LlmProvider, "disabled">,
+  baseUrl: string,
+  path: string,
+  fetchImpl: typeof fetch,
+  signal: AbortSignal | undefined
+): Promise<LlmProviderHealth> {
+  const startedAt = Date.now();
+  try {
+    const requestInit: RequestInit = {
+      method: "GET"
+    };
+    if (signal !== undefined) {
+      requestInit.signal = signal;
+    }
+    const response = await fetchImpl(`${trimTrailingSlash(baseUrl)}${path}`, requestInit);
+    if (!response.ok) {
+      throw new Error(`${provider} health check failed with ${response.status}.`);
+    }
+    const health: LlmProviderHealth = {
+      provider,
+      status: "ok",
+      durationMs: Date.now() - startedAt
+    };
+    if (baseUrl.trim() !== "") {
+      health.baseUrl = baseUrl;
+    }
+    return health;
+  } catch (error) {
+    return failedProviderHealth(provider, startedAt, errorCode(error), errorMessage(error), baseUrl);
+  }
+}
+
+function failedProviderHealth(
+  provider: Exclude<LlmProvider, "disabled">,
+  startedAt: number,
+  code: string,
+  message: string,
+  baseUrl?: string
+): LlmProviderHealth {
+  const health: LlmProviderHealth = {
+    provider,
+    status: "failed",
+    durationMs: Date.now() - startedAt,
+    errorCode: code,
+    errorMessage: message
+  };
+  if (baseUrl !== undefined && baseUrl.trim() !== "") {
+    health.baseUrl = baseUrl;
+  }
+  return health;
+}
+
+function localHttpEmbeddings(body: LocalHttpEmbeddingsResponse): number[][] {
+  if (Array.isArray(body.embeddings)) {
+    return body.embeddings;
+  }
+  if (Array.isArray(body.data)) {
+    return body.data.map((item) => {
+      if (!Array.isArray(item.embedding)) {
+        throw new ProcessingError("embedding_provider_error", "Local HTTP embedding response included an invalid embedding.");
+      }
+      return item.embedding;
+    });
+  }
+  throw new ProcessingError("embedding_provider_error", "Local HTTP embedding response did not include embeddings.");
+}
+
+function localHttpEmbeddingTextIndex(body: LocalHttpEmbeddingsResponse, index: number): number {
+  if (Array.isArray(body.data)) {
+    return body.data[index]?.index ?? index;
+  }
+  return index;
+}
+
+function localHttpChatText(payload: LocalHttpChatResponse): string {
+  return payload.choices?.[0]?.message?.content ?? payload.text ?? payload.output ?? payload.message?.content ?? "";
 }
 
 function trimTrailingSlash(value: string): string {
