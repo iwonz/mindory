@@ -1,7 +1,7 @@
 {
   "id": "TASK-89",
   "title": "Clean public documentation claims",
-  "status": "draft",
+  "status": "done",
   "type": "docs",
   "priority": "high",
   "branch": "task/TASK-89-public-documentation-cleanup",

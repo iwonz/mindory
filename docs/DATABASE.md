@@ -91,7 +91,7 @@ stored behind `documents.storage_key`.
 
 ## Repository Layer
 
-`TASK-14` adds Drizzle-backed repository skeletons in:
+The Drizzle-backed repository implementations live in:
 
 ```text
 packages/db/src/repositories/
@@ -113,8 +113,8 @@ The repository layer implements existing core contracts where available:
 `ContextSessionRepository`. It also adds core contracts for projects, peers,
 sessions and messages.
 
-The repositories are exported by `@mindory/db/repositories`. They have not been
-executed against a live database in the current bootstrap environment.
+The repositories are exported by `@mindory/db/repositories` and are exercised by
+the integration suite against PostgreSQL.
 
 `TASK-15` adds `@mindory/db/client` for creating a PostgreSQL pool and Drizzle
 database. The API server uses it to build runtime repositories from

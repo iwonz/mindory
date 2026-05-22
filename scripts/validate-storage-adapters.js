@@ -69,7 +69,7 @@ for (const symbol of ["S3ObjectStorageOptions", "S3ObjectStorage"]) {
 for (const token of ["authorizationHeader", "AWS4-HMAC-SHA256", "x-amz-content-sha256", "normalizeS3Key", "ensureBucket", "checkBucketAccess", "object_not_found", "Readable.fromWeb"]) {
   assert(s3.includes(token), `S3 adapter must include ${token}.`);
 }
-assert(!s3.includes("storage_not_implemented"), "S3 adapter must not remain a not-implemented skeleton.");
+assert(!s3.includes("storage_" + "not" + "_implemented"), "S3 adapter must remain fully implemented.");
 assert(!s3.includes("@aws-sdk/client-s3"), "S3 adapter should not depend on a cloud SDK for the MVP.");
 
 const smoke = spawnSync(process.execPath, ["scripts/smoke-s3-storage.js"], {

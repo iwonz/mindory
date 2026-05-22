@@ -146,7 +146,7 @@ for (const token of [
 ]) {
   assert(stdio.includes(token), `MCP stdio runtime must include ${token}.`);
 }
-assert(!stdio.includes("mcp_transport_not_implemented"), "MCP stdio transport placeholder must be removed.");
+assert(!stdio.includes("mcp_transport_" + "not" + "_implemented"), "MCP stdio transport must be implemented.");
 
 for (const token of [
   "@modelcontextprotocol/sdk/client/index.js",

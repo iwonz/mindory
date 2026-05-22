@@ -8,18 +8,18 @@ The canonical product and engineering specification is `docs/PRD.md`.
 
 ## Repository Status
 
-This repository is complete through `TASK-86`. Mindory can run a local
+This repository is complete through `TASK-89`. Mindory can run a local
 demo-MVP through Docker Compose, seed demo credentials, process uploaded
 documents through the worker pipeline and run live acceptance. `pnpm check`
 passes through the repo validation, typecheck, lint, tests and dry-run
 installer and public self-host acceptance paths.
 
 The current state is intentionally split into supported local-MVP surfaces,
-experimental/profile-smoke surfaces and future work:
+experimental profile surfaces and planned hardening:
 
 | Area | Current state |
 | --- | --- |
-| API | Supported local MVP: Fastify server runtime wires PostgreSQL repositories, bearer-token access control, projects, tokens, peers, sessions, messages, memories, context, documents, jobs, document/artifact search and unified multimodal search routes. Bare app factories may return structured `501` responses when runtime dependencies are omitted for tests. |
+| API | Supported local MVP: Fastify server runtime wires PostgreSQL repositories, bearer-token access control, projects, tokens, peers, sessions, messages, memories, context, documents, jobs, document/artifact search and unified multimodal search routes. Product startup requires runtime dependencies before serving traffic; dependency-free app construction is explicit test mode. |
 | Worker pipeline | Supported local MVP: scan, route, extract, chunk, embed and index processors are registered. Text and metadata fallback search work without external model credentials. |
 | Document modalities | Supported fallback: text/Markdown, native-text PDF, scanned-PDF OCR through local HTTP when enabled, image OCR/vision/face detection and recognition through local HTTP when enabled plus deterministic image metadata fallback, audio ASR through local HTTP when enabled plus embedded WAV transcript fallback, and video keyframes through manifest fallback or opt-in local-command extraction. Future: bundled ffmpeg profiles, image embeddings and object detection. |
 | Vectors | Supported local MVP: pgvector for 1536-dimensional text embeddings when a compatible provider is configured. Supported fallback: PostgreSQL full-text search when embeddings are disabled. Future: Qdrant adapter. |
@@ -36,7 +36,7 @@ Public repository files:
 - `SECURITY.md`: vulnerability reporting policy.
 - `CHANGELOG.md`: changelog and release notes policy.
 - `docs/REPOSITORY_STATUS.md`: current public repository status.
-- `docs/SUPPORT_MATRIX.md`: supported, experimental, placeholder and future
+- `docs/SUPPORT_MATRIX.md`: supported, experimental and planned capability
   capability matrix.
 
 ## Development Process
@@ -100,7 +100,7 @@ node scripts/check-repo.js
 pnpm config:validate
 node scripts/validate-db-schema.js
 node scripts/validate-db-repositories.js
-node scripts/validate-api-skeleton.js
+node scripts/validate-api-contract.js
 node scripts/validate-api-runtime-wiring.js
 node scripts/validate-storage-adapters.js
 node scripts/validate-queue.js
@@ -137,8 +137,8 @@ The database package also exposes `pnpm db:generate`, `pnpm db:migrate` and
 The API package exposes the Fastify app builder, server runtime and health,
 readiness and `/v1/*` route surfaces. The production-style server runtime wires
 repositories, auth, storage and queue dependencies. Bare app factories used by
-tests still return structured placeholders when required runtime dependencies
-are intentionally omitted.
+tests must opt into dependency-free route mode; product startup requires
+injected runtime dependencies before serving traffic.
 
 The storage packages expose the shared `ObjectStorage` interface, a local
 filesystem adapter and an S3-compatible adapter for LibreFS, MinIO or external
@@ -154,7 +154,7 @@ The document pipeline stores uploads through `ObjectStorage`, creates document
 metadata through PostgreSQL repositories and enqueues `document.scan` or
 `document.route` through BullMQ. The API server runtime wires local-fs storage,
 S3-compatible storage configuration and the queue dispatcher; bare app factory
-placeholders are limited to dependency-free tests.
+dependency-free behavior is limited to explicit tests.
 
 The processing packages expose built-in text/Markdown extraction, native-text
 PDF extraction, scanned-PDF OCR, image OCR/vision captioning, audio ASR,

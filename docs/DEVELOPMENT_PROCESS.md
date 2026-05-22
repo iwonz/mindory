@@ -74,8 +74,8 @@ lint, typecheck, tests and migrations.
 
 ## Integration Tests
 
-`TASK-30` replaces the placeholder test script with a real MVP integration
-suite. `pnpm test` starts the isolated `mindory-test` Docker Compose project
+`pnpm test` runs the MVP integration suite. It starts the isolated
+`mindory-test` Docker Compose project
 with PostgreSQL and Redis, applies migrations, starts API and worker runtimes
 in-process and verifies auth, document upload/chunking, jobs and context build.
 

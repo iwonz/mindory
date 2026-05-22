@@ -18,15 +18,15 @@ stateless and horizontally scalable.
 Workers should be independently scalable by `WORKER_TYPE` and
 `WORKER_CONCURRENCY`.
 
-`TASK-3` includes a `worker` Docker Compose placeholder. `TASK-18` makes API
-uploads enqueue durable document jobs through BullMQ. `TASK-19` adds the
-concrete worker runtime builder and document processor registry, and `TASK-39`
-adds route planning between scan and modality-specific processing.
+The Docker Compose worker service runs the built worker runtime. API uploads
+enqueue durable document jobs through BullMQ, and the worker runtime registers
+the document processor graph plus route planning between scan and
+modality-specific processing.
 
-`TASK-4` adds the canonical `processing_jobs` table. Workers added later must use
-that table for durable job state and BullMQ only for execution scheduling.
+The canonical `processing_jobs` table stores durable job state. Workers use
+that table for state and BullMQ only for execution scheduling.
 
-`TASK-7` adds the queue and runner scaffolding:
+The queue and runner layer includes:
 
 - `@mindory/core` defines `ProcessingJobQueue`, `ProcessingJobStore`,
   `ProcessingJobDispatcher`, `ProcessingJobRunner` and processor contracts.
@@ -39,7 +39,7 @@ enqueueing the BullMQ job. BullMQ uses the job idempotency key as `jobId` so
 duplicate enqueue attempts are coalesced by Redis while PostgreSQL remains
 canonical.
 
-`TASK-49` keeps `processing_jobs.status` coarse but records stage graph details
+`processing_jobs.status` remains coarse while stage graph details are recorded
 inside job metadata. Worker results can mark stages as `skipped`, `disabled`,
 `blocked_by_scan`, `partial_failed`, `failed` or `retrying`; the Jobs API
 normalizes that metadata into `details.status`, `details.stages`,
@@ -66,13 +66,13 @@ extractor, face
 observation auto-matching through `FaceService`, fixed-size chunker,
 OpenAI-compatible embeddings provider, Ollama embeddings provider, local HTTP
 OCR/vision/ASR/face provider, and explicit pgvector/Qdrant vector index
-scaffolds.
+packages.
 
 Routing is intentionally separate from antivirus and extraction. When antivirus
 is disabled, upload enqueues `document.route` directly. When asynchronous
 ClamAV is enabled, scan must finish cleanly before route planning runs.
 
-`TASK-22` wires memory/context processors into the same worker runtime:
+Memory/context processors run in the same worker runtime:
 
 - `session.summarize` refreshes `sessions.summary` with a bounded extractive
   recent-turn summary.
@@ -89,6 +89,6 @@ ClamAV is enabled, scan must finish cleanly before route planning runs.
 - Processing must be idempotent.
 - PostgreSQL records durable job state.
 - BullMQ schedules execution but is not canonical business state.
-- `TASK-21` exposes job status, listing and manual retry through the HTTP API.
-- `TASK-49` exposes stage graph semantics without changing the durable job
-  status enum or RAW document objects.
+- The HTTP API exposes job status, listing and manual retry.
+- Stage graph semantics are exposed without changing the durable job status
+  enum or RAW document objects.

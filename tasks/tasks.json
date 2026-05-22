@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-88",
+  "current_task_id": "TASK-89",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -656,7 +656,7 @@
     {
       "id": "TASK-89",
       "title": "Clean public documentation claims",
-      "status": "draft",
+      "status": "done",
       "branch": "task/TASK-89-public-documentation-cleanup",
       "file": "tasks/TASK-89.json"
     },
