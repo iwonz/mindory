@@ -240,8 +240,9 @@ in Compose.
 `MINDORY_E2E_MODEL_PROFILE` controls `pnpm mvp:demo` model profile selection
 when `--model-profile` is not passed. Supported values are `disabled`, `local`
 and `ollama`. `disabled` is the default and starts no heavy model services.
-`local` adds the lightweight `local-models` Compose placeholder. `ollama` adds
-the Ollama profile for a real local model runner.
+`local` adds the lightweight `local-models` Compose service and configures
+local HTTP text embeddings with 1536 dimensions. `ollama` adds the Ollama
+profile for a real local model runner.
 
 ## MVP Acceptance
 

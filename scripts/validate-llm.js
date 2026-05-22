@@ -182,7 +182,7 @@ for (const token of [
 }
 
 assertIncludes(compose, "profiles: [\"local-models\"]", "docker-compose.yml");
-assertIncludes(compose, "service:'llm'", "docker-compose.yml");
+assertIncludes(compose, "scripts/local-model-server.mjs", "docker-compose.yml");
 assertIncludes(envExample, "MINDORY_E2E_MODEL_PROFILE=disabled", ".env.example");
 assertIncludes(docs, "local-models", "LLM SDK docs");
 

@@ -29,8 +29,8 @@ The default local model names are examples, not mandatory services:
 
 Docker Compose keeps local model runners optional. The default MVP demo uses
 disabled/non-blocking model capabilities and deterministic embedded fixtures.
-Use the `local-models` profile for a lightweight local LLM placeholder
-or the `ollama` profile for a real Ollama service.
+Use the `local-models` profile for a lightweight deterministic local HTTP model
+service or the `ollama` profile for a real Ollama service.
 
 ## Support Matrix
 
@@ -169,7 +169,8 @@ pnpm mvp:demo --model-profile ollama
 
 - `disabled`: no heavy model service is started; multimodal demo fixtures still
   exercise routing, derived artifacts and search.
-- `local`: adds the `local-models` profile and starts a lightweight
-  `llm` placeholder on `MINDORY_LLM_LOCAL_HTTP_BASE_URL`.
+- `local`: adds the `local-models` profile, starts a lightweight deterministic
+  `llm` service on `MINDORY_LLM_LOCAL_HTTP_BASE_URL`, and configures
+  1536-dimensional local HTTP text embeddings for strict indexed acceptance.
 - `ollama`: adds the `ollama` profile for local text embeddings. Configure a
   1536-dimensional embedding model before using strict indexed acceptance.

@@ -20,6 +20,8 @@ documentation.
 
 ### Added
 
+- `TASK-75`: self-contained local strict indexed acceptance with deterministic
+  local HTTP embeddings for the `local-models` profile.
 - `TASK-74`: local HTTP chat/text embedding adapters in `@mindory/llm`, plus
   provider health checks for local HTTP and Ollama services.
 - `TASK-73`: OpenAI-compatible chat adapter in `@mindory/llm`, sharing API-key

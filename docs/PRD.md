@@ -1864,9 +1864,11 @@ suite verifies both disabled embeddings fallback (`chunked`) and configured
 OpenAI-compatible embeddings through a local fake provider, pgvector row
 persistence and semantic document search without external provider credentials.
 
-`pnpm mvp:acceptance` supports `MINDORY_E2E_REQUIRE_INDEXED=true` for live
-runs where an embeddings provider is configured and the demo must prove
-`indexed` document status plus source-backed document search.
+`pnpm mvp:demo --model-profile local --require-indexed` runs a self-contained
+strict indexed flow with the deterministic local HTTP embedding service.
+`pnpm mvp:acceptance` also supports `MINDORY_E2E_REQUIRE_INDEXED=true` for live
+runs where an external embeddings provider is configured and the demo must
+prove `indexed` document status plus source-backed document search.
 
 `tasks:validate` should check:
 

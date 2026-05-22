@@ -8,7 +8,7 @@ The canonical product and engineering specification is `docs/PRD.md`.
 
 ## Repository Status
 
-This repository is complete through `TASK-74`. Mindory can run a local
+This repository is complete through `TASK-75`. Mindory can run a local
 demo-MVP through Docker Compose, seed demo credentials, process uploaded
 documents through the worker pipeline and run live acceptance. `pnpm check`
 passes through the repo validation, typecheck, lint, tests and dry-run
@@ -23,7 +23,7 @@ experimental/profile-smoke surfaces and future work:
 | Worker pipeline | Supported local MVP: scan, route, extract, chunk, embed and index processors are registered. Text and metadata fallback search work without external model credentials. |
 | Document modalities | Supported fallback: text/Markdown, native-text PDF, deterministic image metadata/caption text, embedded WAV transcript text and manifest-derived video keyframes. Future: real scanned-PDF OCR, cloud/local vision, ASR, ffmpeg keyframe extraction and model-backed face recognition. |
 | Vectors | Supported local MVP: pgvector for 1536-dimensional text embeddings when a compatible provider is configured. Supported fallback: PostgreSQL full-text search when embeddings are disabled. Future: Qdrant adapter. |
-| LLM/model runtime | Supported boundary: all model operations route through `@mindory/llm`, with disabled behavior, audit hooks, OpenAI-compatible chat/embeddings, Ollama text embeddings, local HTTP chat/embeddings and local provider health checks. Unsupported roles remain disabled or experimental until concrete adapters land. |
+| LLM/model runtime | Supported boundary: all model operations route through `@mindory/llm`, with disabled behavior, audit hooks, OpenAI-compatible chat/embeddings, Ollama text embeddings, local HTTP chat/embeddings, local provider health checks and a deterministic local embeddings acceptance profile. Unsupported roles remain disabled or experimental until concrete adapters land. |
 | Interfaces | Supported local MVP: HTTP API, CLI and MCP stdio tools call the API. Hermes adapter exposes the lifecycle surface but does not import or verify against a real Hermes SDK yet. |
 | Installer | Supported today: wizard, plan/dry-run, prepare execution for `$MINDORY_HOME` directories/config/compose assets, Docker Compose startup through health checks, first project/token provisioning, local asset update, guarded uninstall, dependency detection, lock/journal diagnostics, bootstrap staging and installer acceptance. Future: remote release update and full automated resume execution. |
 | Deployment | Supported local MVP: Compose stack with single-home bind mounts under `MINDORY_HOME`, defaulting to `${HOME}/.mindory` outside demo scripts. Future: release artifact publishing and production-grade update/rollback automation. |
@@ -199,7 +199,8 @@ filesystem storage. Optional profiles are `librefs`, `minio`, `clamav`,
 `qdrant`, `docling`, `ollama` and `local-models`.
 
 The default demo model profile is disabled, so no heavy model service is
-started. For profile wiring checks or local model experiments:
+started. For self-contained indexed embeddings acceptance or local model
+experiments:
 
 ```bash
 pnpm mvp:demo --model-profile local
@@ -216,11 +217,14 @@ coverage check that does not require Docker.
 With embeddings configured, run strict indexed acceptance:
 
 ```bash
+pnpm mvp:demo --model-profile local --require-indexed
 MINDORY_E2E_LIVE=true MINDORY_E2E_REQUIRE_INDEXED=true pnpm mvp:acceptance
 ```
 
-The current pgvector MVP schema uses 1536-dimensional vectors. Disabled
-embeddings remain supported and should process demo documents to `chunked`.
+The `local` model profile is self-contained and serves deterministic
+1536-dimensional embeddings. External providers must also match the current
+pgvector MVP schema. Disabled embeddings remain supported and should process
+demo documents to `chunked`.
 
 ## Integration Tests
 

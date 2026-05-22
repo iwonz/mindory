@@ -6,7 +6,7 @@ The repository should be described with the support levels in
 
 ## Current Baseline
 
-The repository is complete through `TASK-74`.
+The repository is complete through `TASK-75`.
 
 Supported local MVP path:
 
@@ -23,6 +23,8 @@ Supported local MVP path:
   OAuth bearer auth through `@mindory/llm`.
 - Local HTTP chat/text embedding adapters and provider health checks for local
   HTTP and Ollama services are implemented through `@mindory/llm`.
+- `pnpm mvp:demo --model-profile local --require-indexed` can exercise the
+  indexed pgvector path with a deterministic local HTTP embeddings service.
 
 Public GitHub hygiene baseline:
 

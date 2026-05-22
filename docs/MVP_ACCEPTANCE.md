@@ -68,19 +68,23 @@ pnpm mvp:demo --model-profile local
 pnpm mvp:demo --model-profile ollama
 ```
 
-`local` starts the lightweight `local-models` profile placeholder.
-`ollama` starts the Ollama profile; configure a 1536-dimensional embedding model
-before combining it with strict indexed acceptance.
+`local` starts the lightweight `local-models` deterministic HTTP model service
+and configures 1536-dimensional local HTTP text embeddings. `ollama` starts the
+Ollama profile; configure a 1536-dimensional embedding model before combining it
+with strict indexed acceptance.
 
 Strict indexed flow:
 
 ```bash
+pnpm mvp:demo --model-profile local --require-indexed
 MINDORY_E2E_LIVE=true MINDORY_E2E_REQUIRE_INDEXED=true pnpm mvp:acceptance
 ```
 
-Use strict mode only after configuring an embeddings provider whose dimensions
-match the current pgvector MVP schema. Disabled embeddings remain supported and
-should process documents to `chunked` in the default local flow.
+The first command is self-contained and uses the local deterministic model
+service. Use the second command only after configuring a live embeddings provider
+whose dimensions match the current pgvector MVP schema. Disabled embeddings
+remain supported and should process documents to `chunked` in the default local
+flow.
 
 Docker is not available in every development environment. In those cases the
 dry-run remains the repository check, and the live command should be run where

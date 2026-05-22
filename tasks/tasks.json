@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-74",
+  "current_task_id": "TASK-75",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -554,6 +554,13 @@
       "status": "done",
       "branch": "task/TASK-74-ollama-local-http-model-adapter",
       "file": "tasks/TASK-74.json"
+    },
+    {
+      "id": "TASK-75",
+      "title": "Add real text embeddings acceptance profile",
+      "status": "done",
+      "branch": "task/TASK-75-real-text-embeddings-acceptance",
+      "file": "tasks/TASK-75.json"
     }
   ]
 }
