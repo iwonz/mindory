@@ -192,6 +192,11 @@ Runtime consumers must obtain operation providers and role snapshots from
 those snapshots are projected from the SDK registry rather than assembled from
 `config.llm` in each consumer.
 
+`@mindory/llm` also exposes an in-process `auditSink` hook. Current text
+embedding calls emit `success` or `failed` audit records when the sink is
+provided; disabled role attempts emit `disabled` records through
+`disabledResult`. Database-backed audit persistence is not part of this task.
+
 `MINDORY_VECTOR_PROVIDER` accepts `pgvector` or `qdrant`. `pgvector` is the
 default MVP runtime after `TASK-20`; Qdrant remains optional and profile-gated
 in Compose.

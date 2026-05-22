@@ -1,5 +1,5 @@
 import type { LlmProvider, MindoryConfig } from "@mindory/config";
-import type { EmbeddingsProvider } from "@mindory/core/processing";
+import type { EmbeddingResult, EmbeddingsProvider, EmbedTextsInput } from "@mindory/core/processing";
 import { OpenAICompatibleEmbeddingsProvider, type OpenAICompatibleEmbeddingsOptions } from "@mindory/embeddings-openai-compatible";
 import { OllamaEmbeddingsProvider, type OllamaEmbeddingsOptions } from "@mindory/embeddings-ollama";
 
@@ -73,6 +73,8 @@ export interface LlmOperationAudit {
   errorMessage?: string;
 }
 
+export type LlmAuditSink = (audit: LlmOperationAudit) => void;
+
 export interface LlmOperationResult<TValue> {
   status: LlmOperationStatus;
   value?: TValue;
@@ -133,6 +135,8 @@ export interface LlmGenerationProvider {
 
 export interface MindoryLlmOptions {
   fetchImpl?: typeof fetch;
+  auditSink?: LlmAuditSink;
+  operationRefs?: LlmOperationRefs;
 }
 
 export interface MindoryLlm {
@@ -178,7 +182,7 @@ export function buildMindoryLlm(
   const runtime: MindoryLlm = {
     registry,
     providers: llmProviders(config),
-    disabledResult: (role, refs) => disabledLlmOperationResult(registry.require(role), refs)
+    disabledResult: (role, refs) => disabledLlmOperationResult(registry.require(role), refs, options.auditSink)
   };
   const textEmbeddings = buildMindoryTextEmbeddingsProvider(config, options);
   if (textEmbeddings !== undefined) {
@@ -225,7 +229,11 @@ export function buildMindoryTextEmbeddingsProvider(
     if (options.fetchImpl !== undefined) {
       providerOptions.fetchImpl = options.fetchImpl;
     }
-    return new OpenAICompatibleEmbeddingsProvider(providerOptions);
+    return auditedTextEmbeddingsProvider(
+      new OpenAICompatibleEmbeddingsProvider(providerOptions),
+      descriptor("text-embedding", textEmbedding),
+      options
+    );
   }
 
   if (textEmbedding.provider === "ollama") {
@@ -236,7 +244,11 @@ export function buildMindoryTextEmbeddingsProvider(
     if (options.fetchImpl !== undefined) {
       providerOptions.fetchImpl = options.fetchImpl;
     }
-    return new OllamaEmbeddingsProvider(providerOptions);
+    return auditedTextEmbeddingsProvider(
+      new OllamaEmbeddingsProvider(providerOptions),
+      descriptor("text-embedding", textEmbedding),
+      options
+    );
   }
 
   throw new Error(`${textEmbedding.provider} text embeddings are configured but no text embedding adapter is installed.`);
@@ -244,20 +256,88 @@ export function buildMindoryTextEmbeddingsProvider(
 
 export function disabledLlmOperationResult<TValue>(
   role: LlmRoleDescriptor,
-  refs: LlmOperationRefs = {}
+  refs: LlmOperationRefs = {},
+  auditSink?: LlmAuditSink
 ): LlmOperationResult<TValue> {
+  const audit: LlmOperationAudit = {
+    role: role.role,
+    provider: role.provider,
+    model: role.model,
+    status: "disabled",
+    durationMs: 0,
+    usage: {},
+    refs
+  };
+  auditSink?.(audit);
   return {
     status: "disabled",
-    audit: {
-      role: role.role,
-      provider: role.provider,
-      model: role.model,
-      status: "disabled",
-      durationMs: 0,
-      usage: {},
-      refs
-    }
+    audit
   };
+}
+
+function auditedTextEmbeddingsProvider(
+  provider: EmbeddingsProvider,
+  role: LlmRoleDescriptor,
+  options: MindoryLlmOptions
+): EmbeddingsProvider {
+  if (options.auditSink === undefined) {
+    return provider;
+  }
+  return new AuditedTextEmbeddingsProvider(provider, role, options.auditSink, options.operationRefs ?? {});
+}
+
+class AuditedTextEmbeddingsProvider implements EmbeddingsProvider {
+  readonly provider: string;
+  readonly model: string;
+
+  constructor(
+    private readonly inner: EmbeddingsProvider,
+    private readonly role: LlmRoleDescriptor,
+    private readonly auditSink: LlmAuditSink,
+    private readonly refs: LlmOperationRefs
+  ) {
+    this.provider = inner.provider;
+    this.model = inner.model;
+  }
+
+  async embedTexts(input: EmbedTextsInput): Promise<EmbeddingResult[]> {
+    const startedAt = Date.now();
+    try {
+      const result = await this.inner.embedTexts(input);
+      const durationMs = Date.now() - startedAt;
+      const usage: LlmOperationUsage = {
+        durationMs
+      };
+      const firstResult = result[0];
+      if (firstResult !== undefined) {
+        usage.embeddingDimensions = firstResult.dimensions;
+      }
+      this.auditSink({
+        role: this.role.role,
+        provider: this.role.provider,
+        model: input.model ?? this.role.model,
+        status: "success",
+        durationMs,
+        usage,
+        refs: this.refs
+      });
+      return result;
+    } catch (error) {
+      const durationMs = Date.now() - startedAt;
+      this.auditSink({
+        role: this.role.role,
+        provider: this.role.provider,
+        model: input.model ?? this.role.model,
+        status: "failed",
+        durationMs,
+        usage: { durationMs },
+        refs: this.refs,
+        errorCode: errorCode(error),
+        errorMessage: errorMessage(error)
+      });
+      throw error;
+    }
+  }
 }
 
 export function openAiCompatibleBearerToken(config: MindoryConfig): string | undefined {
@@ -337,4 +417,21 @@ function llmProviders(config: MindoryConfig): LlmProviderDescriptor[] {
 function nonEmpty(value: string): string | undefined {
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function errorCode(error: unknown): string {
+  if (typeof error === "object" && error !== null && "code" in error && typeof error.code === "string") {
+    return error.code;
+  }
+  if (error instanceof Error) {
+    return error.name;
+  }
+  return "unknown_error";
+}
+
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
 }
