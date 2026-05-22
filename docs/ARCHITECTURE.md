@@ -117,6 +117,14 @@ This keeps installer work, Docker profiles and runtime packages aligned: new
 `MINDORY_*` settings are invalid until the catalog describes their type,
 default, support status, visibility and secret handling.
 
+## Observability
+
+`@mindory/observability` owns shared MVP helper shapes for structured log
+events, model operation audit querying, in-process job stage metrics, health
+snapshots and the documented rate-limit strategy. The API uses it for `/health`
+and `/ready` payload metadata. It does not provide Prometheus, OpenTelemetry,
+external log aggregation or durable enterprise audit persistence in the MVP.
+
 `TASK-58` adds `@mindory/installer` as the deterministic installer core. It
 builds answer-file install plans, dependency check results, generated config and
 env files, transaction journal entries, rollback ordering and redacted summaries

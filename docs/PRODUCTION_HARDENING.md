@@ -14,7 +14,7 @@ minimum baseline for the MVP release path.
 | Release bundles | Supported baseline. The release workflow generates bundle, manifest and checksum artifacts, then runs smoke-release-install. Signature verification remains future work. |
 | Installer execution | Partial baseline. Current installer can prepare `$MINDORY_HOME`, start Compose through health checks, provision the first token, refresh local assets and uninstall with explicit confirmation, but remote release update is future work. |
 | Backup and restore | Manual guidance only. Scripted backup/restore and restore acceptance are future hardening work. |
-| Observability | Structured logs baseline exists. Metrics, tracing, log aggregation and alerting are future hardening work. |
+| Observability | Supported baseline. Structured logs, model operation audit helpers, in-process job/stage metrics, health snapshots and rate-limit strategy are documented in `docs/OBSERVABILITY.md`. Metrics exporters, tracing, log aggregation and alerting are future hardening work. |
 | Public GitHub readiness | Supported baseline. The repo includes license, contribution guide, root security policy, issue/PR templates, changelog/release notes policy, support matrix and repository status docs. |
 
 ## CI Gate
@@ -140,6 +140,10 @@ balancer.
 
 ## Observability
 
+`docs/OBSERVABILITY.md` is the detailed operations reference for structured
+logs, model operation audit, job stage metrics, health endpoints and the MVP
+rate-limit strategy.
+
 API logs use Fastify structured JSON output. Authorization headers are redacted,
 and requests carry a generated or caller-provided request id. Worker and
 processor logs should keep the same style. The production baseline depends on
@@ -158,6 +162,11 @@ Expected API errors should log at info level. Rejected rate limit requests log
 the key type and reset time without raw tokens. Worker failures should include
 processor name, job type, retry attempt and failed status transition context.
 
-Metrics, tracing, log aggregation and alerting are deferred to a later hardening
-task, but the emitted logs must remain structured enough to support those
-systems without rewriting runtime code.
+Model operation audit records include role, provider, model, duration, status,
+usage and project/document/job/session refs. `@mindory/observability` exposes
+local query and summary helpers for those records. Job stage metrics are
+in-process and grouped by job type, stage and status.
+
+Prometheus exporters, OpenTelemetry tracing, log aggregation and alerting are
+future hardening work, but emitted logs and helper shapes must remain structured
+enough to support those systems without rewriting runtime code.

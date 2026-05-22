@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-83",
+  "current_task_id": "TASK-84",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -617,6 +617,13 @@
       "status": "done",
       "branch": "task/TASK-83-hermes-real-runtime-integration",
       "file": "tasks/TASK-83.json"
+    },
+    {
+      "id": "TASK-84",
+      "title": "Harden observability and audit baseline",
+      "status": "done",
+      "branch": "task/TASK-84-observability-audit-hardening",
+      "file": "tasks/TASK-84.json"
     }
   ]
 }

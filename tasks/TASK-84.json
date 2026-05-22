@@ -1,0 +1,66 @@
+{
+  "id": "TASK-84",
+  "title": "Harden observability and audit baseline",
+  "status": "done",
+  "type": "feature",
+  "priority": "high",
+  "branch": "task/TASK-84-observability-audit-hardening",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Add the MVP observability helpers needed for structured logs, model operation audit queries, job/stage metrics, health snapshots and rate-limit documentation.",
+    "background": "Mindory already has Fastify JSON logs, request ids, rate-limit headers and @mindory/llm audit hooks. TASK-84 turns the empty observability package into the shared baseline used by docs and runtime health surfaces."
+  },
+  "scope": {
+    "in": [
+      "Implement @mindory/observability helpers for structured log events, model audit querying, job stage metrics and health snapshots.",
+      "Expose API health/readiness payloads with uptime, timestamp, logging and rate-limit observability metadata.",
+      "Add validation coverage for the observability package and API health payload tokens.",
+      "Document model operation audit fields, job/stage metrics, health endpoints and the MVP rate-limit strategy.",
+      "Update repository status, support matrix and changelog."
+    ],
+    "out": [
+      "Prometheus/OpenTelemetry exporters.",
+      "External log aggregation or alerting integrations.",
+      "Durable database-backed audit log tables.",
+      "Distributed rate limiting across API replicas.",
+      "SaaS-grade monitoring dashboards."
+    ]
+  },
+  "acceptance_criteria": [
+    "@mindory/observability exports structured log, model audit query, job stage metric and health snapshot helpers.",
+    "Model operation audit records can be filtered by role, provider, status and project/document/job/session refs.",
+    "Job stage metrics can report counts and duration summaries by job type, stage and status.",
+    "API /health and /ready include request id, timestamp, uptime and baseline observability metadata.",
+    "Docs describe structured logs, model operation audit fields, job/stage metrics, health endpoints and the rate-limit strategy.",
+    "pnpm check passes."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm observability:validate",
+      "pnpm api:validate",
+      "pnpm production:validate",
+      "pnpm public:validate",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-84.",
+      "Confirm metrics/tracing/exporters remain documented as future hardening.",
+      "Confirm observability helpers do not store secrets or raw bearer tokens."
+    ]
+  },
+  "dependencies": [
+    "TASK-83"
+  ],
+  "risks": [
+    "Audit helpers must not imply durable enterprise audit persistence.",
+    "Health endpoints must remain lightweight and not require database/Redis probes in bare app tests.",
+    "Rate-limit docs must clearly state the in-process limitation."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to done.",
+    "Branch is committed and merged back into master."
+  ]
+}
