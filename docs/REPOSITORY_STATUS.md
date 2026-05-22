@@ -6,7 +6,7 @@ The repository should be described with the support levels in
 
 ## Current Baseline
 
-The repository is complete through `TASK-107`.
+The repository is complete through `TASK-108`.
 
 Supported local MVP path:
 
@@ -23,6 +23,9 @@ Supported local MVP path:
   manifests are RSA-SHA256 signed and bootstrap scripts verify signatures
   before trusting bundle checksums.
 - Release validation can be run locally with `pnpm release:validate`.
+- Tag release publishing builds and pushes versioned GHCR images, generates
+  release notes with support matrix and upgrade notes, and attaches signed
+  release artifacts to draft GitHub Releases.
 - LLM role/provider support levels are centralized and enforced by config and
   installer validation.
 - OpenAI-compatible chat and text embedding operations support API-key and
@@ -81,12 +84,12 @@ Public GitHub hygiene baseline:
 - Issue and pull request templates.
 - Changelog and release notes policy.
 - Support matrix.
-- Release workflow for checks, Docker image build, signed bundle manifests,
-  checksum publication and packaged installer smoke.
+- Release workflow for checks, Docker image build/publish on tags, signed
+  bundle manifests, checksum publication, release notes generation and
+  packaged installer smoke.
 
 ## Known Limits
 
-- Registry push policy for Docker images is future hardening.
 - Full automated installer resume is future work.
 - Alerting policy is not bundled; route Prometheus and OTLP exports to the
   monitoring stack used by the deployment.

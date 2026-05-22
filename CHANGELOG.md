@@ -20,6 +20,11 @@ documentation.
 
 ### Added
 
+- `TASK-108`: hardened release publishing workflow with tag-only GHCR image
+  pushes, generated release notes, signed artifact uploads and a public release
+  checklist.
+- `TASK-107`: signed release manifests with bootstrap signature verification
+  before checksum trust and tampered manifest/artifact validation.
 - `TASK-86`: public self-host acceptance gate for installer, runtime,
   backup/restore, CLI, MCP, Hermes and uninstall flows.
 - `TASK-85`: installer runtime backup/restore commands for config, installer

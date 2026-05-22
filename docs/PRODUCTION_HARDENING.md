@@ -10,8 +10,8 @@ minimum baseline for the MVP release path.
 | --- | --- |
 | CI gate | Supported baseline. GitHub Actions runs `pnpm check` for pushes and pull requests to `master`. |
 | Local demo | Supported local MVP through Docker Compose and `pnpm mvp:demo`. |
-| Release images | Supported baseline. The release workflow runs `pnpm check` and builds a Docker image for the target version. Registry push policy is future hardening. |
-| Release bundles | Supported baseline. The release workflow generates bundle, RSA-SHA256 signed manifest, public key sidecar and checksum artifacts, then runs smoke-release-install with signature and checksum verification. |
+| Release images | Supported baseline. The release workflow runs `pnpm check`, builds Docker images and pushes version plus commit tags to GHCR only from trusted tag builds. |
+| Release bundles | Supported baseline. The release workflow generates bundle, RSA-SHA256 signed manifest, public key sidecar, checksum and release-notes artifacts, then runs smoke-release-install with signature and checksum verification. |
 | Installer execution | Partial baseline. Current installer can prepare `$MINDORY_HOME`, start Compose through health checks, provision the first token, refresh local assets, create/restore runtime backups, encrypt and upload remote backup archives, stream external S3 object backups and uninstall with explicit confirmation, but remote release update is future work. |
 | Public self-host acceptance | Supported gate. `pnpm selfhost:acceptance` dry-runs the public self-host path; opt-in live mode runs installer start, MVP acceptance, backup, reset and uninstall in a temporary home. |
 | Backup and restore | Supported MVP. Installer commands cover config, installer metadata, PostgreSQL dumps, local object storage state, scheduled local backup runs, local Compose PostgreSQL PITR with WAL archive/base backup/restore-to-time, encrypted S3-compatible remote backup archives and external S3 object streaming backups. |
@@ -46,13 +46,16 @@ The release workflow:
 - installs the locked pnpm dependency graph;
 - runs `pnpm check`;
 - builds the Docker image with `docker build`;
+- pushes `ghcr.io/<owner>/mindory:<version>` and
+  `ghcr.io/<owner>/mindory:<12-char-git-sha>` only for tag builds;
 - runs `pnpm release:bundle -- --require-signing-key`;
 - publishes a `.sha256` checksum file next to the bundle, signed manifest and
   public key sidecar;
+- generates draft release notes with support matrix and upgrade notes;
 - runs `scripts/smoke-release-install.js` as a dry-run install smoke;
 - uploads release artifacts to the workflow run;
-- uploads bundle, signed manifest, public key sidecar and checksum to a draft
-  GitHub Release for tag builds.
+- uploads bundle, signed manifest, public key sidecar, checksum and generated
+  release notes to a draft GitHub Release for tag builds.
 
 Validate the release path locally without publishing:
 
@@ -73,6 +76,12 @@ release notes and keeping old public keys accessible for old release
 verification. Bootstrap users should pass the trusted public key through
 `MINDORY_RELEASE_PUBLIC_KEY_PATH`, `MINDORY_RELEASE_PUBLIC_KEY_PEM` or the
 `--public-key-path` argument.
+
+The public release checklist lives in `docs/RELEASE_CHECKLIST.md`. It records
+required secrets, the Docker tag policy, release artifact list and release
+notes requirements. The workflow does not publish Docker images from pull
+requests or local validation runs, and it does not publish a mutable `latest`
+tag.
 
 Build release images from a verified `master` commit or signed release tag after
 `pnpm check` passes.

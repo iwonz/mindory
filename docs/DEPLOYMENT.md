@@ -17,7 +17,7 @@ secrets, rate limits, structured logs and observability are maintained in
 | Installer Compose startup | Supported as an explicit start step. It can pull/build, start infrastructure, run migrations, start API/worker/MCP and wait for health checks. |
 | Installer first-run provisioning | Supported. The start step creates the first project/token and writes `config/initial-token.json` under `$MINDORY_HOME`. |
 | Installer lifecycle operations | Supported baseline for local asset update, runtime backup/restore, scheduled local backup, encrypted remote backup archives, external S3 streaming backups and guarded uninstall. Remote release update and full automated resume remain future work. |
-| Release images and bundles | Bundle generation is supported with `pnpm release:bundle`. Generated manifests are RSA-SHA256 signed, and bootstrap scripts verify the signature before trusting bundle checksums. Publishing automation uploads release artifacts to draft GitHub Releases. |
+| Release images and bundles | Bundle generation is supported with `pnpm release:bundle`. Generated manifests are RSA-SHA256 signed, and bootstrap scripts verify the signature before trusting bundle checksums. Publishing automation pushes versioned Docker images on tag builds and uploads signed release artifacts plus generated release notes to draft GitHub Releases. |
 | Heavy local models | Experimental. Profiles exist for wiring checks or local experiments, not as a guaranteed default install. |
 
 The expected local demo flow is:
@@ -194,6 +194,18 @@ manifest over all release metadata except the final signature line and writes
 by adding the new private key as the workflow secret, publishing the matching
 public key fingerprint in release notes, and keeping the old public key
 available for users who need to verify older manifests.
+
+The release workflow publishes Docker images only from trusted tag builds:
+
+- `ghcr.io/<owner>/mindory:<version>`;
+- `ghcr.io/<owner>/mindory:<12-char-git-sha>`.
+
+It intentionally does not publish a mutable `latest` tag. Pull request and
+local validation paths build or validate artifacts without pushing images.
+The generated draft notes come from `scripts/generate-release-notes.js` and
+include the support matrix reference, upgrade notes, artifact list, Docker
+image tags and public release checklist. The checklist is maintained in
+`docs/RELEASE_CHECKLIST.md`.
 
 Validate this path locally without publishing:
 
