@@ -8,6 +8,7 @@ const overridePath = path.join(root, "docker-compose.override.yml");
 const testComposePath = path.join(root, "docker-compose.test.yml");
 const dockerfilePath = path.join(root, "Dockerfile");
 const dockerignorePath = path.join(root, ".dockerignore");
+const releaseManifestPath = path.join(root, "deploy/compose/release-manifest.json");
 
 function assert(condition, message) {
   if (!condition) {
@@ -20,12 +21,13 @@ const override = fs.readFileSync(overridePath, "utf8");
 const testCompose = fs.readFileSync(testComposePath, "utf8");
 const dockerfile = fs.readFileSync(dockerfilePath, "utf8");
 const dockerignore = fs.readFileSync(dockerignorePath, "utf8");
+const releaseManifest = JSON.parse(fs.readFileSync(releaseManifestPath, "utf8"));
 
 for (const service of ["postgres", "redis", "migrate", "api", "mcp", "worker"]) {
   assert(compose.includes(`\n  ${service}:`), `docker-compose.yml must define ${service}.`);
 }
 
-for (const profile of ["minio", "clamav", "qdrant", "docling", "ollama", "local-models"]) {
+for (const profile of ["librefs", "minio", "clamav", "qdrant", "docling", "ollama", "local-models"]) {
   assert(compose.includes(`profiles: [\"${profile}\"]`), `docker-compose.yml must define the ${profile} profile.`);
 }
 
@@ -50,7 +52,16 @@ assert(compose.includes("MINDORY_REDIS_URL"), "compose environment must include 
 assert(compose.includes("condition: service_healthy"), "app services must wait for healthy dependencies.");
 assert(compose.includes("/ready"), "API healthcheck must call /ready.");
 assert(compose.includes("'http://127.0.0.1:'+port+'/ready'"), "API healthcheck must avoid Compose interpolation inside JavaScript.");
-assert(compose.includes("objects-data:/data/mindory/objects"), "API/worker services must mount local object storage volume.");
+assert(compose.includes("${MINDORY_HOME:-${HOME}/.mindory}/data/postgres:/var/lib/postgresql/data"), "Postgres data must be bind-mounted under MINDORY_HOME.");
+assert(compose.includes("${MINDORY_HOME:-${HOME}/.mindory}/data/redis:/data"), "Redis data must be bind-mounted under MINDORY_HOME.");
+assert(compose.includes("${MINDORY_HOME:-${HOME}/.mindory}/data/objects:/data/mindory/objects"), "API/worker services must mount local object storage under MINDORY_HOME.");
+assert(compose.includes("${MINDORY_HOME:-${HOME}/.mindory}/config:/data/mindory/config:ro"), "Runtime services must mount config from MINDORY_HOME.");
+assert(compose.includes("${MINDORY_HOME:-${HOME}/.mindory}/logs:/data/mindory/logs"), "Runtime services must mount logs under MINDORY_HOME.");
+assert(compose.includes("ghcr.io/librefs/librefs:latest"), "Compose must define the LibreFS local S3-compatible image.");
+assert(compose.includes("${MINDORY_HOME:-${HOME}/.mindory}/data/librefs:/data"), "LibreFS data must be bind-mounted under MINDORY_HOME.");
+for (const namedVolume of ["postgres-data:", "redis-data:", "objects-data:", "minio-data:", "clamav-data:", "qdrant-data:", "ollama-data:"]) {
+  assert(!compose.includes(namedVolume), `Compose must not use named runtime volume ${namedVolume}.`);
+}
 assert(compose.includes("MINDORY_CLAMAV_PLATFORM"), "Compose must allow ClamAV platform override for local Docker Desktop compatibility.");
 assert(compose.includes("\n  llm:"), "Compose must define an optional local LLM SDK service.");
 assert(compose.includes("service:'llm'"), "Local LLM SDK profile must be a lightweight placeholder by default.");
@@ -66,5 +77,11 @@ assert(override.includes("NODE_ENV: development"), "docker-compose.override.yml 
 assert(testCompose.includes("name: mindory-test"), "docker-compose.test.yml must isolate the integration test project.");
 assert(testCompose.includes("MINDORY_TEST_POSTGRES_PORT"), "docker-compose.test.yml must expose configurable PostgreSQL test port.");
 assert(testCompose.includes("MINDORY_TEST_REDIS_PORT"), "docker-compose.test.yml must expose configurable Redis test port.");
+for (const assetPath of ["docker-compose.yml", "Dockerfile", ".env.example"]) {
+  assert(releaseManifest.assets?.some((asset) => asset.path === assetPath && asset.required === true), `Release Compose manifest must include ${assetPath}.`);
+}
+for (const homeDirectory of ["config", "data/postgres", "data/redis", "data/objects", "data/librefs", "logs", "backups", "install"]) {
+  assert(releaseManifest.mindory_home_directories?.includes(homeDirectory), `Release Compose manifest must include MINDORY_HOME directory ${homeDirectory}.`);
+}
 
 console.log("Docker Compose runnable deployment validated.");

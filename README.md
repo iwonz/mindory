@@ -166,9 +166,10 @@ pnpm mvp:up
 
 Base services are `postgres`, `redis`, `migrate`, `api`, `mcp` and `worker`.
 The API, worker and MCP services now use the built workspace image and real
-dist entrypoints. API and worker share the `objects-data` volume for local
-filesystem storage. Optional profiles are `minio`, `clamav`, `qdrant`,
-`docling`, `ollama` and `local-models`.
+dist entrypoints. Runtime state is bind-mounted under `MINDORY_HOME`, defaulting
+to `${HOME}/.mindory`; API and worker use `data/objects` there for local
+filesystem storage. Optional profiles are `librefs`, `minio`, `clamav`,
+`qdrant`, `docling`, `ollama` and `local-models`.
 
 The default demo model profile is disabled, so no heavy model service is
 started. For profile wiring checks or local model experiments:
@@ -178,8 +179,9 @@ pnpm mvp:demo --model-profile local
 pnpm mvp:demo --model-profile ollama
 ```
 
-Stop the demo stack with `pnpm mvp:down`. Remove containers and demo volumes
-with `pnpm mvp:reset`.
+Stop the demo stack with `pnpm mvp:down`. Remove containers and default demo
+home data with `pnpm mvp:reset`; explicit `MINDORY_HOME` directories are left in
+place.
 
 `pnpm mvp:acceptance` without `MINDORY_E2E_LIVE=true` runs a dry-run scenario
 coverage check that does not require Docker.

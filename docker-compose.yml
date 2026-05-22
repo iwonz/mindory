@@ -14,7 +14,7 @@ x-mindory-env: &mindory-env
   MINDORY_CACHE_PREFIX: ${MINDORY_CACHE_PREFIX:-mindory:cache}
   MINDORY_STORAGE_PROVIDER: ${MINDORY_STORAGE_PROVIDER:-local-fs}
   MINDORY_STORAGE_LOCAL_PATH: ${MINDORY_STORAGE_LOCAL_PATH:-/data/mindory/objects}
-  MINDORY_S3_ENDPOINT: ${MINDORY_S3_ENDPOINT:-http://minio:9000}
+  MINDORY_S3_ENDPOINT: ${MINDORY_S3_ENDPOINT:-http://librefs:9000}
   MINDORY_S3_REGION: ${MINDORY_S3_REGION:-us-east-1}
   MINDORY_S3_BUCKET: ${MINDORY_S3_BUCKET:-mindory}
   MINDORY_S3_ACCESS_KEY_ID: ${MINDORY_S3_ACCESS_KEY_ID:-mindory}
@@ -152,7 +152,7 @@ services:
       timeout: 5s
       retries: 5
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - ${MINDORY_HOME:-${HOME}/.mindory}/data/postgres:/var/lib/postgresql/data
 
   redis:
     image: redis:7-alpine
@@ -164,7 +164,7 @@ services:
       timeout: 5s
       retries: 5
     volumes:
-      - redis-data:/data
+      - ${MINDORY_HOME:-${HOME}/.mindory}/data/redis:/data
 
   migrate:
     <<: *mindory-app
@@ -204,7 +204,9 @@ services:
       timeout: 5s
       retries: 5
     volumes:
-      - objects-data:/data/mindory/objects
+      - ${MINDORY_HOME:-${HOME}/.mindory}/config:/data/mindory/config:ro
+      - ${MINDORY_HOME:-${HOME}/.mindory}/data/objects:/data/mindory/objects
+      - ${MINDORY_HOME:-${HOME}/.mindory}/logs:/data/mindory/logs
 
   mcp:
     <<: *mindory-app
@@ -221,6 +223,9 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+    volumes:
+      - ${MINDORY_HOME:-${HOME}/.mindory}/config:/data/mindory/config:ro
+      - ${MINDORY_HOME:-${HOME}/.mindory}/logs:/data/mindory/logs
 
   worker:
     <<: *mindory-app
@@ -241,7 +246,23 @@ services:
       timeout: 5s
       retries: 3
     volumes:
-      - objects-data:/data/mindory/objects
+      - ${MINDORY_HOME:-${HOME}/.mindory}/config:/data/mindory/config:ro
+      - ${MINDORY_HOME:-${HOME}/.mindory}/data/objects:/data/mindory/objects
+      - ${MINDORY_HOME:-${HOME}/.mindory}/logs:/data/mindory/logs
+
+  librefs:
+    image: ghcr.io/librefs/librefs:latest
+    profiles: ["librefs"]
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINDORY_S3_ACCESS_KEY_ID:-mindory}
+      MINIO_ROOT_PASSWORD: ${MINDORY_S3_SECRET_ACCESS_KEY:-mindory-secret}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - ${MINDORY_HOME:-${HOME}/.mindory}/data/librefs:/data
 
   minio:
     image: minio/minio:latest
@@ -255,7 +276,7 @@ services:
       - "9000:9000"
       - "9001:9001"
     volumes:
-      - minio-data:/data
+      - ${MINDORY_HOME:-${HOME}/.mindory}/data/minio:/data
 
   clamav:
     image: clamav/clamav:stable
@@ -265,7 +286,7 @@ services:
     ports:
       - "3310:3310"
     volumes:
-      - clamav-data:/var/lib/clamav
+      - ${MINDORY_HOME:-${HOME}/.mindory}/data/clamav:/var/lib/clamav
 
   qdrant:
     image: qdrant/qdrant:latest
@@ -275,7 +296,7 @@ services:
       - "6333:6333"
       - "6334:6334"
     volumes:
-      - qdrant-data:/qdrant/storage
+      - ${MINDORY_HOME:-${HOME}/.mindory}/data/qdrant:/qdrant/storage
 
   docling:
     image: node:24-alpine
@@ -285,6 +306,7 @@ services:
     command: ["node", "scripts/docker-placeholder-service.mjs", "docling"]
     volumes:
       - ./:/workspace:ro
+      - ${MINDORY_HOME:-${HOME}/.mindory}/logs:/data/mindory/logs
 
   ollama:
     image: ollama/ollama:latest
@@ -293,7 +315,7 @@ services:
     ports:
       - "11434:11434"
     volumes:
-      - ollama-data:/root/.ollama
+      - ${MINDORY_HOME:-${HOME}/.mindory}/data/ollama:/root/.ollama
 
   llm:
     image: node:24-alpine
@@ -307,12 +329,5 @@ services:
       ]
     ports:
       - "8080:8080"
-
-volumes:
-  postgres-data:
-  redis-data:
-  objects-data:
-  minio-data:
-  clamav-data:
-  qdrant-data:
-  ollama-data:
+    volumes:
+      - ${MINDORY_HOME:-${HOME}/.mindory}/logs:/data/mindory/logs

@@ -26,7 +26,7 @@ Stop the stack:
 pnpm mvp:down
 ```
 
-Reset containers and demo volumes:
+Reset containers and demo home data:
 
 ```bash
 pnpm mvp:reset

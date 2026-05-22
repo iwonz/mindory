@@ -18,7 +18,10 @@ completion, API, worker and MCP service readiness, seeds demo credentials from
 inside the Compose network, then runs live MVP acceptance.
 
 Use `pnpm mvp:up` to start and seed without live acceptance, `pnpm mvp:down` to
-stop the stack and `pnpm mvp:reset` to remove containers and demo volumes.
+stop the stack and `pnpm mvp:reset` to remove containers and host data created
+for the demo. The demo script uses `.mindory-demo` in the repository when
+`MINDORY_HOME` is not set, so it does not touch a real `~/.mindory`
+installation by default.
 
 `TASK-3` adds a base Compose scaffold. `TASK-26` replaces the API, MCP and
 worker placeholders with a shared built Node image and real runtime commands.
@@ -33,9 +36,29 @@ The startup path is:
 6. Optionally start the MCP stdio command with `node apps/mcp/dist/stdio.js`
    as a process smoke check.
 
-The API healthcheck calls `/ready`. API and worker mount the `objects-data`
-volume at `/data/mindory/objects` for the default local filesystem storage
-provider.
+The API healthcheck calls `/ready`. Compose binds runtime paths under
+`MINDORY_HOME`, defaulting to `${HOME}/.mindory` when the host environment does
+not set it:
+
+- `config`
+- `data/postgres`
+- `data/redis`
+- `data/objects`
+- `data/librefs`
+- `logs`
+- `backups`
+- `install`
+
+API and worker mount `data/objects` at `/data/mindory/objects` for the default
+local filesystem storage provider.
+
+If `MINDORY_HOME` is explicitly set for `pnpm mvp:reset`, the reset command
+stops containers but leaves that directory in place to avoid deleting an
+intentional install root.
+
+`deploy/compose/release-manifest.json` lists the Compose files, Dockerfile,
+environment template and required `MINDORY_HOME` directories that release
+bundles must carry until the installer can render host-specific assets.
 
 MCP stdio is normally launched by an MCP client, not exposed as a Compose
 network service. The Compose `mcp` service is a packaging artifact that proves
@@ -105,6 +128,7 @@ Automated down migrations are not part of the MVP deployment path.
 ## Optional Profiles
 
 - `minio`
+- `librefs`
 - `clamav`
 - `qdrant`
 - `docling`
@@ -114,8 +138,13 @@ Automated down migrations are not part of the MVP deployment path.
 Example:
 
 ```bash
-docker compose --profile minio --profile clamav --profile qdrant up -d
+docker compose --profile librefs --profile clamav --profile qdrant up -d
 ```
+
+The `librefs` profile runs `ghcr.io/librefs/librefs:latest` as the local
+S3-compatible storage option and stores its data under
+`$MINDORY_HOME/data/librefs`. The `minio` profile remains available for manual
+compatibility testing and stores data under `$MINDORY_HOME/data/minio`.
 
 The `local-models` profile is intentionally lightweight and does not download
 model weights. The `ollama` profile is optional for local text embeddings. The

@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, rmSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -14,6 +14,7 @@ const projectId = process.env.MINDORY_DEMO_PROJECT_ID ?? "mindory-demo";
 const demoToken = process.env.MINDORY_DEMO_TOKEN ?? "mindory-demo-token";
 const demoTokenId = process.env.MINDORY_DEMO_TOKEN_ID ?? "tok_mindory_demo";
 const dockerBinary = resolveDockerBinary();
+const demoHome = process.env.MINDORY_HOME ?? path.join(root, ".mindory-demo");
 
 try {
   if (command === "up") {
@@ -70,7 +71,10 @@ function runDown(resetVolumes) {
     downArgs.push("--volumes");
   }
   runDocker(downArgs);
-  console.log(resetVolumes ? "Mindory MVP demo stack and volumes removed." : "Mindory MVP demo stack stopped.");
+  if (resetVolumes) {
+    removeDemoHome();
+  }
+  console.log(resetVolumes ? "Mindory MVP demo stack and demo home data removed." : "Mindory MVP demo stack stopped.");
 }
 
 function seedDemo() {
@@ -266,6 +270,7 @@ function resolveDockerBinary() {
 function dockerEnv() {
   return {
     ...process.env,
+    MINDORY_HOME: demoHome,
     MINDORY_DOCUMENT_PROCESSING_PDF_ENABLED: process.env.MINDORY_DOCUMENT_PROCESSING_PDF_ENABLED ?? "true",
     MINDORY_DOCUMENT_PROCESSING_IMAGE_ENABLED: process.env.MINDORY_DOCUMENT_PROCESSING_IMAGE_ENABLED ?? "true",
     MINDORY_DOCUMENT_PROCESSING_AUDIO_ENABLED: process.env.MINDORY_DOCUMENT_PROCESSING_AUDIO_ENABLED ?? "true",
@@ -277,6 +282,18 @@ function dockerEnv() {
       process.env.PATH ?? ""
     ].join(":")
   };
+}
+
+function removeDemoHome() {
+  const resolvedHome = path.resolve(demoHome);
+  if (process.env.MINDORY_HOME !== undefined) {
+    console.log(`MINDORY_HOME was explicitly set; leaving ${resolvedHome} in place.`);
+    return;
+  }
+  if (!resolvedHome.startsWith(`${root}${path.sep}`)) {
+    throw new Error(`Refusing to remove demo home outside the repository: ${resolvedHome}`);
+  }
+  rmSync(resolvedHome, { recursive: true, force: true });
 }
 
 function runDocker(commandArgs) {

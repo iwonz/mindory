@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "description": "Compose assets that must be included in a Mindory release bundle before the installer renders host-specific copies.",
+  "assets": [
+    {
+      "path": "docker-compose.yml",
+      "type": "compose",
+      "required": true
+    },
+    {
+      "path": "docker-compose.override.yml",
+      "type": "compose-override",
+      "required": false
+    },
+    {
+      "path": "Dockerfile",
+      "type": "image-build",
+      "required": true
+    },
+    {
+      "path": ".env.example",
+      "type": "env-template",
+      "required": true
+    }
+  ],
+  "mindory_home_directories": [
+    "config",
+    "data/postgres",
+    "data/redis",
+    "data/objects",
+    "data/librefs",
+    "logs",
+    "backups",
+    "install"
+  ]
+}

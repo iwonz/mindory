@@ -74,7 +74,7 @@ Required production overrides include:
 - `MINDORY_CLI_API_TOKEN`
 - `MINDORY_HERMES_API_TOKEN`
 - bearer tokens created through the token API or CLI
-- bundled Postgres, MinIO and demo token defaults
+- bundled Postgres, LibreFS/MinIO and demo token defaults
 
 Rotate API tokens through the token API or CLI. Raw tokens are returned once on
 create or rotate, so store them immediately after issuance.
