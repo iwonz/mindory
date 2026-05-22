@@ -109,6 +109,16 @@ export interface MindoryConfig {
     includeObjects: boolean;
     postgresWalArchiveEnabled: boolean;
     postgresWalArchiveTimeoutSeconds: number;
+    remoteBackupEnabled: boolean;
+    encryptionKeyId: string;
+    encryptionKey: string;
+    remoteS3Endpoint: string;
+    remoteS3Region: string;
+    remoteS3Bucket: string;
+    remoteS3AccessKeyId: string;
+    remoteS3SecretAccessKey: string;
+    remoteS3ForcePathStyle: boolean;
+    remoteS3Prefix: string;
   };
   database: {
     url: string;
@@ -390,7 +400,17 @@ export function loadMindoryConfig(env: EnvSource = process.env): MindoryConfig {
       includePostgres: readBoolean(env, "MINDORY_BACKUP_INCLUDE_POSTGRES", catalogBoolean("MINDORY_BACKUP_INCLUDE_POSTGRES")),
       includeObjects: readBoolean(env, "MINDORY_BACKUP_INCLUDE_OBJECTS", catalogBoolean("MINDORY_BACKUP_INCLUDE_OBJECTS")),
       postgresWalArchiveEnabled: readBoolean(env, "MINDORY_POSTGRES_WAL_ARCHIVE_ENABLED", catalogBoolean("MINDORY_POSTGRES_WAL_ARCHIVE_ENABLED")),
-      postgresWalArchiveTimeoutSeconds: readNumber(env, "MINDORY_POSTGRES_WAL_ARCHIVE_TIMEOUT_SECONDS", catalogNumber("MINDORY_POSTGRES_WAL_ARCHIVE_TIMEOUT_SECONDS"))
+      postgresWalArchiveTimeoutSeconds: readNumber(env, "MINDORY_POSTGRES_WAL_ARCHIVE_TIMEOUT_SECONDS", catalogNumber("MINDORY_POSTGRES_WAL_ARCHIVE_TIMEOUT_SECONDS")),
+      remoteBackupEnabled: readBoolean(env, "MINDORY_REMOTE_BACKUP_ENABLED", catalogBoolean("MINDORY_REMOTE_BACKUP_ENABLED")),
+      encryptionKeyId: readString(env, "MINDORY_BACKUP_ENCRYPTION_KEY_ID", catalogString("MINDORY_BACKUP_ENCRYPTION_KEY_ID")),
+      encryptionKey: readString(env, "MINDORY_BACKUP_ENCRYPTION_KEY", catalogString("MINDORY_BACKUP_ENCRYPTION_KEY")),
+      remoteS3Endpoint: readString(env, "MINDORY_REMOTE_BACKUP_S3_ENDPOINT", catalogString("MINDORY_REMOTE_BACKUP_S3_ENDPOINT")),
+      remoteS3Region: readString(env, "MINDORY_REMOTE_BACKUP_S3_REGION", catalogString("MINDORY_REMOTE_BACKUP_S3_REGION")),
+      remoteS3Bucket: readString(env, "MINDORY_REMOTE_BACKUP_S3_BUCKET", catalogString("MINDORY_REMOTE_BACKUP_S3_BUCKET")),
+      remoteS3AccessKeyId: readString(env, "MINDORY_REMOTE_BACKUP_S3_ACCESS_KEY_ID", catalogString("MINDORY_REMOTE_BACKUP_S3_ACCESS_KEY_ID")),
+      remoteS3SecretAccessKey: readString(env, "MINDORY_REMOTE_BACKUP_S3_SECRET_ACCESS_KEY", catalogString("MINDORY_REMOTE_BACKUP_S3_SECRET_ACCESS_KEY")),
+      remoteS3ForcePathStyle: readBoolean(env, "MINDORY_REMOTE_BACKUP_S3_FORCE_PATH_STYLE", catalogBoolean("MINDORY_REMOTE_BACKUP_S3_FORCE_PATH_STYLE")),
+      remoteS3Prefix: readString(env, "MINDORY_REMOTE_BACKUP_S3_PREFIX", catalogString("MINDORY_REMOTE_BACKUP_S3_PREFIX"))
     },
     database: {
       url: readString(env, "MINDORY_DATABASE_URL", catalogString("MINDORY_DATABASE_URL"))
@@ -596,6 +616,41 @@ function validateBackupConfig(config: MindoryConfig): void {
   if (!Number.isInteger(config.backups.postgresWalArchiveTimeoutSeconds) || config.backups.postgresWalArchiveTimeoutSeconds <= 0) {
     throw new Error("MINDORY_POSTGRES_WAL_ARCHIVE_TIMEOUT_SECONDS must be a positive integer.");
   }
+  if (config.backups.encryptionKeyId.trim() === "") {
+    throw new Error("MINDORY_BACKUP_ENCRYPTION_KEY_ID must not be empty.");
+  }
+  if (config.backups.remoteS3Region.trim() === "") {
+    throw new Error("MINDORY_REMOTE_BACKUP_S3_REGION must not be empty.");
+  }
+  if (!isValidS3BucketName(config.backups.remoteS3Bucket)) {
+    throw new Error("MINDORY_REMOTE_BACKUP_S3_BUCKET must be a valid S3-compatible bucket name.");
+  }
+  if (!isValidObjectKeyPrefix(config.backups.remoteS3Prefix)) {
+    throw new Error("MINDORY_REMOTE_BACKUP_S3_PREFIX must be a relative object key prefix without path traversal.");
+  }
+  if (config.backups.remoteBackupEnabled) {
+    validateHttpUrl(config.backups.remoteS3Endpoint, "MINDORY_REMOTE_BACKUP_S3_ENDPOINT");
+    if (config.backups.encryptionKey.trim() === "") {
+      throw new Error("MINDORY_BACKUP_ENCRYPTION_KEY is required when encrypted remote backups are enabled.");
+    }
+    if (config.backups.remoteS3AccessKeyId.trim() === "") {
+      throw new Error("MINDORY_REMOTE_BACKUP_S3_ACCESS_KEY_ID is required when encrypted remote backups are enabled.");
+    }
+    if (config.backups.remoteS3SecretAccessKey.trim() === "") {
+      throw new Error("MINDORY_REMOTE_BACKUP_S3_SECRET_ACCESS_KEY is required when encrypted remote backups are enabled.");
+    }
+  }
+}
+
+function isValidS3BucketName(bucket: string): boolean {
+  return /^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(bucket) && !bucket.includes("..");
+}
+
+function isValidObjectKeyPrefix(prefix: string): boolean {
+  if (prefix.trim() === "" || prefix.startsWith("/") || prefix.includes("\0")) {
+    return false;
+  }
+  return prefix.split("/").filter(Boolean).every((segment) => segment !== "." && segment !== "..");
 }
 
 function validateDocumentProcessingConfig(config: MindoryConfig): void {

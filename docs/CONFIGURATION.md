@@ -104,6 +104,25 @@ after the first `pitr-backup` base backup. WAL files are archived under
 `MINDORY_POSTGRES_WAL_ARCHIVE_TIMEOUT_SECONDS` controls the Postgres
 `archive_timeout` value and defaults to `60`.
 
+`MINDORY_REMOTE_BACKUP_ENABLED` enables installer-managed encrypted remote
+backup settings. When enabled, Mindory requires:
+
+- `MINDORY_BACKUP_ENCRYPTION_KEY_ID`
+- `MINDORY_BACKUP_ENCRYPTION_KEY`
+- `MINDORY_REMOTE_BACKUP_S3_ENDPOINT`
+- `MINDORY_REMOTE_BACKUP_S3_REGION`
+- `MINDORY_REMOTE_BACKUP_S3_BUCKET`
+- `MINDORY_REMOTE_BACKUP_S3_ACCESS_KEY_ID`
+- `MINDORY_REMOTE_BACKUP_S3_SECRET_ACCESS_KEY`
+- `MINDORY_REMOTE_BACKUP_S3_FORCE_PATH_STYLE`
+- `MINDORY_REMOTE_BACKUP_S3_PREFIX`
+
+`MINDORY_BACKUP_ENCRYPTION_KEY` accepts either a passphrase or
+`base64:<32-byte-key>`. The key is never written into generated summaries; losing
+it makes existing `.mindorybak` archives unrecoverable. Remote backups use the
+same S3-compatible adapter as object storage, but keep separate credentials and
+prefixes so backup retention can be managed independently.
+
 ## API Request Guards
 
 `MINDORY_API_RATE_LIMIT_ENABLED` enables the API rate-limit guard. It defaults

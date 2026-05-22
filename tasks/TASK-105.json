@@ -1,7 +1,7 @@
 {
   "id": "TASK-105",
   "title": "Add encrypted remote backups",
-  "status": "draft",
+  "status": "done",
   "type": "feature",
   "priority": "high",
   "branch": "task/TASK-105-encrypted-remote-backups",

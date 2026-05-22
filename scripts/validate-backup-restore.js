@@ -26,6 +26,12 @@ for (const token of [
   "createMindoryPostgresPitrBaseBackup",
   "restoreMindoryPostgresPitrBackup",
   "PostgresPitrBackupManifest",
+  "EncryptedBackupArchiveManifest",
+  "createEncryptedMindoryBackupArchive",
+  "restoreEncryptedMindoryBackupArchive",
+  "uploadEncryptedMindoryBackupArchive",
+  "downloadEncryptedMindoryBackupArchive",
+  "aes-256-gcm",
   "runScheduledMindoryBackup",
   "ScheduledBackupHealth",
   "RuntimeBackupManifest",
@@ -39,21 +45,25 @@ for (const token of [
   "postgres-wal",
   "scheduled-backup-health.json",
   "scheduled-backup.lock",
+  "MINDORY_BACKUP_ENCRYPTION_KEY",
+  "MINDORY_REMOTE_BACKUP_S3_ENDPOINT",
   "external_s3"
 ]) {
   assert(installerSource.includes(token), `Installer source must include ${token}.`);
 }
 
-for (const token of ["command === \"backup\"", "command === \"backup-schedule\"", "command === \"pitr-backup\"", "command === \"pitr-restore\"", "command === \"restore\"", "mindory-installer backup", "mindory-installer backup-schedule", "mindory-installer pitr-backup", "mindory-installer pitr-restore", "mindory-installer restore"]) {
+for (const token of ["command === \"backup\"", "command === \"backup-archive\"", "command === \"backup-upload\"", "command === \"backup-download\"", "command === \"backup-restore-archive\"", "command === \"backup-schedule\"", "command === \"pitr-backup\"", "command === \"pitr-restore\"", "command === \"restore\"", "mindory-installer backup", "mindory-installer backup-archive", "mindory-installer backup-upload", "mindory-installer backup-download", "mindory-installer backup-restore-archive", "mindory-installer backup-schedule", "mindory-installer pitr-backup", "mindory-installer pitr-restore", "mindory-installer restore"]) {
   assert(installerCli.includes(token), `Installer CLI must expose ${token}.`);
 }
 
-for (const token of ["backup-manifest.json", "pitr-manifest.json", "pg_dump", "pg_basebackup", "restore --home", "backup-schedule --home", "pitr-backup --home", "pitr-restore --home", "scheduled-backup-health.json", "scheduled-backup.log", "MINDORY_BACKUP_RETENTION_COUNT", "MINDORY_POSTGRES_WAL_ARCHIVE_ENABLED", "External S3-compatible bucket data"]) {
+for (const token of ["backup-manifest.json", "pitr-manifest.json", "pg_dump", "pg_basebackup", "restore --home", "backup-archive --home", "backup-upload --home", "backup-download --home", "backup-restore-archive --home", "backup-schedule --home", "pitr-backup --home", "pitr-restore --home", "scheduled-backup-health.json", "scheduled-backup.log", "MINDORY_BACKUP_RETENTION_COUNT", "MINDORY_POSTGRES_WAL_ARCHIVE_ENABLED", "MINDORY_REMOTE_BACKUP_ENABLED", "External S3-compatible bucket data"]) {
   assert(installerDocs.includes(token), `Installer docs must describe ${token}.`);
 }
 assert(productionDocs.includes("mindory-installer backup"), "Production hardening docs must use the installer backup command.");
+assert(productionDocs.includes("mindory-installer backup-archive"), "Production hardening docs must use the encrypted backup archive command.");
 assert(productionDocs.includes("mindory-installer pitr-backup"), "Production hardening docs must use the PITR backup command.");
 assert(productionDocs.includes("MINDORY_BACKUP_SCHEDULE_ENABLED"), "Production hardening docs must document scheduled backup config.");
+assert(productionDocs.includes("MINDORY_REMOTE_BACKUP_S3_ENDPOINT"), "Production hardening docs must document remote backup config.");
 assert(productionDocs.includes("recovery_target_time"), "Production hardening docs must document PITR target-time recovery.");
 
 const installer = await import("../packages/installer/dist/index.js");
@@ -147,6 +157,76 @@ assert(restoreReport.restored === true, "Restore must report restored=true when 
 assert(fs.readFileSync(path.join(home, "config", ".env"), "utf8").includes("MINDORY_STORAGE_PROVIDER=local-fs"), "Restore must restore config.");
 assert(fs.readFileSync(path.join(home, "data", "objects", "documents", "raw.txt"), "utf8") === "raw object\n", "Restore must restore local object files.");
 assert(commands.some((command) => command.includes("psql -U mindory -d mindory")), "Restore must run psql through Compose.");
+
+const encryptionKey = "validator-backup-encryption-key";
+const archiveReport = await installer.createEncryptedMindoryBackupArchive(home, backupReport.backupPath, {
+  encryptionKey,
+  keyId: "validator-key"
+});
+assert(fs.existsSync(archiveReport.archivePath), "Encrypted backup archive must be written.");
+assert(archiveReport.filesCount > 0, "Encrypted backup archive must include backed-up files.");
+const archiveText = fs.readFileSync(archiveReport.archivePath, "utf8");
+assert(archiveText.includes("aes-256-gcm"), "Encrypted backup archive must declare AES-GCM encryption.");
+assert(!archiveText.includes(encryptionKey), "Encrypted backup archive must not contain the raw encryption key.");
+assert(!archiveText.includes("validator-secret"), "Encrypted backup archive must not contain remote backup secrets.");
+
+let encryptedRestoreRejected = false;
+try {
+  await installer.restoreEncryptedMindoryBackupArchive(home, archiveReport.archivePath, {
+    yes: false,
+    encryptionKey
+  });
+} catch (error) {
+  encryptedRestoreRejected = String(error).includes("requires explicit confirmation");
+}
+assert(encryptedRestoreRejected, "Encrypted backup archive restore must reject calls without yes=true.");
+
+const decryptedOutputDirectory = path.join(home, "backups", "decrypted-validator");
+const decryptedReport = await installer.restoreEncryptedMindoryBackupArchive(home, archiveReport.archivePath, {
+  yes: true,
+  encryptionKey,
+  outputDirectory: decryptedOutputDirectory
+});
+assert(fs.existsSync(path.join(decryptedReport.outputDirectory, "backup-manifest.json")), "Encrypted archive restore must recreate backup-manifest.json.");
+assert(fs.existsSync(path.join(decryptedReport.outputDirectory, "objects", "documents", "raw.txt")), "Encrypted archive restore must recreate object files.");
+const decryptedRestoreReport = await installer.restoreMindoryRuntimeBackup(home, decryptedReport.outputDirectory, {
+  yes: true,
+  restorePostgres: false,
+  commandRunner
+});
+assert(decryptedRestoreReport.restored === true, "Decrypted archive output must be restorable through the normal runtime restore command.");
+
+fs.appendFileSync(path.join(home, "config", ".env"), [
+  "",
+  "MINDORY_REMOTE_BACKUP_ENABLED=true",
+  "MINDORY_BACKUP_ENCRYPTION_KEY_ID=validator-key",
+  `MINDORY_BACKUP_ENCRYPTION_KEY=${encryptionKey}`,
+  "MINDORY_REMOTE_BACKUP_S3_ENDPOINT=http://s3.example.test",
+  "MINDORY_REMOTE_BACKUP_S3_REGION=us-east-1",
+  "MINDORY_REMOTE_BACKUP_S3_BUCKET=mindory-backups",
+  "MINDORY_REMOTE_BACKUP_S3_ACCESS_KEY_ID=remote-access",
+  "MINDORY_REMOTE_BACKUP_S3_SECRET_ACCESS_KEY=remote-secret",
+  "MINDORY_REMOTE_BACKUP_S3_FORCE_PATH_STYLE=true",
+  "MINDORY_REMOTE_BACKUP_S3_PREFIX=mindory-validator"
+].join("\n"));
+const remoteBackupFetch = createInMemoryS3Fetch();
+const uploadReport = await installer.uploadEncryptedMindoryBackupArchive(home, archiveReport.archivePath, {
+  s3FetchImpl: remoteBackupFetch
+});
+assert(uploadReport.objectKey.startsWith("mindory-validator/"), "Remote backup upload must use the configured prefix.");
+assert(uploadReport.bucket === "mindory-backups", "Remote backup upload must use the configured bucket.");
+const downloadReport = await installer.downloadEncryptedMindoryBackupArchive(home, {
+  objectKey: uploadReport.objectKey,
+  s3FetchImpl: remoteBackupFetch
+});
+assert(fs.existsSync(downloadReport.outputFile), "Remote backup download must write the archive locally.");
+assert(downloadReport.sha256 === uploadReport.sha256, "Remote backup download must preserve archive checksum.");
+const remoteDecryptedReport = await installer.restoreEncryptedMindoryBackupArchive(home, downloadReport.outputFile, {
+  yes: true,
+  encryptionKey,
+  outputDirectory: path.join(home, "backups", "decrypted-remote-validator")
+});
+assert(fs.existsSync(remoteDecryptedReport.sourceBackupManifestPath), "Downloaded encrypted archive must decrypt to a verifiable backup manifest.");
 
 function writeBackupFixture(directoryName, createdAt) {
   const backupPath = path.join(home, "backups", directoryName);
@@ -297,3 +377,80 @@ fs.rmSync(home, { recursive: true, force: true });
 fs.rmSync(externalHome, { recursive: true, force: true });
 
 console.log("Backup and restore MVP validated.");
+
+function createInMemoryS3Fetch() {
+  const buckets = new Set();
+  const objects = new Map();
+  return async (url, init = {}) => {
+    const method = init.method ?? "GET";
+    const parsed = new URL(String(url));
+    const parts = parsed.pathname.split("/").filter(Boolean).map(decodeURIComponent);
+    const bucket = parts[0];
+    const key = parts.slice(1).join("/");
+    if (bucket === undefined) {
+      return new Response("missing bucket", { status: 400 });
+    }
+    if (key === "") {
+      if (method === "HEAD") {
+        return new Response("", { status: buckets.has(bucket) ? 200 : 404 });
+      }
+      if (method === "PUT") {
+        buckets.add(bucket);
+        return new Response("", { status: 200 });
+      }
+      return new Response("unsupported bucket method", { status: 405 });
+    }
+    if (!buckets.has(bucket)) {
+      return new Response("bucket missing", { status: 404 });
+    }
+    const objectId = `${bucket}/${key}`;
+    if (method === "PUT") {
+      const body = await requestBodyBuffer(init.body);
+      const headers = new Headers(init.headers);
+      const metadata = {};
+      for (const [name, value] of headers) {
+        if (name.startsWith("x-amz-meta-")) {
+          metadata[name.slice("x-amz-meta-".length)] = value;
+        }
+      }
+      objects.set(objectId, {
+        body,
+        contentType: headers.get("content-type") ?? "application/octet-stream",
+        metadata
+      });
+      return new Response("", { status: 200 });
+    }
+    const stored = objects.get(objectId);
+    if (stored === undefined) {
+      return new Response("object missing", { status: 404 });
+    }
+    const headers = new Headers({
+      "content-length": String(stored.body.length),
+      "content-type": stored.contentType,
+      etag: `"${stored.metadata.sha256 ?? "etag"}"`
+    });
+    for (const [name, value] of Object.entries(stored.metadata)) {
+      headers.set(`x-amz-meta-${name}`, value);
+    }
+    if (method === "HEAD") {
+      return new Response("", { status: 200, headers });
+    }
+    if (method === "GET") {
+      return new Response(stored.body, { status: 200, headers });
+    }
+    return new Response("unsupported object method", { status: 405 });
+  };
+}
+
+async function requestBodyBuffer(body) {
+  if (body === undefined || body === null) {
+    return Buffer.alloc(0);
+  }
+  if (Buffer.isBuffer(body)) {
+    return body;
+  }
+  if (body instanceof Uint8Array) {
+    return Buffer.from(body);
+  }
+  return Buffer.from(await new Response(body).arrayBuffer());
+}

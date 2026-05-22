@@ -84,6 +84,9 @@ for (const envName of ["MINDORY_OTEL_TRACES_ENABLED", "MINDORY_OTEL_EXPORTER_OTL
 for (const envName of ["MINDORY_BACKUP_SCHEDULE_ENABLED", "MINDORY_BACKUP_SCHEDULE_INTERVAL_MINUTES", "MINDORY_BACKUP_RETENTION_COUNT", "MINDORY_BACKUP_RETENTION_DAYS", "MINDORY_BACKUP_INCLUDE_CONFIG", "MINDORY_BACKUP_INCLUDE_POSTGRES", "MINDORY_BACKUP_INCLUDE_OBJECTS"]) {
   assert(compose.includes(envName), `Compose must include scheduled backup env ${envName}.`);
 }
+for (const envName of ["MINDORY_REMOTE_BACKUP_ENABLED", "MINDORY_BACKUP_ENCRYPTION_KEY_ID", "MINDORY_BACKUP_ENCRYPTION_KEY", "MINDORY_REMOTE_BACKUP_S3_ENDPOINT", "MINDORY_REMOTE_BACKUP_S3_BUCKET", "MINDORY_REMOTE_BACKUP_S3_ACCESS_KEY_ID", "MINDORY_REMOTE_BACKUP_S3_SECRET_ACCESS_KEY", "MINDORY_REMOTE_BACKUP_S3_PREFIX"]) {
+  assert(compose.includes(envName), `Compose must include encrypted remote backup env ${envName}.`);
+}
 for (const token of ["MINDORY_POSTGRES_WAL_ARCHIVE_ENABLED", "archive_mode=on", "archive_command='test ! -f /var/lib/postgresql/wal-archive/%f && cp %p /var/lib/postgresql/wal-archive/%f'", "${MINDORY_HOME:-${HOME}/.mindory}/backups/postgres-wal:/var/lib/postgresql/wal-archive"]) {
   assert(compose.includes(token), `Compose must include PostgreSQL PITR WAL archive token ${token}.`);
 }
