@@ -54,7 +54,7 @@ for (const symbol of [
 for (const token of ["CONFIG_CATALOG", "MINDORY_HOME_DIRECTORIES", "composeProfilesForAnswers", "redactEnvMap"]) {
   assert(installerSource.includes(token), `Installer core must include ${token}.`);
 }
-for (const token of ["command === \"start\"", "stopBeforeStepId: \"create-first-token\"", "mindory-installer start"]) {
+for (const token of ["command === \"start\"", "stopBeforeStepId: null", "initialTokenPath", "mindory-installer start"]) {
   assert(installerCli.includes(token), `Installer CLI must expose startup command token ${token}.`);
 }
 
@@ -191,6 +191,75 @@ for (const token of ["pull --ignore-buildable", "build", "up -d postgres redis c
   assert(composeCommands.some((command) => command.includes(token)), `Compose execution must run ${token}.`);
 }
 fs.rmSync(composeHome, { recursive: true, force: true });
+
+const provisionHome = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-installer-provision-"));
+fs.rmSync(provisionHome, { recursive: true, force: true });
+const provisionCommands = [];
+const provisionCredentials = {
+  projectId: "validator-project",
+  projectName: "Validator Project",
+  tokenId: "tok_validator_install",
+  token: "mindory_validator_secret",
+  apiUrl: "http://localhost:3000"
+};
+const provisionReport = await installer.executeInstallPlan(installer.createDefaultInstallAnswers({ mindoryHome: provisionHome }), {
+  sourceRoot: root,
+  owner: "validator",
+  stopBeforeStepId: null,
+  timeoutMs: 100,
+  pollIntervalMs: 1,
+  firstRunCredentials: provisionCredentials,
+  apiReadyCheck: async () => true,
+  commandRunner: {
+    async run(command, args) {
+      provisionCommands.push(`${command} ${args.join(" ")}`);
+      if (args.includes("ps")) {
+        return { status: 0, stdout: healthyComposePs, stderr: "" };
+      }
+      return { status: 0, stdout: "ok", stderr: "" };
+    }
+  }
+});
+assert(provisionReport.executedStepIds.at(-1) === "create-first-token", "Full execution must finish with first-token provisioning.");
+assert(provisionReport.pendingStepIds.length === 0, "Full execution must leave no pending steps.");
+const initialToken = JSON.parse(fs.readFileSync(path.join(provisionHome, "config", "initial-token.json"), "utf8"));
+assert(initialToken.project_id === "validator-project", "Initial token file must include project id.");
+assert(initialToken.token === "mindory_validator_secret", "Initial token file must include the raw one-time token.");
+assert(provisionCommands.some((command) => command.includes("scripts/provision-first-token.js")), "Provisioning must run the first-token script through Compose.");
+assert(provisionCommands.some((command) => command.includes("MINDORY_INITIAL_PROJECT_ID=validator-project")), "Provisioning command must pass project id.");
+assert(provisionCommands.some((command) => command.includes("MINDORY_INITIAL_TOKEN=mindory_validator_secret")), "Provisioning command must pass raw token.");
+fs.rmSync(provisionHome, { recursive: true, force: true });
+
+const provisionRollbackHome = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-installer-provision-rollback-"));
+fs.rmSync(provisionRollbackHome, { recursive: true, force: true });
+let provisionRollbackThrown = false;
+try {
+  await installer.executeInstallPlan(installer.createDefaultInstallAnswers({ mindoryHome: provisionRollbackHome }), {
+    sourceRoot: root,
+    owner: "validator",
+    stopBeforeStepId: null,
+    timeoutMs: 100,
+    pollIntervalMs: 1,
+    firstRunCredentials: provisionCredentials,
+    apiReadyCheck: async () => true,
+    commandRunner: {
+      async run(command, args) {
+        if (args.includes("ps")) {
+          return { status: 0, stdout: healthyComposePs, stderr: "" };
+        }
+        if (args.includes("scripts/provision-first-token.js")) {
+          return { status: 1, stdout: "", stderr: "provision failed" };
+        }
+        return { status: 0, stdout: "ok", stderr: "" };
+      }
+    }
+  });
+} catch (error) {
+  provisionRollbackThrown = String(error).includes("provision failed");
+}
+assert(provisionRollbackThrown, "Provisioning failures must be surfaced.");
+assert(!fs.existsSync(path.join(provisionRollbackHome, "config", "initial-token.json")), "Provisioning failure must remove generated initial-token.json.");
+fs.rmSync(provisionRollbackHome, { recursive: true, force: true });
 
 const composeRollbackHome = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-installer-compose-rollback-"));
 fs.rmSync(composeRollbackHome, { recursive: true, force: true });

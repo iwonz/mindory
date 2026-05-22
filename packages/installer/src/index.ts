@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import {
   closeSync,
   constants,
@@ -285,14 +286,23 @@ export interface InstallerDiagnostic {
 export interface InstallExecutionOptions {
   sourceRoot?: string;
   owner?: string;
-  stopBeforeStepId?: string;
+  stopBeforeStepId?: string | null;
   rollbackOnFailure?: boolean;
   dockerBinary?: string;
   timeoutMs?: number;
   pollIntervalMs?: number;
   commandRunner?: InstallCommandRunner;
   apiReadyCheck?: (url: string) => Promise<boolean> | boolean;
+  firstRunCredentials?: FirstRunCredentials;
   beforeStep?: (step: InstallPlanStep, plan: InstallPlan) => void;
+}
+
+export interface FirstRunCredentials {
+  projectId: string;
+  projectName: string;
+  tokenId: string;
+  token: string;
+  apiUrl: string;
 }
 
 export interface InstallCommandOptions {
@@ -708,12 +718,12 @@ export async function executeInstallPlan(
   const lock = acquireInstallLock(plan.mindoryHome, options.owner ?? "mindory-installer-executor");
   const journal = new InstallTransactionJournal();
   const executedStepIds: string[] = [];
-  const stopBeforeStepId = options.stopBeforeStepId ?? "pull-images";
+  const stopBeforeStepId = options.stopBeforeStepId === undefined ? "pull-images" : options.stopBeforeStepId;
   let rollbackReport: RollbackReport | undefined;
 
   try {
     for (const stepItem of plan.steps) {
-      if (stepItem.id === stopBeforeStepId) {
+      if (stopBeforeStepId !== null && stepItem.id === stopBeforeStepId) {
         break;
       }
       journal.recordPlanned(stepItem);
@@ -1175,6 +1185,10 @@ async function executeSupportedInstallStep(
     await runInstallHealthChecks(plan, options);
     return;
   }
+  if (stepItem.id === "create-first-token") {
+    await provisionFirstRunToken(plan, stepItem, options);
+    return;
+  }
   throw new Error(`Install step ${stepItem.id} is not implemented by the prepare execution engine.`);
 }
 
@@ -1242,6 +1256,36 @@ async function startComposeRuntime(plan: InstallPlan, options: InstallExecutionO
 async function runInstallHealthChecks(plan: InstallPlan, options: InstallExecutionOptions): Promise<void> {
   await waitForComposeServices(plan, options);
   await waitForApiReady(plan, options);
+}
+
+async function provisionFirstRunToken(plan: InstallPlan, stepItem: InstallPlanStep, options: InstallExecutionOptions): Promise<void> {
+  const credentials = options.firstRunCredentials ?? generateFirstRunCredentials(plan);
+  const targetPath = path.join(plan.mindoryHome, "config", "initial-token.json");
+  try {
+    writeGeneratedFile(targetPath, renderInitialTokenFile(credentials), 0o600, stepItem, plan.mindoryHome);
+    await runDockerCompose(plan, [
+      "run",
+      "--rm",
+      "--no-deps",
+      "-T",
+      "-e",
+      `MINDORY_INITIAL_PROJECT_ID=${credentials.projectId}`,
+      "-e",
+      `MINDORY_INITIAL_PROJECT_NAME=${credentials.projectName}`,
+      "-e",
+      `MINDORY_INITIAL_TOKEN_ID=${credentials.tokenId}`,
+      "-e",
+      `MINDORY_INITIAL_TOKEN=${credentials.token}`,
+      "-e",
+      `MINDORY_PUBLIC_URL=${credentials.apiUrl}`,
+      "api",
+      "node",
+      "scripts/provision-first-token.js"
+    ], options);
+  } catch (error) {
+    await defaultRollbackExecutor(stepItem.rollback, stepItem, plan, options);
+    throw error;
+  }
 }
 
 async function waitForComposeServices(plan: InstallPlan, options: InstallExecutionOptions): Promise<void> {
@@ -1391,6 +1435,35 @@ function infrastructureServices(plan: InstallPlan): string[] {
     }
   }
   return [...new Set(services)];
+}
+
+function generateFirstRunCredentials(plan: InstallPlan): FirstRunCredentials {
+  const suffix = randomHex(8);
+  return {
+    projectId: "default",
+    projectName: "Mindory Default",
+    tokenId: `tok_install_${suffix}`,
+    token: `mindory_${randomHex(32)}`,
+    apiUrl: `${plan.environment.MINDORY_PUBLIC_URL ?? "http://localhost:3000"}`.replace(/\/$/, "")
+  };
+}
+
+function renderInitialTokenFile(credentials: FirstRunCredentials): string {
+  return `${JSON.stringify({
+    project_id: credentials.projectId,
+    project_name: credentials.projectName,
+    token_id: credentials.tokenId,
+    token: credentials.token,
+    api_url: credentials.apiUrl,
+    created_at: new Date().toISOString(),
+    usage: {
+      authorization_header: `Bearer ${credentials.token}`
+    }
+  }, null, 2)}\n`;
+}
+
+function randomHex(bytes: number): string {
+  return randomBytes(bytes).toString("hex");
 }
 
 function parseComposeJson(output: string): Array<Record<string, unknown>> {

@@ -84,15 +84,16 @@ async function runStartCommand(): Promise<void> {
   try {
     const report = await executeInstallPlan(answers, {
       owner: "mindory-installer-cli",
-      stopBeforeStepId: "create-first-token",
+      stopBeforeStepId: null,
       ...(sourceRoot === undefined ? {} : { sourceRoot }),
       ...(parsedTimeoutMs === undefined ? {} : { timeoutMs: parsedTimeoutMs })
     });
     printJson({
-      status: "started",
+      status: "provisioned",
       mindoryHome: report.plan.mindoryHome,
       summary: report.summary,
       journalPath: report.journalPath,
+      initialTokenPath: `${report.plan.mindoryHome}/config/initial-token.json`,
       executedStepIds: report.executedStepIds,
       pendingStepIds: report.pendingStepIds
     });
@@ -169,9 +170,8 @@ Usage:
 
 The prepare command writes the local MINDORY_HOME directory tree, generated
 config and release Compose assets. The start command additionally runs Docker
-Compose startup and health checks, then stops before first project/token
-provisioning. Provisioning and full resume execution are added by later
-installer tasks.
+Compose startup, health checks and first project/token provisioning. Full resume
+execution is added by a later installer task.
 `);
 }
 

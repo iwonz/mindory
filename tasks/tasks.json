@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-66",
+  "current_task_id": "TASK-67",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -498,6 +498,13 @@
       "status": "done",
       "branch": "task/TASK-66-installer-compose-startup-healthchecks",
       "file": "tasks/TASK-66.json"
+    },
+    {
+      "id": "TASK-67",
+      "title": "Add installer first-run provisioning",
+      "status": "done",
+      "branch": "task/TASK-67-installer-first-run-provisioning",
+      "file": "tasks/TASK-67.json"
     }
   ]
 }
