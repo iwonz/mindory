@@ -38,6 +38,7 @@ for (const symbol of [
   "renderEnvFile",
   "renderMindoryConfigJson",
   "buildRedactedInstallSummary",
+  "executeInstallPlan",
   "buildWizardPromptPlan",
   "runInstallWizard",
   "createReadlineWizardIo",
@@ -135,6 +136,45 @@ assert(summary.environment.MINDORY_S3_SECRET_ACCESS_KEY === "<redacted>", "Summa
 assert(summary.environment.MINDORY_CLI_API_TOKEN === "<redacted>", "Summary must redact CLI token.");
 assert(!JSON.stringify(summary).includes("installer-secret"), "Summary must not contain raw S3 secret.");
 assert(!JSON.stringify(summary).includes("cli-secret"), "Summary must not contain raw CLI token.");
+
+const executionHome = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-installer-exec-"));
+fs.rmSync(executionHome, { recursive: true, force: true });
+const executionAnswers = installer.createDefaultInstallAnswers({ mindoryHome: executionHome });
+const executionReport = await installer.executeInstallPlan(executionAnswers, { sourceRoot: root, owner: "validator" });
+assert(executionReport.executedStepIds.join(",") === "ensure-home,write-config,write-env,write-compose-assets", "Prepare execution must run only local filesystem/config/compose steps.");
+assert(executionReport.pendingStepIds[0] === "pull-images", "Prepare execution must leave Docker startup as pending work.");
+assert(fs.existsSync(path.join(executionHome, "config", "mindory.config.json")), "Prepare execution must write mindory.config.json.");
+assert(fs.existsSync(path.join(executionHome, "config", ".env")), "Prepare execution must write generated .env.");
+assert(fs.existsSync(path.join(executionHome, "install", "compose", "docker-compose.yml")), "Prepare execution must copy docker-compose.yml.");
+assert(fs.existsSync(path.join(executionHome, "install", "compose", "release-manifest.json")), "Prepare execution must copy the release manifest.");
+assert(fs.existsSync(installer.installJournalPath(executionHome)), "Prepare execution must persist the install journal.");
+assert(installer.readInstallJournal(executionHome).some((entry) => entry.event === "completed" && entry.actionId === "write-compose-assets"), "Prepare journal must record completed compose asset writes.");
+assert(installer.readInstallLock(executionHome) === null, "Prepare execution must release the install lock.");
+fs.rmSync(executionHome, { recursive: true, force: true });
+
+const rollbackHome = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-installer-rollback-"));
+fs.rmSync(rollbackHome, { recursive: true, force: true });
+let rollbackThrown = false;
+try {
+  await installer.executeInstallPlan(installer.createDefaultInstallAnswers({ mindoryHome: rollbackHome }), {
+    sourceRoot: root,
+    owner: "validator",
+    beforeStep(step) {
+      if (step.id === "write-env") {
+        throw new Error("forced prepare failure");
+      }
+    }
+  });
+} catch (error) {
+  rollbackThrown = String(error).includes("forced prepare failure");
+}
+assert(rollbackThrown, "Prepare execution must surface step failures.");
+assert(!fs.existsSync(path.join(rollbackHome, "config", "mindory.config.json")), "Prepare rollback must remove generated config files.");
+const rollbackJournal = installer.readInstallJournal(rollbackHome);
+assert(rollbackJournal !== null, "Prepare rollback must leave a journal for repair diagnostics.");
+assert(rollbackJournal.some((entry) => entry.event === "rollback_completed" && entry.actionId === "write-config"), "Prepare rollback must record completed rollback entries.");
+assert(installer.readInstallLock(rollbackHome) === null, "Failed prepare execution must release the install lock.");
+fs.rmSync(rollbackHome, { recursive: true, force: true });
 
 const journal = new installer.InstallTransactionJournal();
 const completedSteps = plan.steps.slice(0, 3);

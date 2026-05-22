@@ -7,9 +7,11 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const live = process.env.MINDORY_INSTALL_ACCEPTANCE_LIVE === "true";
 const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-install-acceptance-"));
+const prepareHome = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-install-prepare-"));
 
 try {
   run("node", ["packages/installer/dist/cli.js", "plan"]);
+  run("node", ["packages/installer/dist/cli.js", "prepare", "--home", prepareHome, "--source", root]);
   run("node", ["packages/installer/dist/cli.js", "repair", "--home", tempHome]);
   run("node", ["packages/installer/dist/cli.js", "resume", "--home", tempHome]);
   run("pnpm", ["installer:matrix:validate"]);
@@ -29,6 +31,9 @@ try {
 } finally {
   if (tempHome.startsWith(os.tmpdir())) {
     fs.rmSync(tempHome, { recursive: true, force: true });
+  }
+  if (prepareHome.startsWith(os.tmpdir())) {
+    fs.rmSync(prepareHome, { recursive: true, force: true });
   }
 }
 

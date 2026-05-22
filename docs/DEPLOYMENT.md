@@ -13,7 +13,8 @@ secrets, rate limits and structured logs are maintained in
 | Local demo Compose | Supported local MVP. `pnpm mvp:demo` starts the stack, seeds demo credentials and runs live acceptance. |
 | Persistent local Compose | Supported for development and self-host testing when `MINDORY_HOME` is set intentionally. |
 | Installer wizard and dry-run | Supported. It can collect answers, render config previews and validate plans. |
-| Installer host-mutating execution | Future work. The installer does not yet perform the full write/start/provision/update/uninstall flow. |
+| Installer prepare execution | Supported. It can create `$MINDORY_HOME`, write config/env files and copy Compose assets. |
+| Installer Compose startup and provisioning | Future work. The installer does not yet start services, run migrations, create the first token, update or uninstall. |
 | Release images and bundles | Manual baseline only. Publishing automation and signed release manifests are future release tasks. |
 | Heavy local models | Experimental. Profiles exist for wiring checks or local experiments, not as a guaranteed default install. |
 
