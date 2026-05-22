@@ -49,6 +49,7 @@ export interface DocumentProcessingVideoConfig extends DocumentProcessingModalit
 
 export interface DoclingServiceConfig {
   enabled: boolean;
+  host: string;
   url: string;
   timeoutMs: number;
   port: number;
@@ -381,6 +382,7 @@ export function loadMindoryConfig(env: EnvSource = process.env): MindoryConfig {
     },
     docling: {
       enabled: readBoolean(env, "MINDORY_DOCLING_ENABLED", catalogBoolean("MINDORY_DOCLING_ENABLED")),
+      host: readString(env, "MINDORY_DOCLING_HOST", catalogString("MINDORY_DOCLING_HOST")),
       url: readString(env, "MINDORY_DOCLING_URL", catalogString("MINDORY_DOCLING_URL")),
       timeoutMs: readNumber(env, "MINDORY_DOCLING_TIMEOUT_MS", catalogNumber("MINDORY_DOCLING_TIMEOUT_MS")),
       port: readNumber(env, "MINDORY_DOCLING_PORT", catalogNumber("MINDORY_DOCLING_PORT"))
@@ -476,6 +478,9 @@ function validateDoclingConfig(config: MindoryConfig): void {
   }
   if (config.docling.port <= 0 || config.docling.port > 65535) {
     throw new Error("MINDORY_DOCLING_PORT must be a valid TCP port.");
+  }
+  if (config.docling.host.trim() === "") {
+    throw new Error("MINDORY_DOCLING_HOST must not be empty.");
   }
   if (!config.docling.enabled) {
     return;

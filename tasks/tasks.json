@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-92",
+  "current_task_id": "TASK-93",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -684,7 +684,7 @@
     {
       "id": "TASK-93",
       "title": "Add Docling PDF extraction acceptance",
-      "status": "draft",
+      "status": "done",
       "branch": "task/TASK-93-docling-pdf-extraction-acceptance",
       "file": "tasks/TASK-93.json"
     },

@@ -144,8 +144,8 @@ keyframe extractor.
 `MINDORY_DOCLING_ENABLED=true` routes PDF extraction through the
 Docling-compatible HTTP service started by the `docling` Compose profile. The
 worker calls `MINDORY_DOCLING_URL` with `MINDORY_DOCLING_TIMEOUT_MS`; the
-service listens on `MINDORY_DOCLING_PORT` and exposes `/health` plus
-`POST /v1/extract`.
+service listens on `MINDORY_DOCLING_HOST` and `MINDORY_DOCLING_PORT`, and
+exposes `/health` plus `POST /v1/extract`.
 
 When Docling is disabled, the worker uses the in-process
 `@mindory/extractor-docling` PDF extractor. Both paths produce the same derived

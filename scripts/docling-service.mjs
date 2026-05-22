@@ -1,11 +1,19 @@
 import { Buffer } from "node:buffer";
 import http from "node:http";
 import { Readable } from "node:stream";
+import { loadMindoryConfig } from "../packages/config/dist/index.js";
 import { DoclingPdfExtractor } from "../packages/processors/extractors/docling/dist/index.js";
+import { buildMindoryLlm, llmRoleState } from "../packages/llm/dist/index.js";
 
 const host = process.env.MINDORY_DOCLING_HOST ?? "0.0.0.0";
 const port = Number.parseInt(process.env.MINDORY_DOCLING_PORT ?? "8081", 10);
-const extractor = new DoclingPdfExtractor();
+const config = loadMindoryConfig(process.env);
+const llm = buildMindoryLlm(config);
+const extractor = new DoclingPdfExtractor({
+  ocr: llmRoleState(llm, "ocr"),
+  ocrRole: llm.registry.require("ocr"),
+  ...(llm.ocr === undefined ? {} : { ocrProvider: llm.ocr })
+});
 
 function log(message, details = {}) {
   const entry = {

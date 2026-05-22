@@ -10,7 +10,10 @@ const requiredFiles = [
   "packages/core/src/recompute.ts",
   "packages/core/src/antivirus.ts",
   "apps/api/src/routes/documents.ts",
-  "packages/processors/antivirus-clamav/src/index.ts"
+  "packages/processors/antivirus-clamav/src/index.ts",
+  "fixtures/docling/native-pdf.json",
+  "fixtures/docling/scanned-pdf.json",
+  "scripts/test-integration.js"
 ];
 
 function assert(condition, message) {
@@ -44,6 +47,9 @@ const app = read("apps/api/src/app.ts");
 const runtime = read("apps/api/src/runtime.ts");
 const routes = read("apps/api/src/routes/documents.ts");
 const clamav = read("packages/processors/antivirus-clamav/src/index.ts");
+const integration = read("scripts/test-integration.js");
+const nativeDoclingFixture = readJson("fixtures/docling/native-pdf.json");
+const scannedDoclingFixture = readJson("fixtures/docling/scanned-pdf.json");
 
 assert(rootPackage.scripts?.["documents:validate"] === "node scripts/validate-document-pipeline.js", "Root package must expose documents:validate.");
 assert(corePackage.exports?.["./documents"], "@mindory/core must export ./documents.");
@@ -108,5 +114,11 @@ assert(clamav.includes("status: \"scan_clean\""), "ClamAV processor must set sca
 assert(clamav.includes("type: \"document.route\""), "ClamAV processor must enqueue routing when job chaining is configured.");
 assert(clamav.includes("status: this.policy.onInfected === \"quarantine\" ? \"quarantined\" : \"scan_infected\""), "ClamAV processor must handle infected status policy.");
 assert(clamav.includes("status: this.policy.onScanFailure === \"allow_with_warning\" ? \"scan_failed\" : \"quarantined\""), "ClamAV processor must handle scan failure policy.");
+
+assert(Array.isArray(nativeDoclingFixture.pages) && nativeDoclingFixture.pages.length === 2, "Native Docling PDF fixture must define two pages.");
+assert(Array.isArray(scannedDoclingFixture.ocr_pages) && scannedDoclingFixture.ocr_pages.length === 1, "Scanned Docling PDF fixture must define OCR output.");
+for (const token of ["startDoclingService", "MINDORY_DOCLING_ENABLED", "MINDORY_DOCLING_URL", "assertDoclingFailureAndRetry", "docling_service.enabled", "ocr_text", "retry path recovers"]) {
+  assert(integration.includes(token), `Integration acceptance must include ${token}.`);
+}
 
 console.log("Document upload and scan pipeline validated.");

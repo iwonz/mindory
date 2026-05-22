@@ -374,6 +374,7 @@ export const CONFIG_CATALOG = [
       help: "Starts the Docling-compatible Compose profile and makes workers call it for PDF extraction."
     }
   }),
+  entry("MINDORY_DOCLING_HOST", "docling", "string", "0.0.0.0", "Docling service listen host.", "runtime", "supported"),
   entry("MINDORY_DOCLING_URL", "docling", "string", "http://docling:8081", "Docling-compatible extraction service base URL.", "both", "supported"),
   entry("MINDORY_DOCLING_TIMEOUT_MS", "docling", "number", "120000", "Docling extraction request timeout in milliseconds.", "both", "supported"),
   entry("MINDORY_DOCLING_PORT", "docling", "number", "8081", "Docling service container and host HTTP port.", "both", "supported"),

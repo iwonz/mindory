@@ -183,7 +183,10 @@ When `MINDORY_DOCLING_ENABLED=true`, the worker sends PDF bytes to the
 Docling-compatible service at `MINDORY_DOCLING_URL` instead of running the PDF
 extractor in-process. The service exposes `GET /health` and `POST /v1/extract`,
 returns normalized page text, and the worker stores the same derived artifacts,
-spans and source refs as the local path.
+spans and source refs as the local path. The service builds its own
+`@mindory/llm` OCR adapter from the same environment, so scanned PDFs still use
+the configured OCR role while the worker only depends on the Docling HTTP
+surface.
 
 ## Image Processing
 

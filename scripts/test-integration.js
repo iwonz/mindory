@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import http from "node:http";
 import net from "node:net";
 import os from "node:os";
@@ -25,6 +25,8 @@ const redisUrl = process.env.MINDORY_TEST_REDIS_URL ?? `redis://127.0.0.1:${redi
 const qdrantUrl = process.env.MINDORY_TEST_QDRANT_URL ?? `http://127.0.0.1:${qdrantPort}`;
 const storagePath = path.join(os.tmpdir(), `mindory-integration-${testRunId}`);
 const queuePrefix = `mindory:test:${testRunId}`;
+const nativePdfFixture = JSON.parse(await readFile(path.join(root, "fixtures/docling/native-pdf.json"), "utf8"));
+const scannedPdfFixture = JSON.parse(await readFile(path.join(root, "fixtures/docling/scanned-pdf.json"), "utf8"));
 const testEnv = {
   ...process.env,
   MINDORY_LOG_LEVEL: "error",
@@ -108,11 +110,7 @@ test("API request guard rate-limits non-health requests", async () => {
 
 test("MVP runtime integration covers auth, upload, worker jobs and context", { timeout: 120_000 }, async () => {
   const fakeOcr = await startLocalHttpOcrServer({
-    pages: [{
-      pageNumber: 1,
-      text: "Scanned PDF OCR provider text keeps page source refs searchable.",
-      confidence: 0.98
-    }],
+    pages: scannedPdfFixture.ocr_pages,
     imageText: "Image OCR provider text detects passport at airport.",
     visionCaption: "Vision provider caption sees passport in hand at airport with nature.",
     labels: ["passport", "airport", "nature", "people"],
@@ -126,8 +124,16 @@ test("MVP runtime integration covers auth, upload, worker jobs and context", { t
     }]
   });
   const fakeKeyframeCommand = await writeFakeKeyframeExtractorScript(storagePath);
+  let doclingService = await startDoclingService({
+    MINDORY_LLM_OCR_ENABLED: "true",
+    MINDORY_LLM_OCR_PROVIDER: "local-http",
+    MINDORY_LLM_OCR_MODEL: "mindory-test-ocr",
+    MINDORY_LLM_LOCAL_HTTP_BASE_URL: fakeOcr.baseUrl
+  });
   const config = modules.loadMindoryConfig({
     ...testEnv,
+    MINDORY_DOCLING_ENABLED: "true",
+    MINDORY_DOCLING_URL: doclingService.baseUrl,
     MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_PROVIDER: "local-command",
     MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_COMMAND: process.execPath,
     MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_ARGS: JSON.stringify([fakeKeyframeCommand, "{input}", "{maxKeyframes}"]),
@@ -178,6 +184,12 @@ test("MVP runtime integration covers auth, upload, worker jobs and context", { t
     const { documentId, routeJobId } = await uploadAndProcessDocument(apiUrl);
     await uploadAndProcessPdfDocument(apiUrl);
     await uploadAndProcessScannedPdfDocument(apiUrl);
+    doclingService = await assertDoclingFailureAndRetry(apiUrl, doclingService, {
+      MINDORY_LLM_OCR_ENABLED: "true",
+      MINDORY_LLM_OCR_PROVIDER: "local-http",
+      MINDORY_LLM_OCR_MODEL: "mindory-test-ocr",
+      MINDORY_LLM_LOCAL_HTTP_BASE_URL: fakeOcr.baseUrl
+    });
     const imageDocument = await uploadAndProcessImageDocument(apiUrl);
     await assertFaceSubsystem(apiUrl, imageDocument.documentId);
     const audioDocument = await uploadAndProcessAudioDocument(apiUrl);
@@ -205,6 +217,7 @@ test("MVP runtime integration covers auth, upload, worker jobs and context", { t
     if (managementDatabase) {
       await managementDatabase.close();
     }
+    await doclingService?.close();
     await fakeOcr.close();
     await cleanupProject(projectId);
     await rm(storagePath, { recursive: true, force: true });
@@ -666,14 +679,11 @@ async function uploadAndProcessDocument(apiUrl) {
 }
 
 async function uploadAndProcessPdfDocument(apiUrl) {
-  const pdf = buildMinimalPdf([
-    "Native PDF extraction page one source-backed evidence.",
-    "Second PDF page keeps OCR pipeline page refs searchable."
-  ]);
+  const pdf = buildMinimalPdf(nativePdfFixture.pages);
   const form = new FormData();
   form.append("projectId", projectId);
   form.append("title", "Integration PDF document");
-  form.append("file", new Blob([pdf], { type: "application/pdf" }), "integration.pdf");
+  form.append("file", new Blob([pdf], { type: nativePdfFixture.mime_type }), nativePdfFixture.filename);
 
   const uploadResponse = await fetch(`${apiUrl}/v1/documents`, {
     method: "POST",
@@ -701,11 +711,13 @@ async function uploadAndProcessPdfDocument(apiUrl) {
   const document = await requestJson(apiUrl, "GET", `/v1/documents/${encodeURIComponent(documentId)}?projectId=${encodeURIComponent(projectId)}`);
   assert.equal(document.metadata.routing.classification.kind, "pdf");
   assert.equal(document.metadata.extraction.processing_stage, "pdf");
+  assert.equal(document.metadata.extraction.docling_service.enabled, true);
+  assert.equal(document.metadata.extraction.docling_service.status, "succeeded");
   assert.equal(document.metadata.extraction.page_count, 2);
 
   const search = await requestJson(apiUrl, "POST", "/v1/documents/search", {
     projectIds: [projectId],
-    query: "OCR pipeline page refs",
+    query: "Docling service native PDF page two",
     limit: 5,
     metadataFilters: [{ key: "extension", valueText: "pdf" }]
   });
@@ -722,11 +734,11 @@ async function uploadAndProcessPdfDocument(apiUrl) {
 }
 
 async function uploadAndProcessScannedPdfDocument(apiUrl) {
-  const pdf = buildMinimalPdf([""]);
+  const pdf = buildMinimalPdf(scannedPdfFixture.pages);
   const form = new FormData();
   form.append("projectId", projectId);
   form.append("title", "Integration scanned PDF document");
-  form.append("file", new Blob([pdf], { type: "application/pdf" }), "integration-scanned.pdf");
+  form.append("file", new Blob([pdf], { type: scannedPdfFixture.mime_type }), scannedPdfFixture.filename);
 
   const uploadResponse = await fetch(`${apiUrl}/v1/documents`, {
     method: "POST",
@@ -748,12 +760,14 @@ async function uploadAndProcessScannedPdfDocument(apiUrl) {
   }, "scanned PDF document to reach chunked status");
 
   const document = await requestJson(apiUrl, "GET", `/v1/documents/${encodeURIComponent(documentId)}?projectId=${encodeURIComponent(projectId)}`);
+  assert.equal(document.metadata.extraction.docling_service.enabled, true);
+  assert.equal(document.metadata.extraction.docling_service.status, "succeeded");
   assert.equal(document.metadata.extraction.ocr.status, "succeeded");
   assert.equal(document.metadata.extraction.ocr.pages_extracted, 1);
 
   const search = await requestJson(apiUrl, "POST", "/v1/documents/search", {
     projectIds: [projectId],
-    query: "Scanned PDF OCR provider text",
+    query: "Docling service OCR text",
     limit: 5,
     metadataFilters: [{ key: "extension", valueText: "pdf" }]
   });
@@ -766,6 +780,60 @@ async function uploadAndProcessScannedPdfDocument(apiUrl) {
   assert.equal(pageArtifacts, 1, "Scanned PDF OCR should persist one pdf_page artifact.");
   const ocrSpans = await countDocumentTextSpans(projectId, documentId, "ocr_text", databaseUrl);
   assert.equal(ocrSpans, 1, "Scanned PDF OCR should persist page-level OCR text spans.");
+}
+
+async function assertDoclingFailureAndRetry(apiUrl, doclingService, envOverrides) {
+  const restartPort = doclingService.port;
+  await doclingService.close();
+
+  const pdf = buildMinimalPdf(["Docling service retry path recovers after endpoint restart."]);
+  const form = new FormData();
+  form.append("projectId", projectId);
+  form.append("title", "Integration Docling retry PDF");
+  form.append("file", new Blob([pdf], { type: "application/pdf" }), "docling-retry.pdf");
+
+  const uploadResponse = await fetch(`${apiUrl}/v1/documents`, {
+    method: "POST",
+    headers: {
+      accept: "application/json",
+      authorization: `Bearer ${bootstrapToken}`
+    },
+    body: form
+  });
+  if (uploadResponse.status !== 202) {
+    throw new Error(`Docling retry PDF upload failed ${uploadResponse.status}: ${await uploadResponse.text()}`);
+  }
+  const upload = await uploadResponse.json();
+  const documentId = upload.document.id;
+  const failedJob = await waitForDocumentJobStatus(apiUrl, documentId, "document.extract", "failed", 90);
+  assert.match(failedJob.last_error, /Docling service request failed|fetch failed|ECONNREFUSED/i);
+  assert.equal(failedJob.details.status, "failed");
+  assert.equal(failedJob.details.error.retryable, true);
+
+  const restarted = await startDoclingService(envOverrides, restartPort);
+  const retry = await requestJson(apiUrl, "POST", `/v1/jobs/${encodeURIComponent(failedJob.id)}/retry`, {
+    projectId
+  });
+  assert.equal(retry.retry.processing_job_id, failedJob.id);
+
+  await waitFor(async () => {
+    const status = await requestJson(apiUrl, "GET", `/v1/documents/${encodeURIComponent(documentId)}/status?projectId=${encodeURIComponent(projectId)}`);
+    return status.status === "chunked";
+  }, "Docling failed extraction retry to reach chunked status", 90);
+  const retriedJob = await waitForJobStatus(apiUrl, failedJob.id, "succeeded");
+  assert.ok(retriedJob.attempts >= 2, "retried Docling extract job should record another attempt.");
+
+  const search = await requestJson(apiUrl, "POST", "/v1/documents/search", {
+    projectIds: [projectId],
+    query: "retry path recovers",
+    limit: 5,
+    metadataFilters: [{ key: "extension", valueText: "pdf" }]
+  });
+  const retryHit = search.hits.find((hit) => hit.documentId === documentId);
+  assert.ok(retryHit, "retried Docling PDF should become searchable.");
+  assert.ok(retryHit.sourceRefs.some((ref) => ref.type === "artifact"), "retried Docling PDF search should include artifact source refs.");
+
+  return restarted;
 }
 
 async function uploadAndProcessImageDocument(apiUrl) {
@@ -1296,6 +1364,16 @@ async function waitForJobStatus(apiUrl, jobId, status) {
   return latest;
 }
 
+async function waitForDocumentJobStatus(apiUrl, documentId, type, status, attempts = 60) {
+  let latest = null;
+  await waitFor(async () => {
+    const listed = await requestJson(apiUrl, "GET", `/v1/jobs?projectId=${encodeURIComponent(projectId)}&type=${encodeURIComponent(type)}&limit=50`);
+    latest = listed.jobs.find((job) => job.target_id === documentId);
+    return latest?.status === status;
+  }, `${type} job for ${documentId} to reach ${status}`, attempts);
+  return latest;
+}
+
 async function waitFor(check, label, attempts = 60) {
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     if (await check()) {
@@ -1603,6 +1681,84 @@ function startLocalHttpOcrServer(options) {
             closeResolve();
           });
         })
+      });
+    });
+  });
+}
+
+async function startDoclingService(envOverrides, portOverride = null) {
+  const port = portOverride ?? await getFreePort();
+  const child = spawn(process.execPath, ["scripts/docling-service.mjs"], {
+    cwd: root,
+    env: {
+      ...testEnv,
+      ...envOverrides,
+      MINDORY_DOCLING_HOST: "127.0.0.1",
+      MINDORY_DOCLING_PORT: String(port)
+    },
+    stdio: ["ignore", "pipe", "pipe"]
+  });
+  const logs = [];
+  child.stdout.on("data", (chunk) => logs.push(chunk.toString("utf8")));
+  child.stderr.on("data", (chunk) => logs.push(chunk.toString("utf8")));
+  await waitForDoclingHealth(`http://127.0.0.1:${port}/health`, child, logs);
+  let closed = false;
+  return {
+    baseUrl: `http://127.0.0.1:${port}`,
+    port,
+    close: () => new Promise((resolve, reject) => {
+      if (closed) {
+        resolve();
+        return;
+      }
+      closed = true;
+      if (child.exitCode !== null) {
+        resolve();
+        return;
+      }
+      child.once("exit", () => resolve());
+      child.once("error", reject);
+      child.kill("SIGTERM");
+      setTimeout(() => {
+        if (child.exitCode === null) {
+          child.kill("SIGKILL");
+        }
+      }, 2_000).unref();
+    })
+  };
+}
+
+async function waitForDoclingHealth(url, child, logs) {
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    if (child.exitCode !== null) {
+      throw new Error(`Docling service exited before becoming healthy: ${logs.join("").trim()}`);
+    }
+    try {
+      const response = await fetch(url);
+      if (response.ok) {
+        return;
+      }
+    } catch {
+      // Retry until the child process binds the HTTP port.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw new Error(`Docling service did not become healthy: ${logs.join("").trim()}`);
+}
+
+function getFreePort() {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        assert.ok(address && typeof address !== "string", "free port probe must return a TCP address.");
+        resolve(address.port);
       });
     });
   });

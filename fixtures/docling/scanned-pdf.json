@@ -1,0 +1,14 @@
+{
+  "filename": "docling-scanned.pdf",
+  "mime_type": "application/pdf",
+  "pages": [
+    ""
+  ],
+  "ocr_pages": [
+    {
+      "pageNumber": 1,
+      "text": "Docling service OCR text proves scanned PDFs create source-backed spans.",
+      "confidence": 0.98
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 {
   "id": "TASK-93",
   "title": "Add Docling PDF extraction acceptance",
-  "status": "draft",
+  "status": "done",
   "type": "feature",
   "priority": "high",
   "branch": "task/TASK-93-docling-pdf-extraction-acceptance",

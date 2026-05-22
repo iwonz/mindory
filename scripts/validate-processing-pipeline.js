@@ -173,7 +173,7 @@ assert(doclingTsconfig.references?.some((reference) => reference.path === "../..
 for (const token of ["DoclingPdfExtractor", "extractPdfPageText", "\"application/pdf\"", "\".pdf\"", "native_text_pages", "ocr", "ocrProvider", "recognizeText", "ocr_text_pages", "service", "/v1/extract", "AbortController", "docling_service"]) {
   assert(docling.includes(token), `Docling PDF extractor must include ${token}.`);
 }
-for (const token of ["DoclingPdfExtractor", "/health", "/v1/extract", "Readable.from", "data_base64", "docling_service_runtime"]) {
+for (const token of ["DoclingPdfExtractor", "loadMindoryConfig", "buildMindoryLlm", "llmRoleState", "/health", "/v1/extract", "Readable.from", "data_base64", "docling_service_runtime"]) {
   assert(doclingService.includes(token), `Docling service must include ${token}.`);
 }
 
