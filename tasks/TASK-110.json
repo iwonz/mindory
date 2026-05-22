@@ -1,7 +1,7 @@
 {
   "id": "TASK-110",
   "title": "Add installer resume and repair",
-  "status": "draft",
+  "status": "done",
   "type": "feature",
   "priority": "high",
   "branch": "task/TASK-110-installer-resume-repair",

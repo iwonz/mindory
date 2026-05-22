@@ -12,19 +12,18 @@ import {
   downloadEncryptedMindoryBackupArchive,
   executeInstallPlan,
   formatInstallerDiagnostic,
-  installJournalPath,
-  installLockPath,
-  inspectInstallState,
   exportExternalS3ObjectInventory,
   readScheduledBackupHealth,
   readInstallJournal,
   readInstallLock,
+  repairInstallState,
   renderEnvFile,
   renderMindoryConfigJson,
   restoreEncryptedMindoryBackupArchive,
   restoreExternalS3StreamingBackupArchive,
   restoreMindoryPostgresPitrBackup,
   restoreMindoryRuntimeBackup,
+  resumeInstallFromJournal,
   runScheduledMindoryBackup,
   runInstallWizard,
   uninstallMindoryHome,
@@ -52,9 +51,9 @@ try {
       env: renderEnvFile(answers)
     });
   } else if (command === "resume") {
-    runResumeCommand();
+    await runResumeCommand();
   } else if (command === "repair") {
-    runRepairCommand();
+    await runRepairCommand();
   } else if (command === "update") {
     await runUpdateCommand();
   } else if (command === "backup") {
@@ -545,33 +544,38 @@ async function runWizardCommand(): Promise<void> {
   }
 }
 
-function runResumeCommand(): void {
+async function runResumeCommand(): Promise<void> {
   const home = optionValue("--home") ?? createDefaultInstallAnswers().mindoryHome;
-  const journal = readInstallJournal(home);
-  const inspection = inspectInstallState(home);
-  printJson({
-    status: journal === null ? "no_journal" : "journal_found",
-    message: inspection.recommendedAction,
-    journalPath: installJournalPath(home),
-    entries: journal ?? [],
-    inspection
-  });
+  try {
+    const report = await resumeInstallFromJournal(home, {
+      owner: "mindory-installer-cli",
+      clearStaleLock: args.includes("--yes") || args.includes("--clear-stale-lock"),
+      continueCompleted: args.includes("--continue-completed")
+    });
+    printJson(report);
+  } catch (error) {
+    printJson({ diagnostic: formatInstallerDiagnostic(error) });
+    process.exitCode = 1;
+  }
 }
 
-function runRepairCommand(): void {
+async function runRepairCommand(): Promise<void> {
   const home = optionValue("--home") ?? createDefaultInstallAnswers().mindoryHome;
-  const lock = readInstallLock(home);
-  const journal = readInstallJournal(home);
-  const inspection = inspectInstallState(home);
-  printJson({
-    status: "repair_inspection",
-    message: inspection.recommendedAction,
-    lockPath: installLockPath(home),
-    lock,
-    journalPath: installJournalPath(home),
-    journalEntries: journal?.length ?? 0,
-    inspection
-  });
+  try {
+    const report = await repairInstallState(home, {
+      owner: "mindory-installer-cli",
+      clearStaleLock: args.includes("--yes") || args.includes("--clear-stale-lock"),
+      continueRollback: args.includes("--yes") || args.includes("--continue-rollback")
+    });
+    printJson({
+      ...report,
+      lock: readInstallLock(home),
+      journalEntries: readInstallJournal(home)?.length ?? 0
+    });
+  } catch (error) {
+    printJson({ diagnostic: formatInstallerDiagnostic(error) });
+    process.exitCode = 1;
+  }
 }
 
 function printJson(value: unknown): void {
@@ -587,8 +591,8 @@ Usage:
   mindory-installer prepare [--home <path>] [--source <path>]
   mindory-installer start [--home <path>] [--source <path>] [--timeout-ms <n>]
   mindory-installer render-defaults
-  mindory-installer resume [--home <path>]
-  mindory-installer repair [--home <path>]
+  mindory-installer resume [--home <path>] [--yes] [--continue-completed]
+  mindory-installer repair [--home <path>] [--yes] [--continue-rollback]
   mindory-installer update [--home <path>] [--source <path>] [--dry-run]
   mindory-installer update [--home <path>] --manifest-url <url> --public-key-path <public.pem> [--dry-run]
   mindory-installer update [--home <path>] --manifest-path <file> [--public-key-path <public.pem>] [--dry-run]
@@ -608,8 +612,9 @@ Usage:
 
 The prepare command writes the local MINDORY_HOME directory tree, generated
 config and release Compose assets. The start command additionally runs Docker
-Compose startup, health checks and first project/token provisioning. Full resume
-execution is added by a later installer task.
+Compose startup, health checks and first project/token provisioning. Resume and
+repair continue recoverable interrupted runs from the installer journal inside
+MINDORY_HOME.
 `);
 }
 

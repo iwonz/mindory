@@ -28,10 +28,10 @@ artifacts.
 | External S3 object streaming backups | Supported. `s3-inventory`, `s3-backup` and `s3-restore` list external object storage, create encrypted streaming archives and restore object keys/metadata without local object files. |
 | Uninstall | Supported with explicit `--yes`; optional backup is written next to the removed home. |
 | Dependency detection | Supported through injectable probes and diagnostics. |
-| Lock, journal and recovery diagnostics | Supported. `repair` and `resume` inspect current state. |
+| Lock, journal and recovery diagnostics | Supported. `repair` and `resume` inspect current state and act on recoverable interrupted runs. |
 | Release bundle generation | Supported baseline through `pnpm release:bundle`. |
 | Bootstrap staging, signature and checksum verification | Supported for source/release-style bundles, including local file paths and `file://` URLs. Manifest signatures are verified before bundle checksums are trusted. |
-| Real resume execution | Future work. Current resume output is diagnostic and tells the user what to rerun. |
+| Resume and repair execution | Supported. `resume` continues from a recoverable journal/run-state boundary; `repair` can clear confirmed stale locks and continue interrupted rollback. |
 
 ## Core Package
 
@@ -62,8 +62,9 @@ The wizard is also testable without a terminal through injectable IO. A Node
 readline adapter is available for real interactive use, but the wizard only
 returns validated answers after showing a redacted confirmation summary.
 
-Shell and PowerShell bootstrap scripts belong to the bootstrap task. Signal
-handling, repair and resume logic belong to the recovery task.
+Shell and PowerShell bootstrap scripts launch the same installer package used by
+the CLI. Signal handling stops the bootstrap cleanly, while installer recovery
+is handled through the journal-backed `resume` and `repair` commands.
 
 ## Bootstrap
 
@@ -230,8 +231,13 @@ mindory-installer restore --home ~/.mindory --backup ~/.mindory/backups/<backup-
 mindory-installer uninstall --home ~/.mindory --yes --backup
 ```
 
-`repair` inspects lock and journal state. `resume` reports the stored journal
-and recommends the next manual action. Full automated resume is future work.
+`repair` inspects lock, journal and run-state files. With `--yes` or
+`--clear-stale-lock`, it removes a confirmed stale installer lock. With
+`--continue-rollback` or `--yes`, it continues rollback entries that were
+interrupted after a failure. `resume` continues a recoverable run from the
+last planned step or, when explicitly requested with `--continue-completed`,
+from the next step after the last completed action. Both commands operate only
+inside `$MINDORY_HOME`.
 
 ## Dev/Test Matrix
 
@@ -338,8 +344,7 @@ rollback are recorded as skipped so the diagnosis can tell the user what may
 require manual cleanup. Prepare execution uses this model for filesystem,
 config and Compose asset writes. Startup execution adds `compose_down` rollback
 for started services. First-token provisioning writes a local credential file
-with rollback for that file; database token rollback remains a future lifecycle
-operation. Local and remote update create a pre-update backup under
+with rollback for that file. Local and remote update create a pre-update backup under
 `$MINDORY_HOME/backups` and restore config/assets from that backup if asset
 refresh, migration, startup or healthcheck fails. Remote update also restores
 the previously staged release directory when promotion happened before the

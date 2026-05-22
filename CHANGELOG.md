@@ -20,6 +20,8 @@ documentation.
 
 ### Added
 
+- `TASK-110`: installer resume and repair execution backed by journal/run-state
+  recovery, stale-lock cleanup and interrupted rollback continuation.
 - `TASK-109`: signed remote installer update with release download/staging,
   manifest and checksum verification, pre-update backups, migration/startup
   health checks and rollback.
