@@ -13,6 +13,7 @@ import { registerJobRoutes, type JobRouteDependencies } from "./routes/jobs.js";
 import { registerMemoryRoutes, type MemoryRouteDependencies } from "./routes/memories.js";
 import { registerPeerRoutes, type PeerRouteDependencies } from "./routes/peers.js";
 import { registerProjectRoutes, type ProjectRouteDependencies } from "./routes/projects.js";
+import { registerSearchRoutes, type SearchRouteDependencies } from "./routes/search.js";
 import { registerSessionRoutes, type SessionRouteDependencies } from "./routes/sessions.js";
 import { registerTokenRoutes, type TokenRouteDependencies } from "./routes/tokens.js";
 
@@ -29,6 +30,7 @@ export interface BuildApiAppOptions {
   faces?: FaceRouteDependencies;
   jobs?: JobRouteDependencies;
   memories?: MemoryRouteDependencies;
+  search?: SearchRouteDependencies;
   context?: ContextRouteDependencies;
   close?: () => Promise<void>;
 }
@@ -71,6 +73,7 @@ export async function buildApiApp(options: BuildApiAppOptions = {}): Promise<Fas
   await registerFaceRoutes(app, options.faces);
   await registerJobRoutes(app, options.jobs);
   await registerMemoryRoutes(app, options.memories);
+  await registerSearchRoutes(app, options.search);
   await registerContextRoutes(app, options.context);
   if (options.close) {
     app.addHook("onClose", async () => {

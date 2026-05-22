@@ -19,6 +19,7 @@ export type MindoryMcpToolName =
   | "document_read"
   | "document_list"
   | "artifact_search"
+  | "unified_search"
   | "face_identity_list"
   | "face_identity_get"
   | "face_observation_list"
@@ -173,7 +174,7 @@ export const mindoryMcpToolDefinitions: McpToolDefinition[] = [
     }
   }),
   tool("artifact_search", "Search derived artifact text spans through the HTTP API.", {
-    required: ["projectIds", "query", "limit"],
+    required: ["projectIds", "limit"],
     properties: {
       projectIds: arraySchema(stringSchema()),
       query: stringSchema(),
@@ -182,6 +183,10 @@ export const mindoryMcpToolDefinitions: McpToolDefinition[] = [
       metadataFilters: arraySchema(objectSchema()),
       limit: integerSchema()
     }
+  }),
+  tool("unified_search", "Search document chunks, derived artifact spans and face observations through the HTTP API.", {
+    required: ["projectIds", "limit"],
+    properties: unifiedSearchProperties()
   }),
   tool("face_identity_list", "List workspace-scoped face identities through the HTTP API.", {
     required: ["projectId"],
@@ -334,6 +339,8 @@ export async function callMindoryTool(
       })}`);
     case "artifact_search":
       return api.postJson("/v1/artifacts/search", args);
+    case "unified_search":
+      return api.postJson("/v1/search", args);
     case "face_identity_list":
       return api.getJson(`/v1/faces/identities?${queryString({
         projectId: requiredString(args, "projectId"),
@@ -437,13 +444,38 @@ function memorySearchProperties(): Record<string, unknown> {
   };
 }
 
+function unifiedSearchProperties(): Record<string, unknown> {
+  return {
+    projectIds: arraySchema(stringSchema()),
+    query: stringSchema(),
+    targets: arraySchema(enumSchema(["documents", "artifacts", "faces"])),
+    artifactTypes: arraySchema(enumSchema([
+      "raw_metadata",
+      "text",
+      "ocr_text",
+      "transcript",
+      "image_caption",
+      "image_analysis",
+      "image_embedding",
+      "pdf_page",
+      "video_keyframe",
+      "face_observation",
+      "metadata"
+    ])),
+    spanTypes: arraySchema(stringSchema()),
+    faceIdentityStatuses: arraySchema(enumSchema(["candidate", "confirmed", "archived"])),
+    metadataFilters: arraySchema(objectSchema()),
+    limit: integerSchema()
+  };
+}
+
 function sourceRefSchema(): Record<string, unknown> {
   return {
     type: "object",
     required: ["type", "id"],
     additionalProperties: false,
     properties: {
-      type: enumSchema(["session", "message", "document", "chunk", "memory"]),
+      type: enumSchema(["session", "message", "document", "chunk", "artifact", "processing_run", "face_identity", "face_observation", "memory"]),
       id: stringSchema()
     }
   };

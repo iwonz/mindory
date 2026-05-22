@@ -45,6 +45,7 @@ try {
     "document_search",
     "document_reprocess",
     "artifact_search",
+    "unified_search",
     "face_identity_list",
     "memory_remember",
     "memory_recall",
@@ -83,6 +84,19 @@ try {
   }), "MCP tools/call artifact_search", 10_000);
   assert.equal(artifactSearch.isError, undefined, `artifact_search should succeed. stderr: ${stderr}`);
   assert.equal(fakeApi.requests.at(-1)?.pathname, "/v1/artifacts/search");
+
+  const unifiedSearch = await withTimeout(client.callTool({
+    name: "unified_search",
+    arguments: {
+      projectIds: ["mcp-smoke"],
+      query: "passport airport",
+      targets: ["documents", "artifacts", "faces"],
+      metadataFilters: [{ key: "extension", valueText: "png" }],
+      limit: 3
+    }
+  }), "MCP tools/call unified_search", 10_000);
+  assert.equal(unifiedSearch.isError, undefined, `unified_search should succeed. stderr: ${stderr}`);
+  assert.equal(fakeApi.requests.at(-1)?.pathname, "/v1/search");
 
   console.log("MCP stdio spawn smoke scenario passed.");
 } finally {
@@ -123,6 +137,22 @@ function startFakeMindoryApi() {
       response.end(JSON.stringify({
         hits: [
           {
+            artifact_id: "artifact_mcp_smoke",
+            artifact_type: "ocr_text",
+            content: "passport at airport",
+            source_refs: [{ type: "document", id: "doc_mcp_smoke" }]
+          }
+        ]
+      }));
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/v1/search") {
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({
+        hits: [
+          {
+            kind: "artifact_span",
             artifact_id: "artifact_mcp_smoke",
             artifact_type: "ocr_text",
             content: "passport at airport",

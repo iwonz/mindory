@@ -1,17 +1,14 @@
 import type { FastifyInstance } from "fastify";
-import type {
-  ArtifactSearchHit,
-  DerivedArtifactRepository,
-  SearchArtifactsInput
-} from "@mindory/core/artifacts";
+import type { UnifiedSearchHit, UnifiedSearchInput, UnifiedSearchService } from "@mindory/core/search";
+import { SearchError } from "@mindory/core/search";
 import { requireProjectPermissionForEach } from "../auth.js";
-import { notImplemented } from "../errors.js";
+import { ApiError, notImplemented } from "../errors.js";
 
-export interface ArtifactRouteDependencies {
-  artifactRepository?: DerivedArtifactRepository;
+export interface SearchRouteDependencies {
+  unifiedSearchService?: UnifiedSearchService;
 }
 
-type SearchArtifactsBody = SearchArtifactsInput;
+type SearchBody = UnifiedSearchInput;
 
 const metadataFilterSchema = {
   type: "object",
@@ -30,8 +27,8 @@ const metadataFilterSchema = {
   }
 } as const;
 
-export async function registerArtifactRoutes(app: FastifyInstance, dependencies: ArtifactRouteDependencies = {}): Promise<void> {
-  app.post<{ Body: SearchArtifactsBody }>("/v1/artifacts/search", {
+export async function registerSearchRoutes(app: FastifyInstance, dependencies: SearchRouteDependencies = {}): Promise<void> {
+  app.post<{ Body: SearchBody }>("/v1/search", {
     schema: {
       body: {
         type: "object",
@@ -44,6 +41,10 @@ export async function registerArtifactRoutes(app: FastifyInstance, dependencies:
             items: { type: "string", minLength: 1 }
           },
           query: { type: "string", minLength: 1 },
+          targets: {
+            type: "array",
+            items: { type: "string", enum: ["documents", "artifacts", "faces"] }
+          },
           artifactTypes: {
             type: "array",
             items: {
@@ -67,6 +68,10 @@ export async function registerArtifactRoutes(app: FastifyInstance, dependencies:
             type: "array",
             items: { type: "string", minLength: 1 }
           },
+          faceIdentityStatuses: {
+            type: "array",
+            items: { type: "string", enum: ["candidate", "confirmed", "archived"] }
+          },
           metadataFilters: {
             type: "array",
             items: metadataFilterSchema
@@ -76,25 +81,37 @@ export async function registerArtifactRoutes(app: FastifyInstance, dependencies:
       }
     }
   }, async (request) => {
-    if (!dependencies.artifactRepository) {
-      throw notImplemented("Artifact search requires a DerivedArtifactRepository runtime dependency.");
+    if (!dependencies.unifiedSearchService) {
+      throw notImplemented("Unified search requires runtime search dependencies.");
     }
     requireProjectPermissionForEach(request, request.body.projectIds, "document:search");
-    const hits = await dependencies.artifactRepository.searchArtifacts(request.body);
-    return {
-      hits: hits.map(toArtifactSearchHitResponse)
-    };
+
+    try {
+      const hits = await dependencies.unifiedSearchService.search(request.body);
+      return {
+        hits: hits.map(toUnifiedSearchHitResponse)
+      };
+    } catch (error) {
+      if (error instanceof SearchError) {
+        throw new ApiError(400, error.code, error.message);
+      }
+      throw error;
+    }
   });
 }
 
-function toArtifactSearchHitResponse(hit: ArtifactSearchHit): Record<string, unknown> {
+function toUnifiedSearchHitResponse(hit: UnifiedSearchHit): Record<string, unknown> {
   return {
+    kind: hit.kind,
     project_id: hit.projectId,
     document_id: hit.documentId,
-    artifact_id: hit.artifactId,
-    artifact_type: hit.artifactType,
-    span_id: hit.spanId,
-    span_type: hit.spanType,
+    chunk_id: hit.chunkId ?? null,
+    artifact_id: hit.artifactId ?? null,
+    artifact_type: hit.artifactType ?? null,
+    span_id: hit.spanId ?? null,
+    span_type: hit.spanType ?? null,
+    face_observation_id: hit.faceObservationId ?? null,
+    face_identity_id: hit.faceIdentityId ?? null,
     content: hit.content,
     score: hit.score,
     source_refs: hit.sourceRefs,

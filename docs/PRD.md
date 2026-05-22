@@ -1458,6 +1458,8 @@ GET  /v1/documents/:id
 GET  /v1/documents/:id/status
 GET  /v1/documents/:id/chunks
 POST /v1/documents/search
+POST /v1/artifacts/search
+POST /v1/search
 ```
 
 ### Memories
@@ -1516,6 +1518,8 @@ memory_list
 document_upload
 document_status
 document_search
+artifact_search
+unified_search
 document_read
 document_list
 ```
@@ -1544,6 +1548,8 @@ mindory message add --session sess_123 --peer ivan --text "..."
 mindory document upload ./plan.pdf --project homelab
 mindory document status doc_123
 mindory document search --project homelab "OCR pipeline"
+mindory artifact search --project homelab "passport airport" --artifact-type ocr_text,image_caption
+mindory search query --project homelab "passport airport" --target documents,artifacts,faces
 mindory memory remember --project homelab "For MVP we keep Project as the only namespace."
 mindory memory recall --project homelab "what did we decide about buckets?"
 mindory memory explain mem_123

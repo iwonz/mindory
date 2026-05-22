@@ -40,6 +40,7 @@ mindory document read <id> --project <id>
 mindory document list --project <id> [--status <status>] [--limit 20]
 
 mindory artifact search --project <id> <query> [--artifact-type <csv>] [--span-type <csv>] [--metadata-filter <json>]
+mindory search query --project <id> [query] [--target documents,artifacts,faces] [--artifact-type <csv>] [--span-type <csv>] [--metadata-filter <json>] [--face-status <csv>]
 
 mindory face identities --project <id> [--status candidate] [--limit 20]
 mindory face identity <id> --project <id>
@@ -65,8 +66,10 @@ to keep memories evidence-backed.
 
 `TASK-50` extends the CLI surface to the multimodal derived-state runtime:
 document reprocess/runs, metadata-filtered document search, unified artifact
-search and face identity operations. `--metadata-filter` accepts one JSON object
-per flag, matching the HTTP API filter shape.
+search and face identity operations. `TASK-81` adds `mindory search query` for
+combined document chunk, artifact span and face observation search through
+`POST /v1/search`. `--metadata-filter` accepts one JSON object per flag,
+matching the HTTP API filter shape.
 
 ## Configuration
 

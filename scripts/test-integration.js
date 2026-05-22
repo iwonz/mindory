@@ -806,6 +806,41 @@ async function uploadAndProcessVideoDocument(apiUrl) {
 }
 
 async function assertUnifiedArtifactSearch(apiUrl, input) {
+  const unifiedImageSearch = await requestJson(apiUrl, "POST", "/v1/search", {
+    projectIds: [projectId],
+    query: "passport airport",
+    targets: ["documents", "artifacts"],
+    artifactTypes: ["ocr_text", "image_caption", "image_analysis"],
+    limit: 20,
+    metadataFilters: [{ key: "extension", valueText: "png" }]
+  });
+  assert.ok(unifiedImageSearch.hits.some((hit) => hit.kind === "document_chunk" && hit.document_id === input.imageDocumentId), "unified search should include image document chunk hits.");
+  assert.ok(unifiedImageSearch.hits.some((hit) => hit.kind === "artifact_span" && hit.document_id === input.imageDocumentId), "unified search should include image artifact span hits.");
+  assert.ok(unifiedImageSearch.hits.every((hit) => hit.source_refs.length > 0), "unified search hits must include source refs.");
+
+  const unifiedFaceSearch = await requestJson(apiUrl, "POST", "/v1/search", {
+    projectIds: [projectId],
+    query: "Integration Person A",
+    targets: ["faces"],
+    faceIdentityStatuses: ["candidate", "confirmed"],
+    limit: 10,
+    metadataFilters: [{ key: "extension", valueText: "png" }]
+  });
+  const faceUnifiedHit = unifiedFaceSearch.hits.find((hit) => hit.kind === "face_observation" && hit.document_id === input.imageDocumentId);
+  assert.ok(faceUnifiedHit, "unified search should find renamed face identity observations.");
+  assert.ok(faceUnifiedHit.source_refs.some((ref) => ref.type === "face_identity"), "unified face search hits should include face identity source refs.");
+  assert.ok(faceUnifiedHit.source_refs.some((ref) => ref.type === "face_observation"), "unified face search hits should include face observation source refs.");
+
+  const metadataOnlySearch = await requestJson(apiUrl, "POST", "/v1/search", {
+    projectIds: [projectId],
+    targets: ["artifacts"],
+    artifactTypes: ["video_keyframe"],
+    spanTypes: ["video_keyframe_description"],
+    limit: 10,
+    metadataFilters: [{ key: "frame_count", operator: "eq", valueNumber: 5, unit: "frames" }]
+  });
+  assert.ok(metadataOnlySearch.hits.some((hit) => hit.kind === "artifact_span" && hit.document_id === input.videoDocumentId), "unified metadata-only search should find video keyframe artifacts without a text query.");
+
   const imageSearch = await requestJson(apiUrl, "POST", "/v1/artifacts/search", {
     projectIds: [projectId],
     query: "passport airport",

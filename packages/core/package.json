@@ -57,6 +57,10 @@
     "./recompute": {
       "types": "./dist/recompute.d.ts",
       "default": "./dist/recompute.js"
+    },
+    "./search": {
+      "types": "./dist/search.d.ts",
+      "default": "./dist/search.js"
     }
   },
   "scripts": {

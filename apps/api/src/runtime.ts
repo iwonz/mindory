@@ -7,6 +7,7 @@ import type { DocumentChunkSearchRepository } from "@mindory/core/memory";
 import type { EmbeddingsProvider } from "@mindory/core/processing";
 import { ProcessingJobDispatcher } from "@mindory/core/queue";
 import { DocumentRecomputeService } from "@mindory/core/recompute";
+import { UnifiedSearchService } from "@mindory/core/search";
 import type { ObjectStorage } from "@mindory/core/storage";
 import {
   DbAccessTokenRepository,
@@ -30,7 +31,7 @@ import type { BuildApiAppOptions } from "./app.js";
 
 export interface ApiRuntimeDependencies extends Pick<
   BuildApiAppOptions,
-  "artifacts" | "auth" | "close" | "context" | "documents" | "faces" | "jobs" | "memories" | "peers" | "projects" | "sessions" | "tokens"
+  "artifacts" | "auth" | "close" | "context" | "documents" | "faces" | "jobs" | "memories" | "peers" | "projects" | "search" | "sessions" | "tokens"
 > {}
 
 export function buildApiRuntimeDependencies(config: MindoryConfig): ApiRuntimeDependencies {
@@ -114,6 +115,12 @@ export function buildApiRuntimeDependencies(config: MindoryConfig): ApiRuntimeDe
     memories: {
       memoryService: new MemoryService({
         repository: memoryRepository
+      })
+    },
+    search: {
+      unifiedSearchService: new UnifiedSearchService({
+        documentRepository: chunkSearchRepository,
+        artifactRepository
       })
     },
     context: {

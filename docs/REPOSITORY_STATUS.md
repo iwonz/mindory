@@ -6,7 +6,7 @@ The repository should be described with the support levels in
 
 ## Current Baseline
 
-The repository is complete through `TASK-80`.
+The repository is complete through `TASK-81`.
 
 Supported local MVP path:
 
@@ -38,6 +38,9 @@ Supported local MVP path:
 - Face detection and recognition can run through `@mindory/llm` local HTTP when
   experimental face roles are enabled. Provider boxes and embeddings are stored
   as workspace-scoped face observations and auto-matched through `FaceService`.
+- Unified multimodal search is available through `POST /v1/search`, CLI
+  `mindory search query` and MCP `unified_search`, combining document chunks,
+  artifact spans and face observations with source refs.
 
 Public GitHub hygiene baseline:
 

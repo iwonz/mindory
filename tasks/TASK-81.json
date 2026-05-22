@@ -1,0 +1,70 @@
+{
+  "id": "TASK-81",
+  "title": "Harden unified multimodal search",
+  "status": "done",
+  "type": "feature",
+  "priority": "high",
+  "branch": "task/TASK-81-unified-multimodal-search-hardening",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Add a unified multimodal search surface over document chunks, derived artifact text spans and face identities/observations.",
+    "background": "Document and artifact search currently exist as separate endpoints. TASK-81 adds a single search API plus CLI/MCP surfaces that can combine metadata filters, full-text artifact spans, OCR, transcripts, captions, face identities and configured vector-backed document chunk search."
+  },
+  "scope": {
+    "in": [
+      "Add a core unified search service that combines document chunk search, artifact span search and face identity/observation hits.",
+      "Add POST /v1/search with project-scoped authorization, metadata filters, target filters and source refs.",
+      "Allow artifact search to run metadata-only queries when metadata filters or type filters are provided.",
+      "Expose unified search through CLI and MCP.",
+      "Verify text, OCR/caption, transcript, video keyframe, face and metadata-only search paths.",
+      "Update documentation and validators for the unified search surface."
+    ],
+    "out": [
+      "New vector tables for image or face vectors.",
+      "Advanced ranking fusion beyond deterministic score normalization.",
+      "Query language parsing for natural-language metadata filters.",
+      "Web UI search."
+    ]
+  },
+  "acceptance_criteria": [
+    "POST /v1/search can return document chunk, artifact span and face observation hits with source_refs.",
+    "Unified search accepts metadataFilters and applies them to document/vector and artifact search paths.",
+    "Artifact search supports metadata-only search when query is omitted and a constrained filter is provided.",
+    "CLI exposes a unified search command using the HTTP API.",
+    "MCP exposes a unified_search tool using the HTTP API.",
+    "Integration coverage validates image OCR/caption, audio transcript, video keyframe, face and metadata-only unified search.",
+    "pnpm check passes."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm api:runtime:validate",
+      "pnpm db:repositories:validate",
+      "pnpm cli:validate",
+      "pnpm cli:smoke",
+      "pnpm mcp:validate",
+      "pnpm mcp:smoke",
+      "pnpm test",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-81.",
+      "Confirm unified search remains HTTP/API based for CLI and MCP.",
+      "Confirm no RAW object mutation is introduced."
+    ]
+  },
+  "dependencies": [
+    "TASK-80"
+  ],
+  "risks": [
+    "Combined search must not bypass project authorization.",
+    "Metadata-only artifact search needs constraints to avoid unbounded broad scans.",
+    "Ranking across heterogeneous hit types must stay predictable for MVP."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to done.",
+    "Branch is committed and merged back into master."
+  ]
+}

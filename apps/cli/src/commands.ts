@@ -78,6 +78,8 @@ export async function dispatchCliCommand(parsed: ParsedCliArgs, context: CliComm
       })}`);
     case "artifact:search":
       return searchArtifacts(args, parsed, context);
+    case "search:query":
+      return searchUnified(args, parsed, context);
     case "face:identities":
       return context.api.getJson(`/v1/faces/identities?${queryString({
         projectId: requiredFlag(parsed, "project"),
@@ -165,6 +167,7 @@ export function helpText(): string {
     "  mindory document read <id> --project <id>",
     "  mindory document list --project <id> [--status <status>] [--limit 20]",
     "  mindory artifact search --project <id> <query> [--artifact-type <csv>] [--span-type <csv>] [--metadata-filter <json>]",
+    "  mindory search query --project <id> [query] [--target documents,artifacts,faces] [--artifact-type <csv>] [--span-type <csv>] [--metadata-filter <json>] [--face-status <csv>]",
     "  mindory face identities --project <id> [--status candidate] [--limit 20]",
     "  mindory face identity <id> --project <id>",
     "  mindory face observations --project <id> [--identity <id>] [--document <id>]",
@@ -278,6 +281,23 @@ function searchArtifacts(args: string[], parsed: ParsedCliArgs, context: CliComm
   });
 }
 
+function searchUnified(args: string[], parsed: ParsedCliArgs, context: CliCommandContext): Promise<unknown> {
+  const body: Record<string, unknown> = {
+    projectIds: readProjectIds(parsed),
+    targets: optionalCsvFlag(parsed, "target"),
+    artifactTypes: optionalCsvFlag(parsed, "artifact-type"),
+    spanTypes: optionalCsvFlag(parsed, "span-type"),
+    faceIdentityStatuses: optionalCsvFlag(parsed, "face-status"),
+    metadataFilters: readMetadataFilters(parsed),
+    limit: readPositiveIntegerFlag(parsed, "limit") ?? 10
+  };
+  const query = optionalQuery(args);
+  if (query !== undefined) {
+    body.query = query;
+  }
+  return context.api.postJson("/v1/search", body);
+}
+
 function rememberMemory(args: string[], parsed: ParsedCliArgs, context: CliCommandContext): Promise<unknown> {
   return context.api.postJson("/v1/memories", {
     projectId: requiredFlag(parsed, "project"),
@@ -333,6 +353,11 @@ function requiredQuery(args: string[]): string {
     throw new CliError("query/text argument is required.", 2);
   }
   return query;
+}
+
+function optionalQuery(args: string[]): string | undefined {
+  const query = args.join(" ").trim();
+  return query.length > 0 ? query : undefined;
 }
 
 function readProjectIds(parsed: ParsedCliArgs): string[] {
