@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-109",
+  "current_task_id": "TASK-110",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -803,7 +803,7 @@
     {
       "id": "TASK-110",
       "title": "Add installer resume and repair",
-      "status": "draft",
+      "status": "done",
       "branch": "task/TASK-110-installer-resume-repair",
       "file": "tasks/TASK-110.json"
     },

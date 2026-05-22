@@ -98,7 +98,10 @@ export type InstallJournalEvent =
   | "failed"
   | "rollback_completed"
   | "rollback_failed"
-  | "rollback_skipped";
+  | "rollback_skipped"
+  | "repair_completed"
+  | "repair_failed";
+export type InstallRunStatus = "running" | "completed" | "failed" | "rolled_back";
 
 export interface S3StorageAnswers {
   endpoint: string;
@@ -815,8 +818,61 @@ export interface InstallStateInspection {
   lock: InstallLockRecord | null;
   journalPath: string;
   journalEntries: number;
+  runStatePath: string;
+  runState: InstallRunState | null;
   lastEvent?: InstallJournalEntry;
   recommendedAction: string;
+}
+
+export interface InstallRunState {
+  schema_version: InstallerSchemaVersion;
+  kind: "mindory-install-run-state";
+  mindory_home: string;
+  source_root: string;
+  stop_before_step_id: string | null;
+  status: InstallRunStatus;
+  started_at: string;
+  updated_at: string;
+  last_step_id?: string;
+  error?: string;
+}
+
+export interface ResumeInstallOptions extends InstallExecutionOptions {
+  clearStaleLock?: boolean;
+  continueCompleted?: boolean;
+}
+
+export interface ResumeInstallReport {
+  status: "no_journal" | "already_complete" | "rolled_back" | "resumed";
+  mindoryHome: string;
+  journalPath: string;
+  runStatePath: string;
+  executedStepIds: string[];
+  pendingStepIds: string[];
+  inspection: InstallStateInspection;
+  rollbackReport?: RollbackReport;
+}
+
+export interface RepairInstallOptions extends InstallExecutionOptions {
+  clearStaleLock?: boolean;
+  continueRollback?: boolean;
+}
+
+export interface RepairInstallAction {
+  id: string;
+  status: "completed" | "skipped" | "failed";
+  message: string;
+  error?: string;
+}
+
+export interface RepairInstallReport {
+  status: "repaired" | "inspection";
+  mindoryHome: string;
+  journalPath: string;
+  runStatePath: string;
+  actions: RepairInstallAction[];
+  inspection: InstallStateInspection;
+  rollbackReport?: RollbackReport;
 }
 
 export function createDefaultInstallAnswers(overrides: Partial<MindoryInstallAnswers> = {}): MindoryInstallAnswers {
@@ -912,6 +968,185 @@ export function createDefaultInstallAnswers(overrides: Partial<MindoryInstallAns
   };
 
   return mergeAnswers(defaults, overrides);
+}
+
+export function createInstallAnswersFromHome(mindoryHome: string): MindoryInstallAnswers {
+  const resolvedHome = assertSafeMindoryHome(mindoryHome);
+  const configPath = path.join(resolvedHome, "config", "mindory.config.json");
+  const configOverrides = existsSync(configPath)
+    ? installConfigJsonToAnswers(JSON.parse(readFileSync(configPath, "utf8")) as Record<string, unknown>, resolvedHome)
+    : { mindoryHome: resolvedHome };
+  const env = readMindoryHomeEnvironment(resolvedHome);
+  if (Object.keys(env).length === 0) {
+    return createDefaultInstallAnswers(configOverrides);
+  }
+  return createDefaultInstallAnswers({
+    ...configOverrides,
+    mindoryHome: envValue(env, "MINDORY_HOME", resolvedHome),
+    profile: envValue(env, "MINDORY_INSTALL_PROFILE") as InstallProfile,
+    releaseChannel: envValue(env, "MINDORY_INSTALL_RELEASE_CHANNEL"),
+    allowExperimental: envBool(env, "MINDORY_INSTALL_ALLOW_EXPERIMENTAL"),
+    dependencyPolicy: envValue(env, "MINDORY_INSTALL_DEPENDENCY_POLICY") as InstallDependencyPolicy,
+    rollbackOnFailure: envBool(env, "MINDORY_INSTALL_ROLLBACK_ON_FAILURE"),
+    devMode: envBool(env, "MINDORY_INSTALL_DEV_MODE"),
+    publicUrl: envValue(env, "MINDORY_PUBLIC_URL"),
+    storage: {
+      provider: envValue(env, "MINDORY_STORAGE_PROVIDER") as StorageProvider,
+      localPath: envValue(env, "MINDORY_STORAGE_LOCAL_PATH"),
+      s3: {
+        endpoint: envValue(env, "MINDORY_S3_ENDPOINT"),
+        region: envValue(env, "MINDORY_S3_REGION"),
+        bucket: envValue(env, "MINDORY_S3_BUCKET"),
+        accessKeyId: envValue(env, "MINDORY_S3_ACCESS_KEY_ID"),
+        secretAccessKey: envValue(env, "MINDORY_S3_SECRET_ACCESS_KEY"),
+        forcePathStyle: envBool(env, "MINDORY_S3_FORCE_PATH_STYLE")
+      }
+    },
+    remoteBackup: {
+      enabled: envBool(env, "MINDORY_REMOTE_BACKUP_ENABLED"),
+      encryptionKeyId: envValue(env, "MINDORY_BACKUP_ENCRYPTION_KEY_ID"),
+      encryptionKey: envValue(env, "MINDORY_BACKUP_ENCRYPTION_KEY"),
+      s3: {
+        endpoint: envValue(env, "MINDORY_REMOTE_BACKUP_S3_ENDPOINT"),
+        region: envValue(env, "MINDORY_REMOTE_BACKUP_S3_REGION"),
+        bucket: envValue(env, "MINDORY_REMOTE_BACKUP_S3_BUCKET"),
+        accessKeyId: envValue(env, "MINDORY_REMOTE_BACKUP_S3_ACCESS_KEY_ID"),
+        secretAccessKey: envValue(env, "MINDORY_REMOTE_BACKUP_S3_SECRET_ACCESS_KEY"),
+        forcePathStyle: envBool(env, "MINDORY_REMOTE_BACKUP_S3_FORCE_PATH_STYLE")
+      },
+      prefix: envValue(env, "MINDORY_REMOTE_BACKUP_S3_PREFIX")
+    },
+    vector: {
+      provider: envValue(env, "MINDORY_VECTOR_PROVIDER") as VectorProvider,
+      qdrantUrl: envValue(env, "MINDORY_QDRANT_URL"),
+      qdrantCollectionPrefix: envValue(env, "MINDORY_QDRANT_COLLECTION_PREFIX")
+    },
+    docling: {
+      enabled: envBool(env, "MINDORY_DOCLING_ENABLED"),
+      url: envValue(env, "MINDORY_DOCLING_URL"),
+      timeoutMs: envNumber(env, "MINDORY_DOCLING_TIMEOUT_MS"),
+      port: envNumber(env, "MINDORY_DOCLING_PORT")
+    },
+    antivirus: {
+      mode: envValue(env, "MINDORY_AV_MODE") as AntivirusMode,
+      provider: envValue(env, "MINDORY_AV_PROVIDER"),
+      clamavPlatform: envValue(env, "MINDORY_CLAMAV_PLATFORM")
+    },
+    modalities: {
+      text: envBool(env, "MINDORY_DOCUMENT_PROCESSING_TEXT_ENABLED"),
+      pdf: envBool(env, "MINDORY_DOCUMENT_PROCESSING_PDF_ENABLED"),
+      image: envBool(env, "MINDORY_DOCUMENT_PROCESSING_IMAGE_ENABLED"),
+      audio: envBool(env, "MINDORY_DOCUMENT_PROCESSING_AUDIO_ENABLED"),
+      video: envBool(env, "MINDORY_DOCUMENT_PROCESSING_VIDEO_ENABLED"),
+      videoMaxKeyframes: envNumber(env, "MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES"),
+      videoKeyframeProvider: envValue(env, "MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_PROVIDER") as VideoKeyframeProvider,
+      videoFfmpegCommand: envValue(env, "MINDORY_DOCUMENT_PROCESSING_VIDEO_FFMPEG_COMMAND"),
+      videoFfprobeCommand: envValue(env, "MINDORY_DOCUMENT_PROCESSING_VIDEO_FFPROBE_COMMAND")
+    },
+    llmRoles: readLlmRoleAnswersFromEnv(env),
+    llmProviders: {
+      openaiCompatibleBaseUrl: envValue(env, "MINDORY_LLM_OPENAI_COMPATIBLE_BASE_URL"),
+      openaiCompatibleAuthMode: envValue(env, "MINDORY_LLM_OPENAI_COMPATIBLE_AUTH_MODE") as LlmOpenAiAuthMode,
+      openaiCompatibleApiKey: envValue(env, "MINDORY_LLM_OPENAI_COMPATIBLE_API_KEY"),
+      openaiOAuthAccessToken: envValue(env, "MINDORY_LLM_OPENAI_OAUTH_ACCESS_TOKEN"),
+      ollamaBaseUrl: envValue(env, "MINDORY_LLM_OLLAMA_BASE_URL"),
+      localHttpBaseUrl: envValue(env, "MINDORY_LLM_LOCAL_HTTP_BASE_URL"),
+      localCommandTimeoutMs: envNumber(env, "MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS"),
+      localCommandHealthcheckCommand: envValue(env, "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND"),
+      localCommandHealthcheckArgs: parseJsonStringArray(envValue(env, "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS"), "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS"),
+      localCommandOperationCommand: envValue(env, "MINDORY_LLM_LOCAL_COMMAND_OPERATION_COMMAND"),
+      localCommandOperationArgs: parseJsonStringArray(envValue(env, "MINDORY_LLM_LOCAL_COMMAND_OPERATION_ARGS"), "MINDORY_LLM_LOCAL_COMMAND_OPERATION_ARGS"),
+      localCommandMaxInputBytes: envNumber(env, "MINDORY_LLM_LOCAL_COMMAND_MAX_INPUT_BYTES"),
+      localCommandMaxOutputBytes: envNumber(env, "MINDORY_LLM_LOCAL_COMMAND_MAX_OUTPUT_BYTES")
+    },
+    interfaces: {
+      apiPort: envNumber(env, "MINDORY_API_PORT"),
+      mcpEnabled: envBool(env, "MINDORY_MCP_ENABLED"),
+      hermesEnabled: envBool(env, "MINDORY_HERMES_ADAPTER_ENABLED")
+    },
+    tokens: {
+      mcpApiToken: envValue(env, "MINDORY_MCP_API_TOKEN"),
+      cliApiToken: envValue(env, "MINDORY_CLI_API_TOKEN"),
+      hermesApiToken: envValue(env, "MINDORY_HERMES_API_TOKEN")
+    }
+  });
+}
+
+function installConfigJsonToAnswers(config: Record<string, unknown>, fallbackHome: string): Partial<MindoryInstallAnswers> {
+  const overrides: Partial<MindoryInstallAnswers> = {
+    mindoryHome: typeof config.mindory_home === "string" ? config.mindory_home : fallbackHome
+  };
+  if (typeof config.profile === "string") {
+    overrides.profile = config.profile as InstallProfile;
+  }
+  if (typeof config.public_url === "string") {
+    overrides.publicUrl = config.public_url;
+  }
+  if (isObjectRecord(config.storage)) {
+    overrides.storage = config.storage as unknown as StorageAnswers;
+  }
+  if (isObjectRecord(config.remote_backup)) {
+    overrides.remoteBackup = config.remote_backup as unknown as RemoteBackupAnswers;
+  }
+  if (isObjectRecord(config.vector)) {
+    overrides.vector = config.vector as unknown as VectorAnswers;
+  }
+  if (isObjectRecord(config.docling)) {
+    overrides.docling = config.docling as unknown as DoclingAnswers;
+  }
+  if (isObjectRecord(config.antivirus)) {
+    overrides.antivirus = config.antivirus as unknown as AntivirusAnswers;
+  }
+  if (isObjectRecord(config.modalities)) {
+    overrides.modalities = config.modalities as unknown as ModalityAnswers;
+  }
+  if (isObjectRecord(config.llm_roles)) {
+    overrides.llmRoles = config.llm_roles as Partial<Record<InstallerLlmRoleKey, LlmRoleAnswers>>;
+  }
+  if (isObjectRecord(config.llm_providers)) {
+    overrides.llmProviders = config.llm_providers as unknown as LlmProviderAnswers;
+  }
+  if (isObjectRecord(config.interfaces)) {
+    overrides.interfaces = config.interfaces as unknown as InterfaceAnswers;
+  }
+  return overrides;
+}
+
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function readLlmRoleAnswersFromEnv(env: Record<string, string>): Partial<Record<InstallerLlmRoleKey, LlmRoleAnswers>> {
+  const roles: Partial<Record<InstallerLlmRoleKey, LlmRoleAnswers>> = {};
+  for (const role of LLM_ROLE_KEYS) {
+    const dimensionsValue = env[`MINDORY_LLM_${role}_DIMENSIONS`] ?? "";
+    roles[role] = {
+      enabled: envBool(env, `MINDORY_LLM_${role}_ENABLED`),
+      provider: envValue(env, `MINDORY_LLM_${role}_PROVIDER`) as LlmProvider,
+      model: envValue(env, `MINDORY_LLM_${role}_MODEL`),
+      required: envBool(env, `MINDORY_LLM_${role}_REQUIRED`),
+      timeoutMs: envNumber(env, `MINDORY_LLM_${role}_TIMEOUT_MS`),
+      concurrency: envNumber(env, `MINDORY_LLM_${role}_CONCURRENCY`),
+      dimensions: dimensionsValue.trim() === "" ? null : Number.parseInt(dimensionsValue, 10)
+    };
+  }
+  return roles;
+}
+
+function envValue(env: Record<string, string>, name: string, fallback = catalogDefault(name)): string {
+  return env[name] ?? fallback;
+}
+
+function envBool(env: Record<string, string>, name: string): boolean {
+  return envValue(env, name).toLowerCase() === "true";
+}
+
+function envNumber(env: Record<string, string>, name: string): number {
+  const parsed = Number.parseInt(envValue(env, name), 10);
+  if (!Number.isFinite(parsed)) {
+    throw new Error(`${name} must be a number.`);
+  }
+  return parsed;
 }
 
 export function validateInstallAnswers(answers: MindoryInstallAnswers): string[] {
@@ -1115,6 +1350,19 @@ export class InstallTransactionJournal {
   private readonly entries: InstallJournalEntry[] = [];
   private readonly completed = new Set<string>();
 
+  constructor(entries: readonly InstallJournalEntry[] = []) {
+    for (const entry of entries) {
+      this.entries.push({ ...entry });
+      this.sequence = Math.max(this.sequence, entry.sequence);
+      if (entry.event === "completed") {
+        this.completed.add(entry.actionId);
+      }
+      if (entry.event === "rollback_completed" || entry.event === "rollback_skipped") {
+        this.completed.delete(entry.actionId);
+      }
+    }
+  }
+
   recordPlanned(step: InstallPlanStep): void {
     this.push(step.id, "planned", step.title, step.rollback);
   }
@@ -1131,6 +1379,10 @@ export class InstallTransactionJournal {
   recordRollback(step: InstallPlanStep, status: RollbackExecution["status"], error?: unknown): void {
     const event = status === "completed" ? "rollback_completed" : status === "skipped" ? "rollback_skipped" : "rollback_failed";
     this.push(step.id, event, step.rollback.description, step.rollback, error === undefined ? undefined : errorToString(error));
+  }
+
+  recordRepair(actionId: string, status: "completed" | "failed", message: string, error?: unknown): void {
+    this.push(actionId, status === "completed" ? "repair_completed" : "repair_failed", message, undefined, error === undefined ? undefined : errorToString(error));
   }
 
   completedActionIds(): string[] {
@@ -1279,6 +1531,10 @@ export function installJournalPath(mindoryHome: string): string {
   return path.join(mindoryHome, "install", "install-journal.json");
 }
 
+export function installRunStatePath(mindoryHome: string): string {
+  return path.join(mindoryHome, "install", "install-run-state.json");
+}
+
 export function acquireInstallLock(mindoryHome: string, owner = "mindory-installer"): InstallLock {
   const lockPath = installLockPath(mindoryHome);
   mkdirSync(path.dirname(lockPath), { recursive: true, mode: 0o700 });
@@ -1342,6 +1598,60 @@ export function readInstallJournal(mindoryHome: string): InstallJournalEntry[] |
   return JSON.parse(readFileSync(journalPath, "utf8")) as InstallJournalEntry[];
 }
 
+export function writeInstallRunState(mindoryHome: string, state: InstallRunState): string {
+  const statePath = installRunStatePath(mindoryHome);
+  mkdirSync(path.dirname(statePath), { recursive: true, mode: 0o700 });
+  writeFileSync(statePath, `${JSON.stringify(state, null, 2)}\n`, { mode: 0o600 });
+  return statePath;
+}
+
+export function readInstallRunState(mindoryHome: string): InstallRunState | null {
+  const statePath = installRunStatePath(mindoryHome);
+  if (!existsSync(statePath)) {
+    return null;
+  }
+  const parsed = JSON.parse(readFileSync(statePath, "utf8")) as InstallRunState;
+  return parsed.kind === "mindory-install-run-state" ? parsed : null;
+}
+
+function createInstallRunState(
+  plan: InstallPlan,
+  options: InstallExecutionOptions,
+  stopBeforeStepId: string | null
+): InstallRunState {
+  const now = new Date().toISOString();
+  return {
+    schema_version: INSTALLER_SCHEMA_VERSION,
+    kind: "mindory-install-run-state",
+    mindory_home: plan.mindoryHome,
+    source_root: path.resolve(options.sourceRoot ?? processCwd()),
+    stop_before_step_id: stopBeforeStepId,
+    status: "running",
+    started_at: now,
+    updated_at: now
+  };
+}
+
+function updateInstallRunState(
+  mindoryHome: string,
+  state: InstallRunState,
+  status: InstallRunStatus,
+  lastStepId?: string,
+  error?: string
+): void {
+  state.status = status;
+  state.updated_at = new Date().toISOString();
+  if (lastStepId !== undefined) {
+    state.last_step_id = lastStepId;
+  }
+  if (error === undefined) {
+    delete state.error;
+  } else {
+    state.error = error;
+  }
+  writeInstallRunState(mindoryHome, state);
+}
+
 export function formatDependencyDiagnostics(checks: readonly DependencyCheck[]): string[] {
   return checks
     .filter((check) => check.required && check.status !== "ok" && check.status !== "skipped")
@@ -1375,33 +1685,46 @@ export async function executeInstallPlan(
   const journal = new InstallTransactionJournal();
   const executedStepIds: string[] = [];
   const stopBeforeStepId = options.stopBeforeStepId === undefined ? "pull-images" : options.stopBeforeStepId;
+  const runState = createInstallRunState(plan, options, stopBeforeStepId);
   let rollbackReport: RollbackReport | undefined;
 
   try {
+    writeInstallRunState(plan.mindoryHome, runState);
     for (const stepItem of plan.steps) {
       if (stopBeforeStepId !== null && stepItem.id === stopBeforeStepId) {
         break;
       }
       journal.recordPlanned(stepItem);
       writeInstallJournal(plan.mindoryHome, journal);
+      updateInstallRunState(plan.mindoryHome, runState, "running", stepItem.id);
       try {
         options.beforeStep?.(stepItem, plan);
         await executeSupportedInstallStep(stepItem, answers, plan, options);
         journal.markCompleted(stepItem);
         executedStepIds.push(stepItem.id);
         writeInstallJournal(plan.mindoryHome, journal);
+        updateInstallRunState(plan.mindoryHome, runState, "running", stepItem.id);
       } catch (error) {
         journal.markFailed(stepItem, error);
         writeInstallJournal(plan.mindoryHome, journal);
+        updateInstallRunState(plan.mindoryHome, runState, "failed", stepItem.id, errorToString(error));
         if (options.rollbackOnFailure ?? answers.rollbackOnFailure) {
           rollbackReport = await rollbackCompletedActions(plan, journal, (rollback, completedStep) =>
             defaultRollbackExecutor(rollback, completedStep, plan, options)
           );
           writeInstallJournal(plan.mindoryHome, journal);
+          updateInstallRunState(
+            plan.mindoryHome,
+            runState,
+            rollbackReport.executions.some((execution) => execution.status === "failed") ? "failed" : "rolled_back",
+            stepItem.id,
+            rollbackReport.executions.some((execution) => execution.status === "failed") ? "Rollback did not complete." : undefined
+          );
         }
         throw error;
       }
     }
+    updateInstallRunState(plan.mindoryHome, runState, "completed", executedStepIds.at(-1));
 
     return {
       plan,
@@ -1415,6 +1738,239 @@ export async function executeInstallPlan(
   } finally {
     lock.release();
   }
+}
+
+export async function resumeInstallFromJournal(
+  mindoryHome: string,
+  options: ResumeInstallOptions = {}
+): Promise<ResumeInstallReport> {
+  const resolvedHome = assertSafeMindoryHome(mindoryHome);
+  const existingLock = readInstallLock(resolvedHome);
+  if (existingLock !== null && options.clearStaleLock !== true) {
+    throw new Error(`Install lock exists at ${installLockPath(resolvedHome)}. Confirm no installer is running, then rerun resume with clearStaleLock=true or use repair.`);
+  }
+  if (existingLock !== null) {
+    rmSync(installLockPath(resolvedHome), { force: true });
+  }
+
+  const journalEntries = readInstallJournal(resolvedHome);
+  const runState = readInstallRunState(resolvedHome);
+  if (journalEntries === null || journalEntries.length === 0) {
+    return {
+      status: "no_journal",
+      mindoryHome: resolvedHome,
+      journalPath: installJournalPath(resolvedHome),
+      runStatePath: installRunStatePath(resolvedHome),
+      executedStepIds: [],
+      pendingStepIds: [],
+      inspection: inspectInstallState(resolvedHome)
+    };
+  }
+  if (runState?.status === "rolled_back") {
+    return {
+      status: "rolled_back",
+      mindoryHome: resolvedHome,
+      journalPath: installJournalPath(resolvedHome),
+      runStatePath: installRunStatePath(resolvedHome),
+      executedStepIds: [],
+      pendingStepIds: [],
+      inspection: inspectInstallState(resolvedHome)
+    };
+  }
+
+  const answers = createInstallAnswersFromHome(resolvedHome);
+  const plan = createInstallPlan(answers);
+  const stopBeforeStepId = runState === null ? "pull-images" : runState.stop_before_step_id;
+  const completed = completedStepIdsFromJournal(journalEntries);
+  const startIndex = resumeStartIndex(plan, journalEntries, runState, existingLock !== null, options.continueCompleted === true);
+  if (startIndex === null) {
+    return {
+      status: "already_complete",
+      mindoryHome: resolvedHome,
+      journalPath: installJournalPath(resolvedHome),
+      runStatePath: installRunStatePath(resolvedHome),
+      executedStepIds: [],
+      pendingStepIds: pendingStepIdsForTarget(plan, completed, stopBeforeStepId),
+      inspection: inspectInstallState(resolvedHome)
+    };
+  }
+  const stepsToRun = planStepsFromIndex(plan, startIndex, stopBeforeStepId);
+  if (stepsToRun.length === 0) {
+    if (runState !== null) {
+      updateInstallRunState(resolvedHome, runState, "completed", runState.last_step_id);
+    }
+    return {
+      status: "already_complete",
+      mindoryHome: resolvedHome,
+      journalPath: installJournalPath(resolvedHome),
+      runStatePath: installRunStatePath(resolvedHome),
+      executedStepIds: [],
+      pendingStepIds: [],
+      inspection: inspectInstallState(resolvedHome)
+    };
+  }
+
+  const lock = acquireInstallLock(resolvedHome, options.owner ?? "mindory-installer-resume");
+  const journal = new InstallTransactionJournal(journalEntries);
+  const activeRunState = runState ?? createInstallRunState(plan, options, stopBeforeStepId);
+  activeRunState.source_root = path.resolve(options.sourceRoot ?? activeRunState.source_root);
+  activeRunState.stop_before_step_id = stopBeforeStepId;
+  activeRunState.status = "running";
+  activeRunState.updated_at = new Date().toISOString();
+  let rollbackReport: RollbackReport | undefined;
+  try {
+    writeInstallRunState(resolvedHome, activeRunState);
+    const executedStepIds = await executeInstallStepSubset(answers, plan, journal, stepsToRun, {
+      ...options,
+      sourceRoot: activeRunState.source_root
+    }, activeRunState);
+    const allCompleted = completedStepIdsFromJournal(journal.toJSON());
+    const pending = pendingStepIdsForTarget(plan, allCompleted, stopBeforeStepId);
+    updateInstallRunState(resolvedHome, activeRunState, pending.length === 0 ? "completed" : "running", executedStepIds.at(-1) ?? activeRunState.last_step_id);
+    return {
+      status: "resumed",
+      mindoryHome: resolvedHome,
+      journalPath: installJournalPath(resolvedHome),
+      runStatePath: installRunStatePath(resolvedHome),
+      executedStepIds,
+      pendingStepIds: pending,
+      inspection: inspectInstallState(resolvedHome)
+    };
+  } catch (error) {
+    if (options.rollbackOnFailure ?? answers.rollbackOnFailure) {
+      rollbackReport = await rollbackCompletedActions(plan, journal, (rollback, completedStep) =>
+        defaultRollbackExecutor(rollback, completedStep, plan, options)
+      );
+      writeInstallJournal(resolvedHome, journal);
+      updateInstallRunState(
+        resolvedHome,
+        activeRunState,
+        rollbackReport.executions.some((execution) => execution.status === "failed") ? "failed" : "rolled_back",
+        activeRunState.last_step_id,
+        rollbackReport.executions.some((execution) => execution.status === "failed") ? "Rollback did not complete." : undefined
+      );
+    }
+    throw error;
+  } finally {
+    lock.release();
+  }
+}
+
+export async function repairInstallState(
+  mindoryHome: string,
+  options: RepairInstallOptions = {}
+): Promise<RepairInstallReport> {
+  const resolvedHome = assertSafeMindoryHome(mindoryHome);
+  const actions: RepairInstallAction[] = [];
+  const existingLock = readInstallLock(resolvedHome);
+  if (existingLock !== null) {
+    if (options.clearStaleLock === true) {
+      rmSync(installLockPath(resolvedHome), { force: true });
+      actions.push({
+        id: "clear-stale-lock",
+        status: "completed",
+        message: `Removed stale installer lock for owner ${existingLock.owner}.`
+      });
+    } else {
+      actions.push({
+        id: "clear-stale-lock",
+        status: "skipped",
+        message: "Install lock exists. Confirm no installer is running, then rerun repair with clearStaleLock=true."
+      });
+      return {
+        status: "inspection",
+        mindoryHome: resolvedHome,
+        journalPath: installJournalPath(resolvedHome),
+        runStatePath: installRunStatePath(resolvedHome),
+        actions,
+        inspection: inspectInstallState(resolvedHome)
+      };
+    }
+  }
+
+  const journalEntries = readInstallJournal(resolvedHome) ?? [];
+  if (journalEntries.length === 0) {
+    actions.push({
+      id: "journal",
+      status: "skipped",
+      message: "No install journal exists. Rerun wizard, prepare or start to create an installation."
+    });
+    return {
+      status: actions.some((action) => action.status === "completed") ? "repaired" : "inspection",
+      mindoryHome: resolvedHome,
+      journalPath: installJournalPath(resolvedHome),
+      runStatePath: installRunStatePath(resolvedHome),
+      actions,
+      inspection: inspectInstallState(resolvedHome)
+    };
+  }
+
+  const answers = createInstallAnswersFromHome(resolvedHome);
+  const plan = createInstallPlan(answers);
+  const journal = new InstallTransactionJournal(journalEntries);
+  const rollbackIds = journal.completedActionIds();
+  const rollbackNeeded = rollbackIds.length > 0 && journalEntries.some((entry) =>
+    entry.event === "failed" || entry.event === "rollback_failed" || entry.event === "rollback_completed" || entry.event === "rollback_skipped"
+  );
+  let rollbackReport: RollbackReport | undefined;
+  if (rollbackNeeded) {
+    if (options.continueRollback !== true) {
+      actions.push({
+        id: "continue-rollback",
+        status: "skipped",
+        message: `Rollback can continue for: ${rollbackIds.join(", ")}. Rerun repair with continueRollback=true after confirming the failed install should be reverted.`
+      });
+    } else {
+      const lock = acquireInstallLock(resolvedHome, options.owner ?? "mindory-installer-repair");
+      try {
+        rollbackReport = await rollbackCompletedActions(plan, journal, (rollback, completedStep) =>
+          defaultRollbackExecutor(rollback, completedStep, plan, options)
+        );
+        journal.recordRepair("continue-rollback", "completed", "Continued interrupted rollback.");
+        writeInstallJournal(resolvedHome, journal);
+        const runState = readInstallRunState(resolvedHome) ?? createInstallRunState(plan, options, "pull-images");
+        updateInstallRunState(
+          resolvedHome,
+          runState,
+          rollbackReport.executions.some((execution) => execution.status === "failed") ? "failed" : "rolled_back",
+          runState.last_step_id,
+          rollbackReport.executions.some((execution) => execution.status === "failed") ? "Rollback did not complete." : undefined
+        );
+        actions.push({
+          id: "continue-rollback",
+          status: rollbackReport.executions.some((execution) => execution.status === "failed") ? "failed" : "completed",
+          message: "Continued rollback for journaled install actions."
+        });
+      } catch (error) {
+        journal.recordRepair("continue-rollback", "failed", "Continue interrupted rollback failed.", error);
+        writeInstallJournal(resolvedHome, journal);
+        actions.push({
+          id: "continue-rollback",
+          status: "failed",
+          message: "Continue rollback failed.",
+          error: errorToString(error)
+        });
+      } finally {
+        lock.release();
+      }
+    }
+  } else {
+    actions.push({
+      id: "continue-rollback",
+      status: "skipped",
+      message: "No interrupted rollback work is present in the journal."
+    });
+  }
+
+  return {
+    status: actions.some((action) => action.status === "completed") ? "repaired" : "inspection",
+    mindoryHome: resolvedHome,
+    journalPath: installJournalPath(resolvedHome),
+    runStatePath: installRunStatePath(resolvedHome),
+    actions,
+    inspection: inspectInstallState(resolvedHome),
+    ...(rollbackReport === undefined ? {} : { rollbackReport })
+  };
 }
 
 export async function updateInstallAssets(
@@ -2559,20 +3115,29 @@ export function readScheduledBackupHealth(mindoryHome: string): ScheduledBackupH
 export function inspectInstallState(mindoryHome: string): InstallStateInspection {
   const lock = readInstallLock(mindoryHome);
   const journal = readInstallJournal(mindoryHome) ?? [];
+  const runState = readInstallRunState(mindoryHome);
   const lastEvent = journal.at(-1);
   let recommendedAction = "No install journal was found. Run prepare or start to create an installation.";
   if (lock !== null) {
-    recommendedAction = "An install lock exists. Confirm no installer is running, then run repair before retrying.";
+    recommendedAction = "An install lock exists. Confirm no installer is running, then run repair with stale-lock cleanup before retrying.";
   } else if (lastEvent?.event === "failed" || lastEvent?.event === "rollback_failed") {
-    recommendedAction = "The last installer run failed. Review the journal, fix the cause and rerun the installer.";
+    recommendedAction = "The last installer run failed. Run repair to continue rollback or inspect the reported manual fix.";
+  } else if (lastEvent?.event === "planned" || runState?.status === "running") {
+    recommendedAction = "The installer run was interrupted in a recoverable state. Run resume after confirming the previous process is stopped.";
+  } else if (runState?.status === "rolled_back") {
+    recommendedAction = "The failed installer run was rolled back. Fix the original cause and rerun the intended command.";
+  } else if (runState?.status === "completed") {
+    recommendedAction = "The installer run completed for its recorded target.";
   } else if (journal.length > 0) {
-    recommendedAction = "The installer journal is readable. Resume execution is not automated yet; rerun the intended command after reviewing state.";
+    recommendedAction = "The installer journal is readable. Run resume only if the previous run was interrupted before completion.";
   }
   return {
     lockPath: installLockPath(mindoryHome),
     lock,
     journalPath: installJournalPath(mindoryHome),
     journalEntries: journal.length,
+    runStatePath: installRunStatePath(mindoryHome),
+    runState,
     ...(lastEvent === undefined ? {} : { lastEvent }),
     recommendedAction
   };
@@ -5087,6 +5652,103 @@ async function defaultRollbackExecutor(
     return;
   }
   throw new Error(`Rollback kind ${rollback.kind} is not implemented by the prepare execution engine.`);
+}
+
+async function executeInstallStepSubset(
+  answers: MindoryInstallAnswers,
+  plan: InstallPlan,
+  journal: InstallTransactionJournal,
+  stepsToRun: readonly InstallPlanStep[],
+  options: InstallExecutionOptions,
+  runState: InstallRunState
+): Promise<string[]> {
+  const executedStepIds: string[] = [];
+  for (const stepItem of stepsToRun) {
+    journal.recordPlanned(stepItem);
+    writeInstallJournal(plan.mindoryHome, journal);
+    updateInstallRunState(plan.mindoryHome, runState, "running", stepItem.id);
+    try {
+      options.beforeStep?.(stepItem, plan);
+      await executeSupportedInstallStep(stepItem, answers, plan, options);
+      journal.markCompleted(stepItem);
+      executedStepIds.push(stepItem.id);
+      writeInstallJournal(plan.mindoryHome, journal);
+      updateInstallRunState(plan.mindoryHome, runState, "running", stepItem.id);
+    } catch (error) {
+      journal.markFailed(stepItem, error);
+      writeInstallJournal(plan.mindoryHome, journal);
+      updateInstallRunState(plan.mindoryHome, runState, "failed", stepItem.id, errorToString(error));
+      throw error;
+    }
+  }
+  return executedStepIds;
+}
+
+function resumeStartIndex(
+  plan: InstallPlan,
+  journalEntries: readonly InstallJournalEntry[],
+  runState: InstallRunState | null,
+  hadStaleLock: boolean,
+  continueCompleted: boolean
+): number | null {
+  const lastEvent = journalEntries.at(-1);
+  if (lastEvent === undefined) {
+    return runState?.status === "running" ? 0 : null;
+  }
+  if (lastEvent.event === "failed" || lastEvent.event === "rollback_failed" || lastEvent.event === "repair_failed") {
+    throw new Error("The installer journal needs repair before it can be resumed.");
+  }
+  if (lastEvent.event === "rollback_completed" || lastEvent.event === "rollback_skipped" || runState?.status === "rolled_back") {
+    return null;
+  }
+  if (lastEvent.event === "planned") {
+    return planStepIndex(plan, lastEvent.actionId);
+  }
+  if (lastEvent.event === "completed") {
+    if (runState?.status === "completed" && !continueCompleted) {
+      return null;
+    }
+    if (runState?.status === "running" || hadStaleLock || continueCompleted) {
+      return planStepIndex(plan, lastEvent.actionId) + 1;
+    }
+  }
+  return null;
+}
+
+function planStepIndex(plan: InstallPlan, stepId: string): number {
+  const index = plan.steps.findIndex((stepItem) => stepItem.id === stepId);
+  if (index === -1) {
+    throw new Error(`Journal references unknown install step ${stepId}.`);
+  }
+  return index;
+}
+
+function planStepsFromIndex(plan: InstallPlan, startIndex: number, stopBeforeStepId: string | null): InstallPlanStep[] {
+  const stopIndex = stopBeforeStepId === null ? plan.steps.length : planStepIndex(plan, stopBeforeStepId);
+  return plan.steps.slice(startIndex, stopIndex);
+}
+
+function completedStepIdsFromJournal(journalEntries: readonly InstallJournalEntry[]): string[] {
+  const completed = new Set<string>();
+  for (const entry of journalEntries) {
+    if (entry.event === "completed") {
+      completed.add(entry.actionId);
+    }
+    if (entry.event === "rollback_completed" || entry.event === "rollback_skipped") {
+      completed.delete(entry.actionId);
+    }
+  }
+  return Array.from(completed);
+}
+
+function pendingStepIdsForTarget(
+  plan: InstallPlan,
+  completedStepIds: readonly string[],
+  stopBeforeStepId: string | null
+): string[] {
+  const completed = new Set(completedStepIds);
+  const stopIndex = stopBeforeStepId === null ? plan.steps.length : planStepIndex(plan, stopBeforeStepId);
+  return plan.steps.slice(0, stopIndex).filter((stepItem) => !completed.has(stepItem.id)).map((stepItem) => stepItem.id);
 }
 
 function pendingStepIds(plan: InstallPlan, executedStepIds: readonly string[]): string[] {

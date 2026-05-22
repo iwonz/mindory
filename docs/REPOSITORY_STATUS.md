@@ -6,7 +6,7 @@ The repository should be described with the support levels in
 
 ## Current Baseline
 
-The repository is complete through `TASK-109`.
+The repository is complete through `TASK-110`.
 
 Supported local MVP path:
 
@@ -29,6 +29,10 @@ Supported local MVP path:
 - Signed remote installer update can download/copy release manifests and
   bundles, verify signatures/checksums, stage releases, run migrations/startup
   health checks and rollback release/config assets on failure.
+- Installer recovery includes run-state backed `resume` for interrupted
+  file generation, Compose startup, migrations, health checks and first-run
+  provisioning, plus `repair` for confirmed stale locks and interrupted
+  rollback continuation inside `$MINDORY_HOME`.
 - LLM role/provider support levels are centralized and enforced by config and
   installer validation.
 - OpenAI-compatible chat and text embedding operations support API-key and
@@ -93,7 +97,6 @@ Public GitHub hygiene baseline:
 
 ## Known Limits
 
-- Full automated installer resume is future work.
 - Alerting policy is not bundled; route Prometheus and OTLP exports to the
   monitoring stack used by the deployment.
 - Official Hermes SDK certification is future work; the current supported path

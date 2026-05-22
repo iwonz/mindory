@@ -111,6 +111,8 @@ for (const symbol of [
   "renderMindoryConfigJson",
   "buildRedactedInstallSummary",
   "executeInstallPlan",
+  "resumeInstallFromJournal",
+  "repairInstallState",
   "InstallCommandRunner",
   "updateInstallAssets",
   "updateInstallFromRemoteRelease",
@@ -120,6 +122,10 @@ for (const symbol of [
   "createMindoryPostgresPitrBaseBackup",
   "restoreMindoryPostgresPitrBackup",
   "inspectInstallState",
+  "installRunStatePath",
+  "readInstallRunState",
+  "writeInstallRunState",
+  "createInstallAnswersFromHome",
   "buildWizardPromptPlan",
   "runInstallWizard",
   "createReadlineWizardIo",
@@ -167,7 +173,7 @@ for (const token of ["infected_probe_not_detected", "unexpected_infected_result"
   assert(installerSource.includes(token), `Installer ClamAV health must include ${token}.`);
 }
 assert(composeFile.includes("clamdscan --no-summary"), "ClamAV Compose service must include a real daemon healthcheck.");
-for (const token of ["command === \"start\"", "stopBeforeStepId: null", "initialTokenPath", "mindory-installer start", "command === \"update\"", "--manifest-url", "--public-key-path", "updateInstallFromRemoteRelease", "command === \"backup\"", "command === \"backup-archive\"", "command === \"backup-upload\"", "command === \"backup-download\"", "command === \"backup-restore-archive\"", "command === \"s3-inventory\"", "command === \"s3-backup\"", "command === \"s3-restore\"", "command === \"pitr-backup\"", "command === \"pitr-restore\"", "command === \"restore\"", "command === \"uninstall\""]) {
+for (const token of ["command === \"start\"", "stopBeforeStepId: null", "initialTokenPath", "mindory-installer start", "command === \"resume\"", "resumeInstallFromJournal", "--continue-completed", "command === \"repair\"", "repairInstallState", "--continue-rollback", "command === \"update\"", "--manifest-url", "--public-key-path", "updateInstallFromRemoteRelease", "command === \"backup\"", "command === \"backup-archive\"", "command === \"backup-upload\"", "command === \"backup-download\"", "command === \"backup-restore-archive\"", "command === \"s3-inventory\"", "command === \"s3-backup\"", "command === \"s3-restore\"", "command === \"pitr-backup\"", "command === \"pitr-restore\"", "command === \"restore\"", "command === \"uninstall\""]) {
   assert(installerCli.includes(token), `Installer CLI must expose startup command token ${token}.`);
 }
 
@@ -330,6 +336,9 @@ assert(fs.existsSync(path.join(executionHome, "config", ".env")), "Prepare execu
 assert(fs.existsSync(path.join(executionHome, "install", "compose", "docker-compose.yml")), "Prepare execution must copy docker-compose.yml.");
 assert(fs.existsSync(path.join(executionHome, "install", "compose", "release-manifest.json")), "Prepare execution must copy the release manifest.");
 assert(fs.existsSync(installer.installJournalPath(executionHome)), "Prepare execution must persist the install journal.");
+assert(fs.existsSync(installer.installRunStatePath(executionHome)), "Prepare execution must persist resumable run state.");
+assert(installer.readInstallRunState(executionHome).status === "completed", "Prepare run state must record a completed prepare target.");
+assert(installer.readInstallRunState(executionHome).stop_before_step_id === "pull-images", "Prepare run state must record its stop boundary.");
 assert(installer.readInstallJournal(executionHome).some((entry) => entry.event === "completed" && entry.actionId === "write-compose-assets"), "Prepare journal must record completed compose asset writes.");
 assert(installer.readInstallLock(executionHome) === null, "Prepare execution must release the install lock.");
 fs.rmSync(executionHome, { recursive: true, force: true });
@@ -403,6 +412,91 @@ for (const token of ["pull --ignore-buildable", "build", "up -d postgres redis c
 assert(composeCommands.some((command) => command.includes("exec -T clamav sh -lc") && command.includes("clamdscan")), "Installer health-check must execute ClamAV scan probes.");
 assert(composeCommands.some((command) => command.includes("EICAR-STANDARD-ANTIVIRUS-TEST-FILE")), "Installer health-check must verify an infected EICAR probe.");
 fs.rmSync(composeHome, { recursive: true, force: true });
+
+const resumeFileHome = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-installer-resume-file-"));
+fs.rmSync(resumeFileHome, { recursive: true, force: true });
+const resumeFileAnswers = installer.createDefaultInstallAnswers({ mindoryHome: resumeFileHome });
+await installer.executeInstallPlan(resumeFileAnswers, { sourceRoot: root, owner: "validator", stopBeforeStepId: "write-env" });
+const resumeFilePlan = installer.createInstallPlan(resumeFileAnswers);
+const resumeFileJournal = new installer.InstallTransactionJournal(installer.readInstallJournal(resumeFileHome));
+resumeFileJournal.recordPlanned(resumeFilePlan.steps.find((step) => step.id === "write-env"));
+installer.writeInstallJournal(resumeFileHome, resumeFileJournal);
+installer.writeInstallRunState(resumeFileHome, {
+  ...installer.readInstallRunState(resumeFileHome),
+  status: "running",
+  stop_before_step_id: "pull-images",
+  last_step_id: "write-env",
+  updated_at: new Date().toISOString()
+});
+const resumeFileReport = await installer.resumeInstallFromJournal(resumeFileHome, { sourceRoot: root, owner: "validator" });
+assert(resumeFileReport.status === "resumed", "Resume must continue an interrupted file-generation step.");
+assert(resumeFileReport.executedStepIds.join(",") === "write-env,write-compose-assets", "Resume must restart the planned file step and continue to the recorded boundary.");
+assert(fs.existsSync(path.join(resumeFileHome, "config", ".env")), "Resume must write the missing generated .env file.");
+assert(fs.existsSync(path.join(resumeFileHome, "install", "compose", "docker-compose.yml")), "Resume must finish Compose asset generation.");
+fs.rmSync(resumeFileHome, { recursive: true, force: true });
+
+const resumeRuntimeHome = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-installer-resume-runtime-"));
+fs.rmSync(resumeRuntimeHome, { recursive: true, force: true });
+const resumeRuntimeAnswers = installer.createDefaultInstallAnswers({ mindoryHome: resumeRuntimeHome });
+const resumeRuntimeCommands = [];
+await installer.executeInstallPlan(resumeRuntimeAnswers, {
+  sourceRoot: root,
+  owner: "validator",
+  stopBeforeStepId: "run-migrations",
+  commandRunner: {
+    async run(command, args) {
+      const clamAvResult = clamAvHealthCommandResult(args);
+      if (clamAvResult !== null) {
+        return clamAvResult;
+      }
+      return { status: 0, stdout: args.includes("ps") ? healthyComposePs : "ok", stderr: "" };
+    }
+  }
+});
+const resumeRuntimePlan = installer.createInstallPlan(resumeRuntimeAnswers);
+const resumeRuntimeJournal = new installer.InstallTransactionJournal(installer.readInstallJournal(resumeRuntimeHome));
+resumeRuntimeJournal.recordPlanned(resumeRuntimePlan.steps.find((step) => step.id === "run-migrations"));
+installer.writeInstallJournal(resumeRuntimeHome, resumeRuntimeJournal);
+installer.writeInstallRunState(resumeRuntimeHome, {
+  ...installer.readInstallRunState(resumeRuntimeHome),
+  status: "running",
+  stop_before_step_id: null,
+  last_step_id: "run-migrations",
+  updated_at: new Date().toISOString()
+});
+const resumeRuntimeReport = await installer.resumeInstallFromJournal(resumeRuntimeHome, {
+  sourceRoot: root,
+  owner: "validator",
+  timeoutMs: 100,
+  pollIntervalMs: 1,
+  firstRunCredentials: {
+    projectId: "resume-project",
+    projectName: "Resume Project",
+    tokenId: "tok_resume_install",
+    token: "mindory_resume_secret",
+    apiUrl: "http://localhost:3000"
+  },
+  apiReadyCheck: async () => true,
+  commandRunner: {
+    async run(command, args) {
+      resumeRuntimeCommands.push(`${command} ${args.join(" ")}`);
+      const clamAvResult = clamAvHealthCommandResult(args);
+      if (clamAvResult !== null) {
+        return clamAvResult;
+      }
+      if (args.includes("ps")) {
+        return { status: 0, stdout: healthyComposePs, stderr: "" };
+      }
+      return { status: 0, stdout: "ok", stderr: "" };
+    }
+  }
+});
+assert(resumeRuntimeReport.executedStepIds.includes("run-migrations"), "Resume must continue interrupted migrations.");
+assert(resumeRuntimeReport.executedStepIds.includes("health-check"), "Resume must continue interrupted healthcheck execution.");
+assert(resumeRuntimeReport.executedStepIds.includes("create-first-token"), "Resume must finish first-run provisioning when the recorded target is full startup.");
+assert(resumeRuntimeCommands.some((command) => command.includes("up migrate")), "Resume must rerun the interrupted migration service.");
+assert(installer.readInstallRunState(resumeRuntimeHome).status === "completed", "Resume must mark run state completed after finishing the recorded target.");
+fs.rmSync(resumeRuntimeHome, { recursive: true, force: true });
 
 const localCommandHome = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-installer-local-command-"));
 fs.rmSync(localCommandHome, { recursive: true, force: true });
@@ -890,6 +984,40 @@ const composeRollbackJournal = installer.readInstallJournal(composeRollbackHome)
 assert(composeRollbackJournal !== null, "Compose rollback must leave a journal.");
 assert(composeRollbackJournal.some((entry) => entry.event === "rollback_completed" && entry.actionId === "start-infra"), "Compose rollback must record compose_down rollback completion.");
 fs.rmSync(composeRollbackHome, { recursive: true, force: true });
+
+const repairRollbackHome = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-installer-repair-rollback-"));
+fs.rmSync(repairRollbackHome, { recursive: true, force: true });
+const repairRollbackAnswers = installer.createDefaultInstallAnswers({ mindoryHome: repairRollbackHome });
+await installer.executeInstallPlan(repairRollbackAnswers, { sourceRoot: root, owner: "validator", stopBeforeStepId: "write-env" });
+const repairRollbackPlan = installer.createInstallPlan(repairRollbackAnswers);
+const repairRollbackJournal = new installer.InstallTransactionJournal(installer.readInstallJournal(repairRollbackHome));
+repairRollbackJournal.recordRollback(repairRollbackPlan.steps.find((step) => step.id === "write-config"), "failed", new Error("interrupted rollback"));
+installer.writeInstallJournal(repairRollbackHome, repairRollbackJournal);
+installer.writeInstallRunState(repairRollbackHome, {
+  ...installer.readInstallRunState(repairRollbackHome),
+  status: "failed",
+  last_step_id: "write-config",
+  error: "interrupted rollback",
+  updated_at: new Date().toISOString()
+});
+const repairRollbackReport = await installer.repairInstallState(repairRollbackHome, {
+  owner: "validator",
+  continueRollback: true
+});
+assert(repairRollbackReport.status === "repaired", "Repair must continue interrupted rollback work.");
+assert(repairRollbackReport.rollbackReport.executions.some((execution) => execution.actionId === "write-config" && execution.status === "completed"), "Repair rollback must restore or remove the interrupted config file.");
+assert(installer.readInstallJournal(repairRollbackHome).some((entry) => entry.event === "repair_completed" && entry.actionId === "continue-rollback"), "Repair must record completed rollback recovery in the journal.");
+assert(installer.readInstallRunState(repairRollbackHome).status === "rolled_back", "Repair must mark run state rolled back after successful rollback recovery.");
+fs.rmSync(repairRollbackHome, { recursive: true, force: true });
+
+const repairLockHome = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-installer-repair-lock-"));
+const repairLock = installer.acquireInstallLock(repairLockHome, "validator-stale");
+assert(fs.existsSync(installer.installLockPath(repairLockHome)), "Repair lock fixture must create a lock.");
+const repairLockReport = await installer.repairInstallState(repairLockHome, { clearStaleLock: true });
+assert(repairLockReport.actions.some((action) => action.id === "clear-stale-lock" && action.status === "completed"), "Repair must remove stale locks when explicitly confirmed.");
+assert(installer.readInstallLock(repairLockHome) === null, "Repair stale-lock cleanup must leave no install lock.");
+repairLock.release();
+fs.rmSync(repairLockHome, { recursive: true, force: true });
 
 const rollbackHome = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-installer-rollback-"));
 fs.rmSync(rollbackHome, { recursive: true, force: true });
