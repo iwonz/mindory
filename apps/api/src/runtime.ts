@@ -23,6 +23,7 @@ import {
   type MindoryDatabase
 } from "@mindory/db";
 import { buildMindoryLlm } from "@mindory/llm";
+import { ClamAvScanner } from "@mindory/processor-antivirus-clamav";
 import { BullMqProcessingJobQueue } from "@mindory/queue-bullmq";
 import { LocalFsObjectStorage } from "@mindory/storage-local-fs";
 import { S3ObjectStorage } from "@mindory/storage-s3";
@@ -55,7 +56,7 @@ export function buildApiRuntimeDependencies(config: MindoryConfig): ApiRuntimeDe
     queue
   });
   const storage = buildObjectStorage(config);
-  const uploadService = new DocumentUploadService({
+  const uploadServiceOptions = {
     storage,
     documents: documentRepository,
     jobs: jobDispatcher,
@@ -68,7 +69,12 @@ export function buildApiRuntimeDependencies(config: MindoryConfig): ApiRuntimeDe
     },
     routeAfterUpload: config.documentProcessing.routingEnabled,
     routeProcessorVersion: "document-route-v1"
-  });
+  };
+  const uploadScanner = buildUploadScanner(config);
+  if (uploadScanner !== undefined) {
+    Object.assign(uploadServiceOptions, { scanner: uploadScanner });
+  }
+  const uploadService = new DocumentUploadService(uploadServiceOptions);
   const recomputeService = new DocumentRecomputeService({
     documents: documentRepository,
     jobs: jobDispatcher,
@@ -136,6 +142,16 @@ export function buildApiRuntimeDependencies(config: MindoryConfig): ApiRuntimeDe
       await database.close();
     }
   };
+}
+
+function buildUploadScanner(config: MindoryConfig): ClamAvScanner | undefined {
+  if (!config.antivirus.enabled || config.antivirus.mode !== "sync_scan" || config.antivirus.provider !== "clamav") {
+    return undefined;
+  }
+  return new ClamAvScanner({
+    host: config.antivirus.clamavHost,
+    port: config.antivirus.clamavPort
+  });
 }
 
 function buildObjectStorage(config: MindoryConfig): ObjectStorage {

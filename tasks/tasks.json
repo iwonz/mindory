@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-93",
+  "current_task_id": "TASK-94",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -691,7 +691,7 @@
     {
       "id": "TASK-94",
       "title": "Implement synchronous antivirus scan mode",
-      "status": "draft",
+      "status": "done",
       "branch": "task/TASK-94-synchronous-antivirus-scan-mode",
       "file": "tasks/TASK-94.json"
     },

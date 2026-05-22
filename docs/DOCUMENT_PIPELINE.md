@@ -76,23 +76,24 @@ Original files stay out of PostgreSQL. Upload stores the blob through
 `ObjectStorage`, then persists only document metadata and the storage key in the
 database.
 
-## Current TASK-8 Flow
+## Upload And Scan Flow
 
 The upload service flow is:
 
 ```text
 receive upload
 store blob through ObjectStorage
-create Document metadata through DocumentRepository
+if sync_scan, stream the stored blob through ClamAV and wait for a verdict
+create Document metadata through DocumentRepository with the scan-derived status
 if async_quarantine, enqueue document.scan through ProcessingJobDispatcher
-otherwise enqueue document.route through ProcessingJobDispatcher
+if clean or allowed-with-warning, enqueue document.route through ProcessingJobDispatcher
 return Document, scan job and route job ids
 ```
 
-`TASK-18` wires the API server runtime to local filesystem object storage,
-`DocumentRepository`, `DbProcessingJobStore` and BullMQ dispatch. The bare app
-factory still returns a structured `501` until concrete dependencies are
-injected.
+The API runtime wires uploads to object storage, `DocumentRepository`,
+`DbProcessingJobStore`, BullMQ dispatch and, for `sync_scan`, the ClamAV
+scanner. `sync_scan` never returns a successful upload response until the scanner
+has returned clean, infected or failure policy state.
 
 ## Scan Processor
 
@@ -107,8 +108,10 @@ document status:
 - scan failure with block policy: `quarantined`
 
 After a clean asynchronous scan, the processor enqueues `document.route` instead
-of reaching directly into extraction. This keeps antivirus verdicts separate
-from modality planning.
+of reaching directly into extraction. In synchronous mode the upload service
+applies the same clean, infected and scan-failure policies before any route job
+is created. This keeps antivirus verdicts separate from modality planning while
+ensuring infected uploads are quarantined or removed before processing can start.
 
 ## Routing Stage
 
