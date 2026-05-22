@@ -17,6 +17,7 @@ project/token.
 | Prepare execution | Supported. It creates `$MINDORY_HOME`, writes generated config/env files and copies release Compose assets with journaled rollback. |
 | Compose startup | Supported. It can pull/build, start infrastructure, run migrations, start API/worker/MCP and wait for Compose/API readiness. |
 | S3 storage bootstrap | Supported baseline. Local LibreFS/MinIO profiles run bucket bootstrap services; external S3-compatible endpoints are signed access-checked before migrations. |
+| Vector backend selection | Supported. The wizard and answer files can choose `pgvector` or `qdrant`; Qdrant automatically adds the `qdrant` Compose profile and is included in Compose health checks. |
 | First project/token provisioning | Supported. It creates the initial project and bearer token, then writes `config/initial-token.json`. |
 | Update assets | Supported for local config/Compose asset refresh with pre-update backup and rollback. Remote release download is future work. |
 | Runtime backup/restore | Supported MVP. It writes `backup-manifest.json`, config, installer metadata, PostgreSQL dumps and local object storage copies. |
@@ -37,6 +38,7 @@ project/token.
 - transaction journal entries;
 - reverse-order rollback execution;
 - generated `.env` and `mindory.config.json` rendering;
+- vector backend selection for `pgvector` or `qdrant`;
 - redacted summaries for confirmation screens and logs.
 
 The package reads defaults and supported values from `@mindory/config`. It must

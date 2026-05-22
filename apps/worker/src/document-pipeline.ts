@@ -1066,7 +1066,10 @@ class DocumentEmbedProcessor implements ProcessingJobProcessor {
         embedding: result.embedding,
         model: result.model,
         dimensions: result.dimensions,
-        metadata: chunk.metadata
+        metadata: {
+          ...documentVectorMetadata(document),
+          ...chunk.metadata
+        }
       };
     });
     const embeddingsKey = derivedObjectKey(document.storageKey, "embeddings.json");
@@ -2248,6 +2251,37 @@ function hashIdentifier(value: string): string {
 
 function derivedObjectKey(storageKey: string, suffix: string): string {
   return `${storageKey}.${suffix}`;
+}
+
+function documentVectorMetadata(document: DocumentRecord): Record<string, unknown> {
+  const metadata: Record<string, unknown> = {
+    size_bytes: document.sizeBytes,
+    mime_type: document.mimeType,
+    original_filename: document.originalFilename
+  };
+  const documentMetadata = typeof document.metadata === "object" && document.metadata !== null
+    ? document.metadata
+    : {};
+  const attachmentMetadata = readRecordFromRecord(documentMetadata, "attachment_metadata");
+  for (const key of [
+    "extension",
+    "checksum_sha256",
+    "media_type",
+    "container",
+    "duration_ms",
+    "width",
+    "height",
+    "page_count",
+    "frame_count",
+    "codec",
+    "magic_matched"
+  ]) {
+    const value = attachmentMetadata?.[key] ?? documentMetadata[key];
+    if (value !== undefined && value !== null) {
+      metadata[key] = value;
+    }
+  }
+  return metadata;
 }
 
 function readMetadataString(metadata: unknown, key: string): string | undefined {

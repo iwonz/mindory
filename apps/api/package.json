@@ -30,6 +30,7 @@
     "@mindory/storage-local-fs": "workspace:*",
     "@mindory/storage-s3": "workspace:*",
     "@mindory/vector-pgvector": "workspace:*",
+    "@mindory/vector-qdrant": "workspace:*",
     "@fastify/multipart": "^9.0.0",
     "fastify": "^5.0.0"
   }

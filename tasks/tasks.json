@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-90",
+  "current_task_id": "TASK-91",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -670,7 +670,7 @@
     {
       "id": "TASK-91",
       "title": "Wire selectable vector backend runtime",
-      "status": "draft",
+      "status": "done",
       "branch": "task/TASK-91-vector-backend-selection-runtime",
       "file": "tasks/TASK-91.json"
     },

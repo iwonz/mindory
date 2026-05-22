@@ -220,8 +220,9 @@ returns explicit `not_implemented` responses when dependencies are omitted.
   Recompute jobs create a new `processing_run`, supersede older runs by stage
   and enqueue routing while preserving the original document storage key.
 
-Qdrant support is implemented in `@mindory/vector-qdrant`; full API/worker
-backend selection is handled by the vector runtime wiring layer.
+Qdrant support is implemented in `@mindory/vector-qdrant`; API and worker
+runtime select pgvector or Qdrant from `MINDORY_VECTOR_PROVIDER` and keep source
+refs consistent across both search backends.
 
 ## Memory And Context Builder
 

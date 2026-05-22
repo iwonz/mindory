@@ -2,12 +2,14 @@ import { createHash } from "node:crypto";
 import type { DocumentMetadataFilter } from "@mindory/core/artifacts";
 import {
   ProcessingError,
+  type EmbeddingsProvider,
   type SearchVectorChunksInput,
   type UpsertVectorChunksInput,
   type VectorIndex,
   type VectorIndexResult,
   type VectorSearchHit
 } from "@mindory/core/processing";
+import type { DocumentChunkSearchHit, DocumentChunkSearchInput, DocumentChunkSearchRepository, SourceRef } from "@mindory/core/memory";
 
 export interface QdrantVectorIndexOptions {
   url: string;
@@ -25,6 +27,11 @@ export interface QdrantHealthcheckResult {
   url: string;
   collectionName: string;
   dimensions: number;
+}
+
+export interface QdrantDocumentChunkSearchRepositoryOptions {
+  embeddings: EmbeddingsProvider;
+  vectorIndex: QdrantVectorIndex;
 }
 
 type FetchLike = (url: string, init?: FetchInitLike) => Promise<ResponseLike>;
@@ -268,6 +275,55 @@ export class QdrantVectorIndex implements VectorIndex {
   }
 }
 
+export class QdrantDocumentChunkSearchRepository implements DocumentChunkSearchRepository {
+  private readonly embeddings: EmbeddingsProvider;
+  private readonly vectorIndex: QdrantVectorIndex;
+
+  constructor(options: QdrantDocumentChunkSearchRepositoryOptions) {
+    this.embeddings = options.embeddings;
+    this.vectorIndex = options.vectorIndex;
+  }
+
+  async searchDocumentChunks(input: DocumentChunkSearchInput): Promise<DocumentChunkSearchHit[]> {
+    if (!input.query) {
+      return [];
+    }
+
+    const [embedding] = await this.embeddings.embedTexts({
+      texts: [input.query]
+    });
+    if (!embedding) {
+      throw new ProcessingError("embedding_provider_error", "Embedding provider returned no query embedding.");
+    }
+
+    const searchInput: SearchVectorChunksInput = {
+      projectIds: input.projectIds,
+      embedding: embedding.embedding,
+      limit: input.limit
+    };
+    if (input.metadataFilters !== undefined) {
+      searchInput.metadataFilters = input.metadataFilters;
+    }
+
+    return (await this.vectorIndex.searchDocumentChunks(searchInput)).map((hit) => {
+      const sourceRefs = readSourceRefs(hit.metadata.source_refs, [{ type: "chunk", id: hit.chunkId }]);
+      return {
+        projectId: hit.projectId,
+        documentId: hit.documentId,
+        chunkId: hit.chunkId,
+        content: hit.content,
+        score: hit.score,
+        sourceRefs,
+        metadata: {
+          ...hit.metadata,
+          search_backend: "qdrant",
+          source_refs: sourceRefs
+        }
+      };
+    });
+  }
+}
+
 function buildSearchFilter(projectIds: string[], metadataFilters: DocumentMetadataFilter[] | undefined): QdrantFilter {
   const must: QdrantFilterCondition[] = [
     {
@@ -454,6 +510,22 @@ function readString(value: unknown): string {
 
 function readMetadata(value: unknown): Record<string, unknown> {
   return readObject(value);
+}
+
+function readSourceRefs(value: unknown, fallback: SourceRef[]): SourceRef[] {
+  if (!Array.isArray(value)) {
+    return fallback;
+  }
+
+  const sourceRefs = value.filter((item): item is SourceRef => (
+    typeof item === "object"
+    && item !== null
+    && "type" in item
+    && "id" in item
+    && typeof item.type === "string"
+    && typeof item.id === "string"
+  ));
+  return sourceRefs.length > 0 ? sourceRefs : fallback;
 }
 
 async function qdrantHttpError(response: ResponseLike, fallback: string): Promise<ProcessingError> {

@@ -225,7 +225,7 @@ assert(!pgvector.includes("vector_index_" + "not" + "_implemented"), "pgvector p
 assert(qdrantPackage.dependencies?.["@mindory/core"] === "workspace:*", "Qdrant package must depend on @mindory/core.");
 assert(qdrantPackage.exports?.["."], "Qdrant package must export its root module.");
 assert(qdrantTsconfig.references?.some((reference) => reference.path === "../../../packages/core"), "Qdrant package must reference @mindory/core.");
-for (const token of ["QdrantVectorIndex", "ensureCollection", "healthcheck", "upsertDocumentChunks", "deleteDocumentChunks", "searchDocumentChunks", "/points/search", "/points/delete?wait=true", "source_refs", "metadataFilters"]) {
+for (const token of ["QdrantVectorIndex", "QdrantDocumentChunkSearchRepository", "ensureCollection", "healthcheck", "upsertDocumentChunks", "deleteDocumentChunks", "searchDocumentChunks", "/points/search", "/points/delete?wait=true", "source_refs", "metadataFilters"]) {
   assert(qdrant.includes(token), `Qdrant package must include ${token}.`);
 }
 assert(!qdrant.includes("vector_index_" + "not" + "_implemented"), "Qdrant package must include a working implementation.");
@@ -329,7 +329,7 @@ for (const token of [
 ]) {
   assert(workerPipeline.includes(token), `Worker document pipeline must include ${token}.`);
 }
-for (const token of ["buildWorkerRuntime", "DbDocumentChunkRepository", "ProcessingJobDispatcher", "buildDocumentPipelineProcessors"]) {
+for (const token of ["buildWorkerRuntime", "DbDocumentChunkRepository", "ProcessingJobDispatcher", "buildDocumentPipelineProcessors", "QdrantVectorIndex", "config.vector.provider === \"qdrant\""]) {
   assert(workerRuntime.includes(token), `Worker runtime must include ${token}.`);
 }
 for (const token of ["SessionSummaryProcessor", "MemoryDerivationProcessor", "session.summarize", "memory.derive"]) {

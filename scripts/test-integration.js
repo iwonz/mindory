@@ -307,6 +307,119 @@ test("MVP runtime integration indexes document chunks with configured embeddings
   }
 });
 
+test("MVP runtime integration indexes and searches document chunks with Qdrant", { timeout: 120_000 }, async () => {
+  const qdrantRunId = `task91_${Date.now()}_${randomUUID().slice(0, 8)}`;
+  const qdrantProjectId = `project_${qdrantRunId}`;
+  const qdrantToken = `token_${qdrantRunId}`;
+  const qdrantStoragePath = path.join(os.tmpdir(), `mindory-integration-${qdrantRunId}`);
+  const qdrantQueuePrefix = `mindory:test:${qdrantRunId}`;
+  const qdrantCollectionPrefix = `mindory_${qdrantRunId}`;
+  const qdrantCollectionName = `${qdrantCollectionPrefix}_document_chunks`;
+  const fakeEmbeddings = await startOpenAiCompatibleEmbeddingServer({ dimensions: 1536 });
+  const qdrantEnv = {
+    ...testEnv,
+    MINDORY_QUEUE_PREFIX: qdrantQueuePrefix,
+    MINDORY_CACHE_PREFIX: `mindory:test-cache:${qdrantRunId}`,
+    MINDORY_STORAGE_LOCAL_PATH: qdrantStoragePath,
+    MINDORY_VECTOR_PROVIDER: "qdrant",
+    MINDORY_QDRANT_URL: qdrantUrl,
+    MINDORY_QDRANT_COLLECTION_PREFIX: qdrantCollectionPrefix,
+    MINDORY_LLM_TEXT_EMBEDDING_ENABLED: "true",
+    MINDORY_LLM_TEXT_EMBEDDING_PROVIDER: "openai-compatible",
+    MINDORY_LLM_TEXT_EMBEDDING_MODEL: "mindory-test-embedding",
+    MINDORY_LLM_TEXT_EMBEDDING_DIMENSIONS: "1536",
+    MINDORY_LLM_OPENAI_COMPATIBLE_BASE_URL: fakeEmbeddings.baseUrl,
+    MINDORY_LLM_OPENAI_COMPATIBLE_AUTH_MODE: "api-key",
+    MINDORY_LLM_OPENAI_COMPATIBLE_API_KEY: "test-key"
+  };
+  const config = modules.loadMindoryConfig(qdrantEnv);
+  let apiApp = null;
+  let workerRuntime = null;
+  let managementDatabase = null;
+  let managementQueue = null;
+
+  try {
+    await mkdir(qdrantStoragePath, { recursive: true });
+    await cleanupProjectInDatabase(qdrantProjectId, databaseUrl);
+    await seedProjectTokenInDatabase({
+      projectId: qdrantProjectId,
+      token: qdrantToken,
+      tokenId: `tok_${qdrantRunId}`,
+      permissions: [...modules.MINDORY_PERMISSIONS]
+    }, databaseUrl);
+
+    const apiRuntime = modules.buildApiRuntimeDependencies(config);
+    apiApp = await modules.buildApiApp({ config, ...apiRuntime, logger: false });
+    await apiApp.listen({ host: "127.0.0.1", port: 0 });
+    const apiUrl = addressToUrl(apiApp.server.address());
+
+    workerRuntime = modules.buildWorkerRuntime(config);
+    await workerRuntime.start();
+
+    managementDatabase = modules.createMindoryDatabaseClient(databaseUrl);
+    managementQueue = new modules.BullMqProcessingJobQueue({
+      redisUrl,
+      queuePrefix: qdrantQueuePrefix
+    });
+    const documentId = await uploadAndIndexDocument({
+      apiUrl,
+      projectId: qdrantProjectId,
+      token: qdrantToken
+    });
+    const pgvectorRows = await countVectorEmbeddings(qdrantProjectId, databaseUrl);
+    assert.equal(pgvectorRows, 0, "Qdrant-selected indexing must not write pgvector rows.");
+    const linkedChunks = await countLinkedDocumentChunks(qdrantProjectId, documentId, databaseUrl);
+    assert.ok(linkedChunks > 0, "Qdrant-selected indexing must link chunk embedding ids.");
+
+    const qdrantIndex = new modules.QdrantVectorIndex({
+      url: qdrantUrl,
+      collectionPrefix: qdrantCollectionPrefix,
+      dimensions: 1536
+    });
+    const directHits = await qdrantIndex.searchDocumentChunks({
+      projectIds: [qdrantProjectId],
+      embedding: deterministicEmbedding("semantic source-backed retrieval", 1536),
+      limit: 5
+    });
+    assert.ok(directHits.some((hit) => hit.documentId === documentId), "worker indexing should write selected chunks to Qdrant.");
+
+    const search = await requestJson(apiUrl, "POST", "/v1/documents/search", {
+      projectIds: [qdrantProjectId],
+      query: "semantic source-backed retrieval",
+      limit: 5,
+      metadataFilters: [{ key: "size_bytes", operator: "gt", valueNumber: 10, unit: "bytes" }]
+    }, qdrantToken);
+    assert.ok(search.hits.some((hit) => hit.documentId === documentId), "Qdrant-backed semantic search should return the indexed document.");
+    assert.ok(search.hits.every((hit) => Array.isArray(hit.sourceRefs) && hit.sourceRefs.some((ref) => ref.type === "chunk")), "Qdrant-backed search hits must include chunk source refs.");
+    assert.ok(search.hits.some((hit) => hit.sourceRefs.some((ref) => ref.type === "artifact")), "Qdrant-backed search hits must include artifact source refs.");
+    const filteredOutSearch = await requestJson(apiUrl, "POST", "/v1/documents/search", {
+      projectIds: [qdrantProjectId],
+      query: "semantic source-backed retrieval",
+      limit: 5,
+      metadataFilters: [{ key: "size_bytes", operator: "lt", valueNumber: 1, unit: "bytes" }]
+    }, qdrantToken);
+    assert.ok(!filteredOutSearch.hits.some((hit) => hit.documentId === documentId), "Qdrant-backed search should enforce metadata filters.");
+  } finally {
+    if (workerRuntime) {
+      await workerRuntime.close();
+    }
+    if (apiApp) {
+      await apiApp.close();
+    }
+    if (managementQueue) {
+      await managementQueue.queue.obliterate({ force: true });
+      await managementQueue.close();
+    }
+    if (managementDatabase) {
+      await managementDatabase.close();
+    }
+    await fakeEmbeddings.close();
+    await deleteQdrantCollection(qdrantUrl, qdrantCollectionName);
+    await cleanupProjectInDatabase(qdrantProjectId, databaseUrl);
+    await rm(qdrantStoragePath, { recursive: true, force: true });
+  }
+});
+
 test("Qdrant vector adapter bootstraps collection and searches chunks", { timeout: 60_000 }, async () => {
   const collectionPrefix = `mindory_${testRunId}`;
   const collectionName = `${collectionPrefix}_document_chunks`;
@@ -993,7 +1106,7 @@ async function assertUnifiedArtifactSearch(apiUrl, input) {
 async function uploadAndIndexDocument(input) {
   const documentText = [
     "Mindory indexed document.",
-    "semantic source-backed retrieval should return pgvector-backed chunks.",
+    "semantic source-backed retrieval should return vector-backed chunks.",
     "The worker pipeline must embed chunks, index them and serve document search."
   ].join("\n");
   const form = new FormData();

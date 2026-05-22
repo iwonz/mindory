@@ -62,6 +62,9 @@ importers:
       '@mindory/vector-pgvector':
         specifier: workspace:*
         version: link:../../packages/vector/pgvector
+      '@mindory/vector-qdrant':
+        specifier: workspace:*
+        version: link:../../packages/vector/qdrant
       fastify:
         specifier: ^5.0.0
         version: 5.8.5
@@ -125,6 +128,9 @@ importers:
       '@mindory/vector-pgvector':
         specifier: workspace:*
         version: link:../../packages/vector/pgvector
+      '@mindory/vector-qdrant':
+        specifier: workspace:*
+        version: link:../../packages/vector/qdrant
 
   packages/auth: {}
 

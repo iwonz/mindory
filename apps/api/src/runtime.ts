@@ -27,6 +27,7 @@ import { BullMqProcessingJobQueue } from "@mindory/queue-bullmq";
 import { LocalFsObjectStorage } from "@mindory/storage-local-fs";
 import { S3ObjectStorage } from "@mindory/storage-s3";
 import { PgVectorChunkIndex, PgVectorDocumentChunkSearchRepository } from "@mindory/vector-pgvector";
+import { QdrantDocumentChunkSearchRepository, QdrantVectorIndex } from "@mindory/vector-qdrant";
 import type { BuildApiAppOptions } from "./app.js";
 
 export interface ApiRuntimeDependencies extends Pick<
@@ -160,15 +161,36 @@ function buildDocumentChunkSearchRepository(config: MindoryConfig, db: MindoryDa
     return new DbDocumentChunkSearchRepository(db);
   }
 
+  const vectorIndex = buildVectorIndex(config, db);
+  if (vectorIndex.provider === "qdrant") {
+    return new QdrantDocumentChunkSearchRepository({
+      embeddings,
+      vectorIndex
+    });
+  }
+
   return new PgVectorDocumentChunkSearchRepository({
     embeddings,
-    vectorIndex: new PgVectorChunkIndex({
-      db,
-      dimensions: config.llm.textEmbedding.dimensions ?? PGVECTOR_EMBEDDING_DIMENSIONS
-    })
+    vectorIndex
   });
 }
 
 function buildEmbeddingsProvider(config: MindoryConfig): EmbeddingsProvider | undefined {
   return buildMindoryLlm(config).textEmbeddings;
+}
+
+function buildVectorIndex(config: MindoryConfig, db: MindoryDatabase): PgVectorChunkIndex | QdrantVectorIndex {
+  const dimensions = config.llm.textEmbedding.dimensions ?? PGVECTOR_EMBEDDING_DIMENSIONS;
+  if (config.vector.provider === "qdrant") {
+    return new QdrantVectorIndex({
+      url: config.vector.qdrantUrl,
+      collectionPrefix: config.vector.qdrantCollectionPrefix,
+      dimensions
+    });
+  }
+
+  return new PgVectorChunkIndex({
+    db,
+    dimensions
+  });
 }

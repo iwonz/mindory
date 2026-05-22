@@ -75,6 +75,8 @@ for (const promptId of [
   "install.public_url",
   "av.mode",
   "storage.choice",
+  "vector.provider",
+  "vector.qdrant_url",
   "modalities.video_max_keyframes",
   "interfaces.api_port",
   "tokens.cli_api_token",
@@ -118,6 +120,15 @@ const answers = installer.createDefaultInstallAnswers({
 });
 
 assert(installer.validateInstallAnswers(answers).length === 0, "Default install answers with overrides must validate.");
+const qdrantAnswers = installer.createDefaultInstallAnswers({
+  vector: {
+    provider: "qdrant",
+    qdrantUrl: "http://qdrant:6333",
+    qdrantCollectionPrefix: "mindory-test"
+  }
+});
+assert(installer.composeProfilesForAnswers(qdrantAnswers).includes("qdrant"), "Qdrant vector provider must enable qdrant Compose profile.");
+assert(installer.answersToEnvMap(qdrantAnswers).MINDORY_VECTOR_PROVIDER === "qdrant", "Installer must render selected Qdrant vector provider.");
 
 const env = installer.answersToEnvMap(answers);
 assert(env.MINDORY_HOME === "/tmp/mindory-installer-test", "Rendered env must include MINDORY_HOME.");
@@ -171,6 +182,17 @@ const composeCommands = [];
 const healthyComposePs = JSON.stringify([
   { Service: "postgres", State: "running", Health: "healthy" },
   { Service: "redis", State: "running", Health: "healthy" },
+  { Service: "clamav", State: "running" },
+  { Service: "api", State: "running", Health: "healthy" },
+  { Service: "worker", State: "running", Health: "healthy" },
+  { Service: "mcp", State: "running", Health: "healthy" },
+  { Service: "migrate", State: "exited", ExitCode: "0" }
+]);
+const healthyQdrantComposePs = JSON.stringify([
+  { Service: "postgres", State: "running", Health: "healthy" },
+  { Service: "redis", State: "running", Health: "healthy" },
+  { Service: "clamav", State: "running" },
+  { Service: "qdrant", State: "running", Health: "healthy" },
   { Service: "api", State: "running", Health: "healthy" },
   { Service: "worker", State: "running", Health: "healthy" },
   { Service: "mcp", State: "running", Health: "healthy" },
@@ -199,6 +221,37 @@ for (const token of ["pull --ignore-buildable", "build", "up -d postgres redis c
   assert(composeCommands.some((command) => command.includes(token)), `Compose execution must run ${token}.`);
 }
 fs.rmSync(composeHome, { recursive: true, force: true });
+
+const qdrantComposeHome = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-installer-qdrant-compose-"));
+fs.rmSync(qdrantComposeHome, { recursive: true, force: true });
+const qdrantComposeCommands = [];
+await installer.executeInstallPlan(installer.createDefaultInstallAnswers({
+  mindoryHome: qdrantComposeHome,
+  vector: {
+    provider: "qdrant",
+    qdrantUrl: "http://qdrant:6333",
+    qdrantCollectionPrefix: "mindory-validator"
+  }
+}), {
+  sourceRoot: root,
+  owner: "validator",
+  stopBeforeStepId: "create-first-token",
+  timeoutMs: 100,
+  pollIntervalMs: 1,
+  apiReadyCheck: async () => true,
+  commandRunner: {
+    async run(command, args) {
+      qdrantComposeCommands.push(`${command} ${args.join(" ")}`);
+      if (args.includes("ps")) {
+        return { status: 0, stdout: healthyQdrantComposePs, stderr: "" };
+      }
+      return { status: 0, stdout: "ok", stderr: "" };
+    }
+  }
+});
+assert(qdrantComposeCommands.some((command) => command.includes("--profile qdrant")), "Qdrant vector provider must enable the qdrant Compose profile.");
+assert(qdrantComposeCommands.some((command) => command.includes("up -d postgres redis clamav qdrant")), "Qdrant vector provider must start and health-check the qdrant service.");
+fs.rmSync(qdrantComposeHome, { recursive: true, force: true });
 
 const librefsHome = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-installer-librefs-"));
 fs.rmSync(librefsHome, { recursive: true, force: true });

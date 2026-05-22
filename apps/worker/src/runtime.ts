@@ -9,13 +9,15 @@ import {
   DbDerivedArtifactRepository,
   DbMemoryRepository,
   DbProcessingJobStore,
-  DbSessionRepository
+  DbSessionRepository,
+  type MindoryDatabase
 } from "@mindory/db";
 import { buildMindoryLlm } from "@mindory/llm";
 import { BullMqProcessingJobQueue } from "@mindory/queue-bullmq";
 import { LocalFsObjectStorage } from "@mindory/storage-local-fs";
 import { S3ObjectStorage } from "@mindory/storage-s3";
 import { PgVectorChunkIndex } from "@mindory/vector-pgvector";
+import { QdrantVectorIndex } from "@mindory/vector-qdrant";
 import { buildDocumentPipelineProcessors, type DocumentPipelineProcessorOptions } from "./document-pipeline.js";
 import { buildMemoryRuntimeProcessors } from "./memory-pipeline.js";
 import { buildWorkerBaseRunner, type WorkerBaseRunner } from "./runner.js";
@@ -56,10 +58,7 @@ export function buildWorkerRuntime(config: MindoryConfig = loadMindoryConfig()):
   const embeddings = llm.textEmbeddings;
   if (embeddings) {
     processorOptions.embeddings = embeddings;
-    processorOptions.vectorIndex = new PgVectorChunkIndex({
-      db: database.db,
-      dimensions: config.llm.textEmbedding.dimensions ?? PGVECTOR_EMBEDDING_DIMENSIONS
-    });
+    processorOptions.vectorIndex = buildVectorIndex(config, database.db);
   }
   const documentProcessors = buildDocumentPipelineProcessors(processorOptions);
   const memoryProcessors = new Map<string, ProcessingJobProcessor>(buildMemoryRuntimeProcessors({
@@ -86,6 +85,22 @@ export function buildWorkerRuntime(config: MindoryConfig = loadMindoryConfig()):
       await database.close();
     }
   };
+}
+
+function buildVectorIndex(config: MindoryConfig, db: MindoryDatabase): PgVectorChunkIndex | QdrantVectorIndex {
+  const dimensions = config.llm.textEmbedding.dimensions ?? PGVECTOR_EMBEDDING_DIMENSIONS;
+  if (config.vector.provider === "qdrant") {
+    return new QdrantVectorIndex({
+      url: config.vector.qdrantUrl,
+      collectionPrefix: config.vector.qdrantCollectionPrefix,
+      dimensions
+    });
+  }
+
+  return new PgVectorChunkIndex({
+    db,
+    dimensions
+  });
 }
 
 function buildObjectStorage(config: MindoryConfig): ObjectStorage {

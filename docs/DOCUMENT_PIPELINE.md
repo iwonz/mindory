@@ -309,11 +309,14 @@ refs.
 
 Text embedding providers are selected through the shared
 `@mindory/llm` module. Low-level adapters exist for
-OpenAI-compatible `/embeddings` APIs and Ollama `/api/embed`. `TASK-20` makes
-pgvector the default MVP vector runtime: worker indexing upserts chunk
-embeddings into `chunk_vector_embeddings`, and API document search uses query
-embeddings plus pgvector when text embeddings are configured. Qdrant remains an
-optional future adapter.
+OpenAI-compatible `/embeddings` APIs and Ollama `/api/embed`.
+`MINDORY_VECTOR_PROVIDER=pgvector` is the default vector runtime: worker
+indexing upserts chunk embeddings into `chunk_vector_embeddings`, and API
+document search uses query embeddings plus pgvector when text embeddings are
+configured. `MINDORY_VECTOR_PROVIDER=qdrant` switches worker indexing and API
+document search to the Qdrant collection configured by `MINDORY_QDRANT_URL` and
+`MINDORY_QDRANT_COLLECTION_PREFIX`, while preserving the same
+project/document/chunk source refs in search responses.
 
 When embeddings are disabled, document search uses PostgreSQL full-text search
 over `document_artifact_text_spans` and ignores artifacts attached to

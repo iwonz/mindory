@@ -1,7 +1,7 @@
 {
   "id": "TASK-91",
   "title": "Wire selectable vector backend runtime",
-  "status": "draft",
+  "status": "done",
   "type": "feature",
   "priority": "high",
   "branch": "task/TASK-91-vector-backend-selection-runtime",

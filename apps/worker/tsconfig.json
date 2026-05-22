@@ -21,6 +21,7 @@
     { "path": "../../packages/processors/extractors/video-keyframe" },
     { "path": "../../packages/llm" },
     { "path": "../../packages/storage/s3" },
-    { "path": "../../packages/vector/pgvector" }
+    { "path": "../../packages/vector/pgvector" },
+    { "path": "../../packages/vector/qdrant" }
   ]
 }

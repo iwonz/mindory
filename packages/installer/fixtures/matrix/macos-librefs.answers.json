@@ -22,6 +22,11 @@
       "provider": "clamav",
       "clamavPlatform": "linux/amd64"
     },
+    "vector": {
+      "provider": "qdrant",
+      "qdrantUrl": "http://qdrant:6333",
+      "qdrantCollectionPrefix": "mindory-fixture"
+    },
     "llmRoles": {
       "TEXT_EMBEDDING": {
         "enabled": true,
@@ -35,7 +40,7 @@
     }
   },
   "expected": {
-    "composeProfiles": ["librefs", "ollama"],
+    "composeProfiles": ["librefs", "ollama", "qdrant"],
     "dependencyFailures": ["docker-daemon"]
   }
 }

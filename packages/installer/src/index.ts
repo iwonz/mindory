@@ -28,7 +28,8 @@ import {
   type InstallProfile,
   type LlmOpenAiAuthMode,
   type LlmProvider,
-  type StorageProvider
+  type StorageProvider,
+  type VectorProvider
 } from "@mindory/config";
 import { S3ObjectStorage } from "@mindory/storage-s3";
 
@@ -143,6 +144,12 @@ export interface TokenAnswers {
   hermesApiToken: string;
 }
 
+export interface VectorAnswers {
+  provider: VectorProvider;
+  qdrantUrl: string;
+  qdrantCollectionPrefix: string;
+}
+
 export interface MindoryInstallAnswers {
   schemaVersion: InstallerSchemaVersion;
   mindoryHome: string;
@@ -154,6 +161,7 @@ export interface MindoryInstallAnswers {
   devMode: boolean;
   publicUrl: string;
   storage: StorageAnswers;
+  vector: VectorAnswers;
   antivirus: AntivirusAnswers;
   modalities: ModalityAnswers;
   llmRoles: Partial<Record<InstallerLlmRoleKey, LlmRoleAnswers>>;
@@ -449,6 +457,11 @@ export function createDefaultInstallAnswers(overrides: Partial<MindoryInstallAns
         forcePathStyle: catalogDefault("MINDORY_S3_FORCE_PATH_STYLE") === "true"
       }
     },
+    vector: {
+      provider: catalogDefault("MINDORY_VECTOR_PROVIDER") as VectorProvider,
+      qdrantUrl: catalogDefault("MINDORY_QDRANT_URL"),
+      qdrantCollectionPrefix: catalogDefault("MINDORY_QDRANT_COLLECTION_PREFIX")
+    },
     antivirus: {
       mode: catalogDefault("MINDORY_AV_MODE") as AntivirusMode,
       provider: catalogDefault("MINDORY_AV_PROVIDER"),
@@ -498,8 +511,22 @@ export function validateInstallAnswers(answers: MindoryInstallAnswers): string[]
   validateCatalogValue(errors, "MINDORY_INSTALL_PROFILE", answers.profile);
   validateCatalogValue(errors, "MINDORY_INSTALL_DEPENDENCY_POLICY", answers.dependencyPolicy);
   validateCatalogValue(errors, "MINDORY_STORAGE_PROVIDER", answers.storage.provider);
+  validateCatalogValue(errors, "MINDORY_VECTOR_PROVIDER", answers.vector.provider);
   if (answers.storage.provider === "s3") {
     errors.push(...validateS3StorageAnswers(answers.storage.s3));
+  }
+  if (answers.vector.provider === "qdrant") {
+    try {
+      const parsed = new URL(answers.vector.qdrantUrl);
+      if (!["http:", "https:"].includes(parsed.protocol)) {
+        errors.push("vector.qdrantUrl must use http or https.");
+      }
+    } catch {
+      errors.push("vector.qdrantUrl must be a valid URL.");
+    }
+    if (answers.vector.qdrantCollectionPrefix.trim() === "") {
+      errors.push("vector.qdrantCollectionPrefix is required when Qdrant is selected.");
+    }
   }
   validateCatalogValue(errors, "MINDORY_AV_MODE", answers.antivirus.mode);
   validateCatalogValue(errors, "MINDORY_LLM_OPENAI_COMPATIBLE_AUTH_MODE", answers.llmProviders.openaiCompatibleAuthMode);
@@ -1098,6 +1125,9 @@ export function answersToEnvMap(answers: MindoryInstallAnswers): Record<string, 
   assign(env, "MINDORY_S3_ACCESS_KEY_ID", answers.storage.s3.accessKeyId);
   assign(env, "MINDORY_S3_SECRET_ACCESS_KEY", answers.storage.s3.secretAccessKey);
   assign(env, "MINDORY_S3_FORCE_PATH_STYLE", bool(answers.storage.s3.forcePathStyle));
+  assign(env, "MINDORY_VECTOR_PROVIDER", answers.vector.provider);
+  assign(env, "MINDORY_QDRANT_URL", answers.vector.qdrantUrl);
+  assign(env, "MINDORY_QDRANT_COLLECTION_PREFIX", answers.vector.qdrantCollectionPrefix);
   assign(env, "MINDORY_AV_MODE", answers.antivirus.mode);
   assign(env, "MINDORY_AV_PROVIDER", answers.antivirus.provider);
   assign(env, "MINDORY_CLAMAV_PLATFORM", answers.antivirus.clamavPlatform);
@@ -1151,6 +1181,7 @@ export function renderMindoryConfigJson(answers: MindoryInstallAnswers): string 
     profile: answers.profile,
     public_url: answers.publicUrl,
     storage: answers.storage,
+    vector: answers.vector,
     antivirus: answers.antivirus,
     modalities: answers.modalities,
     llm_roles: answers.llmRoles,
@@ -1195,6 +1226,9 @@ export function composeProfilesForAnswers(answers: MindoryInstallAnswers): strin
   if (answers.antivirus.mode !== "disabled" && answers.antivirus.provider === "clamav") {
     profiles.add("clamav");
   }
+  if (answers.vector.provider === "qdrant") {
+    profiles.add("qdrant");
+  }
   for (const roleAnswers of Object.values(answers.llmRoles)) {
     if (roleAnswers?.enabled && roleAnswers.provider === "ollama") {
       profiles.add("ollama");
@@ -1227,6 +1261,9 @@ export function buildWizardPromptPlan(options: WizardOptions = {}): WizardPrompt
     promptFromCatalog("storage.s3.bucket", "MINDORY_S3_BUCKET", "text"),
     promptFromCatalog("storage.s3.access_key_id", "MINDORY_S3_ACCESS_KEY_ID", "secret"),
     promptFromCatalog("storage.s3.secret_access_key", "MINDORY_S3_SECRET_ACCESS_KEY", "secret"),
+    promptFromCatalog("vector.provider", "MINDORY_VECTOR_PROVIDER", "choice"),
+    promptFromCatalog("vector.qdrant_url", "MINDORY_QDRANT_URL", "text"),
+    promptFromCatalog("vector.qdrant_collection_prefix", "MINDORY_QDRANT_COLLECTION_PREFIX", "text"),
     promptFromCatalog("modalities.text", "MINDORY_DOCUMENT_PROCESSING_TEXT_ENABLED", "boolean"),
     promptFromCatalog("modalities.pdf", "MINDORY_DOCUMENT_PROCESSING_PDF_ENABLED", "boolean"),
     promptFromCatalog("modalities.image", "MINDORY_DOCUMENT_PROCESSING_IMAGE_ENABLED", "boolean"),
@@ -1289,6 +1326,12 @@ export async function runInstallWizard(io: WizardIo, options: WizardOptions = {}
     answers.storage.s3.bucket = await askString(io, promptFromCatalog("storage.s3.bucket", "MINDORY_S3_BUCKET", "text", { defaultValue: answers.storage.s3.bucket }));
     answers.storage.s3.accessKeyId = await askString(io, promptFromCatalog("storage.s3.access_key_id", "MINDORY_S3_ACCESS_KEY_ID", "secret", { defaultValue: answers.storage.s3.accessKeyId }));
     answers.storage.s3.secretAccessKey = await askString(io, promptFromCatalog("storage.s3.secret_access_key", "MINDORY_S3_SECRET_ACCESS_KEY", "secret", { defaultValue: answers.storage.s3.secretAccessKey }));
+  }
+
+  answers.vector.provider = await askChoice(io, promptFromCatalog("vector.provider", "MINDORY_VECTOR_PROVIDER", "choice")) as VectorProvider;
+  if (answers.vector.provider === "qdrant") {
+    answers.vector.qdrantUrl = await askString(io, promptFromCatalog("vector.qdrant_url", "MINDORY_QDRANT_URL", "text", { defaultValue: answers.vector.qdrantUrl }));
+    answers.vector.qdrantCollectionPrefix = await askString(io, promptFromCatalog("vector.qdrant_collection_prefix", "MINDORY_QDRANT_COLLECTION_PREFIX", "text", { defaultValue: answers.vector.qdrantCollectionPrefix }));
   }
 
   answers.modalities.text = await askBoolean(io, promptFromCatalog("modalities.text", "MINDORY_DOCUMENT_PROCESSING_TEXT_ENABLED", "boolean"));
@@ -1663,7 +1706,7 @@ async function provisionFirstRunToken(plan: InstallPlan, stepItem: InstallPlanSt
 async function waitForComposeServices(plan: InstallPlan, options: InstallExecutionOptions): Promise<void> {
   const deadline = Date.now() + (options.timeoutMs ?? 240_000);
   const pollIntervalMs = options.pollIntervalMs ?? 2_000;
-  const required = ["postgres", "redis", "api", "worker", "mcp"];
+  const required = [...new Set([...infrastructureServices(plan), "api", "worker", "mcp"])];
   const completed = ["migrate", ...storageBootstrapServices(plan)];
   let lastStatus = "";
 
@@ -2418,6 +2461,7 @@ function mergeAnswers(defaults: MindoryInstallAnswers, overrides: Partial<Mindor
     ...defaults,
     ...overrides,
     storage: { ...defaults.storage, ...overrides.storage, s3: { ...defaults.storage.s3, ...overrides.storage?.s3 } },
+    vector: { ...defaults.vector, ...overrides.vector },
     antivirus: { ...defaults.antivirus, ...overrides.antivirus },
     modalities: { ...defaults.modalities, ...overrides.modalities },
     llmRoles: { ...defaults.llmRoles, ...overrides.llmRoles },
