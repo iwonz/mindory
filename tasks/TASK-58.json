@@ -1,0 +1,66 @@
+{
+  "id": "TASK-58",
+  "title": "Add installer core",
+  "status": "done",
+  "type": "chore",
+  "priority": "high",
+  "branch": "task/TASK-58-installer-core",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Introduce the non-interactive installer foundation used by later wizard and bootstrap tasks.",
+    "background": "The one-command installer needs a deterministic core before prompts exist: answer files, dependency detection, config rendering, transaction journaling, rollback ordering and redacted summaries."
+  },
+  "scope": {
+    "in": [
+      "Add @mindory/installer package with install plan and answer file types.",
+      "Implement transaction journal recording and rollback execution primitives.",
+      "Implement host dependency detector for Docker, Compose, Node/pnpm and writable MINDORY_HOME.",
+      "Implement config/env/Compose asset rendering helpers from answers and config catalog.",
+      "Implement redacted install summary output that hides secrets.",
+      "Add validator coverage for installer core behavior and boundaries.",
+      "Update installer documentation."
+    ],
+    "out": [
+      "Interactive wizard prompts.",
+      "Bootstrap install.sh/install.ps1 scripts.",
+      "Real release download and signature verification.",
+      "Running Docker Compose during install.",
+      "Installer signal handling and resume/repair commands."
+    ]
+  },
+  "acceptance_criteria": [
+    "@mindory/installer exposes answer file, install plan, journal, rollback, dependency detection, render and summary APIs.",
+    "Transaction rollback runs completed actions in reverse order and records rollback outcomes.",
+    "Dependency detection can operate in dry-run/test mode without mutating the host.",
+    "Rendered config and env output derive from the config catalog and redact secrets in summaries.",
+    "Installer core validator covers journal rollback ordering, answer validation and redaction.",
+    "No interactive prompts or bootstrap scripts are included."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "pnpm --filter @mindory/installer typecheck",
+      "pnpm installer:validate",
+      "pnpm lint",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-58.",
+      "Confirm no installer prompt UI or shell bootstrap scripts are added."
+    ]
+  },
+  "dependencies": [
+    "TASK-57"
+  ],
+  "risks": [
+    "Installer core must be deterministic and testable without touching system dependencies.",
+    "Secrets must not appear in redacted summaries."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch is committed and merged back into master."
+  ]
+}
