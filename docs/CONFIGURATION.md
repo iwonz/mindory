@@ -284,6 +284,12 @@ for `local-command` providers. The args value is a JSON string array; `{role}`
 and `{model}` are rendered for each enabled role. The command must print JSON
 with `status`, `provider`, `role` and `model`, and
 `MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS` bounds each healthcheck execution.
+`MINDORY_LLM_LOCAL_COMMAND_OPERATION_COMMAND` and
+`MINDORY_LLM_LOCAL_COMMAND_OPERATION_ARGS` configure model calls. Operations
+receive JSON on stdin and return JSON on stdout; `{operation}` is available in
+args alongside `{role}` and `{model}`. `MINDORY_LLM_LOCAL_COMMAND_MAX_INPUT_BYTES`
+and `MINDORY_LLM_LOCAL_COMMAND_MAX_OUTPUT_BYTES` bound operation stdin and
+combined stdout/stderr.
 
 Local-command video keyframe extraction uses its own command settings:
 

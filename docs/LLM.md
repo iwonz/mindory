@@ -40,16 +40,16 @@ uses the same matrix for defaults, env metadata and installer gating.
 
 | Role | Role status | Supported providers | Experimental providers | Future providers |
 | --- | --- | --- | --- | --- |
-| `text-embedding` | supported | `disabled`, `openai-compatible`, `ollama`, `local-http` | none | `local-command` |
-| `chat` | supported | `disabled`, `openai-compatible`, `local-http` | none | `ollama`, `local-command` |
-| `image-embedding` | experimental | `disabled` | `local-http` | `openai-compatible`, `ollama`, `local-command` |
-| `vision-captioning` | experimental | `disabled` | `openai-compatible`, `local-http` | `ollama`, `local-command` |
-| `ocr` | experimental | `disabled` | `openai-compatible`, `local-http` | `ollama`, `local-command` |
-| `asr` | experimental | `disabled` | `openai-compatible`, `local-http` | `ollama`, `local-command` |
-| `face-detection` | experimental | `disabled` | `local-http` | `openai-compatible`, `ollama`, `local-command` |
-| `face-recognition` | experimental | `disabled` | `local-http` | `openai-compatible`, `ollama`, `local-command` |
-| `image-generation` | future | `disabled` | none | `openai-compatible`, `ollama`, `local-http`, `local-command` |
-| `audio-generation` | future | `disabled` | none | `openai-compatible`, `ollama`, `local-http`, `local-command` |
+| `text-embedding` | supported | `disabled`, `openai-compatible`, `ollama`, `local-http`, `local-command` | none | none |
+| `chat` | supported | `disabled`, `openai-compatible`, `local-http`, `local-command` | none | `ollama` |
+| `image-embedding` | experimental | `disabled` | `local-http`, `local-command` | `openai-compatible`, `ollama` |
+| `vision-captioning` | experimental | `disabled` | `openai-compatible`, `local-http`, `local-command` | `ollama` |
+| `ocr` | experimental | `disabled` | `openai-compatible`, `local-http`, `local-command` | `ollama` |
+| `asr` | experimental | `disabled` | `openai-compatible`, `local-http`, `local-command` | `ollama` |
+| `face-detection` | experimental | `disabled` | `local-http`, `local-command` | `openai-compatible`, `ollama` |
+| `face-recognition` | experimental | `disabled` | `local-http`, `local-command` | `openai-compatible`, `ollama` |
+| `image-generation` | experimental | `disabled` | `local-command` | `openai-compatible`, `ollama`, `local-http` |
+| `audio-generation` | experimental | `disabled` | `local-command` | `openai-compatible`, `ollama`, `local-http` |
 
 When a role or selected provider is not `supported`, the installer and config
 validation require `MINDORY_INSTALL_ALLOW_EXPERIMENTAL=true`. A disabled role
@@ -102,6 +102,10 @@ MINDORY_LLM_LOCAL_HTTP_BASE_URL=http://llm:8080
 MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS=120000
 MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND=
 MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS=["healthcheck","--role","{role}","--model","{model}"]
+MINDORY_LLM_LOCAL_COMMAND_OPERATION_COMMAND=
+MINDORY_LLM_LOCAL_COMMAND_OPERATION_ARGS=["operate","--role","{role}","--model","{model}","--operation","{operation}"]
+MINDORY_LLM_LOCAL_COMMAND_MAX_INPUT_BYTES=16777216
+MINDORY_LLM_LOCAL_COMMAND_MAX_OUTPUT_BYTES=67108864
 ```
 
 ## OpenAI-Compatible Auth
@@ -186,6 +190,44 @@ Failure responses use the same role and model fields with `status: "failed"`,
 `error_code` and `error_message`. Mindory validates the returned role/model,
 timeout, exit status and JSON shape, then emits a model audit event with
 duration and structured diagnostics.
+
+Local-command model operations use `MINDORY_LLM_LOCAL_COMMAND_OPERATION_COMMAND`
+with args rendered from `MINDORY_LLM_LOCAL_COMMAND_OPERATION_ARGS`. The process
+receives one JSON request on stdin:
+
+```json
+{
+  "operation": "text_embeddings",
+  "role": "text-embedding",
+  "model": "local-command-embedding",
+  "input": {
+    "texts": ["semantic text"]
+  }
+}
+```
+
+The response is one JSON object on stdout:
+
+```json
+{
+  "status": "ok",
+  "role": "text-embedding",
+  "model": "local-command-embedding",
+  "output": {
+    "embeddings": [[0.1, 0.2, 0.3]]
+  },
+  "usage": {
+    "embedding_dimensions": 3
+  }
+}
+```
+
+Supported operation names are `chat`, `text_embeddings`, `image_embeddings`,
+`ocr`, `asr`, `vision_caption`, `face_detection`, `face_recognition`,
+`image_generation` and `audio_generation`. Binary inputs are passed as
+`data_base64` plus `mime_type`; generated image/audio operations return
+`data_base64` with `mime_type`. `MINDORY_LLM_LOCAL_COMMAND_MAX_INPUT_BYTES`
+and `MINDORY_LLM_LOCAL_COMMAND_MAX_OUTPUT_BYTES` bound stdin and stdout/stderr.
 
 OCR, vision captioning, ASR and face roles remain experimental and require
 `MINDORY_INSTALL_ALLOW_EXPERIMENTAL=true` when enabled. The scanned-PDF

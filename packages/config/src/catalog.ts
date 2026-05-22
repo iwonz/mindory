@@ -69,61 +69,61 @@ export const LLM_ROLE_SUPPORT_CATALOG = [
     "openai-compatible": "supported",
     "ollama": "future",
     "local-http": "supported",
-    "local-command": "future"
+    "local-command": "supported"
   }),
   llmRoleSupport("TEXT_EMBEDDING", "supported", "disabled", "", {
     "openai-compatible": "supported",
     "ollama": "supported",
     "local-http": "supported",
-    "local-command": "future"
+    "local-command": "supported"
   }),
   llmRoleSupport("IMAGE_EMBEDDING", "experimental", "local-http", "CLIP ViT-L-16-SigLIP2-256__webli", {
     "openai-compatible": "future",
     "ollama": "future",
     "local-http": "experimental",
-    "local-command": "future"
+    "local-command": "experimental"
   }),
   llmRoleSupport("VISION_CAPTIONING", "experimental", "disabled", "", {
     "openai-compatible": "experimental",
     "ollama": "future",
     "local-http": "experimental",
-    "local-command": "future"
+    "local-command": "experimental"
   }),
   llmRoleSupport("OCR", "experimental", "local-http", "ESLAV__PP-OCRv5_mobile", {
     "openai-compatible": "experimental",
     "ollama": "future",
     "local-http": "experimental",
-    "local-command": "future"
+    "local-command": "experimental"
   }),
   llmRoleSupport("ASR", "experimental", "disabled", "", {
     "openai-compatible": "experimental",
     "ollama": "future",
     "local-http": "experimental",
-    "local-command": "future"
+    "local-command": "experimental"
   }),
   llmRoleSupport("FACE_DETECTION", "experimental", "local-http", "buffalo_l", {
     "openai-compatible": "future",
     "ollama": "future",
     "local-http": "experimental",
-    "local-command": "future"
+    "local-command": "experimental"
   }),
   llmRoleSupport("FACE_RECOGNITION", "experimental", "local-http", "buffalo_l", {
     "openai-compatible": "future",
     "ollama": "future",
     "local-http": "experimental",
-    "local-command": "future"
+    "local-command": "experimental"
   }),
-  llmRoleSupport("IMAGE_GENERATION", "future", "disabled", "", {
+  llmRoleSupport("IMAGE_GENERATION", "experimental", "disabled", "", {
     "openai-compatible": "future",
     "ollama": "future",
     "local-http": "future",
-    "local-command": "future"
+    "local-command": "experimental"
   }),
-  llmRoleSupport("AUDIO_GENERATION", "future", "disabled", "", {
+  llmRoleSupport("AUDIO_GENERATION", "experimental", "disabled", "", {
     "openai-compatible": "future",
     "ollama": "future",
     "local-http": "future",
-    "local-command": "future"
+    "local-command": "experimental"
   })
 ] as const satisfies readonly LlmRoleSupportCatalogEntry[];
 
@@ -425,6 +425,20 @@ export const CONFIG_CATALOG = [
       help: "JSON string array passed to the executable. Use {role} and {model} tokens for per-role validation."
     }
   }),
+  entry("MINDORY_LLM_LOCAL_COMMAND_OPERATION_COMMAND", "llm", "string", "", "Executable used for local-command model operations.", "both", "experimental", {
+    prompt: {
+      label: "Local-command operation executable",
+      help: "Absolute path or PATH-resolved executable that reads operation JSON from stdin and prints operation JSON to stdout."
+    }
+  }),
+  entry("MINDORY_LLM_LOCAL_COMMAND_OPERATION_ARGS", "llm", "string", "[\"operate\",\"--role\",\"{role}\",\"--model\",\"{model}\",\"--operation\",\"{operation}\"]", "JSON array of arguments for local-command model operations. {role}, {model} and {operation} are replaced per call.", "both", "experimental", {
+    prompt: {
+      label: "Local-command operation args",
+      help: "JSON string array passed to the executable. Use {role}, {model} and {operation} tokens for per-call validation."
+    }
+  }),
+  entry("MINDORY_LLM_LOCAL_COMMAND_MAX_INPUT_BYTES", "llm", "number", "16777216", "Maximum JSON stdin size for local-command model operations.", "both", "experimental"),
+  entry("MINDORY_LLM_LOCAL_COMMAND_MAX_OUTPUT_BYTES", "llm", "number", "67108864", "Maximum combined stdout/stderr size for local-command healthchecks and operations.", "both", "experimental"),
 
   entry("MINDORY_MCP_ENABLED", "mcp", "boolean", "true", "Enable the MCP stdio server.", "runtime", "supported"),
   entry("MINDORY_MCP_TRANSPORT", "mcp", "enum", "stdio", "MCP transport.", "runtime", "supported", {

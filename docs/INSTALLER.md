@@ -96,6 +96,8 @@ configured `MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND` once per role before
 API readiness is accepted. The command must return the JSON contract documented
 in [LLM.md](LLM.md), otherwise installation stops with the failing role/model
 and healthcheck diagnostic.
+The same wizard section captures `MINDORY_LLM_LOCAL_COMMAND_OPERATION_COMMAND`
+and operation args for runtime model calls.
 
 The generated raw bearer token is written once to:
 

@@ -155,6 +155,10 @@ export interface MindoryConfig {
       timeoutMs: number;
       healthcheckCommand: string;
       healthcheckArgs: string[];
+      operationCommand: string;
+      operationArgs: string[];
+      maxInputBytes: number;
+      maxOutputBytes: number;
     };
   };
   mcp: {
@@ -415,7 +419,11 @@ export function loadMindoryConfig(env: EnvSource = process.env): MindoryConfig {
       localCommand: {
         timeoutMs: readNumber(env, "MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS", catalogNumber("MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS")),
         healthcheckCommand: readString(env, "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND", catalogString("MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND")),
-        healthcheckArgs: readStringArray(env, "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS", catalogString("MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS"))
+        healthcheckArgs: readStringArray(env, "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS", catalogString("MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS")),
+        operationCommand: readString(env, "MINDORY_LLM_LOCAL_COMMAND_OPERATION_COMMAND", catalogString("MINDORY_LLM_LOCAL_COMMAND_OPERATION_COMMAND")),
+        operationArgs: readStringArray(env, "MINDORY_LLM_LOCAL_COMMAND_OPERATION_ARGS", catalogString("MINDORY_LLM_LOCAL_COMMAND_OPERATION_ARGS")),
+        maxInputBytes: readNumber(env, "MINDORY_LLM_LOCAL_COMMAND_MAX_INPUT_BYTES", catalogNumber("MINDORY_LLM_LOCAL_COMMAND_MAX_INPUT_BYTES")),
+        maxOutputBytes: readNumber(env, "MINDORY_LLM_LOCAL_COMMAND_MAX_OUTPUT_BYTES", catalogNumber("MINDORY_LLM_LOCAL_COMMAND_MAX_OUTPUT_BYTES"))
       }
     },
     mcp: {
@@ -567,8 +575,17 @@ function validateLlmConfig(config: MindoryConfig): void {
   if (config.llm.localCommand.timeoutMs <= 0) {
     throw new Error("MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS must be greater than zero.");
   }
+  if (config.llm.localCommand.maxInputBytes <= 0) {
+    throw new Error("MINDORY_LLM_LOCAL_COMMAND_MAX_INPUT_BYTES must be greater than zero.");
+  }
+  if (config.llm.localCommand.maxOutputBytes <= 0) {
+    throw new Error("MINDORY_LLM_LOCAL_COMMAND_MAX_OUTPUT_BYTES must be greater than zero.");
+  }
   if (usesLlmProvider(config, "local-command") && config.llm.localCommand.healthcheckCommand.trim() === "") {
     throw new Error("MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND is required when a local-command capability is enabled.");
+  }
+  if (usesLlmProvider(config, "local-command") && config.llm.localCommand.operationCommand.trim() === "") {
+    throw new Error("MINDORY_LLM_LOCAL_COMMAND_OPERATION_COMMAND is required when a local-command capability is enabled.");
   }
 }
 
