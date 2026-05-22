@@ -1,0 +1,56 @@
+{
+  "id": "TASK-100",
+  "title": "Add bundled video keyframe provider",
+  "status": "draft",
+  "type": "feature",
+  "priority": "high",
+  "branch": "task/TASK-100-bundled-video-keyframe-provider",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Add a real ffmpeg-based video keyframe provider profile.",
+    "background": "Video processing must not depend only on embedded manifests or user-supplied custom commands."
+  },
+  "scope": {
+    "in": [
+      "Add bundled ffmpeg keyframe extraction provider configuration.",
+      "Validate ffmpeg availability in installer and runtime health checks.",
+      "Extract at most the configured keyframe count and store frame artifacts.",
+      "Run configured OCR/vision handlers on extracted frames.",
+      "Remove TASK-100-owned public-readiness debt from the gate."
+    ],
+    "out": [
+      "Full video transcoding or streaming playback."
+    ]
+  },
+  "acceptance_criteria": [
+    "A configured ffmpeg provider extracts real keyframes from a video fixture.",
+    "The max keyframe limit is enforced.",
+    "Frame artifacts include timestamps and source refs.",
+    "Extracted frames flow through enabled image OCR/vision handlers.",
+    "pnpm check passes."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm documents:validate",
+      "pnpm installer:validate",
+      "pnpm test",
+      "pnpm public-debt:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm installer explains how to install ffmpeg if missing."
+    ]
+  },
+  "dependencies": [
+    "TASK-99"
+  ],
+  "risks": [
+    "ffmpeg availability differs by OS and container image."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to done.",
+    "Branch is committed and merged back into master."
+  ]
+}

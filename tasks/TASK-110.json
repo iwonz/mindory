@@ -1,0 +1,56 @@
+{
+  "id": "TASK-110",
+  "title": "Add installer resume and repair",
+  "status": "draft",
+  "type": "feature",
+  "priority": "high",
+  "branch": "task/TASK-110-installer-resume-repair",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Make installer interruption recovery executable through resume and repair commands.",
+    "background": "The installer journal must support recovery after interrupted file generation, compose startup, migrations and healthchecks."
+  },
+  "scope": {
+    "in": [
+      "Implement resume and repair commands over the transaction journal.",
+      "Recover interrupted file generation, dependency checks, Compose startup, migrations and healthchecks.",
+      "Add partial rollback recovery and clear diagnostics.",
+      "Add interruption tests for each major install phase.",
+      "Remove TASK-110-owned public-readiness debt from the gate."
+    ],
+    "out": [
+      "Recovering arbitrary manual edits outside MINDORY_HOME."
+    ]
+  },
+  "acceptance_criteria": [
+    "Interrupted installer runs can be resumed when journal state is recoverable.",
+    "Repair can identify and fix known partial installation states.",
+    "Rollback can continue after an interrupted rollback.",
+    "Diagnostics explain manual actions when automation cannot safely proceed.",
+    "pnpm check passes."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm installer:validate",
+      "pnpm installer:matrix:validate",
+      "pnpm installer:acceptance",
+      "pnpm public-debt:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm resume and repair operate only inside MINDORY_HOME."
+    ]
+  },
+  "dependencies": [
+    "TASK-109"
+  ],
+  "risks": [
+    "Repair must not guess destructively when the journal is ambiguous."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to done.",
+    "Branch is committed and merged back into master."
+  ]
+}

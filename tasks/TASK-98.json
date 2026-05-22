@@ -1,0 +1,56 @@
+{
+  "id": "TASK-98",
+  "title": "Add image embeddings and object detection",
+  "status": "draft",
+  "type": "feature",
+  "priority": "high",
+  "branch": "task/TASK-98-image-embeddings-object-detection",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Add real image embedding and object detection model roles to the image pipeline.",
+    "background": "Image search should work through captions, OCR, labels, detected objects and visual embeddings."
+  },
+  "scope": {
+    "in": [
+      "Add @mindory/llm contracts and adapters for image embeddings and object detection.",
+      "Persist object observations, labels, bounding boxes and image vectors as derived artifacts.",
+      "Index image vectors in the selected vector backend.",
+      "Search image artifacts by object labels and visual vector similarity.",
+      "Remove TASK-98-owned public-readiness debt from the gate."
+    ],
+    "out": [
+      "Face recognition changes beyond existing face roles."
+    ]
+  },
+  "acceptance_criteria": [
+    "Image embeddings are generated through @mindory/llm and persisted as derived state.",
+    "Object detection results include labels, confidence and optional bounding boxes.",
+    "Unified search can return image object and image-vector results with source refs.",
+    "Image embedding/object detection tests use a real fake-compatible provider.",
+    "pnpm check passes."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm llm:validate",
+      "pnpm documents:validate",
+      "pnpm test",
+      "pnpm public-debt:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm raw image originals are not modified."
+    ]
+  },
+  "dependencies": [
+    "TASK-97"
+  ],
+  "risks": [
+    "Vector dimension compatibility must be validated per configured image embedding model."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to done.",
+    "Branch is committed and merged back into master."
+  ]
+}

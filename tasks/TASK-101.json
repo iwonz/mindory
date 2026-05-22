@@ -1,0 +1,55 @@
+{
+  "id": "TASK-101",
+  "title": "Add production metrics exporter",
+  "status": "draft",
+  "type": "feature",
+  "priority": "high",
+  "branch": "task/TASK-101-production-metrics-exporter",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Expose production metrics for API, worker, queues and model operations.",
+    "background": "Self-host users need scrapeable metrics rather than only in-process summaries."
+  },
+  "scope": {
+    "in": [
+      "Add Prometheus-compatible metrics endpoint or exporter for API and worker.",
+      "Emit request, job, stage, queue, model, storage and vector metrics.",
+      "Protect metrics exposure with configuration and documented deployment guidance.",
+      "Add tests for metric names, labels and values.",
+      "Remove TASK-101-owned public-readiness debt from the gate."
+    ],
+    "out": [
+      "Adding a hosted metrics backend."
+    ]
+  },
+  "acceptance_criteria": [
+    "API and worker expose scrapeable metrics when enabled.",
+    "Metrics include counters and durations for requests, jobs, stages and model calls.",
+    "Queue depth and failure metrics are available.",
+    "Docs include a Prometheus scrape example.",
+    "pnpm check passes."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm observability:validate",
+      "pnpm test",
+      "pnpm public-debt:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm metrics labels do not expose secrets or raw user content."
+    ]
+  },
+  "dependencies": [
+    "TASK-100"
+  ],
+  "risks": [
+    "High-cardinality labels must be avoided."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to done.",
+    "Branch is committed and merged back into master."
+  ]
+}

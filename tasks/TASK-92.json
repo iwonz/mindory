@@ -1,0 +1,57 @@
+{
+  "id": "TASK-92",
+  "title": "Replace Docling placeholder with real service profile",
+  "status": "draft",
+  "type": "feature",
+  "priority": "high",
+  "branch": "task/TASK-92-real-docling-service-profile",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Replace the Docling Compose placeholder with a real extraction service profile.",
+    "background": "The optional Docling profile must start a real service with healthcheck and worker connectivity."
+  },
+  "scope": {
+    "in": [
+      "Replace the Docling placeholder service command with a real service/image profile.",
+      "Add Docling healthcheck, config and installer validation.",
+      "Wire worker extraction client to the Docling service endpoint.",
+      "Remove the unused placeholder service script if no other supported path needs it.",
+      "Remove TASK-92-owned public-readiness debt from the gate."
+    ],
+    "out": [
+      "Full PDF extraction acceptance beyond service startup."
+    ]
+  },
+  "acceptance_criteria": [
+    "docker-compose docling profile starts a real Docling-compatible service.",
+    "Installer validates Docling service health before enabling the profile.",
+    "Worker can call the configured Docling endpoint.",
+    "No supported Compose service uses the placeholder service script.",
+    "pnpm check passes."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm compose:validate",
+      "pnpm installer:validate",
+      "pnpm processing:validate",
+      "pnpm public-debt:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm the docling profile has a real health endpoint.",
+      "Confirm the placeholder service script is deleted or unused by supported profiles."
+    ]
+  },
+  "dependencies": [
+    "TASK-91"
+  ],
+  "risks": [
+    "Docling image size and startup time may increase live acceptance duration."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to done.",
+    "Branch is committed and merged back into master."
+  ]
+}

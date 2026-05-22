@@ -1,0 +1,56 @@
+{
+  "id": "TASK-99",
+  "title": "Implement image and audio generation roles",
+  "status": "draft",
+  "type": "feature",
+  "priority": "medium",
+  "branch": "task/TASK-99-image-audio-generation-roles",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Make image-generation and audio-generation real @mindory/llm operations.",
+    "background": "Generation roles must have typed operation contracts and smoke surfaces even if not used by default document processing."
+  },
+  "scope": {
+    "in": [
+      "Implement image and audio generation provider contracts in @mindory/llm.",
+      "Support OpenAI-compatible, local HTTP and local-command adapters where configured.",
+      "Add audit usage, duration, provider and model records.",
+      "Add CLI smoke commands for generation diagnostics.",
+      "Remove TASK-99-owned public-readiness debt from the gate."
+    ],
+    "out": [
+      "Adding product workflows that require generated media by default."
+    ]
+  },
+  "acceptance_criteria": [
+    "Image generation returns typed media outputs with metadata and audit records.",
+    "Audio generation returns typed media outputs with metadata and audit records.",
+    "Disabled generation roles fail with the standard disabled-role behavior.",
+    "CLI smoke commands can exercise fake-compatible generation providers.",
+    "pnpm check passes."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm llm:validate",
+      "pnpm cli:validate",
+      "pnpm test",
+      "pnpm public-debt:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm generation roles remain opt-in and are not required by default MVP flows."
+    ]
+  },
+  "dependencies": [
+    "TASK-98"
+  ],
+  "risks": [
+    "Generated media can be large and must use bounded payload handling."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to done.",
+    "Branch is committed and merged back into master."
+  ]
+}

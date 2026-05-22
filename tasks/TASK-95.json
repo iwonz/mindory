@@ -1,0 +1,54 @@
+{
+  "id": "TASK-95",
+  "title": "Harden ClamAV installer health and diagnostics",
+  "status": "draft",
+  "type": "feature",
+  "priority": "high",
+  "branch": "task/TASK-95-clamav-installer-health-hardening",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Make ClamAV installer behavior observable and diagnosable for sync and async modes.",
+    "background": "A public installer must tell the user exactly why ClamAV startup, platform selection or scan health failed."
+  },
+  "scope": {
+    "in": [
+      "Add ClamAV dependency and health checks to installer startup.",
+      "Add retry policy, timeout configuration and platform diagnostics.",
+      "Surface clear failure messages for daemon unavailable, timeout and scan protocol errors.",
+      "Add installer tests for async_quarantine and sync_scan modes.",
+      "Update installer, deployment and security docs."
+    ],
+    "out": [
+      "Implementing non-ClamAV antivirus providers."
+    ]
+  },
+  "acceptance_criteria": [
+    "Installer validates ClamAV health when antivirus is enabled.",
+    "Diagnostics distinguish daemon unavailable, protocol failure and infected scan result.",
+    "ClamAV platform override is tested and documented.",
+    "Failed ClamAV health stops startup with a repairable message.",
+    "pnpm check passes."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm installer:validate",
+      "pnpm documents:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm ClamAV diagnostics are actionable for Docker Desktop users."
+    ]
+  },
+  "dependencies": [
+    "TASK-94"
+  ],
+  "risks": [
+    "Health checks must not mask real scan failures as installation success."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to done.",
+    "Branch is committed and merged back into master."
+  ]
+}

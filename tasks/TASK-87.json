@@ -1,0 +1,59 @@
+{
+  "id": "TASK-87",
+  "title": "Add no-placeholder task registry and acceptance gate",
+  "status": "done",
+  "type": "chore",
+  "priority": "high",
+  "branch": "task/TASK-87-no-placeholder-task-registry-acceptance-gate",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Register the public-readiness remediation tasks and add an executable gate that tracks every current temporary or incomplete public path to a concrete task.",
+    "background": "The repository is a local MVP, but public readiness now requires every supported and experimental path to have real implementation rather than untracked temporary markers."
+  },
+  "scope": {
+    "in": [
+      "Create task files for TASK-87 through TASK-113.",
+      "Update tasks/tasks.json so TASK-87 is the current completed task and TASK-88 through TASK-113 are registered drafts.",
+      "Add a validation script that scans public/runtime paths for temporary or incomplete markers.",
+      "Require every current marker to be owned by a concrete future task and fail if new untracked markers are introduced.",
+      "Wire the new validation into pnpm check."
+    ],
+    "out": [
+      "Implementing Qdrant, Docling, sync antivirus, LLM providers, observability, backup, release, update or Hermes runtime features.",
+      "Removing current public-readiness debt; follow-up tasks own the actual removals."
+    ]
+  },
+  "acceptance_criteria": [
+    "tasks/tasks.json registers TASK-87 through TASK-113 with valid TASK IDs and task files.",
+    "TASK-87 is marked done and TASK-88 through TASK-113 remain draft until executed individually.",
+    "The new validation gate maps every current marker to a concrete future task.",
+    "The validation gate fails if an untracked temporary marker appears in scanned runtime or public documentation paths.",
+    "The validation gate fails for a task-owned marker once that owner task is marked done and the marker still remains.",
+    "pnpm check passes."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm public-debt:validate",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-87.",
+      "Confirm no product runtime implementation is changed by this task.",
+      "Confirm every follow-up task has a concrete implementation acceptance criterion rather than a blocking-only fallback."
+    ]
+  },
+  "dependencies": [
+    "TASK-86"
+  ],
+  "risks": [
+    "A strict gate can make later work noisy if it is not tied to task ownership.",
+    "A loose gate would allow new temporary markers to appear without an owner."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to done.",
+    "Branch is committed and merged back into master."
+  ]
+}

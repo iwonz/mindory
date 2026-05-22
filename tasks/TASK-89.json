@@ -1,0 +1,56 @@
+{
+  "id": "TASK-89",
+  "title": "Clean public documentation claims",
+  "status": "draft",
+  "type": "docs",
+  "priority": "high",
+  "branch": "task/TASK-89-public-documentation-cleanup",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Remove stale task-era and temporary wording from public documentation.",
+    "background": "Public docs must describe the current runnable product and concrete remaining work without promising unavailable supported behavior."
+  },
+  "scope": {
+    "in": [
+      "Update README, repository status, support matrix and architecture/process docs.",
+      "Remove stale references to early skeleton, placeholder and later-task wording from public supported paths.",
+      "Keep historical PRD task sections only where they are clearly historical and not current product claims.",
+      "Update docs so experimental means implemented but requiring extra resources or credentials.",
+      "Remove TASK-89-owned public-readiness debt from the gate."
+    ],
+    "out": [
+      "Implementing runtime features.",
+      "Changing the PRD product thesis."
+    ]
+  },
+  "acceptance_criteria": [
+    "Public docs distinguish supported, experimental and future capabilities using current implementation facts.",
+    "Supported paths do not describe temporary scaffolding as runtime behavior.",
+    "Docs provide a clean local run path and clear public release status.",
+    "No task-era stale wording remains in current public product descriptions.",
+    "pnpm check passes."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm public:validate",
+      "pnpm public-debt:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm README can be handed to a new GitHub user without internal task context.",
+      "Confirm future sections do not describe supported product behavior."
+    ]
+  },
+  "dependencies": [
+    "TASK-88"
+  ],
+  "risks": [
+    "Docs cleanup must not hide real limitations."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to done.",
+    "Branch is committed and merged back into master."
+  ]
+}

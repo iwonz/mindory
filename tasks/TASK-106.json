@@ -1,0 +1,56 @@
+{
+  "id": "TASK-106",
+  "title": "Add external S3 streaming backup",
+  "status": "draft",
+  "type": "feature",
+  "priority": "high",
+  "branch": "task/TASK-106-external-s3-streaming-backup",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Backup and restore external S3-compatible object storage without assuming local object files.",
+    "background": "External object storage requires listing, inventory and streaming copy rather than local filesystem copying."
+  },
+  "scope": {
+    "in": [
+      "Add object inventory export for external S3-compatible storage.",
+      "Stream object backup to encrypted local or remote archives.",
+      "Restore objects from streamed backups with integrity validation.",
+      "Support large object pagination and resumable progress reporting.",
+      "Remove TASK-106-owned public-readiness debt from the gate."
+    ],
+    "out": [
+      "Provider-specific APIs outside S3-compatible behavior."
+    ]
+  },
+  "acceptance_criteria": [
+    "External S3 object backups do not require local object files.",
+    "Streaming backup validates checksums or ETags where available.",
+    "Restore can recreate object keys and metadata in an S3-compatible bucket.",
+    "Progress and failure diagnostics are clear for interrupted streams.",
+    "pnpm check passes."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm storage:validate",
+      "pnpm backup:validate",
+      "pnpm test",
+      "pnpm public-debt:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm large backups are streamed rather than buffered in memory."
+    ]
+  },
+  "dependencies": [
+    "TASK-105"
+  ],
+  "risks": [
+    "S3-compatible providers differ in metadata and checksum behavior."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to done.",
+    "Branch is committed and merged back into master."
+  ]
+}

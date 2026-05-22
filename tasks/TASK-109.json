@@ -1,0 +1,56 @@
+{
+  "id": "TASK-109",
+  "title": "Add remote installer update",
+  "status": "draft",
+  "type": "feature",
+  "priority": "high",
+  "branch": "task/TASK-109-remote-installer-update",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Implement signed remote release update from the installer.",
+    "background": "Installed systems must be able to download, verify, stage, apply and rollback release updates."
+  },
+  "scope": {
+    "in": [
+      "Download signed release metadata and artifacts to staging.",
+      "Verify signatures and checksums before applying assets.",
+      "Backup current config/state before migrations and asset swap.",
+      "Restart services and healthcheck the updated stack.",
+      "Rollback to previous release on failed migration or healthcheck."
+    ],
+    "out": [
+      "Automatic unattended updates."
+    ]
+  },
+  "acceptance_criteria": [
+    "Installer can update from a remote signed release source.",
+    "Failed verification stops before changing runtime assets.",
+    "Failed migration or healthcheck restores the previous release assets.",
+    "Update journal records each step and rollback result.",
+    "pnpm check passes."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm installer:validate",
+      "pnpm installer:acceptance",
+      "pnpm release:validate",
+      "pnpm public-debt:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm update never deletes existing backups during rollback."
+    ]
+  },
+  "dependencies": [
+    "TASK-108"
+  ],
+  "risks": [
+    "Migration rollback must be conservative and clearly document manual recovery if schema downgrade is unsafe."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to done.",
+    "Branch is committed and merged back into master."
+  ]
+}

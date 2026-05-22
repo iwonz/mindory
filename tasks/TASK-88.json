@@ -1,0 +1,57 @@
+{
+  "id": "TASK-88",
+  "title": "Replace public API not-implemented fallbacks",
+  "status": "draft",
+  "type": "feature",
+  "priority": "high",
+  "branch": "task/TASK-88-api-runtime-dependency-contract",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Remove public API not-implemented fallback behavior from product routes.",
+    "background": "The production API must either start with complete runtime dependencies or fail fast before serving traffic."
+  },
+  "scope": {
+    "in": [
+      "Replace route-level public not-implemented responses with startup dependency validation for product runtime.",
+      "Move dependency-free route factory coverage into explicit test fixtures.",
+      "Rename or remove skeleton-era API validation and documentation wording.",
+      "Update integration tests to prove production wiring serves real handlers.",
+      "Remove TASK-88-owned public-readiness debt from the gate."
+    ],
+    "out": [
+      "Changing route semantics unrelated to missing runtime dependencies.",
+      "Implementing Qdrant or Docling."
+    ]
+  },
+  "acceptance_criteria": [
+    "Production API fails fast during startup when required runtime dependencies are missing.",
+    "Supported API routes no longer expose public 501 not_implemented responses.",
+    "Dependency-free route factory scenarios are isolated to tests and do not define product behavior.",
+    "Validation scripts no longer require skeleton or placeholder API behavior.",
+    "pnpm check passes."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm api:runtime:validate",
+      "pnpm test",
+      "pnpm public-debt:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm no supported API docs show 501 not_implemented as a normal response.",
+      "Confirm production server startup validates required dependencies."
+    ]
+  },
+  "dependencies": [
+    "TASK-87"
+  ],
+  "risks": [
+    "Tests that currently instantiate bare route factories must be updated without weakening production startup validation."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to done.",
+    "Branch is committed and merged back into master."
+  ]
+}

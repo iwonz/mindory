@@ -1,0 +1,58 @@
+{
+  "id": "TASK-91",
+  "title": "Wire selectable vector backend runtime",
+  "status": "draft",
+  "type": "feature",
+  "priority": "high",
+  "branch": "task/TASK-91-vector-backend-selection-runtime",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Expose pgvector and Qdrant as real selectable vector backends.",
+    "background": "Both backends must be selectable from config, installer, worker and search runtime with consistent results."
+  },
+  "scope": {
+    "in": [
+      "Add vector backend config and installer choices for pgvector and Qdrant.",
+      "Wire API search and worker indexing to the selected backend.",
+      "Add acceptance for pgvector and Qdrant with matching source refs.",
+      "Update docs and .env.example.",
+      "Remove TASK-91-owned public-readiness debt from the gate."
+    ],
+    "out": [
+      "Adding third-party vector stores beyond Qdrant.",
+      "Changing chunk generation behavior."
+    ]
+  },
+  "acceptance_criteria": [
+    "Runtime selects pgvector or Qdrant from validated config.",
+    "Worker indexing writes to the selected backend.",
+    "Search responses have consistent shape across both backends.",
+    "Installer can configure Qdrant profile and healthcheck it.",
+    "pnpm check passes."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm config:validate",
+      "pnpm installer:validate",
+      "pnpm test",
+      "pnpm public-debt:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm pgvector remains the default backend.",
+      "Confirm Qdrant config is not present as an unused dead setting."
+    ]
+  },
+  "dependencies": [
+    "TASK-90"
+  ],
+  "risks": [
+    "Backend selection must not create split-brain indexing between Postgres and Qdrant."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to done.",
+    "Branch is committed and merged back into master."
+  ]
+}

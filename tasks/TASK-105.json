@@ -1,0 +1,57 @@
+{
+  "id": "TASK-105",
+  "title": "Add encrypted remote backups",
+  "status": "draft",
+  "type": "feature",
+  "priority": "high",
+  "branch": "task/TASK-105-encrypted-remote-backups",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Add encrypted backup archives and S3-compatible remote backup target support.",
+    "background": "Self-host users need off-host backups that protect config, database dumps and object metadata/files."
+  },
+  "scope": {
+    "in": [
+      "Add encrypted archive generation for config, database and object backup components.",
+      "Add S3-compatible remote backup upload and download commands.",
+      "Add installer prompts for remote backup endpoint and encryption key handling.",
+      "Add restore verification from encrypted remote archives.",
+      "Remove TASK-105-owned public-readiness debt from the gate."
+    ],
+    "out": [
+      "Provider-specific cloud backup products."
+    ]
+  },
+  "acceptance_criteria": [
+    "Backup archives can be encrypted before leaving MINDORY_HOME.",
+    "Remote S3-compatible backup upload validates bucket access and object integrity.",
+    "Restore can decrypt and verify remote backup archives.",
+    "Secrets are never written to repository files or logs.",
+    "pnpm check passes."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm backup:validate",
+      "pnpm storage:validate",
+      "pnpm installer:validate",
+      "pnpm test",
+      "pnpm public-debt:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm remote backup credentials are redacted in summaries."
+    ]
+  },
+  "dependencies": [
+    "TASK-104"
+  ],
+  "risks": [
+    "Encryption key loss makes backups unrecoverable and must be made explicit."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to done.",
+    "Branch is committed and merged back into master."
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "id": "TASK-103",
+  "title": "Add scheduled backups",
+  "status": "draft",
+  "type": "feature",
+  "priority": "high",
+  "branch": "task/TASK-103-scheduled-backups",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Add scheduled backup execution under MINDORY_HOME.",
+    "background": "Manual backup exists; public self-host users also need configured schedules, retention and health."
+  },
+  "scope": {
+    "in": [
+      "Add scheduled backup configuration to installer and config catalog.",
+      "Implement a lock-protected backup runner under MINDORY_HOME.",
+      "Add retention policy, logs and health status.",
+      "Add restore smoke validation for scheduled backup outputs.",
+      "Remove TASK-103-owned public-readiness debt from the gate."
+    ],
+    "out": [
+      "Remote encrypted backup storage.",
+      "PITR WAL archiving."
+    ]
+  },
+  "acceptance_criteria": [
+    "Scheduled backups can be enabled and disabled through config.",
+    "Only one scheduled backup run executes at a time.",
+    "Retention deletes expired backup sets safely.",
+    "Health status reports last success, last failure and next run.",
+    "pnpm check passes."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm backup:validate",
+      "pnpm installer:validate",
+      "pnpm test",
+      "pnpm public-debt:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm schedule state lives under MINDORY_HOME."
+    ]
+  },
+  "dependencies": [
+    "TASK-102"
+  ],
+  "risks": [
+    "Retention logic must never delete the active runtime data directories."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to done.",
+    "Branch is committed and merged back into master."
+  ]
+}

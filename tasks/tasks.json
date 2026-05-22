@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-86",
+  "current_task_id": "TASK-87",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -638,6 +638,195 @@
       "status": "done",
       "branch": "task/TASK-86-public-self-host-acceptance",
       "file": "tasks/TASK-86.json"
+    },
+    {
+      "id": "TASK-87",
+      "title": "Add no-placeholder task registry and acceptance gate",
+      "status": "done",
+      "branch": "task/TASK-87-no-placeholder-task-registry-acceptance-gate",
+      "file": "tasks/TASK-87.json"
+    },
+    {
+      "id": "TASK-88",
+      "title": "Replace public API not-implemented fallbacks",
+      "status": "draft",
+      "branch": "task/TASK-88-api-runtime-dependency-contract",
+      "file": "tasks/TASK-88.json"
+    },
+    {
+      "id": "TASK-89",
+      "title": "Clean public documentation claims",
+      "status": "draft",
+      "branch": "task/TASK-89-public-documentation-cleanup",
+      "file": "tasks/TASK-89.json"
+    },
+    {
+      "id": "TASK-90",
+      "title": "Implement real Qdrant vector adapter",
+      "status": "draft",
+      "branch": "task/TASK-90-real-qdrant-vector-adapter",
+      "file": "tasks/TASK-90.json"
+    },
+    {
+      "id": "TASK-91",
+      "title": "Wire selectable vector backend runtime",
+      "status": "draft",
+      "branch": "task/TASK-91-vector-backend-selection-runtime",
+      "file": "tasks/TASK-91.json"
+    },
+    {
+      "id": "TASK-92",
+      "title": "Replace Docling placeholder with real service profile",
+      "status": "draft",
+      "branch": "task/TASK-92-real-docling-service-profile",
+      "file": "tasks/TASK-92.json"
+    },
+    {
+      "id": "TASK-93",
+      "title": "Add Docling PDF extraction acceptance",
+      "status": "draft",
+      "branch": "task/TASK-93-docling-pdf-extraction-acceptance",
+      "file": "tasks/TASK-93.json"
+    },
+    {
+      "id": "TASK-94",
+      "title": "Implement synchronous antivirus scan mode",
+      "status": "draft",
+      "branch": "task/TASK-94-synchronous-antivirus-scan-mode",
+      "file": "tasks/TASK-94.json"
+    },
+    {
+      "id": "TASK-95",
+      "title": "Harden ClamAV installer health and diagnostics",
+      "status": "draft",
+      "branch": "task/TASK-95-clamav-installer-health-hardening",
+      "file": "tasks/TASK-95.json"
+    },
+    {
+      "id": "TASK-96",
+      "title": "Implement local-command LLM provider healthchecks",
+      "status": "draft",
+      "branch": "task/TASK-96-local-command-llm-provider-healthchecks",
+      "file": "tasks/TASK-96.json"
+    },
+    {
+      "id": "TASK-97",
+      "title": "Implement local-command LLM operations",
+      "status": "draft",
+      "branch": "task/TASK-97-local-command-llm-operations",
+      "file": "tasks/TASK-97.json"
+    },
+    {
+      "id": "TASK-98",
+      "title": "Add image embeddings and object detection",
+      "status": "draft",
+      "branch": "task/TASK-98-image-embeddings-object-detection",
+      "file": "tasks/TASK-98.json"
+    },
+    {
+      "id": "TASK-99",
+      "title": "Implement image and audio generation roles",
+      "status": "draft",
+      "branch": "task/TASK-99-image-audio-generation-roles",
+      "file": "tasks/TASK-99.json"
+    },
+    {
+      "id": "TASK-100",
+      "title": "Add bundled video keyframe provider",
+      "status": "draft",
+      "branch": "task/TASK-100-bundled-video-keyframe-provider",
+      "file": "tasks/TASK-100.json"
+    },
+    {
+      "id": "TASK-101",
+      "title": "Add production metrics exporter",
+      "status": "draft",
+      "branch": "task/TASK-101-production-metrics-exporter",
+      "file": "tasks/TASK-101.json"
+    },
+    {
+      "id": "TASK-102",
+      "title": "Add OpenTelemetry tracing and structured log export",
+      "status": "draft",
+      "branch": "task/TASK-102-opentelemetry-tracing-structured-log-export",
+      "file": "tasks/TASK-102.json"
+    },
+    {
+      "id": "TASK-103",
+      "title": "Add scheduled backups",
+      "status": "draft",
+      "branch": "task/TASK-103-scheduled-backups",
+      "file": "tasks/TASK-103.json"
+    },
+    {
+      "id": "TASK-104",
+      "title": "Add PITR backup baseline",
+      "status": "draft",
+      "branch": "task/TASK-104-pitr-backup-baseline",
+      "file": "tasks/TASK-104.json"
+    },
+    {
+      "id": "TASK-105",
+      "title": "Add encrypted remote backups",
+      "status": "draft",
+      "branch": "task/TASK-105-encrypted-remote-backups",
+      "file": "tasks/TASK-105.json"
+    },
+    {
+      "id": "TASK-106",
+      "title": "Add external S3 streaming backup",
+      "status": "draft",
+      "branch": "task/TASK-106-external-s3-streaming-backup",
+      "file": "tasks/TASK-106.json"
+    },
+    {
+      "id": "TASK-107",
+      "title": "Add signed release manifests",
+      "status": "draft",
+      "branch": "task/TASK-107-signed-release-manifests",
+      "file": "tasks/TASK-107.json"
+    },
+    {
+      "id": "TASK-108",
+      "title": "Harden release publishing workflow",
+      "status": "draft",
+      "branch": "task/TASK-108-release-publishing-workflow",
+      "file": "tasks/TASK-108.json"
+    },
+    {
+      "id": "TASK-109",
+      "title": "Add remote installer update",
+      "status": "draft",
+      "branch": "task/TASK-109-remote-installer-update",
+      "file": "tasks/TASK-109.json"
+    },
+    {
+      "id": "TASK-110",
+      "title": "Add installer resume and repair",
+      "status": "draft",
+      "branch": "task/TASK-110-installer-resume-repair",
+      "file": "tasks/TASK-110.json"
+    },
+    {
+      "id": "TASK-111",
+      "title": "Add Hermes runtime integration package",
+      "status": "draft",
+      "branch": "task/TASK-111-hermes-runtime-integration-package",
+      "file": "tasks/TASK-111.json"
+    },
+    {
+      "id": "TASK-112",
+      "title": "Run live self-host public acceptance",
+      "status": "draft",
+      "branch": "task/TASK-112-live-self-host-public-acceptance",
+      "file": "tasks/TASK-112.json"
+    },
+    {
+      "id": "TASK-113",
+      "title": "Run final GitHub public readiness gate",
+      "status": "draft",
+      "branch": "task/TASK-113-final-github-public-readiness-gate",
+      "file": "tasks/TASK-113.json"
     }
   ]
 }

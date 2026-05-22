@@ -1,0 +1,55 @@
+{
+  "id": "TASK-102",
+  "title": "Add OpenTelemetry tracing and structured log export",
+  "status": "draft",
+  "type": "feature",
+  "priority": "high",
+  "branch": "task/TASK-102-opentelemetry-tracing-structured-log-export",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Add OTLP tracing and structured log export across runtime operations.",
+    "background": "Public self-host deployments need correlation across API, worker, storage, model and vector operations."
+  },
+  "scope": {
+    "in": [
+      "Add OpenTelemetry configuration and OTLP exporter support.",
+      "Create spans for API requests, jobs, stages, model calls, storage operations and vector operations.",
+      "Propagate correlation IDs across API and worker jobs.",
+      "Add structured log export documentation and collector example.",
+      "Remove TASK-102-owned public-readiness debt from the gate."
+    ],
+    "out": [
+      "Running a hosted tracing service."
+    ]
+  },
+  "acceptance_criteria": [
+    "OTLP tracing can be enabled through config without code changes.",
+    "Trace spans include safe operation metadata and correlation IDs.",
+    "Worker jobs continue traces from enqueue context where available.",
+    "Docs include a local collector example.",
+    "pnpm check passes."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm observability:validate",
+      "pnpm test",
+      "pnpm public-debt:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm traces and logs do not contain raw document content or secrets."
+    ]
+  },
+  "dependencies": [
+    "TASK-101"
+  ],
+  "risks": [
+    "Tracing must degrade cleanly when the collector is unavailable."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to done.",
+    "Branch is committed and merged back into master."
+  ]
+}

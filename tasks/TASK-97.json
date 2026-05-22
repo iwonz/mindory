@@ -1,0 +1,54 @@
+{
+  "id": "TASK-97",
+  "title": "Implement local-command LLM operations",
+  "status": "draft",
+  "type": "feature",
+  "priority": "high",
+  "branch": "task/TASK-97-local-command-llm-operations",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Implement local-command model calls for all Mindory LLM roles.",
+    "background": "Local-command must be a real provider for model operations, not only a healthcheck surface."
+  },
+  "scope": {
+    "in": [
+      "Define request and response JSON contracts for all local-command model roles.",
+      "Implement chat, text embeddings, OCR, ASR, vision captioning, image embeddings, face detection, face recognition, image generation and audio generation.",
+      "Add timeout, concurrency and audit handling.",
+      "Add fake command fixtures and SDK tests for each role.",
+      "Update LLM docs and installer prompts."
+    ],
+    "out": [
+      "Bundling heavy local model binaries."
+    ]
+  },
+  "acceptance_criteria": [
+    "Every configured local-command role can execute a real command and parse a typed result.",
+    "Role failures produce structured model errors and audit entries.",
+    "Generated image and audio results can be saved by callers without special-case code.",
+    "Tests cover all local-command roles.",
+    "pnpm check passes."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm llm:validate",
+      "pnpm test",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm command stdout/stderr handling is bounded and secrets are redacted."
+    ]
+  },
+  "dependencies": [
+    "TASK-96"
+  ],
+  "risks": [
+    "Large binary payloads must be passed through safe file references or bounded base64 payloads."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to done.",
+    "Branch is committed and merged back into master."
+  ]
+}

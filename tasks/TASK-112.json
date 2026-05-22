@@ -1,0 +1,54 @@
+{
+  "id": "TASK-112",
+  "title": "Run live self-host public acceptance",
+  "status": "draft",
+  "type": "test",
+  "priority": "high",
+  "branch": "task/TASK-112-live-self-host-public-acceptance",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Run and harden the complete live self-host acceptance path with Docker.",
+    "background": "The public version must be proven from a clean temporary home using real runtime services and installer lifecycle operations."
+  },
+  "scope": {
+    "in": [
+      "Run clean temp MINDORY_HOME installer start with Docker.",
+      "Exercise sync antivirus, pgvector, Qdrant, Docling, upload, jobs, search and context.",
+      "Run backup, restore or reset, remote update and uninstall acceptance.",
+      "Fix failures found in the live path.",
+      "Document the exact release-readiness command."
+    ],
+    "out": [
+      "Publishing a real public release tag."
+    ]
+  },
+  "acceptance_criteria": [
+    "Live self-host acceptance starts from a clean temporary MINDORY_HOME.",
+    "Acceptance covers sync AV, pgvector, Qdrant and Docling profiles.",
+    "Upload, processing, search, context, backup, update and uninstall flows pass.",
+    "Failures produce actionable diagnostics and leave no unmanaged runtime state.",
+    "pnpm check passes."
+  ],
+  "verification": {
+    "commands": [
+      "MINDORY_SELFHOST_ACCEPTANCE_LIVE=true pnpm selfhost:acceptance",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm Docker is running before live acceptance.",
+      "Confirm temporary MINDORY_HOME is removed or intentionally preserved only on failure."
+    ]
+  },
+  "dependencies": [
+    "TASK-111"
+  ],
+  "risks": [
+    "Live acceptance can be slow and depends on local Docker resources."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to done.",
+    "Branch is committed and merged back into master."
+  ]
+}

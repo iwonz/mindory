@@ -1,0 +1,56 @@
+{
+  "id": "TASK-94",
+  "title": "Implement synchronous antivirus scan mode",
+  "status": "draft",
+  "type": "feature",
+  "priority": "high",
+  "branch": "task/TASK-94-synchronous-antivirus-scan-mode",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Make sync_scan a real upload-time ClamAV verdict path.",
+    "background": "When configured, upload must not return success until the raw object has a clean antivirus verdict."
+  },
+  "scope": {
+    "in": [
+      "Wire upload-time synchronous scanning through the ClamAV scanner.",
+      "Apply infected and scan-failure policies before document processing is enqueued.",
+      "Persist document/job statuses for clean, infected and failed sync scan results.",
+      "Add live ClamAV integration tests for clean and infected fixtures.",
+      "Remove TASK-94-owned public-readiness debt from the gate."
+    ],
+    "out": [
+      "Changing async quarantine semantics."
+    ]
+  },
+  "acceptance_criteria": [
+    "sync_scan upload waits for a ClamAV verdict.",
+    "Clean uploads create processing jobs after scan success.",
+    "Infected uploads are quarantined or deleted according to policy before processing.",
+    "Scan failures obey configured block or allow-with-warning behavior.",
+    "pnpm check passes."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm documents:validate",
+      "pnpm test",
+      "pnpm public-debt:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm no sync_scan not-implemented marker remains.",
+      "Confirm async quarantine still works."
+    ]
+  },
+  "dependencies": [
+    "TASK-93"
+  ],
+  "risks": [
+    "Synchronous scanning can increase upload latency and must use explicit timeout handling."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to done.",
+    "Branch is committed and merged back into master."
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "id": "TASK-107",
+  "title": "Add signed release manifests",
+  "status": "draft",
+  "type": "feature",
+  "priority": "high",
+  "branch": "task/TASK-107-signed-release-manifests",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Sign and verify release manifests for bootstrap installers.",
+    "background": "Checksums prove integrity only after trusting the manifest; public installers need signature verification."
+  },
+  "scope": {
+    "in": [
+      "Add release manifest signing during bundle generation.",
+      "Add public key verification in install.sh and install.ps1.",
+      "Add diagnostics for download, checksum and signature failures.",
+      "Add tests for tampered manifest and tampered artifact cases.",
+      "Remove TASK-107-owned public-readiness debt from the gate."
+    ],
+    "out": [
+      "Managing production signing key custody outside repository guidance."
+    ]
+  },
+  "acceptance_criteria": [
+    "Release bundle generation produces a signed manifest.",
+    "Bootstrap scripts verify manifest signatures before trusting checksums.",
+    "Tampered manifests and artifacts are rejected with distinct diagnostics.",
+    "Docs explain public key configuration and rotation process.",
+    "pnpm check passes."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm release:bundle",
+      "pnpm release:validate",
+      "pnpm bootstrap:validate",
+      "pnpm public-debt:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm private signing keys are not committed."
+    ]
+  },
+  "dependencies": [
+    "TASK-106"
+  ],
+  "risks": [
+    "Signature implementation must be reproducible in Linux, macOS and Windows bootstrap paths."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to done.",
+    "Branch is committed and merged back into master."
+  ]
+}

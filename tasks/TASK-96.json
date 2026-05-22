@@ -1,0 +1,55 @@
+{
+  "id": "TASK-96",
+  "title": "Implement local-command LLM provider healthchecks",
+  "status": "draft",
+  "type": "feature",
+  "priority": "high",
+  "branch": "task/TASK-96-local-command-llm-provider-healthchecks",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Make local-command provider healthchecks real for every configured model role.",
+    "background": "The model SDK must validate command executables, role support and model readiness before runtime operations use them."
+  },
+  "scope": {
+    "in": [
+      "Define the local-command healthcheck JSON contract.",
+      "Validate executable path, arguments, timeout, role and model.",
+      "Record healthcheck audit events with status, duration and diagnostics.",
+      "Add tests for success, timeout, malformed JSON and unsupported role responses.",
+      "Remove TASK-96-owned public-readiness debt from the gate."
+    ],
+    "out": [
+      "Implementing actual local-command model operations."
+    ]
+  },
+  "acceptance_criteria": [
+    "local-command healthchecks execute real commands with timeout and JSON parsing.",
+    "Health results validate role and model compatibility.",
+    "Failures produce structured diagnostics and audit entries.",
+    "Installer can use the healthcheck contract for configured local-command roles.",
+    "pnpm check passes."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm llm:validate",
+      "pnpm installer:validate",
+      "pnpm public-debt:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm no local-command healthcheck not-implemented marker remains."
+    ]
+  },
+  "dependencies": [
+    "TASK-95"
+  ],
+  "risks": [
+    "Command execution must not leak secrets in audit logs."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to done.",
+    "Branch is committed and merged back into master."
+  ]
+}

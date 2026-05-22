@@ -1,0 +1,55 @@
+{
+  "id": "TASK-108",
+  "title": "Harden release publishing workflow",
+  "status": "draft",
+  "type": "feature",
+  "priority": "high",
+  "branch": "task/TASK-108-release-publishing-workflow",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Make GitHub release publishing complete for public self-host users.",
+    "background": "Release automation must publish signed artifacts, Docker images and release notes from a tag."
+  },
+  "scope": {
+    "in": [
+      "Publish versioned release bundles, signed manifests and checksums.",
+      "Build and publish Docker images with documented tag policy.",
+      "Generate draft release notes and public release checklist.",
+      "Add workflow validation without storing secrets in the repository.",
+      "Remove TASK-108-owned public-readiness debt from the gate."
+    ],
+    "out": [
+      "Cutting an actual production release tag unless explicitly requested."
+    ]
+  },
+  "acceptance_criteria": [
+    "Tag workflow builds Docker images and release artifacts.",
+    "Signed manifests and checksums are attached to draft GitHub releases.",
+    "Release notes include support matrix and upgrade notes.",
+    "Workflow documents required repository secrets without committing values.",
+    "pnpm check passes."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm release:validate",
+      "pnpm public:validate",
+      "pnpm public-debt:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm workflow can run in pull request validation without publishing."
+    ]
+  },
+  "dependencies": [
+    "TASK-107"
+  ],
+  "risks": [
+    "Release publishing must not push images from untrusted pull requests."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to done.",
+    "Branch is committed and merged back into master."
+  ]
+}

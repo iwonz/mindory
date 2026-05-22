@@ -1,0 +1,56 @@
+{
+  "id": "TASK-113",
+  "title": "Run final GitHub public readiness gate",
+  "status": "draft",
+  "type": "release",
+  "priority": "high",
+  "branch": "task/TASK-113-final-github-public-readiness-gate",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Execute the final public release gate from a fresh clone perspective.",
+    "background": "Before publishing, Mindory must prove checks, install bootstrap, release artifacts, live self-host and documentation are coherent."
+  },
+  "scope": {
+    "in": [
+      "Run fresh-clone checks for pnpm install assumptions, pnpm check and release validation.",
+      "Run signed install bootstrap validation.",
+      "Run live self-host public acceptance.",
+      "Verify the public-readiness debt gate has no remaining task-owned markers.",
+      "Update changelog, repository status and release checklist."
+    ],
+    "out": [
+      "Actually pushing to GitHub unless explicitly requested."
+    ]
+  },
+  "acceptance_criteria": [
+    "pnpm check passes from a clean checkout.",
+    "Signed bootstrap install validation passes.",
+    "Live self-host acceptance passes.",
+    "No supported-path temporary markers remain in the public-readiness debt gate.",
+    "git status is clean before publication handoff."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm check",
+      "pnpm release:validate",
+      "MINDORY_SELFHOST_ACCEPTANCE_LIVE=true pnpm selfhost:acceptance",
+      "pnpm public-debt:validate"
+    ],
+    "manual_checks": [
+      "Confirm README and release notes are sufficient for a new GitHub user.",
+      "Confirm no secrets or local machine paths are committed."
+    ]
+  },
+  "dependencies": [
+    "TASK-112"
+  ],
+  "risks": [
+    "The final gate may reveal environment-specific Docker or installer issues that need separate fixes."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to done.",
+    "Branch is committed and merged back into master."
+  ]
+}

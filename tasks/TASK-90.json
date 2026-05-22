@@ -1,0 +1,57 @@
+{
+  "id": "TASK-90",
+  "title": "Implement real Qdrant vector adapter",
+  "status": "draft",
+  "type": "feature",
+  "priority": "high",
+  "branch": "task/TASK-90-real-qdrant-vector-adapter",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Replace the Qdrant package with a working vector backend adapter.",
+    "background": "Qdrant is configured in Compose and env but the package must implement the same operational contract as pgvector."
+  },
+  "scope": {
+    "in": [
+      "Implement Qdrant collection bootstrap, healthcheck, chunk upsert, search, delete and reindex operations.",
+      "Preserve source refs and project scoping in Qdrant payloads.",
+      "Add integration tests against the Qdrant Compose profile.",
+      "Update config/docs for real Qdrant operation.",
+      "Remove TASK-90-owned public-readiness debt from the gate."
+    ],
+    "out": [
+      "Switching the default backend away from pgvector.",
+      "Implementing vector backend selection across the full runtime."
+    ]
+  },
+  "acceptance_criteria": [
+    "@mindory/vector-qdrant implements the required vector index contract.",
+    "Qdrant collections are created or validated idempotently.",
+    "Chunk search returns document/chunk source refs compatible with pgvector search.",
+    "Qdrant integration tests run against a real Qdrant service.",
+    "pnpm check passes."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm processing:validate",
+      "pnpm test",
+      "pnpm public-debt:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm Qdrant package contains no not-implemented paths.",
+      "Confirm Qdrant profile healthcheck passes before tests use it."
+    ]
+  },
+  "dependencies": [
+    "TASK-89"
+  ],
+  "risks": [
+    "Qdrant payload schema must remain compatible with existing search responses."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to done.",
+    "Branch is committed and merged back into master."
+  ]
+}

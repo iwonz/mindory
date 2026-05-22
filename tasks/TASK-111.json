@@ -1,0 +1,56 @@
+{
+  "id": "TASK-111",
+  "title": "Add Hermes runtime integration package",
+  "status": "draft",
+  "type": "feature",
+  "priority": "high",
+  "branch": "task/TASK-111-hermes-runtime-integration-package",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Ship a runnable Hermes host integration package and conformance harness.",
+    "background": "Mindory must provide a real integration surface even when the external Hermes SDK is not vendored."
+  },
+  "scope": {
+    "in": [
+      "Package documented Hermes hook registration helpers.",
+      "Provide a runnable example host that exercises lifecycle hooks, attachment upload and context recall.",
+      "Add conformance tests for identity mapping, prompt context, saved turns and later-session recall.",
+      "Update Hermes docs to describe the supported integration package.",
+      "Remove TASK-111-owned public-readiness debt from the gate."
+    ],
+    "out": [
+      "Vendoring closed or unavailable external Hermes SDK code."
+    ]
+  },
+  "acceptance_criteria": [
+    "A local Hermes-like host can import the package and register Mindory lifecycle hooks.",
+    "The example host uploads attachments and saves user/assistant turns through the API.",
+    "Later sessions recall source-backed context through the integration.",
+    "Docs no longer position the integration as fake-compatible only.",
+    "pnpm check passes."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm hermes:validate",
+      "pnpm hermes:contract",
+      "pnpm hermes:harness",
+      "pnpm public-debt:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm the integration package does not bypass the HTTP API."
+    ]
+  },
+  "dependencies": [
+    "TASK-110"
+  ],
+  "risks": [
+    "The package must remain stable even if external Hermes runtime naming changes."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to done.",
+    "Branch is committed and merged back into master."
+  ]
+}

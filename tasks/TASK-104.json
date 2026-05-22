@@ -1,0 +1,55 @@
+{
+  "id": "TASK-104",
+  "title": "Add PITR backup baseline",
+  "status": "draft",
+  "type": "feature",
+  "priority": "high",
+  "branch": "task/TASK-104-pitr-backup-baseline",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Add point-in-time recovery support for the local self-host PostgreSQL profile.",
+    "background": "Backups must support WAL archiving and restore to a target time for stronger public self-host reliability."
+  },
+  "scope": {
+    "in": [
+      "Configure PostgreSQL WAL archiving for the local Compose profile.",
+      "Store WAL archives and base backup manifests under MINDORY_HOME/backups.",
+      "Add restore-to-time command and validation script.",
+      "Document PITR setup, restore and limitations.",
+      "Remove TASK-104-owned public-readiness debt from the gate."
+    ],
+    "out": [
+      "Managed cloud PostgreSQL PITR integrations."
+    ]
+  },
+  "acceptance_criteria": [
+    "Local PostgreSQL profile can archive WAL files to MINDORY_HOME.",
+    "A base backup plus WAL archive can restore to a requested timestamp.",
+    "Restore validation confirms data before and after target time behaves as expected.",
+    "Docs explain disk usage and retention requirements.",
+    "pnpm check passes."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm backup:validate",
+      "pnpm test",
+      "pnpm public-debt:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm PITR commands operate only inside MINDORY_HOME."
+    ]
+  },
+  "dependencies": [
+    "TASK-103"
+  ],
+  "risks": [
+    "PITR restore must never overwrite live data without explicit confirmation."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to done.",
+    "Branch is committed and merged back into master."
+  ]
+}
