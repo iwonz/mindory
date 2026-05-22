@@ -86,6 +86,8 @@ for (const token of [
   "mindory_release_public_key_path",
   "release notes",
   "docs/release_checklist.md",
+  "signed remote releases",
+  "update from signed remote releases",
   "backup",
   "backup-archive",
   "backup-upload",

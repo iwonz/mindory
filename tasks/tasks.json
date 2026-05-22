@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-108",
+  "current_task_id": "TASK-109",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -796,7 +796,7 @@
     {
       "id": "TASK-109",
       "title": "Add remote installer update",
-      "status": "draft",
+      "status": "done",
       "branch": "task/TASK-109-remote-installer-update",
       "file": "tasks/TASK-109.json"
     },

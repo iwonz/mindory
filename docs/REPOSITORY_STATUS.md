@@ -6,7 +6,7 @@ The repository should be described with the support levels in
 
 ## Current Baseline
 
-The repository is complete through `TASK-108`.
+The repository is complete through `TASK-109`.
 
 Supported local MVP path:
 
@@ -26,6 +26,9 @@ Supported local MVP path:
 - Tag release publishing builds and pushes versioned GHCR images, generates
   release notes with support matrix and upgrade notes, and attaches signed
   release artifacts to draft GitHub Releases.
+- Signed remote installer update can download/copy release manifests and
+  bundles, verify signatures/checksums, stage releases, run migrations/startup
+  health checks and rollback release/config assets on failure.
 - LLM role/provider support levels are centralized and enforced by config and
   installer validation.
 - OpenAI-compatible chat and text embedding operations support API-key and

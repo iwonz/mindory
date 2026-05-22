@@ -20,7 +20,7 @@ artifacts.
 | S3 storage bootstrap | Supported baseline. Local LibreFS/MinIO profiles run bucket bootstrap services; external S3-compatible endpoints are signed access-checked before migrations. |
 | Vector backend selection | Supported. The wizard and answer files can choose `pgvector` or `qdrant`; Qdrant automatically adds the `qdrant` Compose profile and is included in Compose health checks. |
 | First project/token provisioning | Supported. It creates the initial project and bearer token, then writes `config/initial-token.json`. |
-| Update assets | Supported for local config/Compose asset refresh with pre-update backup and rollback. Remote release download is future work. |
+| Update assets | Supported for local config/Compose asset refresh and signed remote release update with pre-update backup, migration/startup execution, health checks and rollback. |
 | Runtime backup/restore | Supported MVP. It writes `backup-manifest.json`, config, installer metadata, PostgreSQL dumps and local object storage copies. |
 | PostgreSQL PITR | Supported local baseline. `pitr-backup` creates a `pg_basebackup` base backup and `pitr-restore` stages recovery with WAL archive refs and a target time. |
 | Scheduled local backups | Supported. `backup-schedule` uses config-driven intervals, a lock file, retention, logs and health state under `$MINDORY_HOME`. |
@@ -193,8 +193,13 @@ bundles. The installer CLI currently supports `wizard`, `plan`/`dry-run`,
 file preparation steps. `start`
 additionally runs Docker Compose pull/build, infrastructure startup, migrations,
 API/worker/MCP startup, health checks and first project/token provisioning.
-`update --dry-run` previews local asset refresh, while `update` creates a
-pre-update backup before rewriting config and Compose assets. `backup` creates
+`update --dry-run` previews local asset refresh or signed remote release
+verification, while `update` creates a pre-update backup before rewriting
+config and Compose assets. With `--manifest-url` or `--manifest-path`, it
+downloads or copies the signed release manifest, verifies the trusted public
+key fingerprint and manifest signature, verifies the bundle checksum, stages
+the release under `$MINDORY_HOME/install/releases/<version>`, runs migrations,
+starts runtime services and health-checks the updated stack. `backup` creates
 a runtime backup under `$MINDORY_HOME/backups`; `backup-schedule` executes the
 configured scheduled backup runner once and records health. `pitr-backup`
 creates a PostgreSQL base backup for WAL-based recovery; `pitr-restore` stages
@@ -215,6 +220,8 @@ The CLI exposes:
 mindory-installer repair --home ~/.mindory
 mindory-installer resume --home ~/.mindory
 mindory-installer update --home ~/.mindory --source /path/to/mindory --dry-run
+mindory-installer update --home ~/.mindory --manifest-url https://example.com/mindory.manifest.env --public-key-path ./mindory-release.public.pem --dry-run
+mindory-installer update --home ~/.mindory --manifest-url https://example.com/mindory.manifest.env --public-key-path ./mindory-release.public.pem
 mindory-installer backup --home ~/.mindory
 mindory-installer backup-schedule --home ~/.mindory --status
 mindory-installer pitr-backup --home ~/.mindory
@@ -332,8 +339,11 @@ require manual cleanup. Prepare execution uses this model for filesystem,
 config and Compose asset writes. Startup execution adds `compose_down` rollback
 for started services. First-token provisioning writes a local credential file
 with rollback for that file; database token rollback remains a future lifecycle
-operation. Update creates a pre-update backup under `$MINDORY_HOME/backups` and
-restores config/assets from that backup if local asset refresh fails. Uninstall
+operation. Local and remote update create a pre-update backup under
+`$MINDORY_HOME/backups` and restore config/assets from that backup if asset
+refresh, migration, startup or healthcheck fails. Remote update also restores
+the previously staged release directory when promotion happened before the
+failure. Update rollback never deletes existing backups. Uninstall
 requires explicit confirmation and can copy the home to a sibling backup before
 removal.
 
