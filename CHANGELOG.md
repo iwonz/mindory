@@ -20,6 +20,8 @@ documentation.
 
 ### Added
 
+- `TASK-82`: LibreFS/MinIO local S3 bucket bootstrap and signed external
+  S3-compatible access checks in storage and installer startup flows.
 - `TASK-81`: unified multimodal search through `POST /v1/search`, CLI
   `search query` and MCP `unified_search`, including metadata-only artifact
   search and face observation hits with source refs.

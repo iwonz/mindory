@@ -16,6 +16,7 @@ project/token.
 | Config rendering | Supported in the installer core for generated `.env` and `mindory.config.json` content. |
 | Prepare execution | Supported. It creates `$MINDORY_HOME`, writes generated config/env files and copies release Compose assets with journaled rollback. |
 | Compose startup | Supported. It can pull/build, start infrastructure, run migrations, start API/worker/MCP and wait for Compose/API readiness. |
+| S3 storage bootstrap | Supported baseline. Local LibreFS/MinIO profiles run bucket bootstrap services; external S3-compatible endpoints are signed access-checked before migrations. |
 | First project/token provisioning | Supported. It creates the initial project and bearer token, then writes `config/initial-token.json`. |
 | Update assets | Supported for local config/Compose asset refresh with pre-update backup and rollback. Remote release download is future work. |
 | Uninstall | Supported with explicit `--yes`; optional backup is written next to the removed home. |
@@ -219,6 +220,12 @@ Prompt labels, defaults, enum values, secret flags and resource hints come from
 the config catalog whenever a catalog entry exists. Future or experimental LLM
 roles are visible, but they cannot be enabled unless experimental mode is
 enabled explicitly.
+
+For LibreFS or MinIO local S3 choices, installer startup enables the matching
+Compose profile and runs the one-shot bucket bootstrap service. For external
+S3-compatible storage, it validates the endpoint URL, bucket and credentials,
+then signs bucket-level access checks through `@mindory/storage-s3`. The
+installer never deletes external buckets during rollback or uninstall.
 
 ## Transaction Model
 

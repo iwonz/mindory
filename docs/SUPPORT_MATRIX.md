@@ -41,8 +41,8 @@ writing README, issues, release notes and docs.
 | Area | Status | Notes |
 | --- | --- | --- |
 | Local filesystem object storage | Supported | Default local MVP storage under `$MINDORY_HOME/data/objects`. |
-| S3-compatible storage | Supported baseline | Adapter and smoke tests exist for LibreFS/MinIO/external S3-compatible endpoints. |
-| LibreFS Compose profile | Experimental | Profile exists; operationalized installer bootstrap remains future hardening. |
+| S3-compatible storage | Supported baseline | Adapter, signed bucket access checks and smoke tests exist for LibreFS/MinIO/external S3-compatible endpoints. |
+| LibreFS Compose profile | Supported baseline | Local S3-compatible profile has a health check and bucket bootstrap service for installer startup. |
 | PostgreSQL full-text search | Supported | Used for fallback document search when embeddings are disabled. |
 | Unified multimodal search | Supported local MVP | `POST /v1/search`, CLI `search query` and MCP `unified_search` combine document chunks, OCR/caption/transcript/keyframe artifact spans and face observations with metadata filters and source refs. |
 | pgvector text embeddings | Supported | Requires a compatible 1536-dimensional embedding provider. |

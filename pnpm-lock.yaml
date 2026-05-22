@@ -149,6 +149,9 @@ importers:
       '@mindory/config':
         specifier: workspace:*
         version: link:../config
+      '@mindory/storage-s3':
+        specifier: workspace:*
+        version: link:../storage/s3
 
   packages/llm:
     dependencies:

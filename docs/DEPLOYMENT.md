@@ -188,6 +188,10 @@ The `librefs` profile runs `ghcr.io/librefs/librefs:latest` as the local
 S3-compatible storage option and stores its data under
 `$MINDORY_HOME/data/librefs`. The `minio` profile remains available for manual
 compatibility testing and stores data under `$MINDORY_HOME/data/minio`.
+Both local S3 profiles include health checks and one-shot bucket bootstrap
+services (`librefs-bucket` and `minio-bucket`) that create
+`MINDORY_S3_BUCKET` before API/worker startup when the installer uses the S3
+storage path.
 
 The `local-models` profile is intentionally lightweight and does not download
 model weights. It serves deterministic 1536-dimensional embeddings for local

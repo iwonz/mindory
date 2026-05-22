@@ -102,6 +102,13 @@ targets the Compose `librefs` profile. Path-style mode is the default so local
 S3-compatible services such as LibreFS or MinIO can be used without wildcard
 DNS.
 
+Installer startup bootstraps local S3 buckets through the Compose
+`librefs-bucket` or `minio-bucket` services when a local profile is selected.
+For external S3-compatible endpoints, the installer signs `HEAD`/`PUT` bucket
+requests through `@mindory/storage-s3` to verify credentials and create the
+bucket when the endpoint permits it. Rollback and uninstall do not delete
+external buckets.
+
 ## Queue And Workers
 
 `MINDORY_REDIS_URL` points BullMQ at Redis. `MINDORY_QUEUE_PREFIX` namespaces
