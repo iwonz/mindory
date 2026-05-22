@@ -20,6 +20,7 @@ literal fallback values.
 - PostgreSQL database URL.
 - Redis/BullMQ URL and prefixes.
 - Object storage provider and local/S3 settings.
+- Scheduled backup interval, retention and component switches.
 - Vector index provider and optional Qdrant settings.
 - Antivirus policy and ClamAV connection settings.
 - Worker type and concurrency.
@@ -72,6 +73,28 @@ introduced in a later task when the database package exists.
 `MINDORY_LOG_LEVEL` controls Fastify structured logging in the API skeleton.
 Sensitive request headers such as `authorization` are redacted by the logger
 configuration.
+
+## Scheduled Backups
+
+`MINDORY_BACKUP_SCHEDULE_ENABLED` enables the installer-managed local backup
+runner. It defaults to `false`; run it from an external host scheduler with:
+
+```bash
+mindory-installer backup-schedule --home "$MINDORY_HOME"
+```
+
+`MINDORY_BACKUP_SCHEDULE_INTERVAL_MINUTES` controls the minimum interval between
+successful scheduled runs. `MINDORY_BACKUP_RETENTION_COUNT` keeps the newest
+matching backup sets and `MINDORY_BACKUP_RETENTION_DAYS` removes matching sets
+older than the configured age. Retention only deletes directories under
+`$MINDORY_HOME/backups` that contain a Mindory `backup-manifest.json`.
+
+`MINDORY_BACKUP_INCLUDE_CONFIG`, `MINDORY_BACKUP_INCLUDE_POSTGRES` and
+`MINDORY_BACKUP_INCLUDE_OBJECTS` control which runtime components scheduled
+backups include. Health is written to
+`$MINDORY_HOME/backups/scheduled-backup-health.json`, the lock lives at
+`$MINDORY_HOME/backups/scheduled-backup.lock` and JSONL run logs are appended to
+`$MINDORY_HOME/logs/scheduled-backup.log`.
 
 ## API Request Guards
 

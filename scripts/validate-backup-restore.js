@@ -23,23 +23,28 @@ const productionDocs = read("docs/PRODUCTION_HARDENING.md");
 for (const token of [
   "createMindoryRuntimeBackup",
   "restoreMindoryRuntimeBackup",
+  "runScheduledMindoryBackup",
+  "ScheduledBackupHealth",
   "RuntimeBackupManifest",
   "pg_dump",
   "psql",
   "backup-manifest.json",
+  "scheduled-backup-health.json",
+  "scheduled-backup.lock",
   "external_s3"
 ]) {
   assert(installerSource.includes(token), `Installer source must include ${token}.`);
 }
 
-for (const token of ["command === \"backup\"", "command === \"restore\"", "mindory-installer backup", "mindory-installer restore"]) {
+for (const token of ["command === \"backup\"", "command === \"backup-schedule\"", "command === \"restore\"", "mindory-installer backup", "mindory-installer backup-schedule", "mindory-installer restore"]) {
   assert(installerCli.includes(token), `Installer CLI must expose ${token}.`);
 }
 
-for (const token of ["backup-manifest.json", "pg_dump", "restore --home", "External S3-compatible bucket data"]) {
+for (const token of ["backup-manifest.json", "pg_dump", "restore --home", "backup-schedule --home", "scheduled-backup-health.json", "scheduled-backup.log", "MINDORY_BACKUP_RETENTION_COUNT", "External S3-compatible bucket data"]) {
   assert(installerDocs.includes(token), `Installer docs must describe ${token}.`);
 }
 assert(productionDocs.includes("mindory-installer backup"), "Production hardening docs must use the installer backup command.");
+assert(productionDocs.includes("MINDORY_BACKUP_SCHEDULE_ENABLED"), "Production hardening docs must document scheduled backup config.");
 assert(productionDocs.includes("point-in-time recovery"), "Production hardening docs must keep PITR as future hardening.");
 
 const installer = await import("../packages/installer/dist/index.js");
@@ -120,6 +125,83 @@ assert(restoreReport.restored === true, "Restore must report restored=true when 
 assert(fs.readFileSync(path.join(home, "config", ".env"), "utf8").includes("MINDORY_STORAGE_PROVIDER=local-fs"), "Restore must restore config.");
 assert(fs.readFileSync(path.join(home, "data", "objects", "documents", "raw.txt"), "utf8") === "raw object\n", "Restore must restore local object files.");
 assert(commands.some((command) => command.includes("psql -U mindory -d mindory")), "Restore must run psql through Compose.");
+
+function writeBackupFixture(directoryName, createdAt) {
+  const backupPath = path.join(home, "backups", directoryName);
+  fs.mkdirSync(backupPath, { recursive: true });
+  fs.writeFileSync(path.join(backupPath, "backup-manifest.json"), `${JSON.stringify({
+    schema_version: 1,
+    kind: "mindory-runtime-backup",
+    created_at: createdAt,
+    mindory_home: home,
+    storage: { provider: "local-fs" },
+    components: []
+  }, null, 2)}\n`);
+  return backupPath;
+}
+
+const oldScheduledBackup = writeBackupFixture("2026-01-01T00-00-00-old-scheduled", "2026-01-01T00:00:00.000Z");
+const recentScheduledBackup = writeBackupFixture("2026-05-21T00-00-00-recent-scheduled", "2026-05-21T00:00:00.000Z");
+fs.writeFileSync(path.join(home, "config", ".env"), [
+  `MINDORY_HOME=${home}`,
+  "MINDORY_PUBLIC_URL=http://localhost:3000",
+  "MINDORY_DATABASE_URL=postgresql://mindory:mindory@postgres:5432/mindory",
+  "MINDORY_STORAGE_PROVIDER=local-fs",
+  "MINDORY_STORAGE_LOCAL_PATH=/data/mindory/objects",
+  "MINDORY_BACKUP_SCHEDULE_ENABLED=true",
+  "MINDORY_BACKUP_SCHEDULE_INTERVAL_MINUTES=60",
+  "MINDORY_BACKUP_RETENTION_COUNT=1",
+  "MINDORY_BACKUP_RETENTION_DAYS=30",
+  "MINDORY_BACKUP_INCLUDE_CONFIG=true",
+  "MINDORY_BACKUP_INCLUDE_POSTGRES=false",
+  "MINDORY_BACKUP_INCLUDE_OBJECTS=true"
+].join("\n"));
+fs.writeFileSync(path.join(home, "data", "objects", "documents", "raw.txt"), "scheduled raw object\n");
+
+const scheduledReport = await installer.runScheduledMindoryBackup(home, {
+  force: true,
+  now: new Date("2026-05-22T00:00:00.000Z"),
+  commandRunner
+});
+assert(scheduledReport.status === "backed_up", "Scheduled backup must create a backup when forced.");
+assert(fs.existsSync(scheduledReport.healthPath), "Scheduled backup must write health status.");
+assert(fs.existsSync(scheduledReport.logPath), "Scheduled backup must append a log record.");
+assert(!fs.existsSync(scheduledReport.lockPath), "Scheduled backup must remove its lock after completion.");
+assert(scheduledReport.health.last_success_at === "2026-05-22T00:00:00.000Z", "Scheduled backup health must record last success.");
+assert(scheduledReport.health.next_run_at === "2026-05-22T01:00:00.000Z", "Scheduled backup health must record next run.");
+assert(scheduledReport.health.last_backup_path === scheduledReport.backup.backupPath, "Scheduled backup health must point at the latest backup.");
+assert(fs.existsSync(path.join(scheduledReport.backup.backupPath, "backup-manifest.json")), "Scheduled backup must contain a runtime manifest.");
+assert(fs.existsSync(path.join(scheduledReport.backup.backupPath, "objects", "documents", "raw.txt")), "Scheduled backup must copy local object files.");
+assert(!fs.existsSync(path.join(scheduledReport.backup.backupPath, "postgres", "mindory.sql")), "Scheduled backup config must be able to skip PostgreSQL dumps.");
+assert(scheduledReport.retention.deleted.includes(path.resolve(oldScheduledBackup)), "Retention must delete old scheduled backups.");
+assert(scheduledReport.retention.deleted.includes(path.resolve(recentScheduledBackup)), "Retention count must delete extra old backups.");
+assert(fs.existsSync(path.join(home, "data", "objects", "documents", "raw.txt")), "Retention must not delete active object storage.");
+
+const skippedScheduledReport = await installer.runScheduledMindoryBackup(home, {
+  now: new Date("2026-05-22T00:30:00.000Z"),
+  commandRunner
+});
+assert(skippedScheduledReport.status === "skipped_not_due", "Scheduled backup must skip before next_run_at.");
+
+fs.writeFileSync(path.join(home, "backups", "scheduled-backup.lock"), "{\"pid\":1}\n");
+const lockedScheduledReport = await installer.runScheduledMindoryBackup(home, {
+  force: true,
+  now: new Date("2026-05-22T02:00:00.000Z"),
+  commandRunner
+});
+assert(lockedScheduledReport.status === "already_running", "Scheduled backup must not run when the lock exists.");
+fs.rmSync(path.join(home, "backups", "scheduled-backup.lock"), { force: true });
+
+fs.writeFileSync(path.join(home, "config", ".env"), "MINDORY_HOME=changed-again\n");
+fs.writeFileSync(path.join(home, "data", "objects", "documents", "raw.txt"), "changed scheduled\n");
+const scheduledRestoreReport = await installer.restoreMindoryRuntimeBackup(home, scheduledReport.backup.backupPath, {
+  yes: true,
+  restorePostgres: false,
+  commandRunner
+});
+assert(scheduledRestoreReport.restored === true, "Scheduled backup output must be restorable.");
+assert(fs.readFileSync(path.join(home, "config", ".env"), "utf8").includes("MINDORY_BACKUP_SCHEDULE_ENABLED=true"), "Scheduled restore must restore backup config.");
+assert(fs.readFileSync(path.join(home, "data", "objects", "documents", "raw.txt"), "utf8") === "scheduled raw object\n", "Scheduled restore must restore object files.");
 
 const externalHome = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-backup-external-s3-"));
 fs.mkdirSync(path.join(externalHome, "config"), { recursive: true });

@@ -10,11 +10,13 @@ import {
   installJournalPath,
   installLockPath,
   inspectInstallState,
+  readScheduledBackupHealth,
   readInstallJournal,
   readInstallLock,
   renderEnvFile,
   renderMindoryConfigJson,
   restoreMindoryRuntimeBackup,
+  runScheduledMindoryBackup,
   runInstallWizard,
   uninstallMindoryHome,
   updateInstallAssets
@@ -46,6 +48,8 @@ try {
     await runUpdateCommand();
   } else if (command === "backup") {
     await runBackupCommand();
+  } else if (command === "backup-schedule") {
+    await runBackupScheduleCommand();
   } else if (command === "restore") {
     await runRestoreCommand();
   } else if (command === "uninstall") {
@@ -58,6 +62,42 @@ try {
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error));
   process.exit(1);
+}
+
+async function runBackupScheduleCommand(): Promise<void> {
+  const home = optionValue("--home") ?? createDefaultInstallAnswers().mindoryHome;
+  if (args.includes("--status")) {
+    printJson({
+      status: "scheduled_backup_status",
+      mindoryHome: home,
+      health: readScheduledBackupHealth(home)
+    });
+    return;
+  }
+
+  const label = optionValue("--label");
+  const sourceRoot = optionValue("--source");
+  try {
+    const report = await runScheduledMindoryBackup(home, {
+      dryRun: args.includes("--dry-run"),
+      force: args.includes("--run-now"),
+      config: {
+        includeConfig: !args.includes("--no-config"),
+        includePostgres: !args.includes("--no-postgres"),
+        includeObjects: !args.includes("--no-objects")
+      },
+      owner: "mindory-installer-cli",
+      ...(label === undefined ? {} : { label }),
+      ...(sourceRoot === undefined ? {} : { sourceRoot })
+    });
+    printJson({
+      mindoryHome: home,
+      ...report
+    });
+  } catch (error) {
+    printJson({ diagnostic: formatInstallerDiagnostic(error) });
+    process.exitCode = 1;
+  }
 }
 
 async function runBackupCommand(): Promise<void> {
@@ -281,6 +321,7 @@ Usage:
   mindory-installer repair [--home <path>]
   mindory-installer update [--home <path>] [--source <path>] [--dry-run]
   mindory-installer backup [--home <path>] [--output <path>] [--label <name>] [--dry-run] [--no-postgres] [--no-objects]
+  mindory-installer backup-schedule [--home <path>] [--status] [--run-now] [--label <name>] [--dry-run] [--no-postgres] [--no-objects]
   mindory-installer restore --home <path> --backup <path> --yes [--no-postgres] [--no-objects] [--no-config]
   mindory-installer uninstall --home <path> --yes [--backup]
 

@@ -99,6 +99,15 @@ export interface MindoryConfig {
     logExportHeaders: string;
     logExportTimeoutMs: number;
   };
+  backups: {
+    scheduledEnabled: boolean;
+    intervalMinutes: number;
+    retentionCount: number;
+    retentionDays: number;
+    includeConfig: boolean;
+    includePostgres: boolean;
+    includeObjects: boolean;
+  };
   database: {
     url: string;
   };
@@ -370,6 +379,15 @@ export function loadMindoryConfig(env: EnvSource = process.env): MindoryConfig {
       logExportHeaders: readString(env, "MINDORY_OTEL_LOG_EXPORT_HEADERS", catalogString("MINDORY_OTEL_LOG_EXPORT_HEADERS")),
       logExportTimeoutMs: readNumber(env, "MINDORY_OTEL_LOG_EXPORT_TIMEOUT_MS", catalogNumber("MINDORY_OTEL_LOG_EXPORT_TIMEOUT_MS"))
     },
+    backups: {
+      scheduledEnabled: readBoolean(env, "MINDORY_BACKUP_SCHEDULE_ENABLED", catalogBoolean("MINDORY_BACKUP_SCHEDULE_ENABLED")),
+      intervalMinutes: readNumber(env, "MINDORY_BACKUP_SCHEDULE_INTERVAL_MINUTES", catalogNumber("MINDORY_BACKUP_SCHEDULE_INTERVAL_MINUTES")),
+      retentionCount: readNumber(env, "MINDORY_BACKUP_RETENTION_COUNT", catalogNumber("MINDORY_BACKUP_RETENTION_COUNT")),
+      retentionDays: readNumber(env, "MINDORY_BACKUP_RETENTION_DAYS", catalogNumber("MINDORY_BACKUP_RETENTION_DAYS")),
+      includeConfig: readBoolean(env, "MINDORY_BACKUP_INCLUDE_CONFIG", catalogBoolean("MINDORY_BACKUP_INCLUDE_CONFIG")),
+      includePostgres: readBoolean(env, "MINDORY_BACKUP_INCLUDE_POSTGRES", catalogBoolean("MINDORY_BACKUP_INCLUDE_POSTGRES")),
+      includeObjects: readBoolean(env, "MINDORY_BACKUP_INCLUDE_OBJECTS", catalogBoolean("MINDORY_BACKUP_INCLUDE_OBJECTS"))
+    },
     database: {
       url: readString(env, "MINDORY_DATABASE_URL", catalogString("MINDORY_DATABASE_URL"))
     },
@@ -497,6 +515,7 @@ export function validateMindoryConfig(config: MindoryConfig): void {
   validateApiConfig(config);
   validateMetricsConfig(config);
   validateTelemetryConfig(config);
+  validateBackupConfig(config);
   validateDocumentProcessingConfig(config);
   validateDoclingConfig(config);
   validateLlmConfig(config);
@@ -557,6 +576,18 @@ function validateHttpUrl(value: string, envName: string): void {
     }
   } catch {
     throw new Error(`${envName} must be an http:// or https:// URL.`);
+  }
+}
+
+function validateBackupConfig(config: MindoryConfig): void {
+  if (config.backups.intervalMinutes <= 0) {
+    throw new Error("MINDORY_BACKUP_SCHEDULE_INTERVAL_MINUTES must be greater than zero.");
+  }
+  if (!Number.isInteger(config.backups.retentionCount) || config.backups.retentionCount <= 0) {
+    throw new Error("MINDORY_BACKUP_RETENTION_COUNT must be a positive integer.");
+  }
+  if (!Number.isInteger(config.backups.retentionDays) || config.backups.retentionDays <= 0) {
+    throw new Error("MINDORY_BACKUP_RETENTION_DAYS must be a positive integer.");
   }
 }
 

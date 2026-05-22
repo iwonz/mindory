@@ -14,7 +14,7 @@ minimum baseline for the MVP release path.
 | Release bundles | Supported baseline. The release workflow generates bundle, manifest and checksum artifacts, then runs smoke-release-install. Signature verification remains future work. |
 | Installer execution | Partial baseline. Current installer can prepare `$MINDORY_HOME`, start Compose through health checks, provision the first token, refresh local assets, create/restore runtime backups and uninstall with explicit confirmation, but remote release update is future work. |
 | Public self-host acceptance | Supported gate. `pnpm selfhost:acceptance` dry-runs the public self-host path; opt-in live mode runs installer start, MVP acceptance, backup, reset and uninstall in a temporary home. |
-| Backup and restore | Supported MVP. Installer commands cover config, installer metadata, PostgreSQL dumps and local object storage state. Point-in-time recovery, scheduled backups and encrypted remote backups are future hardening work. |
+| Backup and restore | Supported MVP. Installer commands cover config, installer metadata, PostgreSQL dumps, local object storage state and scheduled local backup runs with lock, retention, logs and health status. Point-in-time recovery and encrypted remote backups are future hardening work. |
 | Observability | Supported baseline. Structured logs, model operation audit helpers, Prometheus metrics exporters, OpenTelemetry OTLP tracing/log export, in-process job/stage metrics, health snapshots and rate-limit strategy are documented in `docs/OBSERVABILITY.md`. |
 | Public GitHub readiness | Supported baseline. The repo includes license, contribution guide, root security policy, issue/PR templates, changelog/release notes policy, support matrix and repository status docs. |
 
@@ -100,6 +100,30 @@ explicit confirmation:
 ```bash
 mindory-installer restore --home "$MINDORY_HOME" --backup "$MINDORY_HOME/backups/<backup-dir>" --yes
 ```
+
+Scheduled local backups use the same runtime backup format and live under
+`$MINDORY_HOME`. Enable them in generated config:
+
+```env
+MINDORY_BACKUP_SCHEDULE_ENABLED=true
+MINDORY_BACKUP_SCHEDULE_INTERVAL_MINUTES=1440
+MINDORY_BACKUP_RETENTION_COUNT=7
+MINDORY_BACKUP_RETENTION_DAYS=30
+```
+
+Run the scheduler entrypoint from cron, systemd timer, launchd or another host
+scheduler:
+
+```bash
+mindory-installer backup-schedule --home "$MINDORY_HOME"
+mindory-installer backup-schedule --home "$MINDORY_HOME" --status
+```
+
+The runner writes `$MINDORY_HOME/backups/scheduled-backup.lock`,
+`$MINDORY_HOME/backups/scheduled-backup-health.json` and
+`$MINDORY_HOME/logs/scheduled-backup.log`. Only one scheduled run executes at a
+time. Retention deletes only directories under `$MINDORY_HOME/backups` that
+contain a Mindory `backup-manifest.json`.
 
 The MVP uses forward migrations. If a migration or release must be rolled back,
 stop API and worker traffic, restore the verified backup, redeploy the previous
