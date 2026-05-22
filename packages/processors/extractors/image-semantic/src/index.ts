@@ -1,13 +1,14 @@
 import { createHash } from "node:crypto";
 import {
   ProcessingError,
+  type ExtractedArtifactVector,
   type ExtractedFaceObservation,
   type ExtractedSemanticArtifact,
   type ExtractedText,
   type ExtractTextInput,
   type TextExtractor
 } from "@mindory/core/processing";
-import type { LlmFaceObservationOutput, LlmFaceProvider, LlmOcrProvider, LlmRoleDescriptor, LlmVisionProvider } from "@mindory/llm";
+import type { LlmFaceObservationOutput, LlmImageEmbeddingProvider, LlmObjectObservationOutput, LlmFaceProvider, LlmOcrProvider, LlmRoleDescriptor, LlmVisionProvider } from "@mindory/llm";
 
 export interface ImageSemanticExtractorOptions {
   faceDetection?: ModelCapabilityState;
@@ -17,6 +18,8 @@ export interface ImageSemanticExtractorOptions {
   ocr?: ModelCapabilityState;
   ocrProvider?: LlmOcrProvider;
   ocrRole?: LlmRoleDescriptor;
+  imageEmbeddingProvider?: LlmImageEmbeddingProvider;
+  imageEmbeddingRole?: LlmRoleDescriptor;
   visionProvider?: LlmVisionProvider;
   visionRole?: LlmRoleDescriptor;
   faceProvider?: LlmFaceProvider;
@@ -54,6 +57,8 @@ export class ImageSemanticExtractor implements TextExtractor {
   private readonly ocr: ModelCapabilityState;
   private readonly ocrProvider: LlmOcrProvider | undefined;
   private readonly ocrRole: LlmRoleDescriptor | undefined;
+  private readonly imageEmbeddingProvider: LlmImageEmbeddingProvider | undefined;
+  private readonly imageEmbeddingRole: LlmRoleDescriptor | undefined;
   private readonly visionProvider: LlmVisionProvider | undefined;
   private readonly visionRole: LlmRoleDescriptor | undefined;
   private readonly faceProvider: LlmFaceProvider | undefined;
@@ -68,6 +73,8 @@ export class ImageSemanticExtractor implements TextExtractor {
     this.ocr = options.ocr ?? disabledCapability();
     this.ocrProvider = options.ocrProvider;
     this.ocrRole = options.ocrRole;
+    this.imageEmbeddingProvider = options.imageEmbeddingProvider;
+    this.imageEmbeddingRole = options.imageEmbeddingRole;
     this.visionProvider = options.visionProvider;
     this.visionRole = options.visionRole;
     this.faceProvider = options.faceProvider;
@@ -93,14 +100,16 @@ export class ImageSemanticExtractor implements TextExtractor {
     const modelResult = await this.runModelOperations({ bytes, input, metadata });
     const ocrText = modelResult.ocrText;
 
-    const labels = buildImageLabels(metadata, modelResult.labels);
+    const objectLabels = modelResult.objects.map((object) => object.label);
+    const labels = buildImageLabels(metadata, modelResult.labels.concat(objectLabels));
     const faceResult = await this.runFaceOperations({ bytes, input, labels, ocrText });
     const faceCount = faceResult.observations.length;
     const caption = modelResult.caption ?? buildCaption(metadata, labels);
-    const analysis = buildAnalysis(metadata, labels, ocrText);
+    const analysis = buildAnalysis(metadata, labels, ocrText, modelResult.objects);
     const semanticText = [
       caption,
       analysis,
+      modelResult.objects.length > 0 ? `Detected image objects: ${modelResult.objects.map((object) => object.label).join(", ")}.` : "",
       faceCount > 0 ? `Detected face observations: ${faceCount}.` : "",
       ocrText.length > 0 ? `Image OCR text: ${ocrText}` : ""
     ].filter((line) => line.length > 0).join("\n\n");
@@ -115,11 +124,15 @@ export class ImageSemanticExtractor implements TextExtractor {
         analysis,
         ocrText,
         labels,
+        objects: modelResult.objects,
         metadata,
         imageCaptioning: this.imageCaptioning,
         imageEmbedding: this.imageEmbedding,
         ocr: this.ocr,
         imageCaptioningStatus: modelResult.visionStatus,
+        objectDetectionStatus: modelResult.objectDetectionStatus,
+        imageEmbeddingStatus: modelResult.imageEmbeddingStatus,
+        imageVector: modelResult.imageVector,
         ocrStatus: modelResult.ocrStatus
       }),
       faceObservations: faceResult.observations,
@@ -138,7 +151,8 @@ export class ImageSemanticExtractor implements TextExtractor {
           face_detection: capabilitySnapshot(this.faceDetection, faceResult.detectionStatus),
           face_recognition: capabilitySnapshot(this.faceRecognition, faceResult.recognitionStatus),
           image_captioning: capabilitySnapshot(this.imageCaptioning, modelResult.visionStatus),
-          image_embedding: capabilitySnapshot(this.imageEmbedding, this.imageEmbedding.enabled ? "skipped_no_adapter" : "disabled"),
+          image_embedding: capabilitySnapshot(this.imageEmbedding, modelResult.imageEmbeddingStatus),
+          object_detection: capabilitySnapshot(this.imageCaptioning, modelResult.objectDetectionStatus),
           ocr: capabilitySnapshot(this.ocr, modelResult.ocrStatus)
         }
       }
@@ -155,6 +169,10 @@ export class ImageSemanticExtractor implements TextExtractor {
     caption: string | undefined;
     labels: string[];
     visionStatus: string;
+    objects: LlmObjectObservationOutput[];
+    objectDetectionStatus: string;
+    imageVector: ExtractedArtifactVector | undefined;
+    imageEmbeddingStatus: string;
   }> {
     const embeddedText = input.metadata.embeddedText.join("\n").trim();
     let ocrText = embeddedText;
@@ -185,6 +203,8 @@ export class ImageSemanticExtractor implements TextExtractor {
     let caption: string | undefined;
     let labels: string[] = [];
     let visionStatus = this.imageCaptioning.enabled ? "fallback_metadata_caption" : "disabled";
+    let objects: LlmObjectObservationOutput[] = [];
+    let objectDetectionStatus = this.imageCaptioning.enabled ? "no_objects_detected" : "disabled";
     if (this.imageCaptioning.enabled && this.visionProvider !== undefined && this.visionRole !== undefined) {
       const result = await this.visionProvider.captionImage({
         bytes: input.bytes,
@@ -205,8 +225,64 @@ export class ImageSemanticExtractor implements TextExtractor {
       } else if (result.status === "failed") {
         visionStatus = "provider_failed";
       }
+
+      const detectedObjects = await this.visionProvider.detectObjects({
+        bytes: input.bytes,
+        mimeType: input.input.document.mimeType
+      }, {
+        role: this.visionRole,
+        refs: {
+          projectId: input.input.document.projectId,
+          documentId: input.input.document.id
+        }
+      });
+      if (detectedObjects.status === "success" && detectedObjects.value !== undefined) {
+        objects = detectedObjects.value.objects;
+        labels = labels.concat(detectedObjects.value.labels ?? objects.map((object) => object.label));
+        objectDetectionStatus = objects.length > 0 ? "provider_detected" : "provider_no_objects";
+      } else if (this.imageCaptioning.required) {
+        throw new ProcessingError("text_extraction_failed", detectedObjects.audit.errorMessage ?? "Image object detection provider failed.");
+      } else if (detectedObjects.status === "failed") {
+        objectDetectionStatus = "provider_failed";
+      }
     } else if (this.imageCaptioning.enabled && this.imageCaptioning.required) {
       throw new ProcessingError("text_extraction_failed", "Image captioning is required, but no concrete vision adapter produced a caption.");
+    }
+
+    let imageVector: ExtractedArtifactVector | undefined;
+    let imageEmbeddingStatus = this.imageEmbedding.enabled ? "skipped_no_adapter" : "disabled";
+    if (this.imageEmbedding.enabled && this.imageEmbeddingProvider !== undefined && this.imageEmbeddingRole !== undefined) {
+      const result = await this.imageEmbeddingProvider.embedImages({
+        images: [{
+          bytes: input.bytes,
+          mimeType: input.input.document.mimeType
+        }]
+      }, {
+        role: this.imageEmbeddingRole,
+        refs: {
+          projectId: input.input.document.projectId,
+          documentId: input.input.document.id
+        }
+      });
+      const embedding = result.value?.[0];
+      if (result.status === "success" && embedding !== undefined && embedding.length > 0) {
+        imageVector = {
+          embedding,
+          model: this.imageEmbedding.model,
+          dimensions: embedding.length,
+          provider: this.imageEmbedding.provider,
+          metadata: {
+            role: this.imageEmbeddingRole.role
+          }
+        };
+        imageEmbeddingStatus = "provider_embedded";
+      } else if (this.imageEmbedding.required) {
+        throw new ProcessingError("embedding_provider_error", result.audit.errorMessage ?? "Image embedding provider returned no vector.");
+      } else if (result.status === "failed") {
+        imageEmbeddingStatus = "provider_failed";
+      }
+    } else if (this.imageEmbedding.enabled && this.imageEmbedding.required) {
+      throw new ProcessingError("embedding_provider_error", "Image embedding is required, but no concrete image embedding adapter is configured.");
     }
 
     return {
@@ -214,7 +290,11 @@ export class ImageSemanticExtractor implements TextExtractor {
       ocrStatus,
       caption,
       labels,
-      visionStatus
+      visionStatus,
+      objects,
+      objectDetectionStatus,
+      imageVector,
+      imageEmbeddingStatus
     };
   }
 
@@ -333,11 +413,15 @@ function buildSemanticArtifacts(input: {
   analysis: string;
   ocrText: string;
   labels: string[];
+  objects: LlmObjectObservationOutput[];
   metadata: ImageMetadata;
   imageCaptioning: ModelCapabilityState;
   imageEmbedding: ModelCapabilityState;
   ocr: ModelCapabilityState;
   imageCaptioningStatus: string;
+  objectDetectionStatus: string;
+  imageEmbeddingStatus: string;
+  imageVector: ExtractedArtifactVector | undefined;
   ocrStatus: string;
 }): ExtractedSemanticArtifact[] {
   const artifacts: ExtractedSemanticArtifact[] = [
@@ -370,24 +454,48 @@ function buildSemanticArtifacts(input: {
     },
     {
       artifactType: "image_embedding",
-      content: `Image embedding status: ${input.imageEmbedding.enabled ? "skipped_no_adapter" : "disabled"}.`,
-      spanType: "image_embedding_status",
+      content: input.imageVector
+        ? `Image visual embedding generated with ${input.imageVector.dimensions} dimensions for labels ${input.labels.join(", ")}.`
+        : `Image embedding status: ${input.imageEmbeddingStatus}.`,
+      spanType: "image_embedding",
       artifactIndex: 2,
       modelProvider: input.imageEmbedding.provider,
       modelName: input.imageEmbedding.model,
+      ...(input.imageVector === undefined ? {} : { vector: input.imageVector }),
       metadata: {
         labels: input.labels,
-        capability: capabilitySnapshot(input.imageEmbedding, input.imageEmbedding.enabled ? "skipped_no_adapter" : "disabled")
+        vector_dimensions: input.imageVector?.dimensions ?? null,
+        capability: capabilitySnapshot(input.imageEmbedding, input.imageEmbeddingStatus)
       }
     }
   ];
+
+  for (const [objectIndex, object] of input.objects.entries()) {
+    artifacts.push({
+      artifactType: "object_detection",
+      content: objectDetectionContent(object),
+      spanType: "object_detection",
+      artifactIndex: objectIndex,
+      modelProvider: input.imageCaptioning.provider,
+      modelName: input.imageCaptioning.model,
+      confidence: object.confidence ?? null,
+      sourcePosition: object.boundingBox ? { bounding_box: object.boundingBox } : {},
+      metadata: {
+        label: object.label,
+        labels: [object.label],
+        confidence: object.confidence ?? null,
+        bounding_box: object.boundingBox ?? null,
+        capability: capabilitySnapshot(input.imageCaptioning, input.objectDetectionStatus)
+      }
+    });
+  }
 
   if (input.ocrText.length > 0) {
     artifacts.push({
       artifactType: "ocr_text",
       content: input.ocrText,
       spanType: "ocr_text",
-      artifactIndex: 3,
+      artifactIndex: 3 + input.objects.length,
       modelProvider: input.ocr.provider,
       modelName: input.ocr.model,
       metadata: {
@@ -398,6 +506,11 @@ function buildSemanticArtifacts(input: {
   }
 
   return artifacts;
+}
+
+function objectDetectionContent(object: LlmObjectObservationOutput): string {
+  const confidence = typeof object.confidence === "number" ? ` with confidence ${object.confidence.toFixed(3)}` : "";
+  return `Detected object: ${object.label}${confidence}.`;
 }
 
 function fallbackFaceObservations(
@@ -509,10 +622,11 @@ function buildCaption(metadata: ImageMetadata, labels: string[]): string {
   return `Image semantic description: ${size} ${metadata.extension || metadata.mimeType} image with labels ${labels.join(", ")}.`;
 }
 
-function buildAnalysis(metadata: ImageMetadata, labels: string[], ocrText: string): string {
+function buildAnalysis(metadata: ImageMetadata, labels: string[], ocrText: string, objects: LlmObjectObservationOutput[] = []): string {
   const peoplePhrase = readPeoplePhrase(labels);
   return [
     `Image visual labels: ${labels.join(", ")}.`,
+    objects.length > 0 ? `Detected objects: ${objects.map((object) => object.label).join(", ")}.` : "",
     peoplePhrase,
     ocrText.length > 0 ? "Recognized embedded image text is available." : "No embedded OCR text was found by the fallback extractor."
   ].filter((line) => line.length > 0).join(" ");

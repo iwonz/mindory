@@ -39,7 +39,7 @@ export interface DocumentRouteJobPlan {
 
 export interface DocumentRouteSkip {
   kind: DocumentFileKind;
-  reason: "routing_disabled" | "disabled" | "processor_not_implemented" | "unsupported_document_type";
+  reason: "routing_disabled" | "disabled" | "unsupported_document_type";
   required: boolean;
 }
 
@@ -104,7 +104,7 @@ export function planDocumentProcessingRoute(input: PlanDocumentProcessingRouteIn
     skipped.push({ kind: classification.kind, reason: "unsupported_document_type", required: false });
   } else if (!modalityConfig?.enabled) {
     skipped.push({ kind: classification.kind, reason: "disabled", required: modalityConfig?.required ?? false });
-  } else if (classification.kind === "text" || classification.kind === "pdf" || classification.kind === "image" || classification.kind === "audio" || classification.kind === "video") {
+  } else {
     const reason = routeReasonForKind(classification.kind);
     jobs.push({
       type: "document.extract",
@@ -116,8 +116,6 @@ export function planDocumentProcessingRoute(input: PlanDocumentProcessingRouteIn
         route_magic_matched: classification.magicMatched
       }
     });
-  } else {
-    skipped.push({ kind: classification.kind, reason: "processor_not_implemented", required: modalityConfig.required });
   }
 
   return {

@@ -10,6 +10,30 @@ import type { DocumentChunkSearchHit, DocumentChunkSearchRepository, SourceRef }
 
 export type UnifiedSearchTarget = "documents" | "artifacts" | "faces";
 
+export interface ArtifactVectorSearchInput {
+  projectIds: string[];
+  query: string;
+  artifactTypes?: DocumentArtifactType[];
+  metadataFilters?: DocumentMetadataFilter[];
+  limit: number;
+}
+
+export interface ArtifactVectorSearchHit {
+  projectId: string;
+  documentId: string;
+  artifactId: string;
+  artifactType: DocumentArtifactType;
+  content: string;
+  score: number;
+  sourceRefs: SourceRef[];
+  sourcePosition: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+}
+
+export interface ArtifactVectorSearchRepository {
+  searchArtifactVectors(input: ArtifactVectorSearchInput): Promise<ArtifactVectorSearchHit[]>;
+}
+
 export interface UnifiedSearchInput {
   projectIds: string[];
   query?: string;
@@ -21,7 +45,7 @@ export interface UnifiedSearchInput {
   limit: number;
 }
 
-export type UnifiedSearchHitKind = "document_chunk" | "artifact_span" | "face_observation";
+export type UnifiedSearchHitKind = "document_chunk" | "artifact_span" | "artifact_vector" | "face_observation";
 
 export interface UnifiedSearchHit {
   kind: UnifiedSearchHitKind;
@@ -44,15 +68,18 @@ export interface UnifiedSearchHit {
 export interface UnifiedSearchServiceOptions {
   documentRepository?: DocumentChunkSearchRepository;
   artifactRepository?: DerivedArtifactRepository;
+  artifactVectorRepository?: ArtifactVectorSearchRepository;
 }
 
 export class UnifiedSearchService {
   private readonly documentRepository: DocumentChunkSearchRepository | undefined;
   private readonly artifactRepository: DerivedArtifactRepository | undefined;
+  private readonly artifactVectorRepository: ArtifactVectorSearchRepository | undefined;
 
   constructor(options: UnifiedSearchServiceOptions = {}) {
     this.documentRepository = options.documentRepository;
     this.artifactRepository = options.artifactRepository;
+    this.artifactVectorRepository = options.artifactVectorRepository;
   }
 
   async search(input: UnifiedSearchInput): Promise<UnifiedSearchHit[]> {
@@ -91,6 +118,21 @@ export class UnifiedSearchService {
         Object.assign(artifactSearchInput, { metadataFilters: input.metadataFilters });
       }
       hits.push(...(await this.artifactRepository.searchArtifacts(artifactSearchInput)).map(toArtifactSpanHit));
+    }
+
+    if (targets.includes("artifacts") && query && this.artifactVectorRepository) {
+      const artifactVectorSearchInput = {
+        projectIds: input.projectIds,
+        query,
+        limit: input.limit
+      };
+      if (input.artifactTypes !== undefined) {
+        Object.assign(artifactVectorSearchInput, { artifactTypes: input.artifactTypes });
+      }
+      if (input.metadataFilters !== undefined) {
+        Object.assign(artifactVectorSearchInput, { metadataFilters: input.metadataFilters });
+      }
+      hits.push(...(await this.artifactVectorRepository.searchArtifactVectors(artifactVectorSearchInput)).map(toArtifactVectorHit));
     }
 
     if (targets.includes("faces") && this.artifactRepository && hasFaceSearchConstraint(input, query)) {
@@ -195,6 +237,24 @@ function toArtifactSpanHit(hit: ArtifactSearchHit): UnifiedSearchHit {
     artifactType: hit.artifactType,
     spanId: hit.spanId,
     spanType: hit.spanType,
+    content: hit.content,
+    score: hit.score,
+    sourceRefs: hit.sourceRefs,
+    sourcePosition: hit.sourcePosition,
+    metadata: {
+      ...hit.metadata,
+      search_target: "artifacts"
+    }
+  };
+}
+
+function toArtifactVectorHit(hit: ArtifactVectorSearchHit): UnifiedSearchHit {
+  return {
+    kind: "artifact_vector",
+    projectId: hit.projectId,
+    documentId: hit.documentId,
+    artifactId: hit.artifactId,
+    artifactType: hit.artifactType,
     content: hit.content,
     score: hit.score,
     sourceRefs: hit.sourceRefs,

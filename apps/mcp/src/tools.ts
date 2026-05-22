@@ -457,6 +457,7 @@ function unifiedSearchProperties(): Record<string, unknown> {
       "image_caption",
       "image_analysis",
       "image_embedding",
+      "object_detection",
       "pdf_page",
       "video_keyframe",
       "face_observation",

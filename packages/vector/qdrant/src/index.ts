@@ -1,14 +1,19 @@
 import { createHash } from "node:crypto";
-import type { DocumentMetadataFilter } from "@mindory/core/artifacts";
+import type { DocumentArtifactType, DocumentMetadataFilter } from "@mindory/core/artifacts";
 import {
   ProcessingError,
   type EmbeddingsProvider,
+  type SearchVectorArtifactsInput,
   type SearchVectorChunksInput,
+  type UpsertVectorArtifactsInput,
   type UpsertVectorChunksInput,
+  type VectorArtifactIndexResult,
+  type VectorArtifactSearchHit,
   type VectorIndex,
   type VectorIndexResult,
   type VectorSearchHit
 } from "@mindory/core/processing";
+import type { ArtifactVectorSearchHit, ArtifactVectorSearchInput, ArtifactVectorSearchRepository } from "@mindory/core/search";
 import type { DocumentChunkSearchHit, DocumentChunkSearchInput, DocumentChunkSearchRepository, SourceRef } from "@mindory/core/memory";
 
 export interface QdrantVectorIndexOptions {
@@ -26,6 +31,7 @@ export interface QdrantHealthcheckResult {
   ok: boolean;
   url: string;
   collectionName: string;
+  artifactCollectionName: string;
   dimensions: number;
 }
 
@@ -59,7 +65,9 @@ interface QdrantPoint {
 interface QdrantPayload {
   project_id: string;
   document_id: string;
-  chunk_id: string;
+  chunk_id?: string;
+  artifact_id?: string;
+  artifact_type?: string;
   content: string;
   model: string;
   dimensions: number;
@@ -103,10 +111,11 @@ export class QdrantVectorIndex implements VectorIndex {
   readonly url: string;
   readonly collectionPrefix: string;
   readonly collectionName: string;
+  readonly artifactCollectionName: string;
   readonly dimensions: number;
   readonly distance: QdrantDistance;
   private readonly fetchImpl: FetchLike;
-  private collectionReady = false;
+  private readonly readyCollections = new Set<string>();
 
   constructor(options: QdrantVectorIndexOptions) {
     if (options.dimensions <= 0) {
@@ -116,6 +125,7 @@ export class QdrantVectorIndex implements VectorIndex {
     this.url = normalizeUrl(options.url);
     this.collectionPrefix = options.collectionPrefix;
     this.collectionName = options.collectionName ?? `${sanitizeCollectionSegment(options.collectionPrefix)}_document_chunks`;
+    this.artifactCollectionName = `${sanitizeCollectionSegment(options.collectionPrefix)}_document_artifacts`;
     this.dimensions = options.dimensions;
     this.distance = options.distance ?? defaultDistance;
     this.fetchImpl = options.fetch ?? readGlobalFetch();
@@ -123,11 +133,13 @@ export class QdrantVectorIndex implements VectorIndex {
 
   async healthcheck(): Promise<QdrantHealthcheckResult> {
     await this.requestText("/healthz", { method: "GET" });
-    await this.ensureCollection();
+    await this.ensureCollection(this.collectionName);
+    await this.ensureCollection(this.artifactCollectionName);
     return {
       ok: true,
       url: this.url,
       collectionName: this.collectionName,
+      artifactCollectionName: this.artifactCollectionName,
       dimensions: this.dimensions
     };
   }
@@ -141,7 +153,7 @@ export class QdrantVectorIndex implements VectorIndex {
       validateDimensions(chunk.embedding, this.dimensions);
     }
 
-    await this.ensureCollection();
+    await this.ensureCollection(this.collectionName);
     const points = input.chunks.map((chunk): QdrantPoint => ({
       id: pointIdForChunk(chunk.projectId, chunk.documentId, chunk.chunkId),
       vector: chunk.embedding,
@@ -164,13 +176,68 @@ export class QdrantVectorIndex implements VectorIndex {
 
     return points.map((point) => ({
       embeddingId: point.id,
-      chunkId: point.payload.chunk_id
+      chunkId: String(point.payload.chunk_id)
+    }));
+  }
+
+  async upsertArtifactVectors(input: UpsertVectorArtifactsInput): Promise<VectorArtifactIndexResult[]> {
+    if (input.artifacts.length === 0) {
+      return [];
+    }
+
+    for (const artifact of input.artifacts) {
+      validateDimensions(artifact.embedding, this.dimensions);
+    }
+
+    await this.ensureCollection(this.artifactCollectionName);
+    const points = input.artifacts.map((artifact): QdrantPoint => ({
+      id: pointIdForArtifact(artifact.projectId, artifact.documentId, artifact.artifactId),
+      vector: artifact.embedding,
+      payload: flattenPayload({
+        project_id: artifact.projectId,
+        document_id: artifact.documentId,
+        artifact_id: artifact.artifactId,
+        artifact_type: artifact.artifactType,
+        content: artifact.content,
+        model: artifact.model,
+        dimensions: artifact.dimensions,
+        metadata: {
+          ...artifact.metadata,
+          artifact_type: artifact.artifactType
+        },
+        source_refs: artifact.metadata.source_refs
+      })
+    }));
+
+    await this.requestJson(collectionPath(this.artifactCollectionName, "/points?wait=true"), {
+      method: "PUT",
+      body: { points }
+    });
+
+    return points.map((point) => ({
+      embeddingId: point.id,
+      artifactId: String(point.payload.artifact_id)
     }));
   }
 
   async deleteDocumentChunks(projectId: string, documentId: string): Promise<void> {
-    await this.ensureCollection();
+    await this.ensureCollection(this.collectionName);
     await this.requestJson(collectionPath(this.collectionName, "/points/delete?wait=true"), {
+      method: "POST",
+      body: {
+        filter: {
+          must: [
+            matchValue("project_id", projectId),
+            matchValue("document_id", documentId)
+          ]
+        }
+      }
+    });
+  }
+
+  async deleteDocumentArtifactVectors(projectId: string, documentId: string): Promise<void> {
+    await this.ensureCollection(this.artifactCollectionName);
+    await this.requestJson(collectionPath(this.artifactCollectionName, "/points/delete?wait=true"), {
       method: "POST",
       body: {
         filter: {
@@ -189,7 +256,7 @@ export class QdrantVectorIndex implements VectorIndex {
     }
     validateDimensions(input.embedding, this.dimensions);
 
-    await this.ensureCollection();
+    await this.ensureCollection(this.collectionName);
     const response = await this.requestJson(collectionPath(this.collectionName, "/points/search"), {
       method: "POST",
       body: {
@@ -205,24 +272,46 @@ export class QdrantVectorIndex implements VectorIndex {
     return results.map((item) => toVectorSearchHit(item)).filter((hit): hit is VectorSearchHit => hit !== null);
   }
 
-  async ensureCollection(): Promise<void> {
-    if (this.collectionReady) {
-      return;
+  async searchArtifactVectors(input: SearchVectorArtifactsInput): Promise<VectorArtifactSearchHit[]> {
+    if (input.projectIds.length === 0) {
+      return [];
     }
+    validateDimensions(input.embedding, this.dimensions);
 
-    const existing = await this.getCollection();
-    if (existing === null) {
-      await this.createCollection();
-      this.collectionReady = true;
-      return;
-    }
+    await this.ensureCollection(this.artifactCollectionName);
+    const response = await this.requestJson(collectionPath(this.artifactCollectionName, "/points/search"), {
+      method: "POST",
+      body: {
+        vector: input.embedding,
+        limit: input.limit,
+        with_payload: true,
+        with_vector: false,
+        filter: buildArtifactSearchFilter(input.projectIds, input.artifactTypes, input.metadataFilters)
+      }
+    });
 
-    validateCollection(existing, this.collectionName, this.dimensions);
-    this.collectionReady = true;
+    const results = readArray(readObject(response).result);
+    return results.map((item) => toVectorArtifactSearchHit(item)).filter((hit): hit is VectorArtifactSearchHit => hit !== null);
   }
 
-  private async getCollection(): Promise<Record<string, unknown> | null> {
-    const response = await this.fetchImpl(this.absoluteUrl(collectionPath(this.collectionName)), { method: "GET" });
+  async ensureCollection(collectionName = this.collectionName): Promise<void> {
+    if (this.readyCollections.has(collectionName)) {
+      return;
+    }
+
+    const existing = await this.getCollection(collectionName);
+    if (existing === null) {
+      await this.createCollection(collectionName);
+      this.readyCollections.add(collectionName);
+      return;
+    }
+
+    validateCollection(existing, collectionName, this.dimensions);
+    this.readyCollections.add(collectionName);
+  }
+
+  private async getCollection(collectionName: string): Promise<Record<string, unknown> | null> {
+    const response = await this.fetchImpl(this.absoluteUrl(collectionPath(collectionName)), { method: "GET" });
     if (response.status === 404) {
       return null;
     }
@@ -232,8 +321,8 @@ export class QdrantVectorIndex implements VectorIndex {
     return readObject(await response.json());
   }
 
-  private async createCollection(): Promise<void> {
-    await this.requestJson(collectionPath(this.collectionName), {
+  private async createCollection(collectionName: string): Promise<void> {
+    await this.requestJson(collectionPath(collectionName), {
       method: "PUT",
       body: {
         vectors: {
@@ -324,6 +413,55 @@ export class QdrantDocumentChunkSearchRepository implements DocumentChunkSearchR
   }
 }
 
+export interface QdrantArtifactSearchRepositoryOptions {
+  embeddings: EmbeddingsProvider;
+  vectorIndex: QdrantVectorIndex;
+}
+
+export class QdrantArtifactSearchRepository implements ArtifactVectorSearchRepository {
+  private readonly embeddings: EmbeddingsProvider;
+  private readonly vectorIndex: QdrantVectorIndex;
+
+  constructor(options: QdrantArtifactSearchRepositoryOptions) {
+    this.embeddings = options.embeddings;
+    this.vectorIndex = options.vectorIndex;
+  }
+
+  async searchArtifactVectors(input: ArtifactVectorSearchInput): Promise<ArtifactVectorSearchHit[]> {
+    if (!input.query) {
+      return [];
+    }
+    const [embedding] = await this.embeddings.embedTexts({
+      texts: [input.query]
+    });
+    if (!embedding) {
+      throw new ProcessingError("embedding_provider_error", "Embedding provider returned no artifact query embedding.");
+    }
+    const hits = await this.vectorIndex.searchArtifactVectors({
+      projectIds: input.projectIds,
+      embedding: embedding.embedding,
+      limit: input.limit,
+      ...(input.artifactTypes === undefined ? {} : { artifactTypes: input.artifactTypes }),
+      ...(input.metadataFilters === undefined ? {} : { metadataFilters: input.metadataFilters })
+    });
+    return hits.map((hit) => ({
+      projectId: hit.projectId,
+      documentId: hit.documentId,
+      artifactId: hit.artifactId,
+      artifactType: hit.artifactType,
+      content: hit.content,
+      score: hit.score,
+      sourceRefs: readSourceRefs(hit.metadata.source_refs, [{ type: "artifact", id: hit.artifactId }]),
+      sourcePosition: readMetadata(hit.metadata.source_position),
+      metadata: {
+        ...hit.metadata,
+        search_backend: "qdrant_artifact_vectors",
+        search_target: "artifacts"
+      }
+    }));
+  }
+}
+
 function buildSearchFilter(projectIds: string[], metadataFilters: DocumentMetadataFilter[] | undefined): QdrantFilter {
   const must: QdrantFilterCondition[] = [
     {
@@ -342,6 +480,19 @@ function buildSearchFilter(projectIds: string[], metadataFilters: DocumentMetada
   }
 
   return { must };
+}
+
+function buildArtifactSearchFilter(projectIds: string[], artifactTypes: DocumentArtifactType[] | undefined, metadataFilters: DocumentMetadataFilter[] | undefined): QdrantFilter {
+  const filter = buildSearchFilter(projectIds, metadataFilters);
+  if (artifactTypes && artifactTypes.length > 0) {
+    filter.must.push({
+      key: "artifact_type",
+      match: {
+        any: artifactTypes
+      }
+    });
+  }
+  return filter;
 }
 
 function metadataFilterCondition(filter: DocumentMetadataFilter): QdrantFilterCondition | null {
@@ -432,6 +583,29 @@ function toVectorSearchHit(value: unknown): VectorSearchHit | null {
   };
 }
 
+function toVectorArtifactSearchHit(value: unknown): VectorArtifactSearchHit | null {
+  const result = readObject(value) as QdrantSearchResult;
+  const payload = readObject(result.payload);
+  const projectId = readString(payload.project_id);
+  const documentId = readString(payload.document_id);
+  const artifactId = readString(payload.artifact_id);
+  const artifactType = readString(payload.artifact_type);
+  const content = readString(payload.content);
+  if (!projectId || !documentId || !artifactId || !artifactType || !content) {
+    return null;
+  }
+
+  return {
+    projectId,
+    documentId,
+    artifactId,
+    artifactType: artifactType as DocumentArtifactType,
+    content,
+    score: typeof result.score === "number" ? result.score : 0,
+    metadata: readMetadata(payload.metadata)
+  };
+}
+
 function validateCollection(response: Record<string, unknown>, collectionName: string, dimensions: number): void {
   const result = readObject(response.result);
   const config = readObject(result.config);
@@ -457,6 +631,15 @@ function validateDimensions(embedding: number[], dimensions: number): void {
 
 function pointIdForChunk(projectId: string, documentId: string, chunkId: string): string {
   const digest = createHash("sha256").update(`${projectId}\0${documentId}\0${chunkId}`, "utf8").digest("hex");
+  return uuidFromDigest(digest);
+}
+
+function pointIdForArtifact(projectId: string, documentId: string, artifactId: string): string {
+  const digest = createHash("sha256").update(`artifact\0${projectId}\0${documentId}\0${artifactId}`, "utf8").digest("hex");
+  return uuidFromDigest(digest);
+}
+
+function uuidFromDigest(digest: string): string {
   const versioned = `${digest.slice(0, 12)}4${digest.slice(13, 16)}${variantNibble(digest[16])}${digest.slice(17, 32)}`;
   return [
     versioned.slice(0, 8),

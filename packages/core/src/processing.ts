@@ -30,6 +30,15 @@ export interface ExtractedSemanticArtifact {
   modelName?: string | null;
   modelVersion?: string | null;
   confidence?: number | null;
+  vector?: ExtractedArtifactVector | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface ExtractedArtifactVector {
+  embedding: number[];
+  model: string;
+  dimensions: number;
+  provider?: string | null;
   metadata?: Record<string, unknown>;
 }
 
@@ -240,15 +249,44 @@ export interface UpsertVectorChunksInput {
   chunks: VectorChunkEmbedding[];
 }
 
+export interface VectorArtifactEmbedding {
+  projectId: string;
+  documentId: string;
+  artifactId: string;
+  artifactType: DocumentArtifactType;
+  content: string;
+  embedding: number[];
+  model: string;
+  dimensions: number;
+  metadata: Record<string, unknown>;
+}
+
+export interface UpsertVectorArtifactsInput {
+  artifacts: VectorArtifactEmbedding[];
+}
+
 export interface VectorIndexResult {
   embeddingId: string;
   chunkId: string;
+}
+
+export interface VectorArtifactIndexResult {
+  embeddingId: string;
+  artifactId: string;
 }
 
 export interface SearchVectorChunksInput {
   projectIds: string[];
   embedding: number[];
   limit: number;
+  metadataFilters?: DocumentMetadataFilter[];
+}
+
+export interface SearchVectorArtifactsInput {
+  projectIds: string[];
+  embedding: number[];
+  limit: number;
+  artifactTypes?: DocumentArtifactType[];
   metadataFilters?: DocumentMetadataFilter[];
 }
 
@@ -261,11 +299,24 @@ export interface VectorSearchHit {
   metadata: Record<string, unknown>;
 }
 
+export interface VectorArtifactSearchHit {
+  projectId: string;
+  documentId: string;
+  artifactId: string;
+  artifactType: DocumentArtifactType;
+  content: string;
+  score: number;
+  metadata: Record<string, unknown>;
+}
+
 export interface VectorIndex {
   readonly provider: string;
   upsertDocumentChunks(input: UpsertVectorChunksInput): Promise<VectorIndexResult[]>;
+  upsertArtifactVectors(input: UpsertVectorArtifactsInput): Promise<VectorArtifactIndexResult[]>;
   deleteDocumentChunks(projectId: string, documentId: string): Promise<void>;
+  deleteDocumentArtifactVectors(projectId: string, documentId: string): Promise<void>;
   searchDocumentChunks(input: SearchVectorChunksInput): Promise<VectorSearchHit[]>;
+  searchArtifactVectors(input: SearchVectorArtifactsInput): Promise<VectorArtifactSearchHit[]>;
 }
 
 export type ProcessingErrorCode =

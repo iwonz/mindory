@@ -204,18 +204,20 @@ The role/provider support matrix is centralized in `@mindory/llm` and the
 config catalog. `chat` and `text-embedding` have supported OpenAI-compatible
 and local HTTP adapters today; text embeddings also support Ollama. OCR,
 vision, ASR, image embeddings and face roles are experimental; generation roles
-are future. Scanned-PDF OCR, image OCR, image vision captioning, audio ASR and
-image face detection/recognition are implemented through experimental local
-HTTP providers. Any
+are future. Scanned-PDF OCR, image OCR, image embeddings, image vision
+captioning, image object detection, audio ASR and image face
+detection/recognition are implemented through experimental local HTTP providers.
+Any
 enabled role or selected provider that is not
 `supported` requires `MINDORY_INSTALL_ALLOW_EXPERIMENTAL=true`, including
 answer-file and non-interactive installer runs.
 
-Text embeddings are the only capability used for pgvector indexing today.
+Text embeddings index document chunks; image embeddings index `image_embedding`
+artifacts for visual artifact search.
 When `MINDORY_LLM_TEXT_EMBEDDING_ENABLED=true`,
 `MINDORY_LLM_TEXT_EMBEDDING_MODEL` is required. The current MVP
-pgvector schema stores `vector(1536)`, so
-`MINDORY_LLM_TEXT_EMBEDDING_DIMENSIONS` must be empty or `1536` while
+pgvector schema stores `vector(1536)`, so text and image embedding dimensions
+must be empty or `1536` while
 `MINDORY_VECTOR_PROVIDER=pgvector`.
 
 The default local/free model names are examples for future processors:

@@ -83,8 +83,10 @@ for (const symbol of [
   "DocumentRecomputeService",
   "PgVectorChunkIndex",
   "PgVectorDocumentChunkSearchRepository",
+  "PgVectorArtifactSearchRepository",
   "QdrantVectorIndex",
   "QdrantDocumentChunkSearchRepository",
+  "QdrantArtifactSearchRepository",
   "buildMindoryLlm",
   "FaceService",
   "MemoryService",
@@ -171,7 +173,7 @@ assert(runtime.includes("recomputeService"), "API runtime must inject DocumentRe
 assert(runtime.includes("artifacts:") && runtime.includes("artifactRepository"), "API runtime must inject artifact repository into artifact routes.");
 assert(runtime.includes("faceService"), "API runtime must inject FaceService into face routes.");
 assert(runtime.includes("unifiedSearchService"), "API runtime must inject UnifiedSearchService into search routes.");
-assert(runtime.includes("buildDocumentChunkSearchRepository"), "API runtime must choose text or vector document chunk search.");
+assert(runtime.includes("buildVectorSearchRepositories"), "API runtime must choose text or vector document chunk and artifact search.");
 assert(runtime.includes("config.vector.provider === \"qdrant\""), "API runtime must select Qdrant when configured.");
 assert(runtime.includes("buildEmbeddingsProvider"), "API runtime must build query embeddings when semantic search is configured.");
 assert(runtime.includes("queue.close()"), "API runtime close hook must close the processing queue.");

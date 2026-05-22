@@ -58,6 +58,8 @@ export function buildWorkerRuntime(config: MindoryConfig = loadMindoryConfig()):
   const embeddings = llm.textEmbeddings;
   if (embeddings) {
     processorOptions.embeddings = embeddings;
+  }
+  if (embeddings || llm.imageEmbeddings) {
     processorOptions.vectorIndex = buildVectorIndex(config, database.db);
   }
   const documentProcessors = buildDocumentPipelineProcessors(processorOptions);
@@ -88,7 +90,7 @@ export function buildWorkerRuntime(config: MindoryConfig = loadMindoryConfig()):
 }
 
 function buildVectorIndex(config: MindoryConfig, db: MindoryDatabase): PgVectorChunkIndex | QdrantVectorIndex {
-  const dimensions = config.llm.textEmbedding.dimensions ?? PGVECTOR_EMBEDDING_DIMENSIONS;
+  const dimensions = configuredVectorDimensions(config);
   if (config.vector.provider === "qdrant") {
     return new QdrantVectorIndex({
       url: config.vector.qdrantUrl,
@@ -101,6 +103,16 @@ function buildVectorIndex(config: MindoryConfig, db: MindoryDatabase): PgVectorC
     db,
     dimensions
   });
+}
+
+function configuredVectorDimensions(config: MindoryConfig): number {
+  const textDimensions = config.llm.textEmbedding.enabled
+    ? config.llm.textEmbedding.dimensions ?? PGVECTOR_EMBEDDING_DIMENSIONS
+    : null;
+  const imageDimensions = config.llm.imageEmbedding.enabled
+    ? config.llm.imageEmbedding.dimensions ?? textDimensions ?? PGVECTOR_EMBEDDING_DIMENSIONS
+    : null;
+  return textDimensions ?? imageDimensions ?? PGVECTOR_EMBEDDING_DIMENSIONS;
 }
 
 function buildObjectStorage(config: MindoryConfig): ObjectStorage {

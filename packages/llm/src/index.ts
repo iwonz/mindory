@@ -169,6 +169,18 @@ export interface LlmVisionCaptionOutput {
   usage?: LlmOperationUsage;
 }
 
+export interface LlmObjectObservationOutput {
+  label: string;
+  confidence?: number | null;
+  boundingBox?: Record<string, unknown> | null;
+}
+
+export interface LlmObjectDetectionOutput {
+  objects: LlmObjectObservationOutput[];
+  labels?: string[];
+  usage?: LlmOperationUsage;
+}
+
 export interface LlmFaceObservationOutput {
   boundingBox: Record<string, unknown>;
   embedding?: number[] | null;
@@ -282,6 +294,7 @@ export interface LlmAsrProvider {
 
 export interface LlmVisionProvider {
   captionImage(input: { bytes: Uint8Array; mimeType: string }, context: LlmProviderCallContext): Promise<LlmOperationResult<LlmVisionCaptionOutput>>;
+  detectObjects(input: { bytes: Uint8Array; mimeType: string }, context: LlmProviderCallContext): Promise<LlmOperationResult<LlmObjectDetectionOutput>>;
 }
 
 export interface LlmFaceProvider {
@@ -529,6 +542,25 @@ export function buildMindoryImageEmbeddingsProvider(
   if (imageEmbedding.provider === "local-command") {
     return new LocalCommandImageEmbeddingsProvider(
       localCommandModelOptions(config, options),
+      descriptor("image-embedding", imageEmbedding),
+      options.auditSink,
+      options.operationRefs ?? {}
+    );
+  }
+
+  if (imageEmbedding.provider === "local-http") {
+    const providerOptions: LocalHttpModelOptions = {
+      baseUrl: config.llm.localHttp.baseUrl,
+      model: imageEmbedding.model
+    };
+    if (imageEmbedding.dimensions !== null) {
+      providerOptions.dimensions = imageEmbedding.dimensions;
+    }
+    if (options.fetchImpl !== undefined) {
+      providerOptions.fetchImpl = options.fetchImpl;
+    }
+    return new LocalHttpImageEmbeddingsProvider(
+      providerOptions,
       descriptor("image-embedding", imageEmbedding),
       options.auditSink,
       options.operationRefs ?? {}
@@ -936,6 +968,7 @@ type LocalCommandOperationName =
   | "ocr"
   | "asr"
   | "vision_caption"
+  | "object_detection"
   | "face_detection"
   | "face_recognition"
   | "image_generation"
@@ -1068,6 +1101,93 @@ export class LocalCommandImageEmbeddingsProvider implements LlmImageEmbeddingPro
   }
 }
 
+export class LocalHttpImageEmbeddingsProvider implements LlmImageEmbeddingProvider {
+  private readonly fetchImpl: typeof fetch;
+
+  constructor(
+    private readonly options: LocalHttpModelOptions,
+    private readonly role: LlmRoleDescriptor,
+    private readonly auditSink: LlmAuditSink | undefined,
+    private readonly refs: LlmOperationRefs
+  ) {
+    this.fetchImpl = options.fetchImpl ?? fetch;
+  }
+
+  async embedImages(input: { images: Array<{ bytes: Uint8Array; mimeType: string }> }, context: LlmProviderCallContext): Promise<LlmOperationResult<number[][]>> {
+    const startedAt = Date.now();
+    const model = context.role.model || this.options.model;
+    try {
+      const body: Record<string, unknown> = {
+        model,
+        images: input.images.map((image) => binaryLocalCommandInput(image))
+      };
+      if (this.options.dimensions !== undefined) {
+        body.dimensions = this.options.dimensions;
+      }
+      const requestInit: RequestInit = {
+        method: "POST",
+        headers: {
+          "content-type": "application/json"
+        },
+        body: JSON.stringify(body)
+      };
+      if (context.signal !== undefined) {
+        requestInit.signal = context.signal;
+      }
+      const response = await this.fetchImpl(`${trimTrailingSlash(this.options.baseUrl)}/embeddings/images`, requestInit);
+      const responseText = await response.text();
+      if (!response.ok) {
+        throw new Error(`Local HTTP image embedding request failed with ${response.status}: ${responseText}`);
+      }
+      const embeddings = localHttpEmbeddings(JSON.parse(responseText) as LocalHttpEmbeddingsResponse);
+      return this.result("success", startedAt, model, embeddings, context.refs);
+    } catch (error) {
+      return this.result("failed", startedAt, model, undefined, context.refs, error);
+    }
+  }
+
+  private result(
+    status: LlmOperationStatus,
+    startedAt: number,
+    model: string,
+    value?: number[][],
+    refs: LlmOperationRefs = {},
+    error?: unknown
+  ): LlmOperationResult<number[][]> {
+    const durationMs = Date.now() - startedAt;
+    const usage: LlmOperationUsage = {
+      durationMs
+    };
+    if (value !== undefined && value[0] !== undefined) {
+      const firstEmbedding = value[0];
+      usage.embeddingDimensions = firstEmbedding.length;
+      usage.imageCount = value.length;
+    }
+    const audit: LlmOperationAudit = {
+      role: this.role.role,
+      provider: this.role.provider,
+      model,
+      status,
+      durationMs,
+      usage,
+      refs: {
+        ...this.refs,
+        ...refs
+      }
+    };
+    if (error !== undefined) {
+      audit.errorCode = errorCode(error);
+      audit.errorMessage = errorMessage(error);
+    }
+    this.auditSink?.(audit);
+    return {
+      status,
+      ...(value === undefined ? {} : { value }),
+      audit
+    };
+  }
+}
+
 export class LocalCommandChatProvider implements LlmChatProvider {
   private readonly executor: LocalCommandOperationExecutor;
 
@@ -1163,6 +1283,18 @@ export class LocalCommandVisionProvider implements LlmVisionProvider {
       return {
         caption: response.caption ?? response.text ?? "",
         labels: Array.isArray(response.labels) ? response.labels.filter((label): label is string => typeof label === "string") : [],
+        usage: localCommandUsage(payload)
+      };
+    }, context.refs, context.signal);
+  }
+
+  detectObjects(input: { bytes: Uint8Array; mimeType: string }, context: LlmProviderCallContext): Promise<LlmOperationResult<LlmObjectDetectionOutput>> {
+    return this.executor.call("object_detection", this.role, binaryLocalCommandInput(input), (output, payload) => {
+      const response = output as LocalHttpObjectDetectionResponse;
+      const objects = localHttpObjectObservations(response.objects);
+      return {
+        objects,
+        labels: Array.isArray(response.labels) ? response.labels.filter((label): label is string => typeof label === "string") : objects.map((object) => object.label),
         usage: localCommandUsage(payload)
       };
     }, context.refs, context.signal);
@@ -1527,6 +1659,79 @@ export class LocalHttpVisionProvider implements LlmVisionProvider {
     }
   }
 
+  async detectObjects(input: { bytes: Uint8Array; mimeType: string }, context: LlmProviderCallContext): Promise<LlmOperationResult<LlmObjectDetectionOutput>> {
+    const startedAt = Date.now();
+    const model = context.role.model || this.options.model;
+    try {
+      const requestInit: RequestInit = {
+        method: "POST",
+        headers: {
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          model,
+          mime_type: input.mimeType,
+          data_base64: Buffer.from(input.bytes).toString("base64")
+        })
+      };
+      if (context.signal !== undefined) {
+        requestInit.signal = context.signal;
+      }
+      const response = await this.fetchImpl(`${trimTrailingSlash(this.options.baseUrl)}/vision/objects`, requestInit);
+      const responseText = await response.text();
+      if (!response.ok) {
+        throw new Error(`Local HTTP object detection request failed with ${response.status}: ${responseText}`);
+      }
+      const payload = JSON.parse(responseText) as LocalHttpObjectDetectionResponse;
+      const objects = localHttpObjectObservations(payload.objects);
+      const output: LlmObjectDetectionOutput = {
+        objects,
+        labels: Array.isArray(payload.labels) ? payload.labels.filter((label): label is string => typeof label === "string") : objects.map((object) => object.label),
+        usage: usageFromOpenAI(payload.usage)
+      };
+      return this.objectResult("success", startedAt, model, output, context.refs);
+    } catch (error) {
+      return this.objectResult("failed", startedAt, model, undefined, context.refs, error);
+    }
+  }
+
+  private objectResult(
+    status: LlmOperationStatus,
+    startedAt: number,
+    model: string,
+    value?: LlmObjectDetectionOutput,
+    refs: LlmOperationRefs = {},
+    error?: unknown
+  ): LlmOperationResult<LlmObjectDetectionOutput> {
+    const durationMs = Date.now() - startedAt;
+    const audit: LlmOperationAudit = {
+      role: this.role.role,
+      provider: this.role.provider,
+      model,
+      status,
+      durationMs,
+      usage: {
+        ...value?.usage,
+        durationMs,
+        imageCount: 1
+      },
+      refs: {
+        ...this.refs,
+        ...refs
+      }
+    };
+    if (error !== undefined) {
+      audit.errorCode = errorCode(error);
+      audit.errorMessage = errorMessage(error);
+    }
+    this.auditSink?.(audit);
+    return {
+      status,
+      ...(value === undefined ? {} : { value }),
+      audit
+    };
+  }
+
   private result(
     status: LlmOperationStatus,
     startedAt: number,
@@ -1829,6 +2034,19 @@ interface LocalHttpVisionCaptionResponse {
   usage?: OpenAICompatibleChatResponse["usage"];
 }
 
+interface LocalHttpObjectDetectionResponse {
+  objects?: Array<{
+    label?: string;
+    name?: string;
+    confidence?: number | null;
+    score?: number | null;
+    bounding_box?: Record<string, unknown> | null;
+    boundingBox?: Record<string, unknown> | null;
+  }>;
+  labels?: unknown[];
+  usage?: OpenAICompatibleChatResponse["usage"];
+}
+
 interface LocalHttpFaceResponse {
   faces?: Array<{
     bounding_box?: Record<string, unknown>;
@@ -2008,6 +2226,36 @@ function localHttpFaceObservations(faces: LocalHttpFaceResponse["faces"]): LlmFa
       return output;
     })
     .filter((face): face is LlmFaceObservationOutput => face !== null);
+}
+
+function localHttpObjectObservations(objects: LocalHttpObjectDetectionResponse["objects"]): LlmObjectObservationOutput[] {
+  if (!Array.isArray(objects)) {
+    return [];
+  }
+  return objects
+    .map((object): LlmObjectObservationOutput | null => {
+      const label = typeof object.label === "string" && object.label.trim().length > 0
+        ? object.label.trim()
+        : typeof object.name === "string" && object.name.trim().length > 0
+          ? object.name.trim()
+          : "";
+      if (label.length === 0) {
+        return null;
+      }
+      const output: LlmObjectObservationOutput = {
+        label
+      };
+      const confidence = object.confidence ?? object.score;
+      if (typeof confidence === "number" || confidence === null) {
+        output.confidence = confidence;
+      }
+      const boundingBox = object.boundingBox ?? object.bounding_box;
+      if (boundingBox !== undefined) {
+        output.boundingBox = boundingBox;
+      }
+      return output;
+    })
+    .filter((object): object is LlmObjectObservationOutput => object !== null);
 }
 
 function integerOrDefault(value: unknown, fallback: number): number {

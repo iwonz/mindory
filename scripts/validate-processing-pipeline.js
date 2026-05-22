@@ -131,11 +131,11 @@ for (const token of [
   "pdf_extraction",
   "image_semantic_extraction",
   "audio_transcription",
-  "video_keyframes",
-  "processor_" + "not" + "_implemented"
+  "video_keyframes"
 ]) {
   assert(routing.includes(token), `@mindory/core document routing module must include ${token}.`);
 }
+assert(!routing.includes(["processor", "not", "implemented"].join("_")), "@mindory/core document routing must not expose a missing-processor skip reason for supported file kinds.");
 for (const token of [
   "DocumentRecomputeService",
   "DOCUMENT_RECOMPUTE_PROCESSOR_VERSION",
@@ -182,7 +182,7 @@ assert(imageSemanticPackage.dependencies?.["@mindory/llm"] === "workspace:*", "I
 assert(imageSemanticPackage.exports?.["."], "Image semantic extractor must export its root module.");
 assert(imageSemanticTsconfig.references?.some((reference) => reference.path === "../../../../packages/core"), "Image semantic extractor must reference @mindory/core.");
 assert(imageSemanticTsconfig.references?.some((reference) => reference.path === "../../../../packages/llm"), "Image semantic extractor must reference @mindory/llm.");
-for (const token of ["ImageSemanticExtractor", "image_caption", "image_analysis", "ocr_text", "image_embedding", "faceObservations", "face_detection", "deterministicFaceEmbedding", "extractEmbeddedImageText", "ocrProvider", "visionProvider", "faceProvider", "recognizeText", "captionImage", "detectFaces", "recognizeFaces", "provider_ocr", "provider_caption", "provider_detected", "provider_recognized", "llm_face_provider"]) {
+for (const token of ["ImageSemanticExtractor", "image_caption", "image_analysis", "ocr_text", "image_embedding", "object_detection", "faceObservations", "face_detection", "deterministicFaceEmbedding", "extractEmbeddedImageText", "ocrProvider", "visionProvider", "imageEmbeddingProvider", "faceProvider", "recognizeText", "captionImage", "detectObjects", "embedImages", "detectFaces", "recognizeFaces", "provider_ocr", "provider_caption", "provider_detected", "provider_embedded", "provider_recognized", "llm_face_provider"]) {
   assert(imageSemantic.includes(token), `Image semantic extractor must include ${token}.`);
 }
 
@@ -222,7 +222,7 @@ assert(pgvectorPackage.dependencies?.["@mindory/db"] === "workspace:*", "pgvecto
 assert(pgvectorPackage.exports?.["."], "pgvector package must export its root module.");
 assert(pgvectorTsconfig.references?.some((reference) => reference.path === "../../../packages/core"), "pgvector package must reference @mindory/core.");
 assert(pgvectorTsconfig.references?.some((reference) => reference.path === "../../../packages/db"), "pgvector package must reference @mindory/db.");
-for (const token of ["PgVectorChunkIndex", "PgVectorDocumentChunkSearchRepository", "createTableSql", "vector(", "upsertDocumentChunks", "deleteDocumentChunks", "searchDocumentChunks", "metadataFilters", "<=>"]) {
+for (const token of ["PgVectorChunkIndex", "PgVectorDocumentChunkSearchRepository", "PgVectorArtifactSearchRepository", "createTableSql", "vector(", "upsertDocumentChunks", "upsertArtifactVectors", "deleteDocumentChunks", "deleteDocumentArtifactVectors", "searchDocumentChunks", "searchArtifactVectors", "document_artifact_vectors", "metadataFilters", "<=>"]) {
   assert(pgvector.includes(token), `pgvector package must include ${token}.`);
 }
 assert(!pgvector.includes("vector_index_" + "not" + "_implemented"), "pgvector package must include a working implementation.");
@@ -230,7 +230,7 @@ assert(!pgvector.includes("vector_index_" + "not" + "_implemented"), "pgvector p
 assert(qdrantPackage.dependencies?.["@mindory/core"] === "workspace:*", "Qdrant package must depend on @mindory/core.");
 assert(qdrantPackage.exports?.["."], "Qdrant package must export its root module.");
 assert(qdrantTsconfig.references?.some((reference) => reference.path === "../../../packages/core"), "Qdrant package must reference @mindory/core.");
-for (const token of ["QdrantVectorIndex", "QdrantDocumentChunkSearchRepository", "ensureCollection", "healthcheck", "upsertDocumentChunks", "deleteDocumentChunks", "searchDocumentChunks", "/points/search", "/points/delete?wait=true", "source_refs", "metadataFilters"]) {
+for (const token of ["QdrantVectorIndex", "QdrantDocumentChunkSearchRepository", "QdrantArtifactSearchRepository", "artifactCollectionName", "ensureCollection", "healthcheck", "upsertDocumentChunks", "upsertArtifactVectors", "deleteDocumentChunks", "deleteDocumentArtifactVectors", "searchDocumentChunks", "searchArtifactVectors", "/points/search", "/points/delete?wait=true", "source_refs", "metadataFilters"]) {
   assert(qdrant.includes(token), `Qdrant package must include ${token}.`);
 }
 assert(!qdrant.includes("vector_index_" + "not" + "_implemented"), "Qdrant package must include a working implementation.");

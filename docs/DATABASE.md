@@ -79,8 +79,8 @@ databases with the baseline checksum can upgrade safely. It adds:
 - `processing_runs` for recomputable derived-state runs with config and model
   runtime fingerprints.
 - `document_artifacts`, `document_artifact_vectors` and
-  `document_artifact_text_spans` for text, OCR, transcripts, captions, frames
-  and other semantic outputs.
+  `document_artifact_text_spans` for text, OCR, transcripts, captions, image
+  embeddings, object observations, frames and other semantic outputs.
 - `document_media_metadata` and `document_metadata_index` for typed metadata
   filters such as size, duration, pages and dimensions.
 - `face_identities` and `face_observations` for workspace-scoped face matching.
@@ -154,6 +154,8 @@ artifacts.
 `document_artifact_text_spans` joined to current processing runs. The search
 path supports artifact type filters, span type filters, metadata filters and
 returns artifact source refs/source positions without reading RAW objects.
+Image artifact vectors are stored in `document_artifact_vectors` for pgvector
+and in the Qdrant artifact collection when Qdrant is selected.
 
 `TASK-41` extends that repository with idempotent text span replacement for
 artifact-backed text chunks. The text search path now uses a full-text GIN index

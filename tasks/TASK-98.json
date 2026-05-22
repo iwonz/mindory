@@ -1,7 +1,7 @@
 {
   "id": "TASK-98",
   "title": "Add image embeddings and object detection",
-  "status": "draft",
+  "status": "done",
   "type": "feature",
   "priority": "high",
   "branch": "task/TASK-98-image-embeddings-object-detection",

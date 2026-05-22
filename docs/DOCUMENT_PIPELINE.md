@@ -48,11 +48,11 @@ Processing status must be durable in PostgreSQL, not only in BullMQ.
 | Text and Markdown | Supported local MVP. Extracts text, chunks it, stores spans and can search through full-text or pgvector when embeddings are enabled. |
 | Native-text PDF | Supported local MVP. Extracts page-level native text and source refs. |
 | Scanned PDF OCR | Supported when the OCR role is enabled with a local HTTP OCR provider; disabled by default. |
-| Image | Supported deterministic fallback plus experimental local HTTP OCR and vision captioning through `@mindory/llm` when enabled. Stores derived caption, analysis, labels and OCR text. Future work adds image embeddings and object detection. |
+| Image | Supported deterministic fallback plus experimental local HTTP/local-command OCR, vision captioning, object detection and image embeddings through `@mindory/llm` when enabled. Stores derived caption, analysis, labels, object observations, image vectors and OCR text. |
 | Face observations | Experimental provider path plus supported deterministic fallback. Local HTTP face detection/recognition runs through `@mindory/llm` when enabled; explicit people-count signals still create fallback observations when providers are disabled. |
 | Audio | Supported WAV metadata and embedded `INFO/ICMT` transcript fallback plus experimental local HTTP ASR through `@mindory/llm` when enabled. |
 | Video | Supported embedded `MINDORY_VIDEO_MANIFEST` fallback plus experimental local-command keyframe extraction. Extracted frame bytes can run through OCR/vision roles. Future work adds bundled ffmpeg profiles and frame bitmap object storage. |
-| Embeddings and vector search | Supported for text chunks through `@mindory/llm` and pgvector when a compatible 1536-dimensional provider is configured. Full-text fallback is supported when embeddings are disabled. |
+| Embeddings and vector search | Supported for text chunks and image artifacts through `@mindory/llm` and the selected vector backend when compatible dimensions are configured. Full-text fallback is supported when embeddings are disabled. |
 
 ## Derived Artifact State
 
@@ -131,10 +131,8 @@ The bare runtime default route configuration is conservative:
 - video keyframe provider: `manifest` by default, `local-command` when
   explicitly configured.
 
-Disabling a modality means no job is created for that file type. If a future
-modality is added to configuration before its processor exists, routing records
-a skipped route with `processor_not_implemented`; it does not enqueue a missing
-processor.
+Disabling a modality means no job is created for that file type. Unknown file
+types are recorded as unsupported and do not enqueue processors.
 
 For the local MVP path, `.env.example`, Docker Compose and `pnpm mvp:demo`
 enable text, PDF, image, audio and video routers while keeping model-backed
@@ -200,7 +198,10 @@ artifact-backed spans. It writes:
 
 - a top-level extracted text artifact;
 - `image_caption` and `image_analysis` artifacts with text spans;
-- an `image_embedding` artifact that records image-embedding capability state;
+- an `image_embedding` artifact with a persisted artifact vector when the
+  configured image-embedding provider is enabled;
+- one `object_detection` artifact per detected object, including label,
+  confidence and optional bounding box in source position metadata;
 - an `ocr_text` artifact and span when embedded PNG `tEXt` metadata is present
   or when the configured OCR provider returns text;
 - `face_observation` artifacts and `face_observations` rows when face detection
@@ -213,8 +214,12 @@ When `MINDORY_LLM_OCR_ENABLED=true` and
 `ocr_text` artifacts and spans. When
 `MINDORY_LLM_VISION_CAPTIONING_ENABLED=true` and
 `MINDORY_LLM_VISION_CAPTIONING_PROVIDER=local-http`, it calls
-`POST /vision/caption`, stores the provider caption and labels in derived
-image caption/analysis artifacts, and includes them in searchable chunk text.
+`POST /vision/caption` and `POST /vision/objects`, stores the provider caption,
+labels and detected object observations in derived artifacts, and includes them
+in searchable chunk text. When `MINDORY_LLM_IMAGE_EMBEDDING_ENABLED=true`, the
+extractor calls the configured `@mindory/llm` image embedding provider and the
+worker indexes the resulting `image_embedding` artifact vector through the
+selected vector backend.
 Disabled OCR/vision remains non-blocking and falls back to deterministic
 metadata/embedded text extraction. If a role is marked required and its
 provider fails or returns no usable output, extraction fails with a readable
