@@ -1,7 +1,7 @@
 {
   "id": "TASK-97",
   "title": "Implement local-command LLM operations",
-  "status": "draft",
+  "status": "done",
   "type": "feature",
   "priority": "high",
   "branch": "task/TASK-97-local-command-llm-operations",

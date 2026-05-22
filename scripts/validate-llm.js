@@ -73,6 +73,11 @@ for (const token of [
   "LlmAuditSink",
   "LlmLocalCommandRunner",
   "localCommandProviderHealth",
+  "LocalCommandTextEmbeddingsProvider",
+  "LocalCommandImageEmbeddingsProvider",
+  "LocalCommandGenerationProvider",
+  "local_command_input_limit_exceeded",
+  "local_command_output_limit_exceeded",
   "local_command_healthcheck_malformed_json",
   "local_command_healthcheck_timeout",
   "local_command_healthcheck_unsupported_role",
@@ -107,6 +112,7 @@ for (const token of [
   "inputTokens",
   "outputTokens",
   "LlmTextEmbeddingProvider",
+  "LlmImageEmbeddingProvider",
   "LlmOcrProvider",
   "LlmAsrProvider",
   "LlmAsrOutput",
@@ -155,7 +161,11 @@ for (const token of [
   "MINDORY_LLM_LOCAL_HTTP_BASE_URL",
   "MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS",
   "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND",
-  "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS"
+  "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS",
+  "MINDORY_LLM_LOCAL_COMMAND_OPERATION_COMMAND",
+  "MINDORY_LLM_LOCAL_COMMAND_OPERATION_ARGS",
+  "MINDORY_LLM_LOCAL_COMMAND_MAX_INPUT_BYTES",
+  "MINDORY_LLM_LOCAL_COMMAND_MAX_OUTPUT_BYTES"
 ]) {
   assertIncludes(config, token, "packages/config/src/index.ts");
 }
@@ -181,7 +191,11 @@ for (const token of [
   "MINDORY_LLM_LOCAL_HTTP_BASE_URL",
   "MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS",
   "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND",
-  "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS"
+  "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS",
+  "MINDORY_LLM_LOCAL_COMMAND_OPERATION_COMMAND",
+  "MINDORY_LLM_LOCAL_COMMAND_OPERATION_ARGS",
+  "MINDORY_LLM_LOCAL_COMMAND_MAX_INPUT_BYTES",
+  "MINDORY_LLM_LOCAL_COMMAND_MAX_OUTPUT_BYTES"
 ]) {
   assertIncludes(configCatalog, token, "packages/config/src/catalog.ts");
 }
@@ -202,7 +216,11 @@ for (const token of [
   "MINDORY_LLM_LOCAL_HTTP_BASE_URL",
   "MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS",
   "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND",
-  "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS"
+  "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS",
+  "MINDORY_LLM_LOCAL_COMMAND_OPERATION_COMMAND",
+  "MINDORY_LLM_LOCAL_COMMAND_OPERATION_ARGS",
+  "MINDORY_LLM_LOCAL_COMMAND_MAX_INPUT_BYTES",
+  "MINDORY_LLM_LOCAL_COMMAND_MAX_OUTPUT_BYTES"
 ]) {
   assertIncludes(envExample, token, ".env.example");
   assertIncludes(compose, token, "docker-compose.yml");
@@ -289,7 +307,7 @@ for (const token of [
   "Support Matrix",
   "`text-embedding` | supported",
   "`chat` | supported",
-  "`image-generation` | future",
+  "`image-generation` | experimental",
   "MINDORY_INSTALL_ALLOW_EXPERIMENTAL=true",
   "/chat/completions",
   "`/embeddings`",
@@ -516,6 +534,10 @@ function localCommandConfig(script, extra = {}) {
     MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS: "1000",
     MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND: process.execPath,
     MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS: JSON.stringify(["-e", script, "{role}", "{model}"]),
+    MINDORY_LLM_LOCAL_COMMAND_OPERATION_COMMAND: process.execPath,
+    MINDORY_LLM_LOCAL_COMMAND_OPERATION_ARGS: JSON.stringify(["-e", script, "{role}", "{model}", "{operation}"]),
+    MINDORY_LLM_LOCAL_COMMAND_MAX_INPUT_BYTES: "16777216",
+    MINDORY_LLM_LOCAL_COMMAND_MAX_OUTPUT_BYTES: "67108864",
     ...extra
   });
 }
@@ -558,6 +580,130 @@ assert(timeoutLocalCommandHealth.status === "failed", "Timed-out local-command h
 assert(timeoutLocalCommandHealth.errorCode === "local_command_healthcheck_timeout", "Timed-out local-command healthcheck must report timeout.");
 assert(localCommandAudits.some((audit) => audit.provider === "local-command" && audit.status === "failed" && audit.errorCode === "local_command_healthcheck_malformed_json"), "Local-command malformed healthcheck must emit failed audit.");
 assert(localCommandAudits.some((audit) => audit.provider === "local-command" && audit.status === "failed" && audit.errorCode === "local_command_healthcheck_timeout"), "Local-command timeout healthcheck must emit failed audit.");
+
+const localCommandOperationScript = `
+const fs = require('node:fs');
+const request = JSON.parse(fs.readFileSync(0, 'utf8'));
+const embedding1536 = Array.from({ length: 1536 }, (_, index) => index / 1536);
+const media = Buffer.from('mindory generated media').toString('base64');
+function send(output, usage = {}) {
+  console.log(JSON.stringify({ status: 'ok', role: request.role, model: request.model, output, usage }));
+}
+switch (request.operation) {
+  case 'chat':
+    send({ text: 'local command chat', usage: { prompt_tokens: 1, completion_tokens: 2, total_tokens: 3 } });
+    break;
+  case 'text_embeddings':
+    send({ embeddings: [embedding1536] }, { embedding_dimensions: 1536 });
+    break;
+  case 'image_embeddings':
+    send({ embeddings: [[0.1, 0.2, 0.3]] }, { embedding_dimensions: 3, image_count: 1 });
+    break;
+  case 'ocr':
+    send({ text: 'local command ocr', pages: [{ page_number: 1, text: 'local command ocr', confidence: 0.99 }] });
+    break;
+  case 'asr':
+    send({ text: 'local command transcript', duration_seconds: 1.25, segments: [{ segment_index: 0, text: 'local command transcript', start_ms: 0, end_ms: 1250, confidence: 0.98 }] }, { audio_seconds: 1.25 });
+    break;
+  case 'vision_caption':
+    send({ caption: 'local command caption', labels: ['passport', 'airport'] }, { image_count: 1 });
+    break;
+  case 'face_detection':
+    send({ faces: [{ bounding_box: { x: 0.1, y: 0.2, width: 0.3, height: 0.4 }, embedding: [0.1, 0.2, 0.3], confidence: 0.99, label: 'face' }] }, { image_count: 1 });
+    break;
+  case 'face_recognition':
+    send({ faces: [{ bounding_box: { x: 0.1, y: 0.2, width: 0.3, height: 0.4 }, embedding: [0.1, 0.2, 0.3], confidence: 0.99, label: 'face' }], identity_ids: ['identity-1'] }, { image_count: 1 });
+    break;
+  case 'image_generation':
+    send({ data_base64: media, mime_type: 'image/png' }, { image_count: 1 });
+    break;
+  case 'audio_generation':
+    send({ data_base64: media, mime_type: 'audio/wav' }, { audio_seconds: 1 });
+    break;
+  default:
+    console.log(JSON.stringify({ status: 'failed', role: request.role, model: request.model, error_code: 'unknown_operation', error_message: request.operation }));
+}
+`;
+const localCommandOperationAudits = [];
+const localCommandOperationConfig = loadMindoryConfig({
+  MINDORY_INSTALL_ALLOW_EXPERIMENTAL: "true",
+  MINDORY_LLM_CHAT_ENABLED: "true",
+  MINDORY_LLM_CHAT_PROVIDER: "local-command",
+  MINDORY_LLM_CHAT_MODEL: "local-command-chat",
+  MINDORY_LLM_TEXT_EMBEDDING_ENABLED: "true",
+  MINDORY_LLM_TEXT_EMBEDDING_PROVIDER: "local-command",
+  MINDORY_LLM_TEXT_EMBEDDING_MODEL: "local-command-embedding",
+  MINDORY_LLM_TEXT_EMBEDDING_DIMENSIONS: "1536",
+  MINDORY_LLM_IMAGE_EMBEDDING_ENABLED: "true",
+  MINDORY_LLM_IMAGE_EMBEDDING_PROVIDER: "local-command",
+  MINDORY_LLM_IMAGE_EMBEDDING_MODEL: "local-command-image-embedding",
+  MINDORY_LLM_IMAGE_EMBEDDING_DIMENSIONS: "3",
+  MINDORY_LLM_OCR_ENABLED: "true",
+  MINDORY_LLM_OCR_PROVIDER: "local-command",
+  MINDORY_LLM_OCR_MODEL: "local-command-ocr",
+  MINDORY_LLM_ASR_ENABLED: "true",
+  MINDORY_LLM_ASR_PROVIDER: "local-command",
+  MINDORY_LLM_ASR_MODEL: "local-command-asr",
+  MINDORY_LLM_FACE_DETECTION_ENABLED: "true",
+  MINDORY_LLM_FACE_DETECTION_PROVIDER: "local-command",
+  MINDORY_LLM_FACE_DETECTION_MODEL: "local-command-face-detect",
+  MINDORY_LLM_FACE_RECOGNITION_ENABLED: "true",
+  MINDORY_LLM_FACE_RECOGNITION_PROVIDER: "local-command",
+  MINDORY_LLM_FACE_RECOGNITION_MODEL: "local-command-face-recognize",
+  MINDORY_LLM_VISION_CAPTIONING_ENABLED: "true",
+  MINDORY_LLM_VISION_CAPTIONING_PROVIDER: "local-command",
+  MINDORY_LLM_VISION_CAPTIONING_MODEL: "local-command-vision",
+  MINDORY_LLM_IMAGE_GENERATION_ENABLED: "true",
+  MINDORY_LLM_IMAGE_GENERATION_PROVIDER: "local-command",
+  MINDORY_LLM_IMAGE_GENERATION_MODEL: "local-command-image-gen",
+  MINDORY_LLM_AUDIO_GENERATION_ENABLED: "true",
+  MINDORY_LLM_AUDIO_GENERATION_PROVIDER: "local-command",
+  MINDORY_LLM_AUDIO_GENERATION_MODEL: "local-command-audio-gen",
+  MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS: "1000",
+  MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND: process.execPath,
+  MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS: JSON.stringify(["-e", "console.log(JSON.stringify({ status: 'ok', role: process.argv[1], model: process.argv[2] }));", "{role}", "{model}"]),
+  MINDORY_LLM_LOCAL_COMMAND_OPERATION_COMMAND: process.execPath,
+  MINDORY_LLM_LOCAL_COMMAND_OPERATION_ARGS: JSON.stringify(["-e", localCommandOperationScript, "{role}", "{model}", "{operation}"])
+});
+const localCommandRuntime = buildMindoryLlm(localCommandOperationConfig, {
+  auditSink: (audit) => localCommandOperationAudits.push(audit)
+});
+assert(localCommandRuntime.chat !== undefined, "Local-command chat provider must be built.");
+assert(localCommandRuntime.textEmbeddings !== undefined, "Local-command text embeddings provider must be built.");
+assert(localCommandRuntime.imageEmbeddings !== undefined, "Local-command image embeddings provider must be built.");
+assert(localCommandRuntime.ocr !== undefined, "Local-command OCR provider must be built.");
+assert(localCommandRuntime.asr !== undefined, "Local-command ASR provider must be built.");
+assert(localCommandRuntime.vision !== undefined, "Local-command vision provider must be built.");
+assert(localCommandRuntime.faces !== undefined, "Local-command face provider must be built.");
+assert(localCommandRuntime.generation !== undefined, "Local-command generation provider must be built.");
+assert((await localCommandRuntime.chat.generateChat({ messages: [{ role: "user", content: "hello" }] }, { role: localCommandRuntime.registry.require("chat") })).value?.text === "local command chat", "Local-command chat must parse text output.");
+assert((await localCommandRuntime.textEmbeddings.embedTexts({ texts: ["semantic"] }))[0]?.embedding.length === 1536, "Local-command text embeddings must parse embeddings.");
+assert((await localCommandRuntime.imageEmbeddings.embedImages({ images: [{ bytes: new TextEncoder().encode("image"), mimeType: "image/png" }] }, { role: localCommandRuntime.registry.require("image-embedding") })).value?.[0]?.length === 3, "Local-command image embeddings must parse image vectors.");
+assert((await localCommandRuntime.ocr.recognizeText({ bytes: new TextEncoder().encode("pdf"), mimeType: "application/pdf" }, { role: localCommandRuntime.registry.require("ocr") })).value?.text === "local command ocr", "Local-command OCR must parse text.");
+assert((await localCommandRuntime.asr.transcribe({ bytes: new TextEncoder().encode("audio"), mimeType: "audio/wav" }, { role: localCommandRuntime.registry.require("asr") })).value?.segments?.[0]?.text === "local command transcript", "Local-command ASR must parse segments.");
+assert((await localCommandRuntime.vision.captionImage({ bytes: new TextEncoder().encode("image"), mimeType: "image/png" }, { role: localCommandRuntime.registry.require("vision-captioning") })).value?.labels?.includes("passport"), "Local-command vision must parse labels.");
+assert((await localCommandRuntime.faces.detectFaces({ bytes: new TextEncoder().encode("image"), mimeType: "image/png" }, { role: localCommandRuntime.registry.require("face-detection") })).value?.faces?.[0]?.embedding?.length === 3, "Local-command face detection must parse faces.");
+assert((await localCommandRuntime.faces.recognizeFaces({ bytes: new TextEncoder().encode("image"), mimeType: "image/png" }, { role: localCommandRuntime.registry.require("face-recognition") })).value?.identityIds?.[0] === "identity-1", "Local-command face recognition must parse identities.");
+assert((await localCommandRuntime.generation.generateImage({ prompt: "draw" }, { role: localCommandRuntime.registry.require("image-generation") })).value?.mimeType === "image/png", "Local-command image generation must parse generated image bytes.");
+assert((await localCommandRuntime.generation.generateAudio({ prompt: "speak" }, { role: localCommandRuntime.registry.require("audio-generation") })).value?.mimeType === "audio/wav", "Local-command audio generation must parse generated audio bytes.");
+for (const role of ["chat", "text-embedding", "image-embedding", "ocr", "asr", "vision-captioning", "face-detection", "face-recognition", "image-generation", "audio-generation"]) {
+  assert(localCommandOperationAudits.some((audit) => audit.role === role && audit.provider === "local-command" && audit.status === "success"), `Local-command ${role} must emit success audit.`);
+}
+
+const failingLocalCommandRuntime = buildMindoryLlm(loadMindoryConfig({
+  MINDORY_LLM_CHAT_ENABLED: "true",
+  MINDORY_LLM_CHAT_PROVIDER: "local-command",
+  MINDORY_LLM_CHAT_MODEL: "local-command-chat",
+  MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND: process.execPath,
+  MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS: JSON.stringify(["-e", "console.log(JSON.stringify({ status: 'ok', role: process.argv[1], model: process.argv[2] }));", "{role}", "{model}"]),
+  MINDORY_LLM_LOCAL_COMMAND_OPERATION_COMMAND: process.execPath,
+  MINDORY_LLM_LOCAL_COMMAND_OPERATION_ARGS: JSON.stringify(["-e", "const fs = require('node:fs'); const request = JSON.parse(fs.readFileSync(0, 'utf8')); console.log(JSON.stringify({ status: 'failed', role: request.role, model: request.model, error_code: 'local_command_fixture_failed', error_message: 'fixture failure' }));", "{role}", "{model}", "{operation}"])
+}), {
+  auditSink: (audit) => localCommandOperationAudits.push(audit)
+});
+const failedLocalCommandChat = await failingLocalCommandRuntime.chat.generateChat({ messages: [{ role: "user", content: "fail" }] }, { role: failingLocalCommandRuntime.registry.require("chat") });
+assert(failedLocalCommandChat.status === "failed", "Local-command role failure must return failed operation result.");
+assert(failedLocalCommandChat.audit.errorCode === "local_command_fixture_failed", "Local-command role failure must preserve structured error code.");
 
 console.log("LLM SDK adapter validated.");
 

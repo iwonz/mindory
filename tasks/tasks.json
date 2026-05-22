@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-96",
+  "current_task_id": "TASK-97",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -712,7 +712,7 @@
     {
       "id": "TASK-97",
       "title": "Implement local-command LLM operations",
-      "status": "draft",
+      "status": "done",
       "branch": "task/TASK-97-local-command-llm-operations",
       "file": "tasks/TASK-97.json"
     },

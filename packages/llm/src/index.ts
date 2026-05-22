@@ -60,6 +60,10 @@ export interface LlmProviderDescriptor {
   commandTimeoutMs?: number;
   healthcheckCommand?: string;
   healthcheckArgs?: readonly string[];
+  operationCommand?: string;
+  operationArgs?: readonly string[];
+  maxInputBytes?: number;
+  maxOutputBytes?: number;
 }
 
 export interface LlmRoleSupportDescriptor {
@@ -197,6 +201,15 @@ export interface LocalHttpModelOptions {
   fetchImpl?: typeof fetch;
 }
 
+export interface LocalCommandModelOptions {
+  command: string;
+  args: readonly string[];
+  timeoutMs: number;
+  maxInputBytes: number;
+  maxOutputBytes: number;
+  commandRunner?: LlmLocalCommandRunner;
+}
+
 export type LlmProviderHealthStatus = "ok" | "failed";
 
 export interface LlmProviderHealth {
@@ -221,6 +234,8 @@ export interface LlmProviderHealthCheckResult {
 
 export interface LlmLocalCommandRunOptions {
   timeoutMs: number;
+  maxOutputBytes?: number;
+  stdin?: string;
   signal?: AbortSignal;
 }
 
@@ -247,6 +262,10 @@ export interface LlmProviderHealthCheckOptions {
 
 export interface LlmTextEmbeddingProvider {
   embedTexts(input: { texts: string[] }, context: LlmProviderCallContext): Promise<LlmOperationResult<number[][]>>;
+}
+
+export interface LlmImageEmbeddingProvider {
+  embedImages(input: { images: Array<{ bytes: Uint8Array; mimeType: string }> }, context: LlmProviderCallContext): Promise<LlmOperationResult<number[][]>>;
 }
 
 export interface LlmChatProvider {
@@ -288,10 +307,12 @@ export interface MindoryLlm {
   providers: LlmProviderDescriptor[];
   chat?: LlmChatProvider;
   textEmbeddings?: EmbeddingsProvider;
+  imageEmbeddings?: LlmImageEmbeddingProvider;
   ocr?: LlmOcrProvider;
   asr?: LlmAsrProvider;
   vision?: LlmVisionProvider;
   faces?: LlmFaceProvider;
+  generation?: LlmGenerationProvider;
   healthCheck(provider: Exclude<LlmProvider, "disabled">, options?: Omit<LlmProviderHealthCheckOptions, "fetchImpl" | "commandRunner" | "auditSink" | "refs">): Promise<LlmProviderHealth>;
   disabledResult<TValue>(role: LlmRole, refs?: LlmOperationRefs): LlmOperationResult<TValue>;
 }
@@ -371,6 +392,10 @@ export function buildMindoryLlm(
   if (textEmbeddings !== undefined) {
     runtime.textEmbeddings = textEmbeddings;
   }
+  const imageEmbeddings = buildMindoryImageEmbeddingsProvider(config, options);
+  if (imageEmbeddings !== undefined) {
+    runtime.imageEmbeddings = imageEmbeddings;
+  }
   const ocr = buildMindoryOcrProvider(config, options);
   if (ocr !== undefined) {
     runtime.ocr = ocr;
@@ -386,6 +411,10 @@ export function buildMindoryLlm(
   const faces = buildMindoryFaceProvider(config, options);
   if (faces !== undefined) {
     runtime.faces = faces;
+  }
+  const generation = buildMindoryGenerationProvider(config, options);
+  if (generation !== undefined) {
+    runtime.generation = generation;
   }
   return runtime;
 }
@@ -476,7 +505,37 @@ export function buildMindoryTextEmbeddingsProvider(
     );
   }
 
+  if (textEmbedding.provider === "local-command") {
+    return new LocalCommandTextEmbeddingsProvider(
+      localCommandModelOptions(config, options),
+      descriptor("text-embedding", textEmbedding),
+      options.auditSink,
+      options.operationRefs ?? {}
+    );
+  }
+
   throw new Error(`${textEmbedding.provider} text embeddings are configured but no text embedding adapter is installed.`);
+}
+
+export function buildMindoryImageEmbeddingsProvider(
+  config: MindoryConfig,
+  options: MindoryLlmOptions = {}
+): LlmImageEmbeddingProvider | undefined {
+  const imageEmbedding = config.llm.imageEmbedding;
+  if (!imageEmbedding.enabled || imageEmbedding.provider === "disabled") {
+    return undefined;
+  }
+
+  if (imageEmbedding.provider === "local-command") {
+    return new LocalCommandImageEmbeddingsProvider(
+      localCommandModelOptions(config, options),
+      descriptor("image-embedding", imageEmbedding),
+      options.auditSink,
+      options.operationRefs ?? {}
+    );
+  }
+
+  throw new Error(`${imageEmbedding.provider} image embeddings are configured but no image embedding adapter is installed.`);
 }
 
 export function buildMindoryChatProvider(
@@ -524,6 +583,15 @@ export function buildMindoryChatProvider(
     );
   }
 
+  if (chat.provider === "local-command") {
+    return new LocalCommandChatProvider(
+      localCommandModelOptions(config, options),
+      descriptor("chat", chat),
+      options.auditSink,
+      options.operationRefs ?? {}
+    );
+  }
+
   throw new Error(`${chat.provider} chat is configured but no chat adapter is installed.`);
 }
 
@@ -546,6 +614,15 @@ export function buildMindoryOcrProvider(
     }
     return new LocalHttpOcrProvider(
       providerOptions,
+      descriptor("ocr", ocr),
+      options.auditSink,
+      options.operationRefs ?? {}
+    );
+  }
+
+  if (ocr.provider === "local-command") {
+    return new LocalCommandOcrProvider(
+      localCommandModelOptions(config, options),
       descriptor("ocr", ocr),
       options.auditSink,
       options.operationRefs ?? {}
@@ -580,6 +657,15 @@ export function buildMindoryVisionProvider(
     );
   }
 
+  if (vision.provider === "local-command") {
+    return new LocalCommandVisionProvider(
+      localCommandModelOptions(config, options),
+      descriptor("vision-captioning", vision),
+      options.auditSink,
+      options.operationRefs ?? {}
+    );
+  }
+
   throw new Error(`${vision.provider} vision captioning is configured but no vision adapter is installed.`);
 }
 
@@ -602,6 +688,15 @@ export function buildMindoryAsrProvider(
     }
     return new LocalHttpAsrProvider(
       providerOptions,
+      descriptor("asr", asr),
+      options.auditSink,
+      options.operationRefs ?? {}
+    );
+  }
+
+  if (asr.provider === "local-command") {
+    return new LocalCommandAsrProvider(
+      localCommandModelOptions(config, options),
       descriptor("asr", asr),
       options.auditSink,
       options.operationRefs ?? {}
@@ -641,7 +736,44 @@ export function buildMindoryFaceProvider(
       options.operationRefs ?? {}
     );
   }
+  if (provider === "local-command") {
+    return new LocalCommandFaceProvider(
+      localCommandModelOptions(config, options),
+      descriptor("face-detection", detection),
+      descriptor("face-recognition", recognition),
+      options.auditSink,
+      options.operationRefs ?? {}
+    );
+  }
   throw new Error(`${provider} face detection/recognition is configured but no face adapter is installed.`);
+}
+
+export function buildMindoryGenerationProvider(
+  config: MindoryConfig,
+  options: MindoryLlmOptions = {}
+): LlmGenerationProvider | undefined {
+  const image = config.llm.imageGeneration;
+  const audio = config.llm.audioGeneration;
+  const imageEnabled = image.enabled && image.provider !== "disabled";
+  const audioEnabled = audio.enabled && audio.provider !== "disabled";
+  if (!imageEnabled && !audioEnabled) {
+    return undefined;
+  }
+  const providers = new Set([image.provider, audio.provider].filter((provider) => provider !== "disabled"));
+  if (providers.size > 1) {
+    throw new Error("Image generation and audio generation must use the same provider in the current @mindory/llm runtime.");
+  }
+  const provider = providers.values().next().value;
+  if (provider === "local-command") {
+    return new LocalCommandGenerationProvider(
+      localCommandModelOptions(config, options),
+      descriptor("image-generation", image),
+      descriptor("audio-generation", audio),
+      options.auditSink,
+      options.operationRefs ?? {}
+    );
+  }
+  throw new Error(`${provider} generation is configured but no generation adapter is installed.`);
 }
 
 export async function checkMindoryLlmProviderHealth(
@@ -794,6 +926,300 @@ class AuditedTextEmbeddingsProvider implements EmbeddingsProvider {
       });
       throw error;
     }
+  }
+}
+
+type LocalCommandOperationName =
+  | "chat"
+  | "text_embeddings"
+  | "image_embeddings"
+  | "ocr"
+  | "asr"
+  | "vision_caption"
+  | "face_detection"
+  | "face_recognition"
+  | "image_generation"
+  | "audio_generation";
+
+class LocalCommandOperationExecutor {
+  constructor(
+    private readonly options: LocalCommandModelOptions,
+    private readonly auditSink: LlmAuditSink | undefined,
+    private readonly refs: LlmOperationRefs
+  ) {}
+
+  async call<TValue>(
+    operation: LocalCommandOperationName,
+    role: LlmRoleDescriptor,
+    input: Record<string, unknown>,
+    parse: (output: unknown, payload: Record<string, unknown>) => TValue,
+    refs: LlmOperationRefs = {},
+    signal?: AbortSignal
+  ): Promise<LlmOperationResult<TValue>> {
+    const startedAt = Date.now();
+    const model = role.model;
+    try {
+      const stdin = JSON.stringify({ operation, role: role.role, model, input });
+      if (Buffer.byteLength(stdin, "utf8") > this.options.maxInputBytes) {
+        throw localCommandOperationError("local_command_input_limit_exceeded", `local-command operation request exceeded ${this.options.maxInputBytes} bytes.`);
+      }
+      const runner = this.options.commandRunner ?? createNodeLocalCommandRunner();
+      const result = await runner.run(this.options.command, this.options.args.map((arg) => renderLocalCommandOperationArg(arg, role, operation)), {
+        timeoutMs: this.options.timeoutMs,
+        maxOutputBytes: this.options.maxOutputBytes,
+        stdin,
+        ...(signal === undefined ? {} : { signal })
+      });
+      const payload = parseLocalCommandOperationOutput(result, role, operation);
+      const value = parse(operationPayloadOutput(payload), payload);
+      return this.result<TValue>("success", startedAt, role, model, value, localCommandUsage(payload), refs);
+    } catch (error) {
+      return this.result<TValue>("failed", startedAt, role, model, undefined, {}, refs, error);
+    }
+  }
+
+  private result<TValue>(
+    status: LlmOperationStatus,
+    startedAt: number,
+    role: LlmRoleDescriptor,
+    model: string,
+    value: TValue | undefined,
+    usage: LlmOperationUsage,
+    refs: LlmOperationRefs,
+    error?: unknown
+  ): LlmOperationResult<TValue> {
+    const durationMs = Date.now() - startedAt;
+    const audit: LlmOperationAudit = {
+      role: role.role,
+      provider: "local-command",
+      model,
+      status,
+      durationMs,
+      usage: {
+        ...usage,
+        durationMs
+      },
+      refs: {
+        ...this.refs,
+        ...refs
+      }
+    };
+    if (error !== undefined) {
+      audit.errorCode = errorCode(error);
+      audit.errorMessage = errorMessage(error);
+    }
+    this.auditSink?.(audit);
+    return {
+      status,
+      ...(value === undefined ? {} : { value }),
+      audit
+    };
+  }
+}
+
+export class LocalCommandTextEmbeddingsProvider implements EmbeddingsProvider {
+  readonly provider = "local-command";
+  readonly model: string;
+  private readonly executor: LocalCommandOperationExecutor;
+
+  constructor(
+    options: LocalCommandModelOptions,
+    private readonly role: LlmRoleDescriptor,
+    auditSink: LlmAuditSink | undefined,
+    refs: LlmOperationRefs
+  ) {
+    this.model = role.model;
+    this.executor = new LocalCommandOperationExecutor(options, auditSink, refs);
+  }
+
+  async embedTexts(input: EmbedTextsInput): Promise<EmbeddingResult[]> {
+    const result = await this.executor.call("text_embeddings", this.role, {
+      texts: input.texts,
+      model: input.model ?? this.role.model
+    }, (output) => localCommandEmbeddings(output));
+    if (result.status !== "success" || result.value === undefined) {
+      throw localCommandOperationError(result.audit.errorCode ?? "local_command_operation_failed", result.audit.errorMessage ?? "local-command text embeddings failed.");
+    }
+    return result.value.map((embedding, index) => ({
+      textIndex: index,
+      embedding,
+      model: input.model ?? this.role.model,
+      dimensions: embedding.length
+    }));
+  }
+}
+
+export class LocalCommandImageEmbeddingsProvider implements LlmImageEmbeddingProvider {
+  private readonly executor: LocalCommandOperationExecutor;
+
+  constructor(
+    options: LocalCommandModelOptions,
+    private readonly role: LlmRoleDescriptor,
+    auditSink: LlmAuditSink | undefined,
+    refs: LlmOperationRefs
+  ) {
+    this.executor = new LocalCommandOperationExecutor(options, auditSink, refs);
+  }
+
+  embedImages(input: { images: Array<{ bytes: Uint8Array; mimeType: string }> }, context: LlmProviderCallContext): Promise<LlmOperationResult<number[][]>> {
+    return this.executor.call("image_embeddings", this.role, {
+      images: input.images.map((image) => binaryLocalCommandInput(image))
+    }, (output) => localCommandEmbeddings(output), context.refs, context.signal);
+  }
+}
+
+export class LocalCommandChatProvider implements LlmChatProvider {
+  private readonly executor: LocalCommandOperationExecutor;
+
+  constructor(
+    options: LocalCommandModelOptions,
+    private readonly role: LlmRoleDescriptor,
+    auditSink: LlmAuditSink | undefined,
+    refs: LlmOperationRefs
+  ) {
+    this.executor = new LocalCommandOperationExecutor(options, auditSink, refs);
+  }
+
+  generateChat(input: LlmChatInput, context: LlmProviderCallContext): Promise<LlmOperationResult<LlmChatOutput>> {
+    return this.executor.call("chat", this.role, {
+      messages: input.messages,
+      temperature: input.temperature,
+      max_output_tokens: input.maxOutputTokens
+    }, (output, payload) => ({
+      text: localHttpChatText(output as LocalHttpChatResponse),
+      usage: localCommandUsage(payload)
+    }), context.refs, context.signal);
+  }
+}
+
+export class LocalCommandOcrProvider implements LlmOcrProvider {
+  private readonly executor: LocalCommandOperationExecutor;
+
+  constructor(
+    options: LocalCommandModelOptions,
+    private readonly role: LlmRoleDescriptor,
+    auditSink: LlmAuditSink | undefined,
+    refs: LlmOperationRefs
+  ) {
+    this.executor = new LocalCommandOperationExecutor(options, auditSink, refs);
+  }
+
+  recognizeText(input: { bytes: Uint8Array; mimeType: string }, context: LlmProviderCallContext): Promise<LlmOperationResult<LlmOcrOutput>> {
+    return this.executor.call("ocr", this.role, binaryLocalCommandInput(input), (output, payload) => {
+      const response = output as LocalHttpOcrResponse;
+      return {
+        text: response.text ?? localHttpOcrPages(response).map((page) => page.text).join("\n\n").trim(),
+        pages: localHttpOcrPages(response),
+        usage: localCommandUsage(payload)
+      };
+    }, context.refs, context.signal);
+  }
+}
+
+export class LocalCommandAsrProvider implements LlmAsrProvider {
+  private readonly executor: LocalCommandOperationExecutor;
+
+  constructor(
+    options: LocalCommandModelOptions,
+    private readonly role: LlmRoleDescriptor,
+    auditSink: LlmAuditSink | undefined,
+    refs: LlmOperationRefs
+  ) {
+    this.executor = new LocalCommandOperationExecutor(options, auditSink, refs);
+  }
+
+  transcribe(input: { bytes: Uint8Array; mimeType: string }, context: LlmProviderCallContext): Promise<LlmOperationResult<LlmAsrOutput>> {
+    return this.executor.call("asr", this.role, binaryLocalCommandInput(input), (output, payload) => {
+      const response = output as LocalHttpAsrResponse;
+      const segments = localHttpAsrSegments(response);
+      return {
+        text: response.text ?? segments.map((segment) => segment.text).join("\n").trim(),
+        segments,
+        usage: {
+          ...localCommandUsage(payload),
+          ...(typeof response.duration_ms === "number" ? { audioSeconds: response.duration_ms / 1000 } : {}),
+          ...(typeof response.duration_seconds === "number" ? { audioSeconds: response.duration_seconds } : {})
+        }
+      };
+    }, context.refs, context.signal);
+  }
+}
+
+export class LocalCommandVisionProvider implements LlmVisionProvider {
+  private readonly executor: LocalCommandOperationExecutor;
+
+  constructor(
+    options: LocalCommandModelOptions,
+    private readonly role: LlmRoleDescriptor,
+    auditSink: LlmAuditSink | undefined,
+    refs: LlmOperationRefs
+  ) {
+    this.executor = new LocalCommandOperationExecutor(options, auditSink, refs);
+  }
+
+  captionImage(input: { bytes: Uint8Array; mimeType: string }, context: LlmProviderCallContext): Promise<LlmOperationResult<LlmVisionCaptionOutput>> {
+    return this.executor.call("vision_caption", this.role, binaryLocalCommandInput(input), (output, payload) => {
+      const response = output as LocalHttpVisionCaptionResponse;
+      return {
+        caption: response.caption ?? response.text ?? "",
+        labels: Array.isArray(response.labels) ? response.labels.filter((label): label is string => typeof label === "string") : [],
+        usage: localCommandUsage(payload)
+      };
+    }, context.refs, context.signal);
+  }
+}
+
+export class LocalCommandFaceProvider implements LlmFaceProvider {
+  private readonly executor: LocalCommandOperationExecutor;
+
+  constructor(
+    options: LocalCommandModelOptions,
+    private readonly detectionRole: LlmRoleDescriptor,
+    private readonly recognitionRole: LlmRoleDescriptor,
+    auditSink: LlmAuditSink | undefined,
+    refs: LlmOperationRefs
+  ) {
+    this.executor = new LocalCommandOperationExecutor(options, auditSink, refs);
+  }
+
+  detectFaces(input: { bytes: Uint8Array; mimeType: string }, context: LlmProviderCallContext): Promise<LlmOperationResult<LlmFaceDetectionOutput>> {
+    return this.executor.call("face_detection", this.detectionRole, binaryLocalCommandInput(input), (output, payload) => ({
+      faces: localHttpFaceObservations((output as LocalHttpFaceResponse).faces),
+      usage: localCommandUsage(payload)
+    }), context.refs, context.signal);
+  }
+
+  recognizeFaces(input: { bytes: Uint8Array; mimeType: string }, context: LlmProviderCallContext): Promise<LlmOperationResult<LlmFaceRecognitionOutput>> {
+    return this.executor.call("face_recognition", this.recognitionRole, binaryLocalCommandInput(input), (output, payload) => {
+      const response = output as LocalHttpFaceResponse;
+      return {
+        faces: localHttpFaceObservations(response.faces),
+        identityIds: Array.isArray(response.identity_ids) ? response.identity_ids.filter((id): id is string => typeof id === "string") : [],
+        usage: localCommandUsage(payload)
+      };
+    }, context.refs, context.signal);
+  }
+}
+
+export class LocalCommandGenerationProvider implements LlmGenerationProvider {
+  private readonly executor: LocalCommandOperationExecutor;
+
+  constructor(
+    options: LocalCommandModelOptions,
+    private readonly imageRole: LlmRoleDescriptor,
+    private readonly audioRole: LlmRoleDescriptor,
+    auditSink: LlmAuditSink | undefined,
+    refs: LlmOperationRefs
+  ) {
+    this.executor = new LocalCommandOperationExecutor(options, auditSink, refs);
+  }
+
+  generateImage(input: { prompt: string }, context: LlmProviderCallContext): Promise<LlmOperationResult<{ bytes: Uint8Array; mimeType: string }>> {
+    return this.executor.call("image_generation", this.imageRole, { prompt: input.prompt }, (output) => localCommandGeneratedMedia(output, "image/png"), context.refs, context.signal);
+  }
+
+  generateAudio(input: { prompt: string }, context: LlmProviderCallContext): Promise<LlmOperationResult<{ bytes: Uint8Array; mimeType: string }>> {
+    return this.executor.call("audio_generation", this.audioRole, { prompt: input.prompt }, (output) => localCommandGeneratedMedia(output, "audio/wav"), context.refs, context.signal);
   }
 }
 
@@ -1486,9 +1912,27 @@ function llmProviders(config: MindoryConfig): LlmProviderDescriptor[] {
       provider: "local-command",
       commandTimeoutMs: config.llm.localCommand.timeoutMs,
       healthcheckCommand: config.llm.localCommand.healthcheckCommand,
-      healthcheckArgs: config.llm.localCommand.healthcheckArgs
+      healthcheckArgs: config.llm.localCommand.healthcheckArgs,
+      operationCommand: config.llm.localCommand.operationCommand,
+      operationArgs: config.llm.localCommand.operationArgs,
+      maxInputBytes: config.llm.localCommand.maxInputBytes,
+      maxOutputBytes: config.llm.localCommand.maxOutputBytes
     }
   ];
+}
+
+function localCommandModelOptions(config: MindoryConfig, options: MindoryLlmOptions): LocalCommandModelOptions {
+  const localCommandOptions: LocalCommandModelOptions = {
+    command: config.llm.localCommand.operationCommand,
+    args: config.llm.localCommand.operationArgs,
+    timeoutMs: config.llm.localCommand.timeoutMs,
+    maxInputBytes: config.llm.localCommand.maxInputBytes,
+    maxOutputBytes: config.llm.localCommand.maxOutputBytes
+  };
+  if (options.commandRunner !== undefined) {
+    localCommandOptions.commandRunner = options.commandRunner;
+  }
+  return localCommandOptions;
 }
 
 function llmRoleToCatalogKey(role: LlmRole): LlmRoleCatalogKey {
@@ -1653,7 +2097,7 @@ async function localCommandProviderHealth(
   const runner = options.commandRunner ?? createNodeLocalCommandRunner();
   const checks: LlmProviderHealthCheckResult[] = [];
   for (const role of roles) {
-    const check = await runLocalCommandRoleHealth(command, config.llm.localCommand.healthcheckArgs, role, config.llm.localCommand.timeoutMs, runner, options.signal);
+    const check = await runLocalCommandRoleHealth(command, config.llm.localCommand.healthcheckArgs, role, config.llm.localCommand.timeoutMs, config.llm.localCommand.maxOutputBytes, runner, options.signal);
     checks.push(check);
     emitLocalCommandHealthAudit(check, options.auditSink, options.refs);
   }
@@ -1702,13 +2146,14 @@ async function runLocalCommandRoleHealth(
   argsTemplate: readonly string[],
   role: LlmRoleDescriptor,
   timeoutMs: number,
+  maxOutputBytes: number,
   runner: LlmLocalCommandRunner,
   signal: AbortSignal | undefined
 ): Promise<LlmProviderHealthCheckResult> {
   const startedAt = Date.now();
   try {
     const args = argsTemplate.map((arg) => renderLocalCommandArg(arg, role));
-    const result = await runner.run(command, args, signal === undefined ? { timeoutMs } : { timeoutMs, signal });
+    const result = await runner.run(command, args, signal === undefined ? { timeoutMs, maxOutputBytes } : { timeoutMs, maxOutputBytes, signal });
     const durationMs = Date.now() - startedAt;
     const diagnostics = localCommandRunDiagnostics(result);
     if (result.timedOut === true) {
@@ -1806,10 +2251,11 @@ function createNodeLocalCommandRunner(): LlmLocalCommandRunner {
       return new Promise<LlmLocalCommandRunResult>((resolve) => {
         let stdout = "";
         let stderr = "";
+        let outputBytes = 0;
         let settled = false;
         const child = spawn(command, [...args], {
           shell: false,
-          stdio: ["ignore", "pipe", "pipe"]
+          stdio: ["pipe", "pipe", "pipe"]
         });
         const finish = (result: Omit<LlmLocalCommandRunResult, "stdout" | "stderr">): void => {
           if (settled) {
@@ -1823,6 +2269,27 @@ function createNodeLocalCommandRunner(): LlmLocalCommandRunner {
             stdout,
             stderr
           });
+        };
+        const appendOutput = (target: "stdout" | "stderr", chunk: unknown): void => {
+          if (settled) {
+            return;
+          }
+          const text = String(chunk);
+          outputBytes += Buffer.byteLength(text, "utf8");
+          if (options.maxOutputBytes !== undefined && outputBytes > options.maxOutputBytes) {
+            child.kill("SIGTERM");
+            finish({
+              status: null,
+              errorCode: "local_command_output_limit_exceeded",
+              errorMessage: `local-command output exceeded ${options.maxOutputBytes} bytes.`
+            });
+            return;
+          }
+          if (target === "stdout") {
+            stdout += text;
+          } else {
+            stderr += text;
+          }
         };
         const abortHandler = (): void => {
           child.kill("SIGTERM");
@@ -1842,11 +2309,12 @@ function createNodeLocalCommandRunner(): LlmLocalCommandRunner {
           });
         }, options.timeoutMs);
         child.stdout.on("data", (chunk) => {
-          stdout += String(chunk);
+          appendOutput("stdout", chunk);
         });
         child.stderr.on("data", (chunk) => {
-          stderr += String(chunk);
+          appendOutput("stderr", chunk);
         });
+        child.stdin.end(options.stdin ?? "");
         child.on("error", (error) => {
           finish({
             status: null,
@@ -1971,6 +2439,130 @@ function arrayStringField(record: Record<string, unknown>, key: string): string[
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function renderLocalCommandOperationArg(arg: string, role: LlmRoleDescriptor, operation: LocalCommandOperationName): string {
+  return renderLocalCommandArg(arg, role).replaceAll("{operation}", operation);
+}
+
+function binaryLocalCommandInput(input: { bytes: Uint8Array; mimeType: string }): Record<string, unknown> {
+  return {
+    mime_type: input.mimeType,
+    data_base64: Buffer.from(input.bytes).toString("base64")
+  };
+}
+
+function parseLocalCommandOperationOutput(
+  result: LlmLocalCommandRunResult,
+  role: LlmRoleDescriptor,
+  operation: LocalCommandOperationName
+): Record<string, unknown> {
+  const diagnostics = localCommandRunDiagnostics(result);
+  if (result.timedOut === true) {
+    throw localCommandOperationError("local_command_timeout", `local-command ${operation} exceeded the configured timeout.`);
+  }
+  if (result.errorCode !== undefined) {
+    throw localCommandOperationError(result.errorCode, result.errorMessage ?? `local-command ${operation} failed.`);
+  }
+  if (result.stdout.trim() === "") {
+    throw localCommandOperationError("local_command_no_output", `local-command ${operation} did not print JSON to stdout.`);
+  }
+  let payload: unknown;
+  try {
+    payload = JSON.parse(result.stdout.trim()) as unknown;
+  } catch (error) {
+    throw localCommandOperationError("local_command_malformed_json", `local-command ${operation} stdout must be JSON: ${errorMessage(error)}`);
+  }
+  if (!isRecord(payload)) {
+    throw localCommandOperationError("local_command_invalid_response", `local-command ${operation} JSON must be an object.`);
+  }
+  const status = stringField(payload, "status") ?? "ok";
+  const payloadRole = stringField(payload, "role");
+  const payloadModel = stringField(payload, "model");
+  if (payloadRole !== undefined && payloadRole !== role.role) {
+    throw localCommandOperationError("local_command_role_mismatch", `local-command ${operation} returned role ${payloadRole} for expected role ${role.role}.`);
+  }
+  if (payloadModel !== undefined && payloadModel !== role.model) {
+    throw localCommandOperationError("local_command_model_mismatch", `local-command ${operation} returned model ${payloadModel} for expected model ${role.model}.`);
+  }
+  if (status === "failed") {
+    throw localCommandOperationError(
+      stringField(payload, "error_code") ?? stringField(payload, "errorCode") ?? "local_command_operation_failed",
+      stringField(payload, "error_message") ?? stringField(payload, "errorMessage") ?? `local-command ${operation} failed.`
+    );
+  }
+  if (status !== "ok") {
+    throw localCommandOperationError("local_command_invalid_status", `local-command ${operation} status must be ok or failed.`);
+  }
+  if ((result.status ?? 1) !== 0) {
+    throw localCommandOperationError("local_command_exit_failed", `local-command ${operation} exited with status ${result.status ?? 1}.`);
+  }
+  if (isRecord(payload.diagnostics)) {
+    payload.diagnostics = {
+      ...diagnostics,
+      ...payload.diagnostics
+    };
+  } else {
+    payload.diagnostics = diagnostics;
+  }
+  return payload;
+}
+
+function operationPayloadOutput(payload: Record<string, unknown>): unknown {
+  return Object.prototype.hasOwnProperty.call(payload, "output") ? payload.output : payload;
+}
+
+function localCommandEmbeddings(output: unknown): number[][] {
+  const body = output as LocalHttpEmbeddingsResponse;
+  return localHttpEmbeddings(body);
+}
+
+function localCommandGeneratedMedia(output: unknown, defaultMimeType: string): { bytes: Uint8Array; mimeType: string } {
+  if (!isRecord(output)) {
+    throw localCommandOperationError("local_command_invalid_media", "local-command generated media output must be an object.");
+  }
+  const dataBase64 = stringField(output, "data_base64") ?? stringField(output, "bytes_base64") ?? stringField(output, "base64");
+  if (dataBase64 === undefined || dataBase64.trim() === "") {
+    throw localCommandOperationError("local_command_missing_media", "local-command generated media output must include base64 bytes.");
+  }
+  return {
+    bytes: Buffer.from(dataBase64, "base64"),
+    mimeType: stringField(output, "mime_type") ?? stringField(output, "mimeType") ?? defaultMimeType
+  };
+}
+
+function localCommandUsage(payload: Record<string, unknown>): LlmOperationUsage {
+  const usage = isRecord(payload.usage) ? payload.usage : {};
+  const result: LlmOperationUsage = {};
+  assignNumberUsage(result, usage, "prompt_tokens", "inputTokens");
+  assignNumberUsage(result, usage, "inputTokens", "inputTokens");
+  assignNumberUsage(result, usage, "completion_tokens", "outputTokens");
+  assignNumberUsage(result, usage, "outputTokens", "outputTokens");
+  assignNumberUsage(result, usage, "total_tokens", "totalTokens");
+  assignNumberUsage(result, usage, "totalTokens", "totalTokens");
+  assignNumberUsage(result, usage, "embedding_dimensions", "embeddingDimensions");
+  assignNumberUsage(result, usage, "embeddingDimensions", "embeddingDimensions");
+  assignNumberUsage(result, usage, "image_count", "imageCount");
+  assignNumberUsage(result, usage, "imageCount", "imageCount");
+  assignNumberUsage(result, usage, "audio_seconds", "audioSeconds");
+  assignNumberUsage(result, usage, "audioSeconds", "audioSeconds");
+  return result;
+}
+
+function assignNumberUsage(
+  target: LlmOperationUsage,
+  source: Record<string, unknown>,
+  sourceKey: string,
+  targetKey: keyof LlmOperationUsage
+): void {
+  const value = source[sourceKey];
+  if (typeof value === "number" && Number.isFinite(value)) {
+    target[targetKey] = value;
+  }
+}
+
+function localCommandOperationError(code: string, message: string): Error & { code: string } {
+  return Object.assign(new Error(message), { code });
 }
 
 function localHttpEmbeddings(body: LocalHttpEmbeddingsResponse): number[][] {

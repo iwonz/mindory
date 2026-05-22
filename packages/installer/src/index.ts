@@ -139,6 +139,10 @@ export interface LlmProviderAnswers {
   localCommandTimeoutMs: number;
   localCommandHealthcheckCommand: string;
   localCommandHealthcheckArgs: string[];
+  localCommandOperationCommand: string;
+  localCommandOperationArgs: string[];
+  localCommandMaxInputBytes: number;
+  localCommandMaxOutputBytes: number;
 }
 
 export interface InterfaceAnswers {
@@ -546,7 +550,11 @@ export function createDefaultInstallAnswers(overrides: Partial<MindoryInstallAns
       localHttpBaseUrl: catalogDefault("MINDORY_LLM_LOCAL_HTTP_BASE_URL"),
       localCommandTimeoutMs: Number.parseInt(catalogDefault("MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS"), 10),
       localCommandHealthcheckCommand: catalogDefault("MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND"),
-      localCommandHealthcheckArgs: parseJsonStringArray(catalogDefault("MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS"), "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS")
+      localCommandHealthcheckArgs: parseJsonStringArray(catalogDefault("MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS"), "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS"),
+      localCommandOperationCommand: catalogDefault("MINDORY_LLM_LOCAL_COMMAND_OPERATION_COMMAND"),
+      localCommandOperationArgs: parseJsonStringArray(catalogDefault("MINDORY_LLM_LOCAL_COMMAND_OPERATION_ARGS"), "MINDORY_LLM_LOCAL_COMMAND_OPERATION_ARGS"),
+      localCommandMaxInputBytes: Number.parseInt(catalogDefault("MINDORY_LLM_LOCAL_COMMAND_MAX_INPUT_BYTES"), 10),
+      localCommandMaxOutputBytes: Number.parseInt(catalogDefault("MINDORY_LLM_LOCAL_COMMAND_MAX_OUTPUT_BYTES"), 10)
     },
     interfaces: {
       apiPort: Number.parseInt(catalogDefault("MINDORY_API_PORT"), 10),
@@ -634,12 +642,24 @@ export function validateInstallAnswers(answers: MindoryInstallAnswers): string[]
   if (answers.llmProviders.localCommandTimeoutMs <= 0) {
     errors.push("llmProviders.localCommandTimeoutMs must be greater than zero.");
   }
+  if (answers.llmProviders.localCommandMaxInputBytes <= 0) {
+    errors.push("llmProviders.localCommandMaxInputBytes must be greater than zero.");
+  }
+  if (answers.llmProviders.localCommandMaxOutputBytes <= 0) {
+    errors.push("llmProviders.localCommandMaxOutputBytes must be greater than zero.");
+  }
   if (answersUsesLocalCommandProvider(answers)) {
     if (answers.llmProviders.localCommandHealthcheckCommand.trim() === "") {
       errors.push("llmProviders.localCommandHealthcheckCommand is required when a local-command LLM role is enabled.");
     }
+    if (answers.llmProviders.localCommandOperationCommand.trim() === "") {
+      errors.push("llmProviders.localCommandOperationCommand is required when a local-command LLM role is enabled.");
+    }
     if (!answers.llmProviders.localCommandHealthcheckArgs.every((entry) => typeof entry === "string")) {
       errors.push("llmProviders.localCommandHealthcheckArgs must be a JSON string array.");
+    }
+    if (!answers.llmProviders.localCommandOperationArgs.every((entry) => typeof entry === "string")) {
+      errors.push("llmProviders.localCommandOperationArgs must be a JSON string array.");
     }
   }
   return errors;
@@ -1245,6 +1265,10 @@ export function answersToEnvMap(answers: MindoryInstallAnswers): Record<string, 
   assign(env, "MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS", String(answers.llmProviders.localCommandTimeoutMs));
   assign(env, "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND", answers.llmProviders.localCommandHealthcheckCommand);
   assign(env, "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS", JSON.stringify(answers.llmProviders.localCommandHealthcheckArgs));
+  assign(env, "MINDORY_LLM_LOCAL_COMMAND_OPERATION_COMMAND", answers.llmProviders.localCommandOperationCommand);
+  assign(env, "MINDORY_LLM_LOCAL_COMMAND_OPERATION_ARGS", JSON.stringify(answers.llmProviders.localCommandOperationArgs));
+  assign(env, "MINDORY_LLM_LOCAL_COMMAND_MAX_INPUT_BYTES", String(answers.llmProviders.localCommandMaxInputBytes));
+  assign(env, "MINDORY_LLM_LOCAL_COMMAND_MAX_OUTPUT_BYTES", String(answers.llmProviders.localCommandMaxOutputBytes));
   assign(env, "MINDORY_MCP_ENABLED", bool(answers.interfaces.mcpEnabled));
   assign(env, "MINDORY_HERMES_ADAPTER_ENABLED", bool(answers.interfaces.hermesEnabled));
   assign(env, "MINDORY_MCP_API_TOKEN", answers.tokens.mcpApiToken);
@@ -1407,6 +1431,8 @@ export function buildWizardPromptPlan(options: WizardOptions = {}): WizardPrompt
   }
   prompts.push(promptFromCatalog("llm.local_command.healthcheck_command", "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND", "text"));
   prompts.push(promptFromCatalog("llm.local_command.healthcheck_args", "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS", "text"));
+  prompts.push(promptFromCatalog("llm.local_command.operation_command", "MINDORY_LLM_LOCAL_COMMAND_OPERATION_COMMAND", "text"));
+  prompts.push(promptFromCatalog("llm.local_command.operation_args", "MINDORY_LLM_LOCAL_COMMAND_OPERATION_ARGS", "text"));
 
   return prompts.map((promptItem) => {
     if (promptItem.defaultValue !== "") {
@@ -1510,6 +1536,11 @@ export async function runInstallWizard(io: WizardIo, options: WizardOptions = {}
     answers.llmProviders.localCommandHealthcheckArgs = parseJsonStringArray(
       await askString(io, promptFromCatalog("llm.local_command.healthcheck_args", "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS", "text")),
       "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS"
+    );
+    answers.llmProviders.localCommandOperationCommand = await askString(io, promptFromCatalog("llm.local_command.operation_command", "MINDORY_LLM_LOCAL_COMMAND_OPERATION_COMMAND", "text"));
+    answers.llmProviders.localCommandOperationArgs = parseJsonStringArray(
+      await askString(io, promptFromCatalog("llm.local_command.operation_args", "MINDORY_LLM_LOCAL_COMMAND_OPERATION_ARGS", "text")),
+      "MINDORY_LLM_LOCAL_COMMAND_OPERATION_ARGS"
     );
   }
 
@@ -2832,7 +2863,9 @@ function promptIdToEnvName(promptId: string): string | undefined {
     "tokens.cli_api_token": "MINDORY_CLI_API_TOKEN",
     "tokens.hermes_api_token": "MINDORY_HERMES_API_TOKEN",
     "llm.local_command.healthcheck_command": "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND",
-    "llm.local_command.healthcheck_args": "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS"
+    "llm.local_command.healthcheck_args": "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS",
+    "llm.local_command.operation_command": "MINDORY_LLM_LOCAL_COMMAND_OPERATION_COMMAND",
+    "llm.local_command.operation_args": "MINDORY_LLM_LOCAL_COMMAND_OPERATION_ARGS"
   };
   if (direct[promptId] !== undefined) {
     return direct[promptId];

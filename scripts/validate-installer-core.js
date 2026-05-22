@@ -95,7 +95,7 @@ for (const token of ["MINDORY_CLAMAV_HEALTH_RETRIES", "MINDORY_CLAMAV_HEALTH_TIM
   assert(installerSource.includes(token), `Installer ClamAV health must include ${token}.`);
   assert(envExample.includes(token), `.env.example must include ${token}.`);
 }
-for (const token of ["MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND", "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS"]) {
+for (const token of ["MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND", "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS", "MINDORY_LLM_LOCAL_COMMAND_OPERATION_COMMAND", "MINDORY_LLM_LOCAL_COMMAND_OPERATION_ARGS", "MINDORY_LLM_LOCAL_COMMAND_MAX_INPUT_BYTES", "MINDORY_LLM_LOCAL_COMMAND_MAX_OUTPUT_BYTES"]) {
   assert(installerSource.includes(token), `Installer local-command health must include ${token}.`);
   assert(envExample.includes(token), `.env.example must include ${token}.`);
   assert(composeFile.includes(token), `docker-compose.yml must include ${token}.`);
@@ -130,7 +130,9 @@ for (const promptId of [
   "llm.TEXT_EMBEDDING.provider",
   "llm.OCR.enabled",
   "llm.local_command.healthcheck_command",
-  "llm.local_command.healthcheck_args"
+  "llm.local_command.healthcheck_args",
+  "llm.local_command.operation_command",
+  "llm.local_command.operation_args"
 ]) {
   assert(wizardPromptIds.includes(promptId), `Wizard prompt plan must include ${promptId}.`);
 }
@@ -316,7 +318,9 @@ await installer.executeInstallPlan(installer.createDefaultInstallAnswers({
   antivirus: { mode: "disabled", provider: "disabled", clamavPlatform: "linux/amd64" },
   llmProviders: {
     localCommandHealthcheckCommand: "mindory-local-health",
-    localCommandHealthcheckArgs: ["healthcheck", "--role", "{role}", "--model", "{model}"]
+    localCommandHealthcheckArgs: ["healthcheck", "--role", "{role}", "--model", "{model}"],
+    localCommandOperationCommand: "mindory-local-operation",
+    localCommandOperationArgs: ["operate", "--role", "{role}", "--model", "{model}", "--operation", "{operation}"]
   },
   llmRoles: {
     TEXT_EMBEDDING: {
@@ -879,20 +883,21 @@ assert(experimentalBlocked, "Wizard must block future LLM roles unless experimen
 
 const futureProviderAnswers = installer.createDefaultInstallAnswers({
   llmRoles: {
-    TEXT_EMBEDDING: {
+    IMAGE_EMBEDDING: {
       enabled: true,
       provider: "local-command",
-      model: "local-command-embedding",
+      model: "local-command-image-embedding",
       required: false,
       timeoutMs: 60000,
       concurrency: 1,
-      dimensions: 1536
+      dimensions: 3
     }
   }
 });
 const futureProviderErrors = installer.validateInstallAnswers(futureProviderAnswers);
-assert(futureProviderErrors.some((error) => error.includes("provider local-command requires experimental mode")), "Installer validation must block future LLM providers unless experimental mode is enabled.");
+assert(futureProviderErrors.some((error) => error.includes("provider local-command requires experimental mode") || error.includes("llmRoles.IMAGE_EMBEDDING.enabled requires experimental mode")), "Installer validation must block experimental LLM providers unless experimental mode is enabled.");
 assert(futureProviderErrors.some((error) => error.includes("localCommandHealthcheckCommand is required")), "Installer validation must require local-command healthcheck command when local-command provider is enabled.");
+assert(futureProviderErrors.some((error) => error.includes("localCommandOperationCommand is required")), "Installer validation must require local-command operation command when local-command provider is enabled.");
 const allowedFutureProviderErrors = installer.validateInstallAnswers({
   ...futureProviderAnswers,
   allowExperimental: true
@@ -903,7 +908,9 @@ const configuredLocalCommandProviderErrors = installer.validateInstallAnswers(in
   allowExperimental: true,
   llmProviders: {
     localCommandHealthcheckCommand: "mindory-local-health",
-    localCommandHealthcheckArgs: ["healthcheck", "--role", "{role}", "--model", "{model}"]
+    localCommandHealthcheckArgs: ["healthcheck", "--role", "{role}", "--model", "{model}"],
+    localCommandOperationCommand: "mindory-local-operation",
+    localCommandOperationArgs: ["operate", "--role", "{role}", "--model", "{model}", "--operation", "{operation}"]
   }
 }));
 assert(configuredLocalCommandProviderErrors.length === 0, "Installer validation must accept configured local-command healthcheck contract when experimental mode is enabled.");

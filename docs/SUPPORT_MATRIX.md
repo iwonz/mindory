@@ -63,14 +63,14 @@ All model operations must go through `@mindory/llm`.
 | Role | Status | Notes |
 | --- | --- | --- |
 | Disabled model roles | Supported | Disabled attempts are handled and audited. |
-| Text embeddings | Supported | OpenAI-compatible, Ollama and local HTTP provider flows are implemented through `@mindory/llm`; pgvector requires 1536-dimensional vectors. |
-| Chat | Supported SDK adapter | OpenAI-compatible API-key/OAuth modes and local HTTP chat are implemented in `@mindory/llm`; product flows do not require chat by default. |
-| Local-command provider healthchecks | Supported preflight | `@mindory/llm` and installer execute the configured command per enabled role, validate JSON role/model compatibility, enforce timeout and emit audit events. |
-| OCR | Experimental role, supported PDF/image paths | Scanned-PDF and image OCR run through `@mindory/llm` local HTTP OCR when enabled. |
-| Vision captioning and image embeddings | Experimental | Image vision captioning runs through `@mindory/llm` local HTTP when enabled; image embeddings remain future hardening. |
-| ASR | Experimental | Audio ASR runs through `@mindory/llm` local HTTP when enabled; embedded WAV transcript fallback remains supported. |
-| Face detection and recognition | Experimental | Local HTTP face detection/recognition runs through `@mindory/llm` when enabled; observations remain workspace-scoped and auto-matched by threshold. |
-| Image/audio generation | Future | Role placeholders exist for configuration planning only. |
+| Text embeddings | Supported | OpenAI-compatible, Ollama, local HTTP and local-command provider flows are implemented through `@mindory/llm`; pgvector requires 1536-dimensional vectors. |
+| Chat | Supported SDK adapter | OpenAI-compatible API-key/OAuth modes plus local HTTP and local-command chat are implemented in `@mindory/llm`; product flows do not require chat by default. |
+| Local-command provider | Supported/experimental by role | `@mindory/llm` and installer execute configured healthchecks, and runtime operations cover chat, text/image embeddings, OCR, ASR, vision, face detection/recognition, image generation and audio generation through stdin/stdout JSON. |
+| OCR | Experimental role, supported PDF/image paths | Scanned-PDF and image OCR run through `@mindory/llm` local HTTP or local-command OCR when enabled. |
+| Vision captioning and image embeddings | Experimental | Image vision captioning runs through `@mindory/llm` local HTTP or local-command when enabled; image embeddings can run through local-command. |
+| ASR | Experimental | Audio ASR runs through `@mindory/llm` local HTTP or local-command when enabled; embedded WAV transcript fallback remains supported. |
+| Face detection and recognition | Experimental | Local HTTP and local-command face detection/recognition run through `@mindory/llm` when enabled; observations remain workspace-scoped and auto-matched by threshold. |
+| Image/audio generation | Experimental SDK role | Local-command image/audio generation returns typed bytes and MIME metadata through `@mindory/llm`. |
 
 Installer and config validation require
 `MINDORY_INSTALL_ALLOW_EXPERIMENTAL=true` before enabling experimental or future
