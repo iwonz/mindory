@@ -39,8 +39,8 @@ uses the same matrix for defaults, env metadata and installer gating.
 
 | Role | Role status | Supported providers | Experimental providers | Future providers |
 | --- | --- | --- | --- | --- |
-| `text-embedding` | supported | `disabled`, `openai-compatible`, `ollama` | `local-http` | `local-command` |
-| `chat` | supported | `disabled`, `openai-compatible` | none | `ollama`, `local-http`, `local-command` |
+| `text-embedding` | supported | `disabled`, `openai-compatible`, `ollama`, `local-http` | none | `local-command` |
+| `chat` | supported | `disabled`, `openai-compatible`, `local-http` | none | `ollama`, `local-command` |
 | `image-embedding` | experimental | `disabled` | `local-http` | `openai-compatible`, `ollama`, `local-command` |
 | `vision-captioning` | experimental | `disabled` | `openai-compatible`, `local-http` | `ollama`, `local-command` |
 | `ocr` | experimental | `disabled` | `openai-compatible`, `local-http` | `ollama`, `local-command` |
@@ -119,6 +119,25 @@ embeddings. Chat calls use `/chat/completions`; text embeddings use
 `/embeddings`. Both API-key and OAuth bearer modes share the same centralized
 auth configuration and audit path.
 
+## Local HTTP Adapter
+
+`MINDORY_LLM_LOCAL_HTTP_BASE_URL` configures an unauthenticated local model
+service intended for trusted single-host or private-network deployments. It is
+supported for `chat` and `text-embedding` roles.
+
+The local HTTP contract is intentionally small:
+
+- `GET /health` returns any 2xx response when the model service is ready.
+- `POST /chat/completions` accepts `{ model, messages, temperature, max_tokens }`
+  and returns either OpenAI-compatible `choices[0].message.content` or a simple
+  `{ text }` / `{ output }` body.
+- `POST /embeddings` accepts `{ model, input, dimensions }` and returns either
+  OpenAI-compatible `{ data: [{ index, embedding }] }` or `{ embeddings }`.
+
+`buildMindoryLlm(config).healthCheck("local-http")` checks `/health`.
+`healthCheck("ollama")` checks Ollama `/api/tags`; this verifies that the
+service is reachable without performing a model operation.
+
 ## Runtime Boundary
 
 API and worker code call `buildMindoryLlm` or
@@ -134,11 +153,11 @@ current pgvector dimension guard.
 ## Operation Audit
 
 `buildMindoryLlm` accepts an optional `auditSink` callback. The SDK calls it for
-disabled role attempts through `disabledResult` and for current text embedding
-provider calls with `success` or `failed` status, role, provider, model,
-duration, usage details when available and optional project/document/job/session
-refs. TASK-55 keeps this as an in-process hook; durable audit persistence is
-future work.
+disabled role attempts through `disabledResult` and for current chat/text
+embedding provider calls with `success` or `failed` status, role, provider,
+model, duration, usage details when available and optional
+project/document/job/session refs. TASK-55 keeps this as an in-process hook;
+durable audit persistence is future work.
 
 ## Docker Profiles
 

@@ -1,0 +1,68 @@
+{
+  "id": "TASK-74",
+  "title": "Add Ollama and local HTTP model adapter support",
+  "status": "done",
+  "type": "feature",
+  "priority": "high",
+  "branch": "task/TASK-74-ollama-local-http-model-adapter",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Implement the supported local HTTP model adapter path in @mindory/llm and add provider health checks for local model services.",
+    "background": "TASK-73 made OpenAI-compatible chat and embeddings real. The next public-ready gap is allowing supported chat and text-embedding roles to use a local HTTP model service, while keeping Ollama text embeddings health-checkable and centrally configured."
+  },
+  "scope": {
+    "in": [
+      "Add local HTTP chat and text embedding adapters inside @mindory/llm.",
+      "Keep Ollama text embeddings routed through @mindory/llm and add provider health check coverage.",
+      "Expose provider health checks from the @mindory/llm runtime.",
+      "Promote local-http support for supported chat and text-embedding roles in the config catalog.",
+      "Validate local HTTP adapter behavior with fake HTTP responses.",
+      "Update installer validation expectations and LLM/config/status docs."
+    ],
+    "out": [
+      "Implementing Ollama chat.",
+      "Implementing OCR, ASR, vision, face, image-generation or audio-generation adapters.",
+      "Adding external model servers or downloading local model weights.",
+      "Persisting model health or operation audit records to the database."
+    ]
+  },
+  "acceptance_criteria": [
+    "@mindory/llm can build a local-http chat provider when chat is enabled.",
+    "@mindory/llm can build a local-http text embedding provider when text embeddings are enabled.",
+    "Local HTTP chat calls /chat/completions and local HTTP embeddings call /embeddings.",
+    "The runtime exposes health checks for Ollama and local-http providers.",
+    "Config and installer validation treat local-http as supported for chat and text-embedding roles.",
+    "Docs describe local HTTP endpoint contracts and health checks.",
+    "Provider-specific model calls remain inside @mindory/llm.",
+    "pnpm check passes."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm config:generate",
+      "pnpm llm:validate",
+      "pnpm installer:validate",
+      "pnpm config:validate",
+      "pnpm public:validate",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-74.",
+      "Confirm no product flow requires local HTTP models by default."
+    ]
+  },
+  "dependencies": [
+    "TASK-73"
+  ],
+  "risks": [
+    "Local HTTP should not be claimed for unsupported multimodal roles before concrete adapters exist.",
+    "Health checks must not require model calls or secrets.",
+    "Changing provider support levels must not enable model roles by default."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to done.",
+    "Branch is committed and merged back into master."
+  ]
+}

@@ -68,13 +68,13 @@ export const LLM_ROLE_SUPPORT_CATALOG = [
   llmRoleSupport("CHAT", "supported", "disabled", "", {
     "openai-compatible": "supported",
     "ollama": "future",
-    "local-http": "future",
+    "local-http": "supported",
     "local-command": "future"
   }),
   llmRoleSupport("TEXT_EMBEDDING", "supported", "disabled", "", {
     "openai-compatible": "supported",
     "ollama": "supported",
-    "local-http": "experimental",
+    "local-http": "supported",
     "local-command": "future"
   }),
   llmRoleSupport("IMAGE_EMBEDDING", "experimental", "local-http", "CLIP ViT-L-16-SigLIP2-256__webli", {
@@ -385,7 +385,7 @@ export const CONFIG_CATALOG = [
     secret: true
   }),
   entry("MINDORY_LLM_OLLAMA_BASE_URL", "llm", "string", "http://ollama:11434", "Ollama base URL.", "both", "supported"),
-  entry("MINDORY_LLM_LOCAL_HTTP_BASE_URL", "llm", "string", "http://llm:8080", "Local HTTP model server base URL.", "both", "future"),
+  entry("MINDORY_LLM_LOCAL_HTTP_BASE_URL", "llm", "string", "http://llm:8080", "Local HTTP model server base URL.", "both", "supported"),
   entry("MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS", "llm", "number", "120000", "Default timeout for local command providers.", "both", "future"),
 
   entry("MINDORY_MCP_ENABLED", "mcp", "boolean", "true", "Enable the MCP stdio server.", "runtime", "supported"),

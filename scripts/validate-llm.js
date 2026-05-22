@@ -79,8 +79,13 @@ for (const token of [
   "status: \"disabled\"",
   "LlmChatProvider",
   "OpenAICompatibleChatProvider",
+  "LocalHttpChatProvider",
+  "LocalHttpTextEmbeddingsProvider",
   "buildMindoryChatProvider",
+  "checkMindoryLlmProviderHealth",
+  "healthCheck",
   "/chat/completions",
+  "/health",
   "inputTokens",
   "outputTokens",
   "LlmTextEmbeddingProvider",
@@ -104,7 +109,8 @@ for (const token of [
   "image-generation",
   "audio-generation",
   "OpenAICompatibleEmbeddingsProvider",
-  "OllamaEmbeddingsProvider"
+  "OllamaEmbeddingsProvider",
+  "Local HTTP embedding request failed"
 ]) {
   assertIncludes(llm, token, "packages/llm/src/index.ts");
 }
@@ -259,7 +265,9 @@ for (const token of [
   "`image-generation` | future",
   "MINDORY_INSTALL_ALLOW_EXPERIMENTAL=true",
   "/chat/completions",
-  "`/embeddings`"
+  "`/embeddings`",
+  "`/health`",
+  "healthCheck"
 ]) {
   assertIncludes(docs, token, "LLM SDK docs");
 }
@@ -304,6 +312,70 @@ assert(chatResult.audit.usage.outputTokens === 4, "OpenAI-compatible chat audit 
 assert(chatRequests[0]?.url === "https://llm.example/v1/chat/completions", "OpenAI-compatible chat provider must call /chat/completions.");
 assert(chatRequests[0]?.init?.headers?.authorization === "Bearer oauth-test-token", "OpenAI-compatible chat provider must use OAuth bearer auth.");
 assert(chatAudits[0]?.status === "success", "OpenAI-compatible chat provider must emit success audit.");
+
+const localAudits = [];
+const localRequests = [];
+const localEmbedding = Array.from({ length: 1536 }, (_, index) => index / 1536);
+const localConfig = loadMindoryConfig({
+  MINDORY_LLM_CHAT_ENABLED: "true",
+  MINDORY_LLM_CHAT_PROVIDER: "local-http",
+  MINDORY_LLM_CHAT_MODEL: "local-chat",
+  MINDORY_LLM_TEXT_EMBEDDING_ENABLED: "true",
+  MINDORY_LLM_TEXT_EMBEDDING_PROVIDER: "local-http",
+  MINDORY_LLM_TEXT_EMBEDDING_MODEL: "local-embedding",
+  MINDORY_LLM_TEXT_EMBEDDING_DIMENSIONS: "1536",
+  MINDORY_LLM_LOCAL_HTTP_BASE_URL: "http://llm.local:8080",
+  MINDORY_LLM_OLLAMA_BASE_URL: "http://ollama.local:11434"
+});
+const localRuntime = buildMindoryLlm(localConfig, {
+  auditSink: (audit) => localAudits.push(audit),
+  fetchImpl: async (url, init) => {
+    localRequests.push({ url: String(url), init });
+    const href = String(url);
+    if (href.endsWith("/embeddings")) {
+      return new Response(JSON.stringify({
+        data: [{ index: 0, embedding: localEmbedding }],
+        model: "local-embedding"
+      }), { status: 200 });
+    }
+    if (href.endsWith("/chat/completions")) {
+      return new Response(JSON.stringify({
+        text: "hello from local http",
+        usage: {
+          prompt_tokens: 2,
+          completion_tokens: 3,
+          total_tokens: 5
+        }
+      }), { status: 200 });
+    }
+    if (href.endsWith("/health") || href.endsWith("/api/tags")) {
+      return new Response(JSON.stringify({ status: "ok" }), { status: 200 });
+    }
+    return new Response("not found", { status: 404 });
+  }
+});
+assert(localRuntime.chat !== undefined, "Local HTTP chat provider must be built when chat is enabled.");
+assert(localRuntime.textEmbeddings !== undefined, "Local HTTP text embeddings provider must be built when text embeddings are enabled.");
+const localChatResult = await localRuntime.chat.generateChat({
+  messages: [{ role: "user", content: "hello" }]
+}, {
+  role: localRuntime.registry.require("chat"),
+  refs: { projectId: "project-local" }
+});
+assert(localChatResult.status === "success", "Local HTTP chat provider must return success.");
+assert(localChatResult.value?.text === "hello from local http", "Local HTTP chat provider must parse simple text output.");
+const localEmbeddingResult = await localRuntime.textEmbeddings.embedTexts({ texts: ["semantic text"] });
+assert(localEmbeddingResult[0]?.embedding.length === 1536, "Local HTTP embeddings provider must return 1536-dimensional embeddings.");
+assert(localRequests.some((request) => request.url === "http://llm.local:8080/chat/completions"), "Local HTTP chat provider must call /chat/completions.");
+assert(localRequests.some((request) => request.url === "http://llm.local:8080/embeddings"), "Local HTTP embeddings provider must call /embeddings.");
+const localHealth = await localRuntime.healthCheck("local-http");
+assert(localHealth.status === "ok", "Local HTTP health check must succeed against /health.");
+const ollamaHealth = await localRuntime.healthCheck("ollama");
+assert(ollamaHealth.status === "ok", "Ollama health check must succeed against /api/tags.");
+assert(localRequests.some((request) => request.url === "http://llm.local:8080/health"), "Local HTTP health check must call /health.");
+assert(localRequests.some((request) => request.url === "http://ollama.local:11434/api/tags"), "Ollama health check must call /api/tags.");
+assert(localAudits.some((audit) => audit.role === "chat" && audit.provider === "local-http" && audit.status === "success"), "Local HTTP chat must emit success audit.");
+assert(localAudits.some((audit) => audit.role === "text-embedding" && audit.provider === "local-http" && audit.status === "success"), "Local HTTP embeddings must emit success audit.");
 
 console.log("LLM SDK adapter validated.");
 

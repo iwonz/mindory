@@ -484,6 +484,10 @@ function validateLlmConfig(config: MindoryConfig): void {
   if (usesLlmProvider(config, "ollama") && config.llm.ollama.baseUrl.trim() === "") {
     throw new Error("MINDORY_LLM_OLLAMA_BASE_URL is required when an Ollama capability is enabled.");
   }
+
+  if (usesLlmProvider(config, "local-http") && config.llm.localHttp.baseUrl.trim() === "") {
+    throw new Error("MINDORY_LLM_LOCAL_HTTP_BASE_URL is required when a local HTTP capability is enabled.");
+  }
 }
 
 function usesLlmProvider(config: MindoryConfig, provider: LlmProvider): boolean {

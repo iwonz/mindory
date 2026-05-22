@@ -150,8 +150,9 @@ manifest-derived keyframes; the default remains `10`.
 
 The role/provider support matrix is centralized in `@mindory/llm` and the
 config catalog. `chat` and `text-embedding` have supported OpenAI-compatible
-adapters today; text embeddings also support Ollama. OCR, ASR, vision, image
-embeddings and face roles are experimental; generation roles are future. Any
+and local HTTP adapters today; text embeddings also support Ollama. OCR, ASR,
+vision, image embeddings and face roles are experimental; generation roles are
+future. Any
 enabled role or selected provider that is not
 `supported` requires `MINDORY_INSTALL_ALLOW_EXPERIMENTAL=true`, including
 answer-file and non-interactive installer runs.
@@ -214,7 +215,10 @@ MINDORY_LLM_OLLAMA_BASE_URL=http://ollama:11434
 ```
 
 `MINDORY_LLM_LOCAL_HTTP_BASE_URL` configures the optional local HTTP model
-service used by `local-http` roles. `MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS`
+service used by supported `chat` and `text-embedding` roles. The service must
+answer `GET /health`, `POST /chat/completions` and `POST /embeddings`; the
+SDK accepts OpenAI-compatible response shapes plus simple `{ text }`,
+`{ output }` and `{ embeddings }` bodies. `MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS`
 controls the default guardrail for future `local-command` adapters.
 
 Runtime consumers must obtain operation providers and role snapshots from
@@ -222,10 +226,12 @@ Runtime consumers must obtain operation providers and role snapshots from
 those snapshots are projected from the SDK registry rather than assembled from
 `config.llm` in each consumer.
 
-`@mindory/llm` also exposes an in-process `auditSink` hook. Current text
-embedding calls emit `success` or `failed` audit records when the sink is
+`@mindory/llm` also exposes an in-process `auditSink` hook. Current chat and
+text embedding calls emit `success` or `failed` audit records when the sink is
 provided; disabled role attempts emit `disabled` records through
-`disabledResult`. Database-backed audit persistence is not part of this task.
+`disabledResult`. The runtime also exposes provider health checks for local HTTP
+and Ollama services. Database-backed audit persistence is not part of this
+task.
 
 `MINDORY_VECTOR_PROVIDER` accepts `pgvector` or `qdrant`. `pgvector` is the
 default MVP runtime after `TASK-20`; Qdrant remains optional and profile-gated
