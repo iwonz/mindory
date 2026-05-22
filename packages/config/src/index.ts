@@ -551,6 +551,19 @@ function validateLlmConfig(config: MindoryConfig): void {
       throw new Error(`MINDORY_LLM_TEXT_EMBEDDING_DIMENSIONS must be ${PGVECTOR_EMBEDDING_DIMENSIONS} for the current pgvector MVP schema.`);
     }
   }
+  if (config.llm.imageEmbedding.enabled && config.vector.provider === "pgvector") {
+    const dimensions = config.llm.imageEmbedding.dimensions ?? PGVECTOR_EMBEDDING_DIMENSIONS;
+    if (dimensions !== PGVECTOR_EMBEDDING_DIMENSIONS) {
+      throw new Error(`MINDORY_LLM_IMAGE_EMBEDDING_DIMENSIONS must be ${PGVECTOR_EMBEDDING_DIMENSIONS} for the current pgvector artifact-vector schema.`);
+    }
+  }
+  if (config.llm.textEmbedding.enabled && config.llm.imageEmbedding.enabled) {
+    const textDimensions = config.llm.textEmbedding.dimensions ?? PGVECTOR_EMBEDDING_DIMENSIONS;
+    const imageDimensions = config.llm.imageEmbedding.dimensions ?? textDimensions;
+    if (imageDimensions !== textDimensions) {
+      throw new Error("MINDORY_LLM_IMAGE_EMBEDDING_DIMENSIONS must match MINDORY_LLM_TEXT_EMBEDDING_DIMENSIONS when both text and image vector search are enabled.");
+    }
+  }
 
   if (usesLlmProvider(config, "openai-compatible")) {
     if (config.llm.openaiCompatible.baseUrl.trim() === "") {

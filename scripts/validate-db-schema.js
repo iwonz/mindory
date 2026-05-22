@@ -10,6 +10,7 @@ const derivedMigrationPath = path.join(root, "packages/db/drizzle/0001_derived_a
 const routeJobMigrationPath = path.join(root, "packages/db/drizzle/0002_document_route_job.sql");
 const recomputeJobMigrationPath = path.join(root, "packages/db/drizzle/0003_document_recompute_job.sql");
 const artifactTextSearchMigrationPath = path.join(root, "packages/db/drizzle/0004_artifact_text_search.sql");
+const objectDetectionArtifactMigrationPath = path.join(root, "packages/db/drizzle/0005_object_detection_artifact_type.sql");
 const drizzleConfigPath = path.join(root, "packages/db/drizzle.config.ts");
 
 const requiredTables = [
@@ -142,6 +143,7 @@ assert(fs.existsSync(derivedMigrationPath), "packages/db/drizzle/0001_derived_ar
 assert(fs.existsSync(routeJobMigrationPath), "packages/db/drizzle/0002_document_route_job.sql is required.");
 assert(fs.existsSync(recomputeJobMigrationPath), "packages/db/drizzle/0003_document_recompute_job.sql is required.");
 assert(fs.existsSync(artifactTextSearchMigrationPath), "packages/db/drizzle/0004_artifact_text_search.sql is required.");
+assert(fs.existsSync(objectDetectionArtifactMigrationPath), "packages/db/drizzle/0005_object_detection_artifact_type.sql is required.");
 assert(fs.existsSync(drizzleConfigPath), "packages/db/drizzle.config.ts is required.");
 
 const rootPackage = JSON.parse(read("package.json"));
@@ -153,7 +155,8 @@ const migration = [
   fs.readFileSync(derivedMigrationPath, "utf8"),
   fs.readFileSync(routeJobMigrationPath, "utf8"),
   fs.readFileSync(recomputeJobMigrationPath, "utf8"),
-  fs.readFileSync(artifactTextSearchMigrationPath, "utf8")
+  fs.readFileSync(artifactTextSearchMigrationPath, "utf8"),
+  fs.readFileSync(objectDetectionArtifactMigrationPath, "utf8")
 ].join("\n");
 const drizzleConfig = fs.readFileSync(drizzleConfigPath, "utf8");
 
@@ -203,6 +206,7 @@ assert(migration.includes("embedding vector(512)"), "Face observations must supp
 assert(migration.includes("document_artifacts_has_payload"), "Document artifacts must require content, storage or source refs.");
 assert(migration.includes("document_metadata_index_has_value"), "Document metadata index rows must require a typed value.");
 assert(migration.includes("to_tsvector('simple', content)"), "Artifact text spans must have a full-text search index.");
+assert(migration.includes("'object_detection'"), "Document artifact enum must include object_detection.");
 assert(schema.includes("SourceRef"), "Schema must type SourceRef.");
 assert(schema.includes("SourceSnapshot"), "Schema must type SourceSnapshot.");
 assert(schema.includes("processingRuns"), "Schema must define processingRuns.");

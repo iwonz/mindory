@@ -52,6 +52,10 @@ const migrations = [
   {
     id: "0004_artifact_text_search",
     expectedTables: []
+  },
+  {
+    id: "0005_object_detection_artifact_type",
+    expectedTables: []
   }
 ];
 

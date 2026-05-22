@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-97",
+  "current_task_id": "TASK-98",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -719,7 +719,7 @@
     {
       "id": "TASK-98",
       "title": "Add image embeddings and object detection",
-      "status": "draft",
+      "status": "done",
       "branch": "task/TASK-98-image-embeddings-object-detection",
       "file": "tasks/TASK-98.json"
     },

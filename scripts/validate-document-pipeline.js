@@ -90,9 +90,11 @@ assert(documents.includes("this.antivirusPolicy.onInfected === \"quarantine\" ? 
 assert(documents.includes("this.antivirusPolicy.onScanFailure === \"allow_with_warning\" ? \"scan_failed\" : \"quarantined\""), "Sync scan must apply scan-failure policy.");
 assert(documents.includes("canRouteAfterUpload"), "Sync scan must route only clean or allowed-warning uploads.");
 
-for (const token of ["classifyDocumentFile", "planDocumentProcessingRoute", "\"text\"", "\"pdf\"", "\"image\"", "\"audio\"", "\"video\"", "pdf_extraction", "image_semantic_extraction", "audio_transcription", "video_keyframes", "processor_not_implemented"]) {
+for (const token of ["classifyDocumentFile", "planDocumentProcessingRoute", "\"text\"", "\"pdf\"", "\"image\"", "\"audio\"", "\"video\"", "pdf_extraction", "image_semantic_extraction", "audio_transcription", "video_keyframes"]) {
   assert(routing.includes(token), `Document routing module must include ${token}.`);
 }
+const removedMissingProcessorSkip = ["processor", "not", "implemented"].join("_");
+assert(!routing.includes(removedMissingProcessorSkip), "Document routing must not retain missing-processor skip reasons in supported routes.");
 for (const token of ["DocumentRecomputeService", "document.recompute", "processing_run_id", "raw_original_unchanged"]) {
   assert(recompute.includes(token), `Document recompute module must include ${token}.`);
 }

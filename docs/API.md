@@ -122,7 +122,8 @@ POST /v1/artifacts/search
 ```
 
 Artifact search scans current non-superseded derived text spans across extracted
-text, OCR, transcripts, captions, video keyframes and face observation spans.
+text, OCR, transcripts, captions, image object observations, video keyframes and
+face observation spans.
 It supports `artifactTypes`, `spanTypes`, `metadataFilters`, `projectIds`,
 optional `query` and `limit`, and returns artifact ids, source refs, source
 positions and span metadata. If `query` is omitted, callers must provide a
@@ -135,13 +136,14 @@ Registered unified multimodal search route:
 POST /v1/search
 ```
 
-Unified search combines document chunk search, derived artifact span search and
-face observation search. It accepts `targets` (`documents`, `artifacts`,
+Unified search combines document chunk search, derived artifact span search,
+image artifact-vector search and face observation search. It accepts `targets` (`documents`, `artifacts`,
 `faces`), `artifactTypes`, `spanTypes`, `faceIdentityStatuses`,
 `metadataFilters`, optional `query` and `limit`. Document hits use pgvector when
 text embeddings are configured and full-text fallback otherwise. Artifact hits
-cover OCR text, transcripts, captions, video keyframe descriptions and face
-observation spans. Face hits match workspace-scoped face identities and
+cover OCR text, transcripts, captions, image object observations,
+`image_embedding` vector hits, video keyframe descriptions and face observation
+spans. Face hits match workspace-scoped face identities and
 observations. Every hit includes `source_refs` and `source_position` where the
 underlying artifact has page, frame, timestamp, bounding box or confidence
 metadata.

@@ -76,6 +76,7 @@ for (const token of [
   "LocalCommandTextEmbeddingsProvider",
   "LocalCommandImageEmbeddingsProvider",
   "LocalCommandGenerationProvider",
+  "LocalHttpImageEmbeddingsProvider",
   "local_command_input_limit_exceeded",
   "local_command_output_limit_exceeded",
   "local_command_healthcheck_malformed_json",
@@ -106,6 +107,8 @@ for (const token of [
   "/health",
   "/ocr",
   "/vision/caption",
+  "/vision/objects",
+  "/embeddings/images",
   "/asr",
   "/faces/detect",
   "/faces/recognize",
@@ -117,6 +120,7 @@ for (const token of [
   "LlmAsrProvider",
   "LlmAsrOutput",
   "LlmVisionProvider",
+  "LlmObjectDetectionOutput",
   "LlmFaceProvider",
   "LlmFaceDetectionOutput",
   "LlmFaceRecognitionOutput",
@@ -177,6 +181,7 @@ for (const token of [
   "llmRoleProviderSupportStatus",
   "llmRoleEntries(\"CHAT\"",
   "llmRoleEntries(\"TEXT_EMBEDDING\"",
+  "llmRoleEntries(\"IMAGE_EMBEDDING\"",
   "llmRoleEntries(\"VISION_CAPTIONING\"",
   "llmRoleEntries(\"IMAGE_GENERATION\"",
   "llmRoleEntries(\"AUDIO_GENERATION\"",
@@ -369,6 +374,10 @@ const localConfig = loadMindoryConfig({
   MINDORY_LLM_TEXT_EMBEDDING_PROVIDER: "local-http",
   MINDORY_LLM_TEXT_EMBEDDING_MODEL: "local-embedding",
   MINDORY_LLM_TEXT_EMBEDDING_DIMENSIONS: "1536",
+  MINDORY_LLM_IMAGE_EMBEDDING_ENABLED: "true",
+  MINDORY_LLM_IMAGE_EMBEDDING_PROVIDER: "local-http",
+  MINDORY_LLM_IMAGE_EMBEDDING_MODEL: "local-image-embedding",
+  MINDORY_LLM_IMAGE_EMBEDDING_DIMENSIONS: "1536",
   MINDORY_LLM_OCR_ENABLED: "true",
   MINDORY_LLM_OCR_PROVIDER: "local-http",
   MINDORY_LLM_OCR_MODEL: "local-ocr",
@@ -399,6 +408,12 @@ const localRuntime = buildMindoryLlm(localConfig, {
         model: "local-embedding"
       }), { status: 200 });
     }
+    if (href.endsWith("/embeddings/images")) {
+      return new Response(JSON.stringify({
+        data: [{ index: 0, embedding: localEmbedding }],
+        model: "local-image-embedding"
+      }), { status: 200 });
+    }
     if (href.endsWith("/chat/completions")) {
       return new Response(JSON.stringify({
         text: "hello from local http",
@@ -419,6 +434,16 @@ const localRuntime = buildMindoryLlm(localConfig, {
       return new Response(JSON.stringify({
         caption: "local http vision caption",
         labels: ["passport", "airport"]
+      }), { status: 200 });
+    }
+    if (href.endsWith("/vision/objects")) {
+      return new Response(JSON.stringify({
+        labels: ["passport", "airport"],
+        objects: [{
+          label: "passport",
+          confidence: 0.97,
+          bounding_box: { x: 0.1, y: 0.2, width: 0.3, height: 0.4, unit: "ratio" }
+        }]
       }), { status: 200 });
     }
     if (href.endsWith("/asr")) {
@@ -445,6 +470,7 @@ const localRuntime = buildMindoryLlm(localConfig, {
 });
 assert(localRuntime.chat !== undefined, "Local HTTP chat provider must be built when chat is enabled.");
 assert(localRuntime.textEmbeddings !== undefined, "Local HTTP text embeddings provider must be built when text embeddings are enabled.");
+assert(localRuntime.imageEmbeddings !== undefined, "Local HTTP image embeddings provider must be built when image embeddings are enabled.");
 assert(localRuntime.ocr !== undefined, "Local HTTP OCR provider must be built when OCR is enabled.");
 assert(localRuntime.asr !== undefined, "Local HTTP ASR provider must be built when ASR is enabled.");
 assert(localRuntime.vision !== undefined, "Local HTTP vision provider must be built when vision captioning is enabled.");
@@ -459,6 +485,14 @@ assert(localChatResult.status === "success", "Local HTTP chat provider must retu
 assert(localChatResult.value?.text === "hello from local http", "Local HTTP chat provider must parse simple text output.");
 const localEmbeddingResult = await localRuntime.textEmbeddings.embedTexts({ texts: ["semantic text"] });
 assert(localEmbeddingResult[0]?.embedding.length === 1536, "Local HTTP embeddings provider must return 1536-dimensional embeddings.");
+const localImageEmbeddingResult = await localRuntime.imageEmbeddings.embedImages({
+  images: [{ bytes: new TextEncoder().encode("fake image bytes"), mimeType: "image/png" }]
+}, {
+  role: localRuntime.registry.require("image-embedding"),
+  refs: { documentId: "doc-local" }
+});
+assert(localImageEmbeddingResult.status === "success", "Local HTTP image embeddings provider must return success.");
+assert(localImageEmbeddingResult.value?.[0]?.length === 1536, "Local HTTP image embeddings provider must return 1536-dimensional embeddings.");
 const localOcrResult = await localRuntime.ocr.recognizeText({
   bytes: new TextEncoder().encode("fake pdf bytes"),
   mimeType: "application/pdf"
@@ -486,6 +520,16 @@ const localVisionResult = await localRuntime.vision.captionImage({
 });
 assert(localVisionResult.status === "success", "Local HTTP vision provider must return success.");
 assert(localVisionResult.value?.caption === "local http vision caption", "Local HTTP vision provider must parse caption text.");
+const localObjectResult = await localRuntime.vision.detectObjects({
+  bytes: new TextEncoder().encode("fake image bytes"),
+  mimeType: "image/png"
+}, {
+  role: localRuntime.registry.require("vision-captioning"),
+  refs: { documentId: "doc-local" }
+});
+assert(localObjectResult.status === "success", "Local HTTP object detection provider must return success.");
+assert(localObjectResult.value?.objects?.[0]?.label === "passport", "Local HTTP object detection provider must parse object labels.");
+assert(localObjectResult.value?.objects?.[0]?.boundingBox?.unit === "ratio", "Local HTTP object detection provider must parse object bounding boxes.");
 const localFaceDetectResult = await localRuntime.faces.detectFaces({
   bytes: new TextEncoder().encode("fake image bytes"),
   mimeType: "image/png"
@@ -505,9 +549,11 @@ const localFaceRecognitionResult = await localRuntime.faces.recognizeFaces({
 assert(localFaceRecognitionResult.status === "success", "Local HTTP face recognition provider must return success.");
 assert(localRequests.some((request) => request.url === "http://llm.local:8080/chat/completions"), "Local HTTP chat provider must call /chat/completions.");
 assert(localRequests.some((request) => request.url === "http://llm.local:8080/embeddings"), "Local HTTP embeddings provider must call /embeddings.");
+assert(localRequests.some((request) => request.url === "http://llm.local:8080/embeddings/images"), "Local HTTP image embeddings provider must call /embeddings/images.");
 assert(localRequests.some((request) => request.url === "http://llm.local:8080/ocr"), "Local HTTP OCR provider must call /ocr.");
 assert(localRequests.some((request) => request.url === "http://llm.local:8080/asr"), "Local HTTP ASR provider must call /asr.");
 assert(localRequests.some((request) => request.url === "http://llm.local:8080/vision/caption"), "Local HTTP vision provider must call /vision/caption.");
+assert(localRequests.some((request) => request.url === "http://llm.local:8080/vision/objects"), "Local HTTP object detection provider must call /vision/objects.");
 assert(localRequests.some((request) => request.url === "http://llm.local:8080/faces/detect"), "Local HTTP face detection provider must call /faces/detect.");
 assert(localRequests.some((request) => request.url === "http://llm.local:8080/faces/recognize"), "Local HTTP face recognition provider must call /faces/recognize.");
 const localHealth = await localRuntime.healthCheck("local-http");
@@ -518,6 +564,7 @@ assert(localRequests.some((request) => request.url === "http://llm.local:8080/he
 assert(localRequests.some((request) => request.url === "http://ollama.local:11434/api/tags"), "Ollama health check must call /api/tags.");
 assert(localAudits.some((audit) => audit.role === "chat" && audit.provider === "local-http" && audit.status === "success"), "Local HTTP chat must emit success audit.");
 assert(localAudits.some((audit) => audit.role === "text-embedding" && audit.provider === "local-http" && audit.status === "success"), "Local HTTP embeddings must emit success audit.");
+assert(localAudits.some((audit) => audit.role === "image-embedding" && audit.provider === "local-http" && audit.status === "success"), "Local HTTP image embeddings must emit success audit.");
 assert(localAudits.some((audit) => audit.role === "ocr" && audit.provider === "local-http" && audit.status === "success"), "Local HTTP OCR must emit success audit.");
 assert(localAudits.some((audit) => audit.role === "asr" && audit.provider === "local-http" && audit.status === "success"), "Local HTTP ASR must emit success audit.");
 assert(localAudits.some((audit) => audit.role === "vision-captioning" && audit.provider === "local-http" && audit.status === "success"), "Local HTTP vision must emit success audit.");
@@ -597,7 +644,7 @@ switch (request.operation) {
     send({ embeddings: [embedding1536] }, { embedding_dimensions: 1536 });
     break;
   case 'image_embeddings':
-    send({ embeddings: [[0.1, 0.2, 0.3]] }, { embedding_dimensions: 3, image_count: 1 });
+    send({ embeddings: [embedding1536] }, { embedding_dimensions: 1536, image_count: 1 });
     break;
   case 'ocr':
     send({ text: 'local command ocr', pages: [{ page_number: 1, text: 'local command ocr', confidence: 0.99 }] });
@@ -607,6 +654,9 @@ switch (request.operation) {
     break;
   case 'vision_caption':
     send({ caption: 'local command caption', labels: ['passport', 'airport'] }, { image_count: 1 });
+    break;
+  case 'object_detection':
+    send({ objects: [{ label: 'passport', confidence: 0.97, bounding_box: { x: 0.1, y: 0.2, width: 0.3, height: 0.4, unit: 'ratio' } }], labels: ['passport'] }, { image_count: 1 });
     break;
   case 'face_detection':
     send({ faces: [{ bounding_box: { x: 0.1, y: 0.2, width: 0.3, height: 0.4 }, embedding: [0.1, 0.2, 0.3], confidence: 0.99, label: 'face' }] }, { image_count: 1 });
@@ -637,7 +687,7 @@ const localCommandOperationConfig = loadMindoryConfig({
   MINDORY_LLM_IMAGE_EMBEDDING_ENABLED: "true",
   MINDORY_LLM_IMAGE_EMBEDDING_PROVIDER: "local-command",
   MINDORY_LLM_IMAGE_EMBEDDING_MODEL: "local-command-image-embedding",
-  MINDORY_LLM_IMAGE_EMBEDDING_DIMENSIONS: "3",
+  MINDORY_LLM_IMAGE_EMBEDDING_DIMENSIONS: "1536",
   MINDORY_LLM_OCR_ENABLED: "true",
   MINDORY_LLM_OCR_PROVIDER: "local-command",
   MINDORY_LLM_OCR_MODEL: "local-command-ocr",
@@ -678,10 +728,11 @@ assert(localCommandRuntime.faces !== undefined, "Local-command face provider mus
 assert(localCommandRuntime.generation !== undefined, "Local-command generation provider must be built.");
 assert((await localCommandRuntime.chat.generateChat({ messages: [{ role: "user", content: "hello" }] }, { role: localCommandRuntime.registry.require("chat") })).value?.text === "local command chat", "Local-command chat must parse text output.");
 assert((await localCommandRuntime.textEmbeddings.embedTexts({ texts: ["semantic"] }))[0]?.embedding.length === 1536, "Local-command text embeddings must parse embeddings.");
-assert((await localCommandRuntime.imageEmbeddings.embedImages({ images: [{ bytes: new TextEncoder().encode("image"), mimeType: "image/png" }] }, { role: localCommandRuntime.registry.require("image-embedding") })).value?.[0]?.length === 3, "Local-command image embeddings must parse image vectors.");
+assert((await localCommandRuntime.imageEmbeddings.embedImages({ images: [{ bytes: new TextEncoder().encode("image"), mimeType: "image/png" }] }, { role: localCommandRuntime.registry.require("image-embedding") })).value?.[0]?.length === 1536, "Local-command image embeddings must parse image vectors.");
 assert((await localCommandRuntime.ocr.recognizeText({ bytes: new TextEncoder().encode("pdf"), mimeType: "application/pdf" }, { role: localCommandRuntime.registry.require("ocr") })).value?.text === "local command ocr", "Local-command OCR must parse text.");
 assert((await localCommandRuntime.asr.transcribe({ bytes: new TextEncoder().encode("audio"), mimeType: "audio/wav" }, { role: localCommandRuntime.registry.require("asr") })).value?.segments?.[0]?.text === "local command transcript", "Local-command ASR must parse segments.");
 assert((await localCommandRuntime.vision.captionImage({ bytes: new TextEncoder().encode("image"), mimeType: "image/png" }, { role: localCommandRuntime.registry.require("vision-captioning") })).value?.labels?.includes("passport"), "Local-command vision must parse labels.");
+assert((await localCommandRuntime.vision.detectObjects({ bytes: new TextEncoder().encode("image"), mimeType: "image/png" }, { role: localCommandRuntime.registry.require("vision-captioning") })).value?.objects?.[0]?.label === "passport", "Local-command object detection must parse object labels.");
 assert((await localCommandRuntime.faces.detectFaces({ bytes: new TextEncoder().encode("image"), mimeType: "image/png" }, { role: localCommandRuntime.registry.require("face-detection") })).value?.faces?.[0]?.embedding?.length === 3, "Local-command face detection must parse faces.");
 assert((await localCommandRuntime.faces.recognizeFaces({ bytes: new TextEncoder().encode("image"), mimeType: "image/png" }, { role: localCommandRuntime.registry.require("face-recognition") })).value?.identityIds?.[0] === "identity-1", "Local-command face recognition must parse identities.");
 assert((await localCommandRuntime.generation.generateImage({ prompt: "draw" }, { role: localCommandRuntime.registry.require("image-generation") })).value?.mimeType === "image/png", "Local-command image generation must parse generated image bytes.");

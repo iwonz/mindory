@@ -27,8 +27,8 @@ import { ClamAvScanner } from "@mindory/processor-antivirus-clamav";
 import { BullMqProcessingJobQueue } from "@mindory/queue-bullmq";
 import { LocalFsObjectStorage } from "@mindory/storage-local-fs";
 import { S3ObjectStorage } from "@mindory/storage-s3";
-import { PgVectorChunkIndex, PgVectorDocumentChunkSearchRepository } from "@mindory/vector-pgvector";
-import { QdrantDocumentChunkSearchRepository, QdrantVectorIndex } from "@mindory/vector-qdrant";
+import { PgVectorArtifactSearchRepository, PgVectorChunkIndex, PgVectorDocumentChunkSearchRepository } from "@mindory/vector-pgvector";
+import { QdrantArtifactSearchRepository, QdrantDocumentChunkSearchRepository, QdrantVectorIndex } from "@mindory/vector-qdrant";
 import type { BuildApiAppOptions } from "./app.js";
 
 export interface ApiRuntimeDependencies extends Pick<
@@ -48,7 +48,8 @@ export function buildApiRuntimeDependencies(config: MindoryConfig): ApiRuntimeDe
   const sessionRepository = new DbSessionRepository(database.db);
   const documentRepository = new DbDocumentRepository(database.db);
   const artifactRepository = new DbDerivedArtifactRepository(database.db);
-  const chunkSearchRepository = buildDocumentChunkSearchRepository(config, database.db);
+  const vectorSearch = buildVectorSearchRepositories(config, database.db);
+  const chunkSearchRepository = vectorSearch.documentRepository;
   const memoryRepository = new DbMemoryRepository(database.db);
   const processingJobStore = new DbProcessingJobStore(database.db, () => `job_${randomUUID()}`);
   const jobDispatcher = new ProcessingJobDispatcher({
@@ -127,7 +128,8 @@ export function buildApiRuntimeDependencies(config: MindoryConfig): ApiRuntimeDe
     search: {
       unifiedSearchService: new UnifiedSearchService({
         documentRepository: chunkSearchRepository,
-        artifactRepository
+        artifactRepository,
+        ...(vectorSearch.artifactRepository === undefined ? {} : { artifactVectorRepository: vectorSearch.artifactRepository })
       })
     },
     context: {
@@ -171,24 +173,41 @@ function buildObjectStorage(config: MindoryConfig): ObjectStorage {
   });
 }
 
-function buildDocumentChunkSearchRepository(config: MindoryConfig, db: MindoryDatabase): DocumentChunkSearchRepository {
+function buildVectorSearchRepositories(config: MindoryConfig, db: MindoryDatabase): {
+  documentRepository: DocumentChunkSearchRepository;
+  artifactRepository?: PgVectorArtifactSearchRepository | QdrantArtifactSearchRepository;
+} {
   const embeddings = buildEmbeddingsProvider(config);
   if (!embeddings) {
-    return new DbDocumentChunkSearchRepository(db);
+    return {
+      documentRepository: new DbDocumentChunkSearchRepository(db)
+    };
   }
 
   const vectorIndex = buildVectorIndex(config, db);
   if (vectorIndex.provider === "qdrant") {
-    return new QdrantDocumentChunkSearchRepository({
-      embeddings,
-      vectorIndex
-    });
+    return {
+      documentRepository: new QdrantDocumentChunkSearchRepository({
+        embeddings,
+        vectorIndex
+      }),
+      artifactRepository: new QdrantArtifactSearchRepository({
+        embeddings,
+        vectorIndex
+      })
+    };
   }
 
-  return new PgVectorDocumentChunkSearchRepository({
-    embeddings,
-    vectorIndex
-  });
+  return {
+    documentRepository: new PgVectorDocumentChunkSearchRepository({
+      embeddings,
+      vectorIndex
+    }),
+    artifactRepository: new PgVectorArtifactSearchRepository({
+      embeddings,
+      vectorIndex
+    })
+  };
 }
 
 function buildEmbeddingsProvider(config: MindoryConfig): EmbeddingsProvider | undefined {
@@ -196,7 +215,7 @@ function buildEmbeddingsProvider(config: MindoryConfig): EmbeddingsProvider | un
 }
 
 function buildVectorIndex(config: MindoryConfig, db: MindoryDatabase): PgVectorChunkIndex | QdrantVectorIndex {
-  const dimensions = config.llm.textEmbedding.dimensions ?? PGVECTOR_EMBEDDING_DIMENSIONS;
+  const dimensions = configuredVectorDimensions(config);
   if (config.vector.provider === "qdrant") {
     return new QdrantVectorIndex({
       url: config.vector.qdrantUrl,
@@ -209,4 +228,14 @@ function buildVectorIndex(config: MindoryConfig, db: MindoryDatabase): PgVectorC
     db,
     dimensions
   });
+}
+
+function configuredVectorDimensions(config: MindoryConfig): number {
+  const textDimensions = config.llm.textEmbedding.enabled
+    ? config.llm.textEmbedding.dimensions ?? PGVECTOR_EMBEDDING_DIMENSIONS
+    : null;
+  const imageDimensions = config.llm.imageEmbedding.enabled
+    ? config.llm.imageEmbedding.dimensions ?? textDimensions ?? PGVECTOR_EMBEDDING_DIMENSIONS
+    : null;
+  return textDimensions ?? imageDimensions ?? PGVECTOR_EMBEDDING_DIMENSIONS;
 }

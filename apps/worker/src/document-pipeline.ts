@@ -30,6 +30,7 @@ import {
   ProcessingError,
   type DocumentChunkRepository,
   type EmbeddingsProvider,
+  type ExtractedArtifactVector,
   type ExtractedFaceObservation,
   type ExtractedSemanticArtifact,
   type ExtractedTextPage,
@@ -120,6 +121,7 @@ export function buildDocumentPipelineProcessors(options: DocumentPipelineProcess
       artifacts: options.artifacts,
       jobs: options.jobs,
       extractors,
+      vectorIndex: options.vectorIndex,
       nextProcessorVersion: chunker.version,
       processorVersion: extractProcessorVersion
     }),
@@ -214,6 +216,7 @@ function imageSemanticExtractorOptions(llm: MindoryLlm): ImageSemanticExtractorO
     ocr: llmRoleState(llm, "ocr"),
     ocrRole: llm.registry.require("ocr"),
     visionRole: llm.registry.require("vision-captioning"),
+    imageEmbeddingRole: llm.registry.require("image-embedding"),
     faceDetectionRole: llm.registry.require("face-detection"),
     faceRecognitionRole: llm.registry.require("face-recognition")
   };
@@ -222,6 +225,9 @@ function imageSemanticExtractorOptions(llm: MindoryLlm): ImageSemanticExtractorO
   }
   if (llm.vision !== undefined) {
     options.visionProvider = llm.vision;
+  }
+  if (llm.imageEmbeddings !== undefined) {
+    options.imageEmbeddingProvider = llm.imageEmbeddings;
   }
   if (llm.faces !== undefined) {
     options.faceProvider = llm.faces;
@@ -561,6 +567,7 @@ class DocumentExtractProcessor implements ProcessingJobProcessor {
   private readonly artifacts: DerivedArtifactRepository;
   private readonly jobs: ProcessingJobDispatcher;
   private readonly extractors: TextExtractor[];
+  private readonly vectorIndex: VectorIndex | undefined;
   private readonly nextProcessorVersion: string;
 
   constructor(options: {
@@ -569,6 +576,7 @@ class DocumentExtractProcessor implements ProcessingJobProcessor {
     artifacts: DerivedArtifactRepository;
     jobs: ProcessingJobDispatcher;
     extractors: TextExtractor[];
+    vectorIndex: VectorIndex | undefined;
     nextProcessorVersion: string;
     processorVersion: string;
   }) {
@@ -577,6 +585,7 @@ class DocumentExtractProcessor implements ProcessingJobProcessor {
     this.artifacts = options.artifacts;
     this.jobs = options.jobs;
     this.extractors = options.extractors;
+    this.vectorIndex = options.vectorIndex;
     this.nextProcessorVersion = options.nextProcessorVersion;
     this.processorVersion = options.processorVersion;
   }
@@ -687,6 +696,7 @@ class DocumentExtractProcessor implements ProcessingJobProcessor {
     });
     const semanticArtifacts = await createExtractedSemanticArtifacts({
       artifacts: this.artifacts,
+      ...(this.vectorIndex === undefined ? {} : { vectorIndex: this.vectorIndex }),
       document,
       processingRunId,
       textArtifactId,
@@ -1236,6 +1246,8 @@ interface ExtractedSemanticArtifactRef {
   text_span_id?: string;
   artifact_type: string;
   span_type: string;
+  vector_embedding_id?: string;
+  vector_dimensions?: number;
 }
 
 interface ExtractedTranscriptSegmentRef {
@@ -1363,6 +1375,7 @@ async function createExtractedPageArtifacts(input: {
 
 async function createExtractedSemanticArtifacts(input: {
   artifacts: DerivedArtifactRepository;
+  vectorIndex?: VectorIndex;
   document: DocumentRecord;
   processingRunId: string;
   textArtifactId: string;
@@ -1372,6 +1385,9 @@ async function createExtractedSemanticArtifacts(input: {
   configFingerprint: string;
 }): Promise<ExtractedSemanticArtifactRef[]> {
   const refs: ExtractedSemanticArtifactRef[] = [];
+  if (input.vectorIndex !== undefined && input.semanticArtifacts.some((artifact) => artifact.vector !== undefined && artifact.vector !== null)) {
+    await input.vectorIndex.deleteDocumentArtifactVectors(input.document.projectId, input.document.id);
+  }
   for (const [index, semanticArtifact] of input.semanticArtifacts.entries()) {
     const artifactIndex = semanticArtifact.artifactIndex ?? index;
     const artifactId = deterministicArtifactId(input.processingRunId, semanticArtifact.artifactType, artifactIndex);
@@ -1438,15 +1454,76 @@ async function createExtractedSemanticArtifacts(input: {
         }
       }]
     });
-    refs.push({
+    const vectorResult = semanticArtifact.vector
+      ? await upsertSemanticArtifactVector({
+        ...(input.vectorIndex === undefined ? {} : { vectorIndex: input.vectorIndex }),
+        document: input.document,
+        artifactId,
+        artifactType: semanticArtifact.artifactType,
+        content: semanticArtifact.content,
+        vector: semanticArtifact.vector,
+        metadata: {
+          ...(semanticArtifact.metadata ?? {}),
+          processing_run_id: input.processingRunId,
+          artifact_id: artifactId,
+          text_artifact_id: input.textArtifactId,
+          source_refs: [
+            { type: "document", id: input.document.id },
+            { type: "processing_run", id: input.processingRunId },
+            { type: "artifact", id: input.textArtifactId },
+            { type: "artifact", id: artifactId }
+          ]
+        }
+      })
+      : undefined;
+    const semanticRef: ExtractedSemanticArtifactRef = {
       artifact_id: artifactId,
       text_span_id: textSpanId,
       artifact_type: semanticArtifact.artifactType,
       span_type: spanType
-    });
+    };
+    if (vectorResult !== undefined && semanticArtifact.vector !== undefined && semanticArtifact.vector !== null) {
+      semanticRef.vector_embedding_id = vectorResult.embeddingId;
+      semanticRef.vector_dimensions = semanticArtifact.vector.dimensions;
+    }
+    refs.push(semanticRef);
   }
 
   return refs;
+}
+
+async function upsertSemanticArtifactVector(input: {
+  vectorIndex?: VectorIndex;
+  document: DocumentRecord;
+  artifactId: string;
+  artifactType: ExtractedSemanticArtifact["artifactType"];
+  content: string;
+  vector: ExtractedArtifactVector;
+  metadata: Record<string, unknown>;
+}): Promise<{ embeddingId: string; artifactId: string } | undefined> {
+  if (input.vectorIndex === undefined) {
+    return undefined;
+  }
+  const [result] = await input.vectorIndex.upsertArtifactVectors({
+    artifacts: [{
+      projectId: input.document.projectId,
+      documentId: input.document.id,
+      artifactId: input.artifactId,
+      artifactType: input.artifactType,
+      content: input.content,
+      embedding: input.vector.embedding,
+      model: input.vector.model,
+      dimensions: input.vector.dimensions,
+      metadata: {
+        ...input.metadata,
+        vector_provider: input.vector.provider ?? null,
+        vector_model: input.vector.model,
+        vector_dimensions: input.vector.dimensions,
+        ...(input.vector.metadata ?? {})
+      }
+    }]
+  });
+  return result;
 }
 
 async function createExtractedTranscriptArtifacts(input: {

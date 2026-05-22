@@ -67,7 +67,7 @@ All model operations must go through `@mindory/llm`.
 | Chat | Supported SDK adapter | OpenAI-compatible API-key/OAuth modes plus local HTTP and local-command chat are implemented in `@mindory/llm`; product flows do not require chat by default. |
 | Local-command provider | Supported/experimental by role | `@mindory/llm` and installer execute configured healthchecks, and runtime operations cover chat, text/image embeddings, OCR, ASR, vision, face detection/recognition, image generation and audio generation through stdin/stdout JSON. |
 | OCR | Experimental role, supported PDF/image paths | Scanned-PDF and image OCR run through `@mindory/llm` local HTTP or local-command OCR when enabled. |
-| Vision captioning and image embeddings | Experimental | Image vision captioning runs through `@mindory/llm` local HTTP or local-command when enabled; image embeddings can run through local-command. |
+| Vision captioning, object detection and image embeddings | Experimental | Image vision captioning, object detection and image embeddings run through `@mindory/llm` local HTTP or local-command when enabled; image vectors are indexed through the selected vector backend. |
 | ASR | Experimental | Audio ASR runs through `@mindory/llm` local HTTP or local-command when enabled; embedded WAV transcript fallback remains supported. |
 | Face detection and recognition | Experimental | Local HTTP and local-command face detection/recognition run through `@mindory/llm` when enabled; observations remain workspace-scoped and auto-matched by threshold. |
 | Image/audio generation | Experimental SDK role | Local-command image/audio generation returns typed bytes and MIME metadata through `@mindory/llm`. |

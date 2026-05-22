@@ -2,8 +2,9 @@
 
 `@mindory/llm` is the single runtime entrypoint for Mindory subsystems
 that need model-backed capabilities. Current runtime use includes text
-embeddings for document indexing/query-time semantic search, PDF/image OCR,
-image vision captioning, audio ASR and image face detection/recognition. The
+embeddings for document indexing/query-time semantic search, image artifact
+embeddings, PDF/image OCR, image vision captioning, image object detection,
+audio ASR and image face detection/recognition. The
 same module owns the role registry for chat, text embeddings, image embeddings,
 OCR, ASR, vision captioning, face detection, face recognition, image generation
 and audio generation.
@@ -223,8 +224,8 @@ The response is one JSON object on stdout:
 ```
 
 Supported operation names are `chat`, `text_embeddings`, `image_embeddings`,
-`ocr`, `asr`, `vision_caption`, `face_detection`, `face_recognition`,
-`image_generation` and `audio_generation`. Binary inputs are passed as
+`ocr`, `asr`, `vision_caption`, `object_detection`, `face_detection`,
+`face_recognition`, `image_generation` and `audio_generation`. Binary inputs are passed as
 `data_base64` plus `mime_type`; generated image/audio operations return
 `data_base64` with `mime_type`. `MINDORY_LLM_LOCAL_COMMAND_MAX_INPUT_BYTES`
 and `MINDORY_LLM_LOCAL_COMMAND_MAX_OUTPUT_BYTES` bound stdin and stdout/stderr.
@@ -232,7 +233,8 @@ and `MINDORY_LLM_LOCAL_COMMAND_MAX_OUTPUT_BYTES` bound stdin and stdout/stderr.
 OCR, vision captioning, ASR and face roles remain experimental and require
 `MINDORY_INSTALL_ALLOW_EXPERIMENTAL=true` when enabled. The scanned-PDF
 pipeline uses the local HTTP OCR contract for pages without native PDF text.
-The image pipeline uses local HTTP OCR and vision captioning to derive
+The image pipeline uses local HTTP OCR, image embeddings, vision captioning and
+object detection to derive
 searchable OCR text, captions and labels without changing RAW originals.
 The audio pipeline uses local HTTP ASR to derive searchable transcript segments
 with time refs.

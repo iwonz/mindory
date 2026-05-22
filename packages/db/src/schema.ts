@@ -128,6 +128,7 @@ export const documentArtifactTypeEnum = pgEnum("document_artifact_type", [
   "image_caption",
   "image_analysis",
   "image_embedding",
+  "object_detection",
   "pdf_page",
   "video_keyframe",
   "face_observation",

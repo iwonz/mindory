@@ -48,6 +48,21 @@ const server = http.createServer(async (request, response) => {
       return;
     }
 
+    if (request.method === "POST" && url.pathname === "/embeddings/images") {
+      const body = await readJson(request);
+      const model = stringOrDefault(body.model, "mindory-local-image-embedding");
+      const images = Array.isArray(body.images) ? body.images : [];
+      const dimensions = positiveInteger(body.dimensions, defaultDimensions);
+      writeJson(response, 200, {
+        model,
+        data: images.map((image, index) => ({
+          index,
+          embedding: deterministicEmbedding(`${image?.mime_type ?? "image"}:${image?.data_base64 ?? ""}`, model, dimensions)
+        }))
+      });
+      return;
+    }
+
     if (request.method === "POST" && url.pathname === "/ocr") {
       const body = await readJson(request);
       const model = stringOrDefault(body.model, "mindory-local-ocr");
@@ -73,6 +88,33 @@ const server = http.createServer(async (request, response) => {
         model,
         caption: "Local deterministic vision caption: image contains a document, nature and people.",
         labels: ["document", "nature", "people", "local-vision"]
+      });
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/vision/objects") {
+      const body = await readJson(request);
+      const model = stringOrDefault(body.model, "mindory-local-vision");
+      writeJson(response, 200, {
+        model,
+        labels: ["document", "nature", "people"],
+        objects: [
+          {
+            label: "document",
+            confidence: 0.96,
+            bounding_box: { x: 0.14, y: 0.18, width: 0.38, height: 0.42, unit: "ratio" }
+          },
+          {
+            label: "person",
+            confidence: 0.92,
+            bounding_box: { x: 0.62, y: 0.16, width: 0.18, height: 0.44, unit: "ratio" }
+          },
+          {
+            label: "nature",
+            confidence: 0.88,
+            bounding_box: { x: 0.02, y: 0.58, width: 0.94, height: 0.34, unit: "ratio" }
+          }
+        ]
       });
       return;
     }

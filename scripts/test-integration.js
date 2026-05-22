@@ -252,6 +252,10 @@ test("MVP runtime integration covers auth, upload, worker jobs and context", { t
     MINDORY_LLM_VISION_CAPTIONING_ENABLED: "true",
     MINDORY_LLM_VISION_CAPTIONING_PROVIDER: "local-http",
     MINDORY_LLM_VISION_CAPTIONING_MODEL: "mindory-test-vision",
+    MINDORY_LLM_IMAGE_EMBEDDING_ENABLED: "true",
+    MINDORY_LLM_IMAGE_EMBEDDING_PROVIDER: "local-http",
+    MINDORY_LLM_IMAGE_EMBEDDING_MODEL: "mindory-test-image-embedding",
+    MINDORY_LLM_IMAGE_EMBEDDING_DIMENSIONS: "1536",
     MINDORY_LLM_ASR_ENABLED: "true",
     MINDORY_LLM_ASR_PROVIDER: "local-http",
     MINDORY_LLM_ASR_MODEL: "mindory-test-asr",
@@ -544,6 +548,7 @@ test("MVP runtime integration indexes and searches document chunks with Qdrant",
 test("Qdrant vector adapter bootstraps collection and searches chunks", { timeout: 60_000 }, async () => {
   const collectionPrefix = `mindory_${testRunId}`;
   const collectionName = `${collectionPrefix}_document_chunks`;
+  const artifactCollectionName = `${collectionPrefix}_document_artifacts`;
   const index = new modules.QdrantVectorIndex({
     url: qdrantUrl,
     collectionPrefix,
@@ -555,6 +560,7 @@ test("Qdrant vector adapter bootstraps collection and searches chunks", { timeou
     const health = await index.healthcheck();
     assert.equal(health.ok, true);
     assert.equal(health.collectionName, collectionName);
+    assert.equal(health.artifactCollectionName, artifactCollectionName);
 
     const upserted = await index.upsertDocumentChunks({
       chunks: [
@@ -625,6 +631,34 @@ test("Qdrant vector adapter bootstraps collection and searches chunks", { timeou
     });
     assert.deepEqual(filteredHits.map((hit) => hit.chunkId), ["chunk_qdrant_1"]);
 
+    const upsertedArtifacts = await index.upsertArtifactVectors({
+      artifacts: [{
+        projectId,
+        documentId,
+        artifactId: "artifact_image_vector_1",
+        artifactType: "image_embedding",
+        content: "Image embedding artifact for passport object search.",
+        embedding: [1, 0, 0, 0],
+        model: "mindory-test-image-vector",
+        dimensions: 4,
+        metadata: {
+          source_refs: [{ type: "artifact", id: "artifact_image_vector_1" }],
+          category: "image",
+          object_label: "passport"
+        }
+      }]
+    });
+    assert.equal(upsertedArtifacts[0]?.artifactId, "artifact_image_vector_1");
+    const artifactVectorHits = await index.searchArtifactVectors({
+      projectIds: [projectId],
+      embedding: [1, 0, 0, 0],
+      artifactTypes: ["image_embedding"],
+      limit: 5
+    });
+    assert.equal(artifactVectorHits[0]?.artifactId, "artifact_image_vector_1");
+    assert.equal(artifactVectorHits[0]?.artifactType, "image_embedding");
+    assert.deepEqual(artifactVectorHits[0]?.metadata.source_refs, [{ type: "artifact", id: "artifact_image_vector_1" }]);
+
     await index.deleteDocumentChunks(projectId, documentId);
     const afterDelete = await index.searchDocumentChunks({
       projectIds: [projectId],
@@ -632,8 +666,17 @@ test("Qdrant vector adapter bootstraps collection and searches chunks", { timeou
       limit: 5
     });
     assert.equal(afterDelete.length, 0);
+    await index.deleteDocumentArtifactVectors(projectId, documentId);
+    const afterArtifactDelete = await index.searchArtifactVectors({
+      projectIds: [projectId],
+      embedding: [1, 0, 0, 0],
+      artifactTypes: ["image_embedding"],
+      limit: 5
+    });
+    assert.equal(afterArtifactDelete.length, 0);
   } finally {
     await deleteQdrantCollection(qdrantUrl, collectionName);
+    await deleteQdrantCollection(qdrantUrl, artifactCollectionName);
   }
 });
 
@@ -984,6 +1027,8 @@ async function uploadAndProcessImageDocument(apiUrl) {
   assert.equal(document.metadata.extraction.image_semantic, true);
   assert.equal(document.metadata.extraction.capabilities.ocr.status, "provider_ocr");
   assert.equal(document.metadata.extraction.capabilities.image_captioning.status, "provider_caption");
+  assert.equal(document.metadata.extraction.capabilities.image_embedding.status, "provider_embedded");
+  assert.equal(document.metadata.extraction.capabilities.object_detection.status, "provider_detected");
   assert.equal(document.metadata.extraction.capabilities.face_detection.status, "provider_detected");
   assert.equal(document.metadata.extraction.capabilities.face_recognition.status, "provider_recognized");
 
@@ -1002,9 +1047,12 @@ async function uploadAndProcessImageDocument(apiUrl) {
   assert.equal(await countDocumentArtifacts(projectId, documentId, "image_caption", databaseUrl), 1);
   assert.equal(await countDocumentArtifacts(projectId, documentId, "image_analysis", databaseUrl), 1);
   assert.equal(await countDocumentArtifacts(projectId, documentId, "image_embedding", databaseUrl), 1);
+  assert.equal(await countDocumentArtifacts(projectId, documentId, "object_detection", databaseUrl), 1);
   assert.equal(await countDocumentArtifacts(projectId, documentId, "ocr_text", databaseUrl), 1);
+  assert.equal(await countDocumentArtifactVectors(projectId, documentId, databaseUrl), 1);
   assert.equal(await countDocumentTextSpans(projectId, documentId, "image_caption", databaseUrl), 1);
   assert.equal(await countDocumentTextSpans(projectId, documentId, "image_analysis", databaseUrl), 1);
+  assert.equal(await countDocumentTextSpans(projectId, documentId, "object_detection", databaseUrl), 1);
   assert.equal(await countDocumentTextSpans(projectId, documentId, "ocr_text", databaseUrl), 1);
 
   return {
@@ -1199,7 +1247,7 @@ async function assertUnifiedArtifactSearch(apiUrl, input) {
     projectIds: [projectId],
     query: "passport airport",
     targets: ["documents", "artifacts"],
-    artifactTypes: ["ocr_text", "image_caption", "image_analysis"],
+    artifactTypes: ["ocr_text", "image_caption", "image_analysis", "object_detection", "image_embedding"],
     limit: 20,
     metadataFilters: [{ key: "extension", valueText: "png" }]
   });
@@ -1764,6 +1812,20 @@ async function countDocumentTextSpans(id, documentId, spanType, connectionString
   }
 }
 
+async function countDocumentArtifactVectors(id, documentId, connectionString) {
+  const client = new Client({ connectionString });
+  await client.connect();
+  try {
+    const result = await client.query(
+      "select count(*)::int as count from document_artifact_vectors where project_id = $1 and document_id = $2",
+      [id, documentId]
+    );
+    return Number(result.rows[0]?.count ?? 0);
+  } finally {
+    await client.end();
+  }
+}
+
 async function countDocumentMetadataIndexRows(id, documentId, connectionString) {
   const client = new Client({ connectionString });
   await client.connect();
@@ -1844,7 +1906,7 @@ function startOpenAiCompatibleEmbeddingServer(options) {
 function startLocalHttpOcrServer(options) {
   const calls = [];
   const server = http.createServer(async (request, response) => {
-    if (request.method !== "POST" || !["/ocr", "/vision/caption", "/asr", "/faces/detect", "/faces/recognize"].includes(request.url ?? "")) {
+    if (request.method !== "POST" || !["/ocr", "/vision/caption", "/vision/objects", "/embeddings/images", "/asr", "/faces/detect", "/faces/recognize"].includes(request.url ?? "")) {
       response.writeHead(404, { "content-type": "application/json" });
       response.end(JSON.stringify({ error: "not_found" }));
       return;
@@ -1861,6 +1923,30 @@ function startLocalHttpOcrServer(options) {
           model: body.model ?? "mindory-test-vision",
           caption: frameCaption.caption ?? options.visionCaption,
           labels: frameCaption.labels ?? options.labels
+        }));
+        return;
+      }
+      if (request.url === "/vision/objects") {
+        const frameText = decodeBase64Text(body.data_base64);
+        const frameCaption = videoFrameCaption(frameText);
+        const labels = frameCaption.labels ?? options.labels;
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(JSON.stringify({
+          model: body.model ?? "mindory-test-vision",
+          labels,
+          objects: [{
+            label: labels[0] ?? "passport",
+            confidence: 0.97,
+            bounding_box: { x: 0.1, y: 0.2, width: 0.3, height: 0.4, unit: "ratio" }
+          }]
+        }));
+        return;
+      }
+      if (request.url === "/embeddings/images") {
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(JSON.stringify({
+          model: body.model ?? "mindory-test-image-embedding",
+          data: [{ index: 0, embedding: deterministicEmbedding("image artifact vector", 1536) }]
         }));
         return;
       }
