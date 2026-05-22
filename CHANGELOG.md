@@ -20,6 +20,8 @@ documentation.
 
 ### Added
 
+- `TASK-86`: public self-host acceptance gate for installer, runtime,
+  backup/restore, CLI, MCP, Hermes and uninstall flows.
 - `TASK-85`: installer runtime backup/restore commands for config, installer
   metadata, PostgreSQL dumps and local object storage state.
 - `TASK-84`: observability baseline with structured log helpers, model audit

@@ -38,6 +38,7 @@ const checks = [
   ["hermes:harness", "scripts/smoke-hermes-runtime-harness.js"],
   ["mvp:demo:validate", "scripts/validate-mvp-demo.js"],
   ["mvp:acceptance", "scripts/mvp-acceptance.js"],
+  ["selfhost:acceptance", "scripts/selfhost-acceptance.js"],
   ["test", "scripts/test-integration.js"],
   ["tasks:validate", "scripts/validate-tasks.js"]
 ];

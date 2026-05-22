@@ -1,0 +1,65 @@
+{
+  "id": "TASK-86",
+  "title": "Add public self-host acceptance gate",
+  "status": "done",
+  "type": "feature",
+  "priority": "high",
+  "branch": "task/TASK-86-public-self-host-acceptance",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Add a final public-ready self-host acceptance command that ties together installer, runtime, backup, CLI, MCP, Hermes and uninstall checks.",
+    "background": "Mindory now has the runnable local MVP, installer, public repository hygiene, real model adapters, multimodal pipelines, S3 storage and backup/restore. The final public gate should make the supported self-host path explicit and reproducible."
+  },
+  "scope": {
+    "in": [
+      "Add a self-host acceptance script with a dry-run default and an opt-in live Docker mode.",
+      "Dry-run validation must cover clean temp home, installer plan/prepare, disabled/local model modes, upload fixtures, jobs, search/context, CLI, MCP, Hermes, backup and uninstall steps.",
+      "Live mode must run installer startup against a temporary MINDORY_HOME, run MVP acceptance, create a backup, stop the stack and uninstall.",
+      "Document the final public self-host acceptance commands and support boundaries.",
+      "Update repository status, support matrix, changelog and validation gates."
+    ],
+    "out": [
+      "Publishing a real GitHub release.",
+      "Remote release update execution.",
+      "Mandatory live Docker acceptance in the default pnpm check path.",
+      "Official Hermes SDK certification.",
+      "Production SaaS operations."
+    ]
+  },
+  "acceptance_criteria": [
+    "Root package exposes a public self-host acceptance command.",
+    "Default self-host acceptance runs without Docker mutation outside a temporary MINDORY_HOME.",
+    "The acceptance script documents and validates the full supported public flow: install, disabled/local model modes, upload fixtures, jobs, search/context, CLI, MCP, Hermes, backup and uninstall.",
+    "Opt-in live mode can run installer start, MVP acceptance, backup, stack reset and uninstall in a temporary home.",
+    "Docs describe this command as the public-ready gate and keep production-grade gaps as future work.",
+    "pnpm check passes."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm selfhost:acceptance",
+      "pnpm production:validate",
+      "pnpm public:validate",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-86.",
+      "Confirm live acceptance remains opt-in and does not run by default in pnpm check.",
+      "Confirm docs do not claim SaaS-grade production readiness."
+    ]
+  },
+  "dependencies": [
+    "TASK-85"
+  ],
+  "risks": [
+    "Live self-host acceptance can be slow because it may build images and start Docker Compose.",
+    "Local model profile acceptance depends on available Docker resources.",
+    "The public gate must be explicit about what is supported versus future production operations."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to done.",
+    "Branch is committed and merged back into master."
+  ]
+}

@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-85",
+  "current_task_id": "TASK-86",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -631,6 +631,13 @@
       "status": "done",
       "branch": "task/TASK-85-backup-restore-mvp",
       "file": "tasks/TASK-85.json"
+    },
+    {
+      "id": "TASK-86",
+      "title": "Add public self-host acceptance gate",
+      "status": "done",
+      "branch": "task/TASK-86-public-self-host-acceptance",
+      "file": "tasks/TASK-86.json"
     }
   ]
 }

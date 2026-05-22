@@ -8,11 +8,11 @@ The canonical product and engineering specification is `docs/PRD.md`.
 
 ## Repository Status
 
-This repository is complete through `TASK-85`. Mindory can run a local
+This repository is complete through `TASK-86`. Mindory can run a local
 demo-MVP through Docker Compose, seed demo credentials, process uploaded
 documents through the worker pipeline and run live acceptance. `pnpm check`
 passes through the repo validation, typecheck, lint, tests and dry-run
-installer acceptance path.
+installer and public self-host acceptance paths.
 
 The current state is intentionally split into supported local-MVP surfaces,
 experimental/profile-smoke surfaces and future work:
@@ -25,7 +25,7 @@ experimental/profile-smoke surfaces and future work:
 | Vectors | Supported local MVP: pgvector for 1536-dimensional text embeddings when a compatible provider is configured. Supported fallback: PostgreSQL full-text search when embeddings are disabled. Future: Qdrant adapter. |
 | LLM/model runtime | Supported boundary: all model operations route through `@mindory/llm`, with disabled behavior, audit hooks, OpenAI-compatible chat/embeddings, Ollama text embeddings, local HTTP chat/embeddings/OCR/vision captioning/ASR/face roles, local provider health checks and deterministic local acceptance profiles. Unsupported roles remain disabled or experimental until concrete adapters land. |
 | Interfaces | Supported local MVP: HTTP API, CLI and MCP stdio tools call the API, including unified multimodal search. Hermes adapter exposes lifecycle helpers, hook registration for Hermes-like runtimes and a fake-compatible runtime harness; an official Hermes SDK is not vendored. |
-| Installer | Supported today: wizard, plan/dry-run, prepare execution for `$MINDORY_HOME` directories/config/compose assets, Docker Compose startup through health checks, S3 bucket bootstrap/access checks, first project/token provisioning, local asset update, runtime backup/restore, guarded uninstall, dependency detection, lock/journal diagnostics, bootstrap staging and installer acceptance. Future: remote release update, scheduled backups and full automated resume execution. |
+| Installer | Supported today: wizard, plan/dry-run, prepare execution for `$MINDORY_HOME` directories/config/compose assets, Docker Compose startup through health checks, S3 bucket bootstrap/access checks, first project/token provisioning, local asset update, runtime backup/restore, guarded uninstall, dependency detection, lock/journal diagnostics, bootstrap staging, installer acceptance and public self-host acceptance. Future: remote release update, scheduled backups and full automated resume execution. |
 | Deployment | Supported local MVP: Compose stack with single-home bind mounts under `MINDORY_HOME`, defaulting to `${HOME}/.mindory` outside demo scripts. Future: release artifact publishing and production-grade update/rollback automation. |
 | Observability | Supported baseline: structured log helpers, model operation audit queries, in-process job/stage metrics, health snapshots and documented in-process rate-limit strategy. Future: Prometheus/OpenTelemetry/exporters/alerting. |
 
@@ -58,6 +58,19 @@ The one-command local demo with live acceptance is:
 
 ```bash
 pnpm mvp:demo
+```
+
+The public self-host gate is:
+
+```bash
+pnpm selfhost:acceptance
+```
+
+By default it runs the non-destructive dry-run path in a temporary
+`MINDORY_HOME`. The live Docker path is opt-in:
+
+```bash
+MINDORY_SELFHOST_ACCEPTANCE_LIVE=true pnpm selfhost:acceptance
 ```
 
 To start and seed the stack without running live acceptance:

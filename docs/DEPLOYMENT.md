@@ -26,6 +26,23 @@ The expected local demo flow is:
 pnpm mvp:demo
 ```
 
+The public self-host acceptance gate for release readiness is:
+
+```bash
+pnpm selfhost:acceptance
+```
+
+This default path is a dry-run and is included in `pnpm check`. The opt-in live
+path runs installer startup, live MVP acceptance, backup, reset and uninstall
+inside a temporary `MINDORY_HOME`:
+
+```bash
+MINDORY_SELFHOST_ACCEPTANCE_LIVE=true pnpm selfhost:acceptance
+```
+
+Add `MINDORY_SELFHOST_ACCEPTANCE_LOCAL=true` to also run the deterministic local
+model profile with strict indexed pgvector acceptance.
+
 `pnpm mvp:demo` starts Docker Compose with the `clamav` profile, enables the
 local multimodal document routers, waits for Postgres, Redis, migration
 completion, API, worker and MCP service readiness, seeds demo credentials from

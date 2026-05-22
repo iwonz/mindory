@@ -122,6 +122,7 @@ pnpm hermes:contract
 pnpm hermes:harness
 pnpm production:validate
 pnpm mvp:demo:validate
+pnpm selfhost:acceptance
 ```
 
 The scripts are implemented with Node-based validation during bootstrap so the
