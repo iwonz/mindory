@@ -19,11 +19,36 @@ function readJson(relativePath) {
   return JSON.parse(read(relativePath));
 }
 
+function clamAvHealthCommandResult(args, options = {}) {
+  const command = args.join(" ");
+  if (!command.includes("clamdscan")) {
+    return null;
+  }
+  if (command.includes("EICAR-STANDARD-ANTIVIRUS-TEST-FILE")) {
+    if (options.missEicar) {
+      return { status: 0, stdout: "/tmp/mindory-clamav-eicar-health.com: OK\n", stderr: "" };
+    }
+    return { status: 1, stdout: "/tmp/mindory-clamav-eicar-health.com: Eicar-Test-Signature FOUND\n", stderr: "" };
+  }
+  if (options.daemonUnavailable) {
+    return { status: 2, stdout: "", stderr: "Could not connect to clamd on localhost:3310\n" };
+  }
+  if (options.protocolFailure) {
+    return { status: 2, stdout: "/tmp/mindory-clamav-clean-health.txt: ERROR\n", stderr: "ClamAV protocol parse error\n" };
+  }
+  if (options.cleanInfected) {
+    return { status: 1, stdout: "/tmp/mindory-clamav-clean-health.txt: Unexpected-Test-Signature FOUND\n", stderr: "" };
+  }
+  return { status: 0, stdout: "/tmp/mindory-clamav-clean-health.txt: OK\n", stderr: "" };
+}
+
 const rootPackage = readJson("package.json");
 const rootTsconfig = readJson("tsconfig.json");
 const installerPackage = readJson("packages/installer/package.json");
 const installerSource = read("packages/installer/src/index.ts");
 const installerCli = read("packages/installer/src/cli.ts");
+const composeFile = read("docker-compose.yml");
+const envExample = read(".env.example");
 
 assert(rootPackage.scripts?.["installer:validate"]?.includes("scripts/validate-installer-core.js"), "Root package must expose installer:validate.");
 assert(rootTsconfig.references?.some((reference) => reference.path === "packages/installer"), "Root tsconfig must reference @mindory/installer.");
@@ -55,13 +80,23 @@ for (const symbol of [
   "readInstallJournal",
   "validateS3StorageAnswers",
   "checkS3StorageAccess",
-  "formatInstallerDiagnostic"
+  "formatInstallerDiagnostic",
+  "ClamAvInstallerHealthError",
+  "checkClamAvInstallerHealth"
 ]) {
   assert(installerSource.includes(symbol), `Installer core must expose ${symbol}.`);
 }
 for (const token of ["CONFIG_CATALOG", "llmRoleProviderSupportStatus", "llmRoleSupportStatus", "MINDORY_HOME_DIRECTORIES", "composeProfilesForAnswers", "redactEnvMap"]) {
   assert(installerSource.includes(token), `Installer core must include ${token}.`);
 }
+for (const token of ["MINDORY_CLAMAV_HEALTH_RETRIES", "MINDORY_CLAMAV_HEALTH_TIMEOUT_MS"]) {
+  assert(installerSource.includes(token), `Installer ClamAV health must include ${token}.`);
+  assert(envExample.includes(token), `.env.example must include ${token}.`);
+}
+for (const token of ["infected_probe_not_detected", "unexpected_infected_result", "daemon_unavailable", "protocol_failure"]) {
+  assert(installerSource.includes(token), `Installer ClamAV health must include ${token}.`);
+}
+assert(composeFile.includes("clamdscan --no-summary"), "ClamAV Compose service must include a real daemon healthcheck.");
 for (const token of ["command === \"start\"", "stopBeforeStepId: null", "initialTokenPath", "mindory-installer start", "command === \"update\"", "command === \"backup\"", "command === \"restore\"", "command === \"uninstall\""]) {
   assert(installerCli.includes(token), `Installer CLI must expose startup command token ${token}.`);
 }
@@ -234,6 +269,10 @@ const composeReport = await installer.executeInstallPlan(installer.createDefault
   commandRunner: {
     async run(command, args) {
       composeCommands.push(`${command} ${args.join(" ")}`);
+      const clamAvResult = clamAvHealthCommandResult(args);
+      if (clamAvResult !== null) {
+        return clamAvResult;
+      }
       if (args.includes("ps")) {
         return { status: 0, stdout: healthyComposePs, stderr: "" };
       }
@@ -246,7 +285,47 @@ assert(composeReport.pendingStepIds[0] === "create-first-token", "Compose execut
 for (const token of ["pull --ignore-buildable", "build", "up -d postgres redis clamav", "up migrate", "up -d api worker mcp", "ps --all --format json"]) {
   assert(composeCommands.some((command) => command.includes(token)), `Compose execution must run ${token}.`);
 }
+assert(composeCommands.some((command) => command.includes("exec -T clamav sh -lc") && command.includes("clamdscan")), "Installer health-check must execute ClamAV scan probes.");
+assert(composeCommands.some((command) => command.includes("EICAR-STANDARD-ANTIVIRUS-TEST-FILE")), "Installer health-check must verify an infected EICAR probe.");
 fs.rmSync(composeHome, { recursive: true, force: true });
+
+const clamAvHealthPlan = installer.createInstallPlan(installer.createDefaultInstallAnswers({
+  mindoryHome: "/tmp/mindory-clamav-health-validator"
+}));
+const clamAvHealthReport = await installer.checkClamAvInstallerHealth(clamAvHealthPlan, {
+  pollIntervalMs: 1,
+  commandRunner: {
+    async run(command, args) {
+      return clamAvHealthCommandResult(args) ?? { status: 0, stdout: "ok", stderr: "" };
+    }
+  }
+});
+assert(clamAvHealthReport.status === "healthy", "ClamAV health report must succeed after clean and EICAR probes.");
+assert(clamAvHealthReport.eicarProbe.output.includes("FOUND"), "ClamAV health report must record the infected probe output.");
+
+for (const failureCase of [
+  { options: { daemonUnavailable: true }, kind: "daemon_unavailable", text: "daemon is unavailable" },
+  { options: { protocolFailure: true }, kind: "protocol_failure", text: "protocol failure" },
+  { options: { cleanInfected: true }, kind: "unexpected_infected_result", text: "clean health probe as infected" },
+  { options: { missEicar: true }, kind: "infected_probe_not_detected", text: "did not detect the EICAR" }
+]) {
+  let caught = null;
+  try {
+    await installer.checkClamAvInstallerHealth(clamAvHealthPlan, {
+      pollIntervalMs: 1,
+      commandRunner: {
+        async run(command, args) {
+          return clamAvHealthCommandResult(args, failureCase.options) ?? { status: 0, stdout: "ok", stderr: "" };
+        }
+      }
+    });
+  } catch (error) {
+    caught = error;
+  }
+  assert(caught?.kind === failureCase.kind, `ClamAV health must report ${failureCase.kind}.`);
+  assert(String(caught).includes(failureCase.text), `ClamAV ${failureCase.kind} diagnostic must include ${failureCase.text}.`);
+  assert(String(caught).includes("MINDORY_CLAMAV_PLATFORM=linux/amd64"), "ClamAV diagnostics must include the platform override.");
+}
 
 const qdrantComposeHome = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-installer-qdrant-compose-"));
 fs.rmSync(qdrantComposeHome, { recursive: true, force: true });
@@ -268,6 +347,10 @@ await installer.executeInstallPlan(installer.createDefaultInstallAnswers({
   commandRunner: {
     async run(command, args) {
       qdrantComposeCommands.push(`${command} ${args.join(" ")}`);
+      const clamAvResult = clamAvHealthCommandResult(args);
+      if (clamAvResult !== null) {
+        return clamAvResult;
+      }
       if (args.includes("ps")) {
         return { status: 0, stdout: healthyQdrantComposePs, stderr: "" };
       }
@@ -300,6 +383,10 @@ await installer.executeInstallPlan(installer.createDefaultInstallAnswers({
   commandRunner: {
     async run(command, args) {
       doclingComposeCommands.push(`${command} ${args.join(" ")}`);
+      const clamAvResult = clamAvHealthCommandResult(args);
+      if (clamAvResult !== null) {
+        return clamAvResult;
+      }
       if (args.includes("ps")) {
         return { status: 0, stdout: healthyDoclingComposePs, stderr: "" };
       }
@@ -393,6 +480,10 @@ const provisionReport = await installer.executeInstallPlan(installer.createDefau
   commandRunner: {
     async run(command, args) {
       provisionCommands.push(`${command} ${args.join(" ")}`);
+      const clamAvResult = clamAvHealthCommandResult(args);
+      if (clamAvResult !== null) {
+        return clamAvResult;
+      }
       if (args.includes("ps")) {
         return { status: 0, stdout: healthyComposePs, stderr: "" };
       }
@@ -424,6 +515,10 @@ try {
     apiReadyCheck: async () => true,
     commandRunner: {
       async run(command, args) {
+        const clamAvResult = clamAvHealthCommandResult(args);
+        if (clamAvResult !== null) {
+          return clamAvResult;
+        }
         if (args.includes("ps")) {
           return { status: 0, stdout: healthyComposePs, stderr: "" };
         }
@@ -511,6 +606,10 @@ try {
     commandRunner: {
       async run(command, args) {
         rollbackCommands.push(`${command} ${args.join(" ")}`);
+        const clamAvResult = clamAvHealthCommandResult(args);
+        if (clamAvResult !== null) {
+          return clamAvResult;
+        }
         if (args.join(" ").includes("up -d api worker mcp")) {
           return { status: 1, stdout: "", stderr: "runtime failed" };
         }

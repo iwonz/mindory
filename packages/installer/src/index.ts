@@ -247,6 +247,42 @@ export interface DependencyCheck {
   manualFix?: string;
 }
 
+export type ClamAvInstallerHealthFailureKind =
+  | "daemon_unavailable"
+  | "timeout"
+  | "protocol_failure"
+  | "unexpected_infected_result"
+  | "infected_probe_not_detected"
+  | "command_failed";
+
+export interface ClamAvInstallerHealthReport {
+  status: "skipped" | "healthy" | "failed";
+  mode: AntivirusMode;
+  provider: string;
+  platform: string;
+  attempts: number;
+  cleanProbe?: {
+    status: number | null;
+    output: string;
+  };
+  eicarProbe?: {
+    status: number | null;
+    output: string;
+  };
+}
+
+export class ClamAvInstallerHealthError extends Error {
+  readonly kind: ClamAvInstallerHealthFailureKind;
+  readonly report: ClamAvInstallerHealthReport;
+
+  constructor(kind: ClamAvInstallerHealthFailureKind, message: string, report: ClamAvInstallerHealthReport) {
+    super(message);
+    this.name = "ClamAvInstallerHealthError";
+    this.kind = kind;
+    this.report = report;
+  }
+}
+
 export type RollbackExecutor = (rollback: InstallRollbackStep, step: InstallPlanStep) => Promise<void> | void;
 export type WizardPromptKind = "text" | "secret" | "boolean" | "number" | "choice";
 export type WizardStorageChoice = "local-fs" | "librefs-s3" | "external-s3";
@@ -1724,7 +1760,87 @@ async function startComposeRuntime(plan: InstallPlan, options: InstallExecutionO
 
 async function runInstallHealthChecks(plan: InstallPlan, options: InstallExecutionOptions): Promise<void> {
   await waitForComposeServices(plan, options);
+  await checkClamAvInstallerHealth(plan, options);
   await waitForApiReady(plan, options);
+}
+
+export async function checkClamAvInstallerHealth(plan: InstallPlan, options: InstallExecutionOptions = {}): Promise<ClamAvInstallerHealthReport> {
+  const mode = (plan.environment.MINDORY_AV_MODE ?? "disabled") as AntivirusMode;
+  const provider = plan.environment.MINDORY_AV_PROVIDER ?? "disabled";
+  const platform = plan.environment.MINDORY_CLAMAV_PLATFORM ?? "linux/amd64";
+  const reportBase = {
+    mode,
+    provider,
+    platform
+  };
+  if (!isClamAvInstallerEnabled(plan)) {
+    return {
+      ...reportBase,
+      status: "skipped",
+      attempts: 0
+    };
+  }
+
+  const retries = readPositiveInteger(plan.environment.MINDORY_CLAMAV_HEALTH_RETRIES, 12);
+  const timeoutMs = readPositiveInteger(plan.environment.MINDORY_CLAMAV_HEALTH_TIMEOUT_MS, 120_000);
+  const deadline = Date.now() + timeoutMs;
+  let attempts = 0;
+  let lastError: ClamAvInstallerHealthError | null = null;
+
+  while (attempts < retries && Date.now() <= deadline) {
+    attempts += 1;
+    const report: ClamAvInstallerHealthReport = {
+      ...reportBase,
+      status: "failed",
+      attempts
+    };
+    try {
+      const cleanProbe = await runClamAvHealthProbe(plan, "clean", options);
+      report.cleanProbe = {
+        status: cleanProbe.status,
+        output: commandOutput(cleanProbe)
+      };
+      const cleanFailure = classifyClamAvCleanProbe(cleanProbe);
+      if (cleanFailure !== null) {
+        throw clamAvHealthError(cleanFailure, report);
+      }
+
+      const eicarProbe = await runClamAvHealthProbe(plan, "eicar", options);
+      report.eicarProbe = {
+        status: eicarProbe.status,
+        output: commandOutput(eicarProbe)
+      };
+      const eicarFailure = classifyClamAvEicarProbe(eicarProbe);
+      if (eicarFailure !== null) {
+        throw clamAvHealthError(eicarFailure, report);
+      }
+      report.status = "healthy";
+      return report;
+    } catch (error) {
+      lastError = error instanceof ClamAvInstallerHealthError
+        ? error
+        : clamAvHealthError("command_failed", {
+          ...reportBase,
+          status: "failed",
+          attempts
+        }, errorToString(error));
+      if (!isRetryableClamAvHealthFailure(lastError.kind)) {
+        throw lastError;
+      }
+      if (attempts < retries && Date.now() <= deadline) {
+        await sleep(options.pollIntervalMs ?? 2_000);
+      }
+    }
+  }
+
+  if (lastError !== null) {
+    throw lastError;
+  }
+  throw clamAvHealthError("timeout", {
+    ...reportBase,
+    status: "failed",
+    attempts
+  });
 }
 
 async function provisionFirstRunToken(plan: InstallPlan, stepItem: InstallPlanStep, options: InstallExecutionOptions): Promise<void> {
@@ -1769,13 +1885,16 @@ async function waitForComposeServices(plan: InstallPlan, options: InstallExecuti
     const missing = required.filter((service) => findComposeService(records, service) === undefined);
     const notReady = required.filter((service) => {
       const record = findComposeService(records, service);
+      if (service === "clamav" && record !== undefined && isClamAvInstallerEnabled(plan)) {
+        return !composeStatusText(record).includes("running");
+      }
       return record !== undefined && !isComposeRunningAndHealthy(record);
     });
     const notCompleted = completed.filter((service) => {
       const record = findComposeService(records, service);
       return record === undefined || !isComposeCompletedSuccessfully(record);
     });
-    const failed = records.find((record) => isComposeFailed(record));
+    const failed = records.find((record) => isComposeFailed(record) && !isClamAvDetailedHealthCandidate(plan, record));
     if (failed !== undefined) {
       throw new Error(`Docker Compose service ${composeServiceName(failed)} failed during installer healthcheck.`);
     }
@@ -1787,6 +1906,14 @@ async function waitForComposeServices(plan: InstallPlan, options: InstallExecuti
   }
 
   throw new Error(`Timed out waiting for Docker Compose services: ${lastStatus}`);
+}
+
+function isClamAvDetailedHealthCandidate(plan: InstallPlan, record: Record<string, unknown>): boolean {
+  return isClamAvInstallerEnabled(plan) && composeServiceName(record) === "clamav" && composeStatusText(record).includes("running");
+}
+
+function isClamAvInstallerEnabled(plan: InstallPlan): boolean {
+  return plan.environment.MINDORY_AV_MODE !== "disabled" && plan.environment.MINDORY_AV_PROVIDER === "clamav";
 }
 
 function storageBootstrapServices(plan: InstallPlan): string[] {
@@ -1816,17 +1943,127 @@ async function waitForApiReady(plan: InstallPlan, options: InstallExecutionOptio
   throw new Error(`Timed out waiting for API readiness at ${apiUrl}/ready: ${lastError}`);
 }
 
+async function runClamAvHealthProbe(
+  plan: InstallPlan,
+  probe: "clean" | "eicar",
+  options: InstallExecutionOptions
+): Promise<InstallCommandResult> {
+  const script = probe === "clean" ? clamAvCleanProbeScript() : clamAvEicarProbeScript();
+  return runDockerComposeWithoutStatusCheck(plan, ["exec", "-T", "clamav", "sh", "-lc", script], options);
+}
+
+function clamAvCleanProbeScript(): string {
+  const probePath = "/tmp/mindory-clamav-clean-health.txt";
+  return [
+    `printf %s ${shellQuote("mindory clamav clean health probe")} > ${shellQuote(probePath)}`,
+    `clamdscan --no-summary ${shellQuote(probePath)}`,
+    "code=$?",
+    `rm -f ${shellQuote(probePath)}`,
+    "exit $code"
+  ].join("; ");
+}
+
+function clamAvEicarProbeScript(): string {
+  const probePath = "/tmp/mindory-clamav-eicar-health.com";
+  const eicar = "X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*";
+  return [
+    `printf %s ${shellQuote(eicar)} > ${shellQuote(probePath)}`,
+    `clamdscan --no-summary ${shellQuote(probePath)}`,
+    "code=$?",
+    `rm -f ${shellQuote(probePath)}`,
+    "exit $code"
+  ].join("; ");
+}
+
+function classifyClamAvCleanProbe(result: InstallCommandResult): ClamAvInstallerHealthFailureKind | null {
+  const output = commandOutput(result);
+  if ((result.status ?? 1) === 0 && /\bOK\b/i.test(output)) {
+    return null;
+  }
+  if (/\bFOUND\b/i.test(output)) {
+    return "unexpected_infected_result";
+  }
+  return classifyClamAvCommandFailure(result);
+}
+
+function classifyClamAvEicarProbe(result: InstallCommandResult): ClamAvInstallerHealthFailureKind | null {
+  const output = commandOutput(result);
+  if (/\bFOUND\b/i.test(output)) {
+    return null;
+  }
+  if ((result.status ?? 1) === 0 && /\bOK\b/i.test(output)) {
+    return "infected_probe_not_detected";
+  }
+  return classifyClamAvCommandFailure(result);
+}
+
+function classifyClamAvCommandFailure(result: InstallCommandResult): ClamAvInstallerHealthFailureKind {
+  const output = commandOutput(result).toLowerCase();
+  if (result.status === null || /connect|connection refused|connection reset|no such file|cannot assign requested address|unavailable|could not connect|can't connect/.test(output)) {
+    return "daemon_unavailable";
+  }
+  if (/timed?\s*out|timeout|deadline/.test(output)) {
+    return "timeout";
+  }
+  if (/protocol|malformed|parse|unexpected|unknown command|error\b/.test(output)) {
+    return "protocol_failure";
+  }
+  return "command_failed";
+}
+
+function isRetryableClamAvHealthFailure(kind: ClamAvInstallerHealthFailureKind): boolean {
+  return kind === "daemon_unavailable" || kind === "timeout" || kind === "command_failed";
+}
+
+function clamAvHealthError(
+  kind: ClamAvInstallerHealthFailureKind,
+  report: ClamAvInstallerHealthReport,
+  detail?: string
+): ClamAvInstallerHealthError {
+  return new ClamAvInstallerHealthError(kind, formatClamAvHealthDiagnostic(kind, report, detail), report);
+}
+
+function formatClamAvHealthDiagnostic(
+  kind: ClamAvInstallerHealthFailureKind,
+  report: ClamAvInstallerHealthReport,
+  detail?: string
+): string {
+  const output = [report.cleanProbe?.output, report.eicarProbe?.output, detail].filter((value) => value !== undefined && value.trim() !== "").join(" ");
+  const cause: Record<ClamAvInstallerHealthFailureKind, string> = {
+    daemon_unavailable: "ClamAV daemon is unavailable.",
+    timeout: "ClamAV health check timed out.",
+    protocol_failure: "ClamAV returned a scan protocol failure.",
+    unexpected_infected_result: "ClamAV reported the clean health probe as infected.",
+    infected_probe_not_detected: "ClamAV did not detect the EICAR health probe.",
+    command_failed: "ClamAV health command failed."
+  };
+  const fix = [
+    `mode=${report.mode}`,
+    `provider=${report.provider}`,
+    `MINDORY_CLAMAV_PLATFORM=${report.platform}`,
+    "Check Docker Compose logs for the clamav service.",
+    "On Docker Desktop Apple Silicon, keep linux/amd64 emulation enabled or choose a platform supported by clamav/clamav:stable.",
+    "After fixing the daemon, rerun installer repair or start."
+  ].join(" ");
+  return `${cause[kind]} Attempts=${report.attempts}. ${fix}${output === "" ? "" : ` Last output: ${output}`}`;
+}
+
+function commandOutput(result: InstallCommandResult): string {
+  return `${result.stdout ?? ""}\n${result.stderr ?? ""}`.trim();
+}
+
+function readPositiveInteger(value: string | undefined, fallback: number): number {
+  const parsed = Number.parseInt(value ?? "", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
 async function runDockerCompose(
   plan: InstallPlan,
   composeArgs: readonly string[],
   options: InstallExecutionOptions,
   runOptions: { captureOutput?: boolean } = {}
 ): Promise<InstallCommandResult> {
-  const runner = options.commandRunner ?? createNodeCommandRunner();
-  const result = await runner.run(options.dockerBinary ?? "docker", [...composeBaseArgs(plan, options), ...composeArgs], {
-    cwd: composeWorkingDirectory(plan, options),
-    env: composeEnvironment(plan)
-  });
+  const result = await runDockerComposeWithoutStatusCheck(plan, composeArgs, options);
   if ((result.status ?? 1) !== 0) {
     const details = `${result.stderr || result.stdout}`.trim();
     throw new Error(`docker compose ${composeArgs.join(" ")} failed with exit code ${result.status ?? 1}${details === "" ? "" : `: ${details}`}`);
@@ -1835,6 +2072,18 @@ async function runDockerCompose(
     return result;
   }
   return result;
+}
+
+async function runDockerComposeWithoutStatusCheck(
+  plan: InstallPlan,
+  composeArgs: readonly string[],
+  options: InstallExecutionOptions
+): Promise<InstallCommandResult> {
+  const runner = options.commandRunner ?? createNodeCommandRunner();
+  return runner.run(options.dockerBinary ?? "docker", [...composeBaseArgs(plan, options), ...composeArgs], {
+    cwd: composeWorkingDirectory(plan, options),
+    env: composeEnvironment(plan)
+  });
 }
 
 function createNodeCommandRunner(): InstallCommandRunner {

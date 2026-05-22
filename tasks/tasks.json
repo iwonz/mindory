@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-94",
+  "current_task_id": "TASK-95",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -698,7 +698,7 @@
     {
       "id": "TASK-95",
       "title": "Harden ClamAV installer health and diagnostics",
-      "status": "draft",
+      "status": "done",
       "branch": "task/TASK-95-clamav-installer-health-hardening",
       "file": "tasks/TASK-95.json"
     },

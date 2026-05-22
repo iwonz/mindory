@@ -86,5 +86,11 @@ upload path. In `sync_scan`, the API waits for the ClamAV verdict and applies
 infected or scan-failure policy before returning a successful upload response or
 creating downstream document processing jobs.
 
+Installer health checks treat antivirus as a startup dependency when ClamAV is
+enabled. The installer verifies that clean content scans clean and that the
+EICAR test string is reported infected. It fails startup on daemon
+unavailability, scan protocol errors or missed infected detection, so a public
+install does not silently continue with ineffective antivirus protection.
+
 Fine-grained document ACLs, enterprise audit logs and policy engines are not MVP
 requirements.

@@ -126,6 +126,13 @@ Only `scan_clean` and `scan_failed` with `allow_with_warning` enqueue
 `MINDORY_CLAMAV_HOST` and `MINDORY_CLAMAV_PORT` must point to a reachable clamd
 socket when `sync_scan` or `async_quarantine` with the ClamAV worker is used.
 
+`MINDORY_CLAMAV_HEALTH_RETRIES` and
+`MINDORY_CLAMAV_HEALTH_TIMEOUT_MS` control installer startup health checks for
+the Compose `clamav` service. The installer runs one clean scan probe and one
+EICAR infected probe before it declares ClamAV healthy, so daemon connectivity,
+scan protocol errors and missing infected-file detection are reported before API
+startup is accepted.
+
 ## Queue And Workers
 
 `MINDORY_REDIS_URL` points BullMQ at Redis. `MINDORY_QUEUE_PREFIX` namespaces

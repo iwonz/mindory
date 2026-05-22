@@ -74,6 +74,7 @@ for (const namedVolume of ["postgres-data:", "redis-data:", "objects-data:", "mi
   assert(!compose.includes(namedVolume), `Compose must not use named runtime volume ${namedVolume}.`);
 }
 assert(compose.includes("MINDORY_CLAMAV_PLATFORM"), "Compose must allow ClamAV platform override for local Docker Desktop compatibility.");
+assert(compose.includes("clamdscan --no-summary /tmp/mindory-clamav-health.txt"), "Compose must health-check the ClamAV daemon with a real scan.");
 assert(compose.includes("\n  llm:"), "Compose must define an optional local LLM SDK service.");
 assert(compose.includes("scripts/local-model-server.mjs"), "Local LLM SDK profile must run the local model HTTP service.");
 assert(compose.includes("/health"), "Local LLM SDK profile must expose a healthcheck.");
