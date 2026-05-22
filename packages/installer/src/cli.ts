@@ -8,11 +8,14 @@ import {
   formatInstallerDiagnostic,
   installJournalPath,
   installLockPath,
+  inspectInstallState,
   readInstallJournal,
   readInstallLock,
   renderEnvFile,
   renderMindoryConfigJson,
-  runInstallWizard
+  runInstallWizard,
+  uninstallMindoryHome,
+  updateInstallAssets
 } from "./index.js";
 
 const args = process.argv.slice(2);
@@ -37,6 +40,10 @@ try {
     runResumeCommand();
   } else if (command === "repair") {
     runRepairCommand();
+  } else if (command === "update") {
+    await runUpdateCommand();
+  } else if (command === "uninstall") {
+    runUninstallCommand();
   } else if (command === "--help" || command === "-h" || command === "help") {
     printHelp();
   } else {
@@ -45,6 +52,47 @@ try {
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error));
   process.exit(1);
+}
+
+async function runUpdateCommand(): Promise<void> {
+  const answers = createDefaultInstallAnswers({
+    mindoryHome: optionValue("--home") ?? createDefaultInstallAnswers().mindoryHome
+  });
+  const sourceRoot = optionValue("--source");
+  const dryRun = args.includes("--dry-run");
+  try {
+    const report = await updateInstallAssets(answers, {
+      dryRun,
+      owner: "mindory-installer-cli",
+      ...(sourceRoot === undefined ? {} : { sourceRoot })
+    });
+    printJson({
+      status: dryRun ? "update_dry_run" : "updated",
+      mindoryHome: answers.mindoryHome,
+      ...report
+    });
+  } catch (error) {
+    printJson({ diagnostic: formatInstallerDiagnostic(error) });
+    process.exitCode = 1;
+  }
+}
+
+function runUninstallCommand(): void {
+  const home = optionValue("--home") ?? createDefaultInstallAnswers().mindoryHome;
+  try {
+    const report = uninstallMindoryHome(home, {
+      yes: args.includes("--yes"),
+      backup: args.includes("--backup")
+    });
+    printJson({
+      status: "uninstalled",
+      mindoryHome: home,
+      ...report
+    });
+  } catch (error) {
+    printJson({ diagnostic: formatInstallerDiagnostic(error) });
+    process.exitCode = 1;
+  }
 }
 
 async function runPrepareCommand(): Promise<void> {
@@ -130,11 +178,13 @@ async function runWizardCommand(): Promise<void> {
 function runResumeCommand(): void {
   const home = optionValue("--home") ?? createDefaultInstallAnswers().mindoryHome;
   const journal = readInstallJournal(home);
+  const inspection = inspectInstallState(home);
   printJson({
     status: journal === null ? "no_journal" : "journal_found",
-    message: "Full resume execution is added by a later installer task.",
+    message: inspection.recommendedAction,
     journalPath: installJournalPath(home),
-    entries: journal ?? []
+    entries: journal ?? [],
+    inspection
   });
 }
 
@@ -142,13 +192,15 @@ function runRepairCommand(): void {
   const home = optionValue("--home") ?? createDefaultInstallAnswers().mindoryHome;
   const lock = readInstallLock(home);
   const journal = readInstallJournal(home);
+  const inspection = inspectInstallState(home);
   printJson({
     status: "repair_inspection",
-    message: "Inspect lock and journal state, resolve the issue, then rerun the installer.",
+    message: inspection.recommendedAction,
     lockPath: installLockPath(home),
     lock,
     journalPath: installJournalPath(home),
-    journalEntries: journal?.length ?? 0
+    journalEntries: journal?.length ?? 0,
+    inspection
   });
 }
 
@@ -167,6 +219,8 @@ Usage:
   mindory-installer render-defaults
   mindory-installer resume [--home <path>]
   mindory-installer repair [--home <path>]
+  mindory-installer update [--home <path>] [--source <path>] [--dry-run]
+  mindory-installer uninstall --home <path> --yes [--backup]
 
 The prepare command writes the local MINDORY_HOME directory tree, generated
 config and release Compose assets. The start command additionally runs Docker

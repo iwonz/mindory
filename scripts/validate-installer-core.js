@@ -41,6 +41,9 @@ for (const symbol of [
   "buildRedactedInstallSummary",
   "executeInstallPlan",
   "InstallCommandRunner",
+  "updateInstallAssets",
+  "uninstallMindoryHome",
+  "inspectInstallState",
   "buildWizardPromptPlan",
   "runInstallWizard",
   "createReadlineWizardIo",
@@ -54,7 +57,7 @@ for (const symbol of [
 for (const token of ["CONFIG_CATALOG", "MINDORY_HOME_DIRECTORIES", "composeProfilesForAnswers", "redactEnvMap"]) {
   assert(installerSource.includes(token), `Installer core must include ${token}.`);
 }
-for (const token of ["command === \"start\"", "stopBeforeStepId: null", "initialTokenPath", "mindory-installer start"]) {
+for (const token of ["command === \"start\"", "stopBeforeStepId: null", "initialTokenPath", "mindory-installer start", "command === \"update\"", "command === \"uninstall\""]) {
   assert(installerCli.includes(token), `Installer CLI must expose startup command token ${token}.`);
 }
 
@@ -260,6 +263,61 @@ try {
 assert(provisionRollbackThrown, "Provisioning failures must be surfaced.");
 assert(!fs.existsSync(path.join(provisionRollbackHome, "config", "initial-token.json")), "Provisioning failure must remove generated initial-token.json.");
 fs.rmSync(provisionRollbackHome, { recursive: true, force: true });
+
+const updateHome = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-installer-update-"));
+fs.rmSync(updateHome, { recursive: true, force: true });
+const updateAnswers = installer.createDefaultInstallAnswers({ mindoryHome: updateHome });
+const dryRunUpdate = await installer.updateInstallAssets(updateAnswers, { dryRun: true, sourceRoot: root });
+assert(dryRunUpdate.dryRun === true, "Update dry-run must report dryRun=true.");
+assert(!fs.existsSync(updateHome), "Update dry-run must not create MINDORY_HOME.");
+await installer.executeInstallPlan(updateAnswers, { sourceRoot: root, owner: "validator" });
+const originalEnv = fs.readFileSync(path.join(updateHome, "config", ".env"), "utf8");
+const updateReport = await installer.updateInstallAssets(updateAnswers, { sourceRoot: root, owner: "validator" });
+assert(updateReport.backup?.copiedPaths.includes("config"), "Update apply must back up config.");
+assert(fs.existsSync(updateReport.backup.backupPath), "Update apply must create a backup directory.");
+assert(fs.readFileSync(path.join(updateHome, "config", ".env"), "utf8") === originalEnv, "Update apply must leave rendered env in place.");
+const inspectedState = installer.inspectInstallState(updateHome);
+assert(inspectedState.journalEntries > 0, "Repair inspection must summarize journal entries.");
+fs.rmSync(updateHome, { recursive: true, force: true });
+
+const updateRollbackHome = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-installer-update-rollback-"));
+fs.rmSync(updateRollbackHome, { recursive: true, force: true });
+const updateRollbackAnswers = installer.createDefaultInstallAnswers({ mindoryHome: updateRollbackHome });
+await installer.executeInstallPlan(updateRollbackAnswers, { sourceRoot: root, owner: "validator" });
+const existingEnvPath = path.join(updateRollbackHome, "config", ".env");
+fs.writeFileSync(existingEnvPath, "MINDORY_HOME=old\n");
+let updateRollbackThrown = false;
+try {
+  await installer.updateInstallAssets(updateRollbackAnswers, {
+    sourceRoot: root,
+    owner: "validator",
+    beforeStep(step) {
+      if (step.id === "write-env") {
+        throw new Error("forced update failure");
+      }
+    }
+  });
+} catch (error) {
+  updateRollbackThrown = String(error).includes("forced update failure");
+}
+assert(updateRollbackThrown, "Update failure must be surfaced.");
+assert(fs.readFileSync(existingEnvPath, "utf8") === "MINDORY_HOME=old\n", "Update failure must restore previous config from backup.");
+fs.rmSync(updateRollbackHome, { recursive: true, force: true });
+
+const uninstallHome = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-installer-uninstall-"));
+fs.writeFileSync(path.join(uninstallHome, "marker.txt"), "installed");
+let uninstallRejected = false;
+try {
+  installer.uninstallMindoryHome(uninstallHome, { yes: false });
+} catch (error) {
+  uninstallRejected = String(error).includes("requires explicit confirmation");
+}
+assert(uninstallRejected, "Uninstall must require explicit confirmation.");
+const uninstallReport = installer.uninstallMindoryHome(uninstallHome, { yes: true, backup: true });
+assert(uninstallReport.removed === true, "Uninstall must report removal.");
+assert(!fs.existsSync(uninstallHome), "Uninstall must remove MINDORY_HOME.");
+assert(fs.existsSync(uninstallReport.backupPath), "Uninstall backup must be created when requested.");
+fs.rmSync(uninstallReport.backupPath, { recursive: true, force: true });
 
 const composeRollbackHome = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-installer-compose-rollback-"));
 fs.rmSync(composeRollbackHome, { recursive: true, force: true });

@@ -17,10 +17,12 @@ project/token.
 | Prepare execution | Supported. It creates `$MINDORY_HOME`, writes generated config/env files and copies release Compose assets with journaled rollback. |
 | Compose startup | Supported. It can pull/build, start infrastructure, run migrations, start API/worker/MCP and wait for Compose/API readiness. |
 | First project/token provisioning | Supported. It creates the initial project and bearer token, then writes `config/initial-token.json`. |
+| Update assets | Supported for local config/Compose asset refresh with pre-update backup and rollback. Remote release download is future work. |
+| Uninstall | Supported with explicit `--yes`; optional backup is written next to the removed home. |
 | Dependency detection | Supported through injectable probes and diagnostics. |
 | Lock, journal and recovery diagnostics | Supported. `repair` and `resume` inspect current state. |
 | Bootstrap staging and checksum verification | Supported for source/release-style bundles. |
-| Update, uninstall and real resume execution | Future work. Current surfaces are diagnostics/planning only. |
+| Real resume execution | Future work. Current resume output is diagnostic and tells the user what to rerun. |
 
 ## Core Package
 
@@ -106,10 +108,13 @@ work.
 The bootstrap launches `bin/mindory-installer` when a packaged binary exists, or
 falls back to `node packages/installer/dist/cli.js wizard` for source-style
 bundles. The installer CLI currently supports `wizard`, `plan`/`dry-run`,
-`prepare`, `start`, `render-defaults`, `repair` and `resume`. `prepare`
-executes only the local file preparation steps. `start` additionally runs
-Docker Compose pull/build, infrastructure startup, migrations, API/worker/MCP
-startup, health checks and first project/token provisioning.
+`prepare`, `start`, `update`, `uninstall`, `render-defaults`, `repair` and
+`resume`. `prepare` executes only the local file preparation steps. `start`
+additionally runs Docker Compose pull/build, infrastructure startup, migrations,
+API/worker/MCP startup, health checks and first project/token provisioning.
+`update --dry-run` previews local asset refresh, while `update` creates a
+pre-update backup before rewriting config and Compose assets. `uninstall`
+requires `--yes` and can preserve a sibling backup with `--backup`.
 
 ## Recovery Surface
 
@@ -123,10 +128,12 @@ The CLI exposes:
 ```bash
 mindory-installer repair --home ~/.mindory
 mindory-installer resume --home ~/.mindory
+mindory-installer update --home ~/.mindory --source /path/to/mindory --dry-run
+mindory-installer uninstall --home ~/.mindory --yes --backup
 ```
 
 `repair` inspects lock and journal state. `resume` reports the stored journal
-and makes clear that full resume execution is future work.
+and recommends the next manual action. Full automated resume is future work.
 
 ## Dev/Test Matrix
 
@@ -198,7 +205,10 @@ require manual cleanup. Prepare execution uses this model for filesystem,
 config and Compose asset writes. Startup execution adds `compose_down` rollback
 for started services. First-token provisioning writes a local credential file
 with rollback for that file; database token rollback remains a future lifecycle
-operation.
+operation. Update creates a pre-update backup under `$MINDORY_HOME/backups` and
+restores config/assets from that backup if local asset refresh fails. Uninstall
+requires explicit confirmation and can copy the home to a sibling backup before
+removal.
 
 ## Generated State
 
