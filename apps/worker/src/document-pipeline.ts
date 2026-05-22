@@ -45,7 +45,7 @@ import type { ObjectStorage } from "@mindory/core/storage";
 import { AudioTranscriptExtractor } from "@mindory/extractor-audio-transcript";
 import { BuiltinTextExtractor } from "@mindory/extractor-builtin-text";
 import { DoclingPdfExtractor, type DoclingPdfExtractorOptions } from "@mindory/extractor-docling";
-import { ImageSemanticExtractor } from "@mindory/extractor-image-semantic";
+import { ImageSemanticExtractor, type ImageSemanticExtractorOptions } from "@mindory/extractor-image-semantic";
 import { readVideoManifest, VideoKeyframeExtractor } from "@mindory/extractor-video-keyframe";
 import { buildMindoryLlm, llmRoleState, type MindoryLlm } from "@mindory/llm";
 import { ClamAvDocumentScanProcessor, ClamAvScanner } from "@mindory/processor-antivirus-clamav";
@@ -88,13 +88,7 @@ export function buildDocumentPipelineProcessors(options: DocumentPipelineProcess
       maxKeyframes: options.config.documentProcessing.video.maxKeyframes
     }),
     new DoclingPdfExtractor(doclingPdfExtractorOptions(llm)),
-    new ImageSemanticExtractor({
-      faceDetection: llmRoleState(llm, "face-detection"),
-      faceRecognition: llmRoleState(llm, "face-recognition"),
-      imageCaptioning: llmRoleState(llm, "vision-captioning"),
-      imageEmbedding: llmRoleState(llm, "image-embedding"),
-      ocr: llmRoleState(llm, "ocr")
-    })
+    new ImageSemanticExtractor(imageSemanticExtractorOptions(llm))
   ];
   const chunker = options.chunker ?? new FixedSizeTextChunker({
     maxTokens: 800,
@@ -195,6 +189,25 @@ function doclingPdfExtractorOptions(llm: MindoryLlm): DoclingPdfExtractorOptions
   };
   if (llm.ocr !== undefined) {
     options.ocrProvider = llm.ocr;
+  }
+  return options;
+}
+
+function imageSemanticExtractorOptions(llm: MindoryLlm): ImageSemanticExtractorOptions {
+  const options: ImageSemanticExtractorOptions = {
+    faceDetection: llmRoleState(llm, "face-detection"),
+    faceRecognition: llmRoleState(llm, "face-recognition"),
+    imageCaptioning: llmRoleState(llm, "vision-captioning"),
+    imageEmbedding: llmRoleState(llm, "image-embedding"),
+    ocr: llmRoleState(llm, "ocr"),
+    ocrRole: llm.registry.require("ocr"),
+    visionRole: llm.registry.require("vision-captioning")
+  };
+  if (llm.ocr !== undefined) {
+    options.ocrProvider = llm.ocr;
+  }
+  if (llm.vision !== undefined) {
+    options.visionProvider = llm.vision;
   }
   return options;
 }

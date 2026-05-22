@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-76",
+  "current_task_id": "TASK-77",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -568,6 +568,13 @@
       "status": "done",
       "branch": "task/TASK-76-pdf-ocr-supported-pipeline",
       "file": "tasks/TASK-76.json"
+    },
+    {
+      "id": "TASK-77",
+      "title": "Add image OCR and vision pipeline",
+      "status": "done",
+      "branch": "task/TASK-77-image-ocr-vision-pipeline",
+      "file": "tasks/TASK-77.json"
     }
   ]
 }

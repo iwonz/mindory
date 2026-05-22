@@ -56,8 +56,8 @@ All model operations must go through `@mindory/llm`.
 | Disabled model roles | Supported | Disabled attempts are handled and audited. |
 | Text embeddings | Supported | OpenAI-compatible, Ollama and local HTTP provider flows are implemented through `@mindory/llm`; pgvector requires 1536-dimensional vectors. |
 | Chat | Supported SDK adapter | OpenAI-compatible API-key/OAuth modes and local HTTP chat are implemented in `@mindory/llm`; product flows do not require chat by default. |
-| OCR | Experimental role, supported scanned-PDF path | Scanned-PDF OCR runs through `@mindory/llm` local HTTP OCR when enabled; image OCR hardening remains future work. |
-| Vision captioning and image embeddings | Experimental | Deterministic fallbacks exist; real adapters are future hardening. |
+| OCR | Experimental role, supported PDF/image paths | Scanned-PDF and image OCR run through `@mindory/llm` local HTTP OCR when enabled. |
+| Vision captioning and image embeddings | Experimental | Image vision captioning runs through `@mindory/llm` local HTTP when enabled; image embeddings remain future hardening. |
 | ASR | Experimental | Transcript artifact shape exists; real adapters are future hardening. |
 | Face detection and recognition | Experimental | Workspace data model exists; real adapters are future hardening. |
 | Image/audio generation | Future | Role placeholders exist for configuration planning only. |

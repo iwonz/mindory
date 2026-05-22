@@ -1282,7 +1282,8 @@ For MVP:
 
 - text extraction is required for `.txt` and `.md`;
 - PDF extraction should support native text and scanned-PDF OCR through a model adapter;
-- image OCR is optional and not required;
+- image OCR and vision captioning are optional experimental paths and not
+  required for the default MVP;
 - audio/video are not MVP.
 
 ### 15.2 Session/message pipeline

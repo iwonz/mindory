@@ -7,6 +7,7 @@ import {
   type ExtractTextInput,
   type TextExtractor
 } from "@mindory/core/processing";
+import type { LlmOcrProvider, LlmRoleDescriptor, LlmVisionProvider } from "@mindory/llm";
 
 export interface ImageSemanticExtractorOptions {
   faceDetection?: ModelCapabilityState;
@@ -14,6 +15,10 @@ export interface ImageSemanticExtractorOptions {
   imageCaptioning?: ModelCapabilityState;
   imageEmbedding?: ModelCapabilityState;
   ocr?: ModelCapabilityState;
+  ocrProvider?: LlmOcrProvider;
+  ocrRole?: LlmRoleDescriptor;
+  visionProvider?: LlmVisionProvider;
+  visionRole?: LlmRoleDescriptor;
 }
 
 export interface ModelCapabilityState {
@@ -44,6 +49,10 @@ export class ImageSemanticExtractor implements TextExtractor {
   private readonly imageCaptioning: ModelCapabilityState;
   private readonly imageEmbedding: ModelCapabilityState;
   private readonly ocr: ModelCapabilityState;
+  private readonly ocrProvider: LlmOcrProvider | undefined;
+  private readonly ocrRole: LlmRoleDescriptor | undefined;
+  private readonly visionProvider: LlmVisionProvider | undefined;
+  private readonly visionRole: LlmRoleDescriptor | undefined;
 
   constructor(options: ImageSemanticExtractorOptions = {}) {
     this.faceDetection = options.faceDetection ?? disabledCapability();
@@ -51,6 +60,10 @@ export class ImageSemanticExtractor implements TextExtractor {
     this.imageCaptioning = options.imageCaptioning ?? disabledCapability();
     this.imageEmbedding = options.imageEmbedding ?? disabledCapability();
     this.ocr = options.ocr ?? disabledCapability();
+    this.ocrProvider = options.ocrProvider;
+    this.ocrRole = options.ocrRole;
+    this.visionProvider = options.visionProvider;
+    this.visionRole = options.visionRole;
   }
 
   supports(document: { originalFilename: string; mimeType: string }): boolean {
@@ -68,14 +81,12 @@ export class ImageSemanticExtractor implements TextExtractor {
 
     const bytes = await readAllBytes(input.body);
     const metadata = extractImageMetadata(bytes, input.document.originalFilename, input.document.mimeType);
-    const ocrText = metadata.embeddedText.join("\n").trim();
-    if (this.ocr.enabled && this.ocr.required && ocrText.length === 0) {
-      throw new ProcessingError("text_extraction_failed", "Image OCR is required, but no concrete OCR adapter produced text.");
-    }
+    const modelResult = await this.runModelOperations({ bytes, input, metadata });
+    const ocrText = modelResult.ocrText;
 
-    const labels = buildImageLabels(metadata);
+    const labels = buildImageLabels(metadata, modelResult.labels);
     const faceCount = this.faceDetection.enabled ? readPeopleCount(labels, ocrText) : 0;
-    const caption = buildCaption(metadata, labels);
+    const caption = modelResult.caption ?? buildCaption(metadata, labels);
     const analysis = buildAnalysis(metadata, labels, ocrText);
     const semanticText = [
       caption,
@@ -97,7 +108,9 @@ export class ImageSemanticExtractor implements TextExtractor {
         metadata,
         imageCaptioning: this.imageCaptioning,
         imageEmbedding: this.imageEmbedding,
-        ocr: this.ocr
+        ocr: this.ocr,
+        imageCaptioningStatus: modelResult.visionStatus,
+        ocrStatus: modelResult.ocrStatus
       }),
       faceObservations: buildFaceObservations({
         count: faceCount,
@@ -119,11 +132,84 @@ export class ImageSemanticExtractor implements TextExtractor {
         capabilities: {
           face_detection: capabilitySnapshot(this.faceDetection, faceCount > 0 ? "fallback_people_count_detected" : this.faceDetection.enabled ? "no_people_count_detected" : "disabled"),
           face_recognition: capabilitySnapshot(this.faceRecognition, faceCount > 0 ? "fallback_deterministic_embeddings" : this.faceRecognition.enabled ? "no_faces_to_embed" : "disabled"),
-          image_captioning: capabilitySnapshot(this.imageCaptioning, this.imageCaptioning.enabled ? "fallback_metadata_caption" : "disabled"),
+          image_captioning: capabilitySnapshot(this.imageCaptioning, modelResult.visionStatus),
           image_embedding: capabilitySnapshot(this.imageEmbedding, this.imageEmbedding.enabled ? "skipped_no_adapter" : "disabled"),
-          ocr: capabilitySnapshot(this.ocr, ocrText.length > 0 ? "embedded_text_extracted" : this.ocr.enabled ? "skipped_no_adapter" : "disabled")
+          ocr: capabilitySnapshot(this.ocr, modelResult.ocrStatus)
         }
       }
+    };
+  }
+
+  private async runModelOperations(input: {
+    bytes: Buffer;
+    input: ExtractTextInput;
+    metadata: ImageMetadata;
+  }): Promise<{
+    ocrText: string;
+    ocrStatus: string;
+    caption: string | undefined;
+    labels: string[];
+    visionStatus: string;
+  }> {
+    const embeddedText = input.metadata.embeddedText.join("\n").trim();
+    let ocrText = embeddedText;
+    let ocrStatus = embeddedText.length > 0 ? "embedded_text_extracted" : this.ocr.enabled ? "skipped_no_adapter" : "disabled";
+    if (this.ocr.enabled && this.ocrProvider !== undefined && this.ocrRole !== undefined) {
+      const result = await this.ocrProvider.recognizeText({
+        bytes: input.bytes,
+        mimeType: input.input.document.mimeType
+      }, {
+        role: this.ocrRole,
+        refs: {
+          projectId: input.input.document.projectId,
+          documentId: input.input.document.id
+        }
+      });
+      if (result.status === "success" && result.value !== undefined && result.value.text.trim().length > 0) {
+        ocrText = result.value.text.trim();
+        ocrStatus = "provider_ocr";
+      } else if (this.ocr.required) {
+        throw new ProcessingError("text_extraction_failed", result.audit.errorMessage ?? "Image OCR provider returned no text.");
+      } else if (result.status === "failed") {
+        ocrStatus = "provider_failed";
+      }
+    } else if (this.ocr.enabled && this.ocr.required && ocrText.length === 0) {
+      throw new ProcessingError("text_extraction_failed", "Image OCR is required, but no concrete OCR adapter produced text.");
+    }
+
+    let caption: string | undefined;
+    let labels: string[] = [];
+    let visionStatus = this.imageCaptioning.enabled ? "fallback_metadata_caption" : "disabled";
+    if (this.imageCaptioning.enabled && this.visionProvider !== undefined && this.visionRole !== undefined) {
+      const result = await this.visionProvider.captionImage({
+        bytes: input.bytes,
+        mimeType: input.input.document.mimeType
+      }, {
+        role: this.visionRole,
+        refs: {
+          projectId: input.input.document.projectId,
+          documentId: input.input.document.id
+        }
+      });
+      if (result.status === "success" && result.value !== undefined && result.value.caption.trim().length > 0) {
+        caption = result.value.caption.trim();
+        labels = result.value.labels ?? [];
+        visionStatus = "provider_caption";
+      } else if (this.imageCaptioning.required) {
+        throw new ProcessingError("text_extraction_failed", result.audit.errorMessage ?? "Image captioning provider returned no caption.");
+      } else if (result.status === "failed") {
+        visionStatus = "provider_failed";
+      }
+    } else if (this.imageCaptioning.enabled && this.imageCaptioning.required) {
+      throw new ProcessingError("text_extraction_failed", "Image captioning is required, but no concrete vision adapter produced a caption.");
+    }
+
+    return {
+      ocrText,
+      ocrStatus,
+      caption,
+      labels,
+      visionStatus
     };
   }
 }
@@ -137,6 +223,8 @@ function buildSemanticArtifacts(input: {
   imageCaptioning: ModelCapabilityState;
   imageEmbedding: ModelCapabilityState;
   ocr: ModelCapabilityState;
+  imageCaptioningStatus: string;
+  ocrStatus: string;
 }): ExtractedSemanticArtifact[] {
   const artifacts: ExtractedSemanticArtifact[] = [
     {
@@ -148,7 +236,7 @@ function buildSemanticArtifacts(input: {
       modelName: input.imageCaptioning.model,
       metadata: {
         labels: input.labels,
-        capability: capabilitySnapshot(input.imageCaptioning, input.imageCaptioning.enabled ? "fallback_metadata_caption" : "disabled")
+        capability: capabilitySnapshot(input.imageCaptioning, input.imageCaptioningStatus)
       }
     },
     {
@@ -163,7 +251,7 @@ function buildSemanticArtifacts(input: {
         width: input.metadata.width,
         height: input.metadata.height,
         orientation: input.metadata.orientation,
-        capability: capabilitySnapshot(input.imageCaptioning, input.imageCaptioning.enabled ? "fallback_metadata_analysis" : "disabled")
+        capability: capabilitySnapshot(input.imageCaptioning, input.imageCaptioningStatus)
       }
     },
     {
@@ -189,8 +277,8 @@ function buildSemanticArtifacts(input: {
       modelProvider: input.ocr.provider,
       modelName: input.ocr.model,
       metadata: {
-        source: "embedded_image_text",
-        capability: capabilitySnapshot(input.ocr, "embedded_text_extracted")
+        source: input.ocrStatus === "provider_ocr" ? "llm_ocr_provider" : "embedded_image_text",
+        capability: capabilitySnapshot(input.ocr, input.ocrStatus)
       }
     });
   }
@@ -243,10 +331,16 @@ function extractImageMetadata(bytes: Buffer, filename: string, mimeType: string)
   };
 }
 
-function buildImageLabels(metadata: ImageMetadata): string[] {
+function buildImageLabels(metadata: ImageMetadata, providerLabels: string[] = []): string[] {
   const labels = new Set(["image", metadata.extension, metadata.orientation].filter((label) => label.length > 0 && label !== "unknown"));
   for (const label of metadata.filenameLabels) {
     labels.add(label);
+  }
+  for (const label of providerLabels) {
+    const normalized = label.trim().toLowerCase();
+    if (normalized.length > 0) {
+      labels.add(normalized);
+    }
   }
   if (metadata.width !== null && metadata.height !== null) {
     labels.add(`${metadata.width}x${metadata.height}`);

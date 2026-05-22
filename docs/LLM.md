@@ -1,11 +1,11 @@
 # LLM SDK
 
 `@mindory/llm` is the single runtime entrypoint for Mindory subsystems
-that need model-backed capabilities. Current runtime use is text embeddings for
-document indexing and query-time semantic search. The same module owns the role
-registry for chat, text embeddings, image embeddings, OCR, ASR, vision
-captioning, face detection, face recognition, image generation and audio
-generation.
+that need model-backed capabilities. Current runtime use includes text
+embeddings for document indexing/query-time semantic search, PDF/image OCR and
+image vision captioning. The same module owns the role registry for chat, text
+embeddings, image embeddings, OCR, ASR, vision captioning, face detection, face
+recognition, image generation and audio generation.
 
 ## Capabilities
 
@@ -123,7 +123,8 @@ auth configuration and audit path.
 
 `MINDORY_LLM_LOCAL_HTTP_BASE_URL` configures an unauthenticated local model
 service intended for trusted single-host or private-network deployments. It is
-supported for `chat` and `text-embedding` roles.
+supported for `chat` and `text-embedding` roles and experimental for OCR and
+vision captioning.
 
 The local HTTP contract is intentionally small:
 
@@ -135,14 +136,18 @@ The local HTTP contract is intentionally small:
   OpenAI-compatible `{ data: [{ index, embedding }] }` or `{ embeddings }`.
 - `POST /ocr` accepts `{ model, mime_type, data_base64 }` and returns `{ text }`
   or `{ pages: [{ page_number, text, confidence }] }` for OCR-capable roles.
+- `POST /vision/caption` accepts `{ model, mime_type, data_base64 }` and
+  returns `{ caption, labels }` or `{ text, labels }` for image captioning.
 
 `buildMindoryLlm(config).healthCheck("local-http")` checks `/health`.
 `healthCheck("ollama")` checks Ollama `/api/tags`; this verifies that the
 service is reachable without performing a model operation.
 
-The OCR role remains experimental and requires
-`MINDORY_INSTALL_ALLOW_EXPERIMENTAL=true` when enabled. The scanned-PDF pipeline
-uses this local HTTP OCR contract for pages without native PDF text.
+OCR and vision captioning remain experimental and require
+`MINDORY_INSTALL_ALLOW_EXPERIMENTAL=true` when enabled. The scanned-PDF
+pipeline uses the local HTTP OCR contract for pages without native PDF text.
+The image pipeline uses local HTTP OCR and vision captioning to derive
+searchable OCR text, captions and labels without changing RAW originals.
 
 ## Runtime Boundary
 
@@ -160,8 +165,8 @@ current pgvector dimension guard.
 
 `buildMindoryLlm` accepts an optional `auditSink` callback. The SDK calls it for
 disabled role attempts through `disabledResult` and for current chat/text
-embedding/OCR provider calls with `success` or `failed` status, role, provider,
-model, duration, usage details when available and optional
+embedding/OCR/vision provider calls with `success` or `failed` status, role,
+provider, model, duration, usage details when available and optional
 project/document/job/session refs. TASK-55 keeps this as an in-process hook;
 durable audit persistence is future work.
 
