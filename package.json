@@ -51,6 +51,7 @@
     "public:validate": "node scripts/validate-public-github-hygiene.js",
     "queue:validate": "node scripts/validate-queue.js",
     "release:bundle": "node scripts/build-release-bundle.js",
+    "release:notes": "node scripts/generate-release-notes.js",
     "release:validate": "node scripts/validate-release-workflow.js",
     "selfhost:acceptance": "pnpm --filter @mindory/installer typecheck && node scripts/selfhost-acceptance.js",
     "storage:validate": "pnpm --filter @mindory/storage-s3 typecheck && node scripts/validate-storage-adapters.js",

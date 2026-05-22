@@ -78,11 +78,14 @@ for (const token of ["createStructuredLogEvent", "InMemoryModelOperationAuditSto
 
 for (const token of [
   "docker build",
+  "docker push",
   "pnpm check",
   "signed manifest",
   "manifest signature",
   "mindory_release_signing_private_key_pem",
   "mindory_release_public_key_path",
+  "release notes",
+  "docs/release_checklist.md",
   "backup",
   "backup-archive",
   "backup-upload",

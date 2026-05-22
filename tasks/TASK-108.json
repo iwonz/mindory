@@ -1,7 +1,7 @@
 {
   "id": "TASK-108",
   "title": "Harden release publishing workflow",
-  "status": "draft",
+  "status": "done",
   "type": "feature",
   "priority": "high",
   "branch": "task/TASK-108-release-publishing-workflow",

@@ -48,11 +48,13 @@ const rootPackage = readJson("package.json");
 const checkRepo = read("scripts/check-repo.js");
 const releaseWorkflow = read(".github/workflows/release.yml");
 const smokeScript = read("scripts/smoke-release-install.js");
+const releaseNotesScript = read("scripts/generate-release-notes.js");
 const deployment = read("docs/DEPLOYMENT.md");
 const production = read("docs/PRODUCTION_HARDENING.md");
 const changelog = read("CHANGELOG.md");
 
 assert(rootPackage.scripts?.["release:validate"] === "node scripts/validate-release-workflow.js", "Root package must expose release:validate.");
+assert(rootPackage.scripts?.["release:notes"] === "node scripts/generate-release-notes.js", "Root package must expose release:notes.");
 assertIncludes(checkRepo, "release:validate", "scripts/check-repo.js");
 
 for (const token of [
@@ -63,12 +65,17 @@ for (const token of [
   "packages: write",
   "pnpm check",
   "docker build",
+  "docker/login-action@v3",
+  "docker push",
   "pnpm release:bundle",
   "sha256sum",
   "MINDORY_RELEASE_SIGNING_PRIVATE_KEY_PEM",
+  "generate-release-notes.js",
+  "release-notes.md",
   "smoke-release-install.js",
   "actions/upload-artifact@v4",
-  "gh release"
+  "gh release edit",
+  "gh release upload"
 ]) {
   assertIncludes(releaseWorkflow, token, ".github/workflows/release.yml");
 }
@@ -84,6 +91,10 @@ for (const token of [
   "tar"
 ]) {
   assertIncludes(smokeScript, token, "scripts/smoke-release-install.js");
+}
+
+for (const token of ["Support Matrix", "Upgrade Notes", "Public Release Checklist", "Docker Images", "Release Artifacts", "Changelog Excerpt"]) {
+  assertIncludes(releaseNotesScript, token, "scripts/generate-release-notes.js");
 }
 
 for (const token of ["Release Workflow", "release:bundle", "release:validate", "smoke-release-install"]) {
@@ -123,6 +134,25 @@ try {
     "--home",
     path.join(outDir, "home")
   ], "release install smoke");
+
+  const releaseNotesPath = path.join(outDir, "mindory-0.0.0-release-validate.release-notes.md");
+  runNode([
+    "scripts/generate-release-notes.js",
+    "--version",
+    "0.0.0-release-validate",
+    "--tag",
+    "v0.0.0-release-validate",
+    "--image",
+    "ghcr.io/example/mindory:0.0.0-release-validate",
+    "--sha-image",
+    "ghcr.io/example/mindory:abcdef123456",
+    "--out",
+    releaseNotesPath
+  ], "release notes generation");
+  const releaseNotes = fs.readFileSync(releaseNotesPath, "utf8");
+  for (const token of ["Support Matrix", "Upgrade Notes", "Public Release Checklist", "ghcr.io/example/mindory:0.0.0-release-validate", "mindory-0.0.0-release-validate.manifest.env.public.pem"]) {
+    assertIncludes(releaseNotes, token, "generated release notes");
+  }
 
   const tamperedManifestPath = path.join(outDir, "mindory-0.0.0-release-validate.tampered.manifest.env");
   fs.writeFileSync(tamperedManifestPath, manifest.replace("MINDORY_RELEASE_VERSION=0.0.0-release-validate", "MINDORY_RELEASE_VERSION=0.0.0-release-tampered"), "utf8");

@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-107",
+  "current_task_id": "TASK-108",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -789,7 +789,7 @@
     {
       "id": "TASK-108",
       "title": "Harden release publishing workflow",
-      "status": "draft",
+      "status": "done",
       "branch": "task/TASK-108-release-publishing-workflow",
       "file": "tasks/TASK-108.json"
     },
