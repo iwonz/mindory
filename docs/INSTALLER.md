@@ -4,8 +4,8 @@ The installer is built in layers. The current implementation supports planning,
 interactive answer collection, config rendering, dependency diagnostics,
 bootstrap staging, prepare execution, Docker Compose startup through health
 checks and dry-run/live acceptance checks. It can write the local
-`$MINDORY_HOME` file layout and start the runtime, but it does not yet provision
-the first project/token.
+`$MINDORY_HOME` file layout, start the runtime and provision the first
+project/token.
 
 ## Current Support Level
 
@@ -16,10 +16,10 @@ the first project/token.
 | Config rendering | Supported in the installer core for generated `.env` and `mindory.config.json` content. |
 | Prepare execution | Supported. It creates `$MINDORY_HOME`, writes generated config/env files and copies release Compose assets with journaled rollback. |
 | Compose startup | Supported. It can pull/build, start infrastructure, run migrations, start API/worker/MCP and wait for Compose/API readiness. |
+| First project/token provisioning | Supported. It creates the initial project and bearer token, then writes `config/initial-token.json`. |
 | Dependency detection | Supported through injectable probes and diagnostics. |
 | Lock, journal and recovery diagnostics | Supported. `repair` and `resume` inspect current state. |
 | Bootstrap staging and checksum verification | Supported for source/release-style bundles. |
-| First project/token provisioning | Future work. The CLI does not yet create initial credentials. |
 | Update, uninstall and real resume execution | Future work. Current surfaces are diagnostics/planning only. |
 
 ## Core Package
@@ -83,8 +83,12 @@ After a source checkout has been built, the explicit startup command is:
 node packages/installer/dist/cli.js start --home ~/.mindory --source /path/to/mindory
 ```
 
-This command runs through health checks and stops before first project/token
-provisioning.
+This command runs through health checks and first project/token provisioning.
+The generated raw bearer token is written once to:
+
+```text
+$MINDORY_HOME/config/initial-token.json
+```
 
 For release mode, provide a manifest URL or manifest file. The manifest is a
 simple env-style file:
@@ -105,8 +109,7 @@ bundles. The installer CLI currently supports `wizard`, `plan`/`dry-run`,
 `prepare`, `start`, `render-defaults`, `repair` and `resume`. `prepare`
 executes only the local file preparation steps. `start` additionally runs
 Docker Compose pull/build, infrastructure startup, migrations, API/worker/MCP
-startup and health checks, then reports first-token provisioning as pending
-future work.
+startup, health checks and first project/token provisioning.
 
 ## Recovery Surface
 
@@ -193,14 +196,17 @@ back in reverse order when they expose a rollback step. Actions with no local
 rollback are recorded as skipped so the diagnosis can tell the user what may
 require manual cleanup. Prepare execution uses this model for filesystem,
 config and Compose asset writes. Startup execution adds `compose_down` rollback
-for started services. Token/provisioning actions remain pending future steps.
+for started services. First-token provisioning writes a local credential file
+with rollback for that file; database token rollback remains a future lifecycle
+operation.
 
 ## Generated State
 
-The installer core can render, and the `prepare` command can write:
+The installer core can render, and installer execution can write:
 
 - `$MINDORY_HOME/config/mindory.config.json`
 - `$MINDORY_HOME/config/.env`
+- `$MINDORY_HOME/config/initial-token.json`
 - release Compose asset targets under `$MINDORY_HOME/install`
 
 Runtime data remains under the single-home layout documented in

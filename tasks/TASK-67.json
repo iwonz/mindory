@@ -1,0 +1,61 @@
+{
+  "id": "TASK-67",
+  "title": "Add installer first-run provisioning",
+  "status": "done",
+  "type": "feature",
+  "priority": "high",
+  "branch": "task/TASK-67-installer-first-run-provisioning",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Provision the first project and bearer token after installer Compose startup succeeds.",
+    "background": "TASK-66 starts the stack through health checks but intentionally stops before initial credentials. This task closes the first-run loop by generating credentials, seeding them and saving them under MINDORY_HOME/config."
+  },
+  "scope": {
+    "in": [
+      "Generate first-run project/token identifiers and raw bearer token.",
+      "Add a provisioning script that creates the project and token in PostgreSQL.",
+      "Run provisioning through the API Compose service after health checks.",
+      "Write generated credentials to MINDORY_HOME/config/initial-token.json with restrictive permissions.",
+      "Rollback the generated credentials file on provisioning failure.",
+      "Update CLI output and docs with next steps."
+    ],
+    "out": [
+      "Interactive custom project naming.",
+      "Token rotation/update flows.",
+      "Installer update/uninstall/repair execution.",
+      "Full smoke upload/search/context scenario."
+    ]
+  },
+  "acceptance_criteria": [
+    "Installer execution can run all plan steps through create-first-token.",
+    "First-run credentials are generated when not supplied by tests.",
+    "Provisioning command receives project id, token id, raw token and public API URL.",
+    "initial-token.json is written under MINDORY_HOME/config and redacts nowhere because it is the one-time credential output.",
+    "CLI start reports provisioning complete and no pending steps.",
+    "pnpm check validates provisioning with fake Compose command runners."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm installer:validate",
+      "pnpm installer:acceptance",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-67.",
+      "Confirm no real secrets are committed."
+    ]
+  },
+  "dependencies": [
+    "TASK-66"
+  ],
+  "risks": [
+    "Raw first-run token must be written only to generated MINDORY_HOME, never repo files.",
+    "Provisioning should not depend on a pre-existing API token."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch is committed and merged back into master."
+  ]
+}
