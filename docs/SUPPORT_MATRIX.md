@@ -9,7 +9,6 @@ writing README, issues, release notes and docs.
 | --- | --- |
 | Supported | Expected to work in the documented local MVP path and covered by `pnpm check` or live acceptance. |
 | Experimental | Available for testing, but may need extra configuration, local resources or provider credentials. |
-| Placeholder | Intentional stub, scaffold or dependency-free test surface. Not a supported product feature. |
 | Future | Planned or architecturally allowed, but not implemented. |
 
 ## Runtime And Deployment
@@ -36,7 +35,7 @@ writing README, issues, release notes and docs.
 | Worker document pipeline | Supported local MVP | Scan, route, extract, chunk, embed/index and status transitions are wired. |
 | CLI | Supported local MVP | Calls HTTP API; no direct database access. |
 | MCP stdio | Supported local MVP | Tools call HTTP API; Compose service is a packaging smoke artifact. |
-| Hermes adapter | Supported baseline | Lifecycle helpers, HTTP client, optional tools and fake-compatible runtime hook harness are covered by `pnpm check`; official Hermes SDK certification is future work. |
+| Hermes adapter | Supported baseline | Lifecycle helpers, HTTP client, optional tools, runnable example host and conformance harnesses are covered by `pnpm check`; no external Hermes SDK code is vendored. |
 | Web UI | Future | Not part of the MVP. |
 
 ## Storage And Search

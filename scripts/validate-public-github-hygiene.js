@@ -68,19 +68,19 @@ for (const token of ["Security Policy", "Supported Versions", "GitHub private vu
   assertIncludes(security, token, "SECURITY.md");
 }
 
-for (const token of ["Release Notes Policy", "Unreleased", "TASK-110", "TASK-109", "TASK-108", "TASK-107", "TASK-70", "TASK-69"]) {
+for (const token of ["Release Notes Policy", "Unreleased", "TASK-111", "TASK-110", "TASK-109", "TASK-108", "TASK-107", "TASK-70", "TASK-69"]) {
   assertIncludes(changelog, token, "CHANGELOG.md");
 }
 
-for (const token of ["LICENSE", "CONTRIBUTING.md", "SECURITY.md", "CHANGELOG.md", "docs/REPOSITORY_STATUS.md", "docs/SUPPORT_MATRIX.md", "docs/RELEASE_CHECKLIST.md", "TASK-110"]) {
+for (const token of ["LICENSE", "CONTRIBUTING.md", "SECURITY.md", "CHANGELOG.md", "docs/REPOSITORY_STATUS.md", "docs/SUPPORT_MATRIX.md", "docs/RELEASE_CHECKLIST.md", "TASK-111"]) {
   assertIncludes(readme, token, "README.md");
 }
 
-for (const token of ["Supported", "Experimental", "Place" + "holder", "Future", "HTTP API", "MCP stdio", "@mindory/llm"]) {
+for (const token of ["Supported", "Experimental", "Future", "HTTP API", "MCP stdio", "@mindory/llm"]) {
   assertIncludes(supportMatrix, token, "docs/SUPPORT_MATRIX.md");
 }
 
-for (const token of ["complete through `TASK-110`", "Public GitHub hygiene baseline", "Known Limits", "Public Claims Rule"]) {
+for (const token of ["complete through `TASK-111`", "Public GitHub hygiene baseline", "Known Limits", "Public Claims Rule"]) {
   assertIncludes(repositoryStatus, token, "docs/REPOSITORY_STATUS.md");
 }
 

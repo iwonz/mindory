@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./example-host": {
+      "types": "./dist/example-host.d.ts",
+      "default": "./dist/example-host.js"
     }
   },
   "scripts": {

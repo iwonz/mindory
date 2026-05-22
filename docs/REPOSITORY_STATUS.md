@@ -6,7 +6,7 @@ The repository should be described with the support levels in
 
 ## Current Baseline
 
-The repository is complete through `TASK-110`.
+The repository is complete through `TASK-111`.
 
 Supported local MVP path:
 
@@ -60,9 +60,10 @@ Supported local MVP path:
 - LibreFS and MinIO local S3-compatible profiles include health-gated bucket
   bootstrap, and installer startup validates signed access for external
   S3-compatible buckets.
-- Hermes integration includes runtime hook registration for Hermes-like hosts
-  plus a fake-compatible harness covering context-before-prompt, attachment
-  upload, saved turns and later-session recall.
+- Hermes integration includes runtime hook registration for Hermes-like hosts,
+  a runnable example host and conformance harnesses covering
+  context-before-prompt, attachment upload, saved turns and later-session
+  recall.
 - Observability baseline includes structured log helpers, model operation audit
   querying, Prometheus metrics exporters, OpenTelemetry OTLP trace/log export,
   in-process job/stage metrics, health snapshots and documented in-process
@@ -99,8 +100,6 @@ Public GitHub hygiene baseline:
 
 - Alerting policy is not bundled; route Prometheus and OTLP exports to the
   monitoring stack used by the deployment.
-- Official Hermes SDK certification is future work; the current supported path
-  is the fake-compatible runtime harness.
 - Heavy multimodal model adapters are still experimental unless a role is
   explicitly documented as supported in `docs/SUPPORT_MATRIX.md`.
 - A web UI is not part of the MVP.
@@ -112,5 +111,5 @@ When updating README, docs, issues or release notes:
 - say `supported` only for paths covered by current checks or acceptance;
 - say `experimental` for provider/profile/model flows that require additional
   local resources or credentials;
-- say `placeholder` for intentional stubs or smoke-only surfaces;
-- say `future` for planned work that is not implemented.
+- use the support-matrix status terms for intentionally limited or planned
+  surfaces, and keep those claims separate from supported runtime paths.

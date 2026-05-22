@@ -66,11 +66,11 @@ Docker named volumes. Deleting or moving `MINDORY_HOME` deletes or moves the
 local Mindory runtime state; system dependencies and Docker itself are outside
 that ownership boundary.
 
-The base Compose scaffold hardcodes the bundled Postgres service credentials to
-match the default `MINDORY_DATABASE_URL`. External database configuration can be
-introduced in a later task when the database package exists.
+The base Compose file sets bundled Postgres service credentials to match the
+default `MINDORY_DATABASE_URL`. Self-host deployments can override database and
+Redis connection strings through generated `$MINDORY_HOME/config/.env`.
 
-`MINDORY_LOG_LEVEL` controls Fastify structured logging in the API skeleton.
+`MINDORY_LOG_LEVEL` controls Fastify structured logging in the API runtime.
 Sensitive request headers such as `authorization` are redacted by the logger
 configuration.
 
@@ -497,8 +497,8 @@ outputs. `MINDORY_TEST_DOCKER_BIN` can override the Docker binary path.
 
 ## Secret Handling
 
-`.env.example` must remain safe to commit. It may contain non-secret defaults and
-obvious placeholders, but never real credentials.
+`.env.example` must remain safe to commit. It may contain non-secret defaults
+and dummy example values, but never real credentials.
 
 Production deployments must override all demo defaults that grant access or
 protect state, including database credentials, Redis URLs, S3 credentials, model

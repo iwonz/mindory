@@ -20,6 +20,9 @@ documentation.
 
 ### Added
 
+- `TASK-111`: Hermes host integration package with runnable example host,
+  lifecycle hook registration and conformance coverage for attachments, turns
+  and later-session recall.
 - `TASK-110`: installer resume and repair execution backed by journal/run-state
   recovery, stale-lock cleanup and interrupted rollback continuation.
 - `TASK-109`: signed remote installer update with release download/staging,

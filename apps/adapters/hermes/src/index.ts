@@ -1,4 +1,5 @@
 export * from "./adapter.js";
+export * from "./example-host.js";
 export * from "./http-client.js";
 export * from "./identity.js";
 export * from "./runtime-contract.js";
