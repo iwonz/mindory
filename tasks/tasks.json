@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-62",
+  "current_task_id": "TASK-63",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -470,6 +470,13 @@
       "status": "done",
       "branch": "task/TASK-62-dev-test-installer-matrix",
       "file": "tasks/TASK-62.json"
+    },
+    {
+      "id": "TASK-63",
+      "title": "Add full install acceptance",
+      "status": "done",
+      "branch": "task/TASK-63-full-install-acceptance",
+      "file": "tasks/TASK-63.json"
     }
   ]
 }
