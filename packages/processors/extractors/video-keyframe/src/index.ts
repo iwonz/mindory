@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
@@ -17,6 +17,8 @@ export interface VideoKeyframeExtractorOptions {
   keyframeCommand?: string;
   keyframeCommandArgs?: string[];
   keyframeTimeoutMs?: number;
+  ffmpegCommand?: string;
+  ffprobeCommand?: string;
   ocr?: ModelCapabilityState;
   visionCaptioning?: ModelCapabilityState;
   ocrProvider?: LlmOcrProvider;
@@ -25,7 +27,7 @@ export interface VideoKeyframeExtractorOptions {
   visionRole?: LlmRoleDescriptor;
 }
 
-export type VideoKeyframeProviderKind = "manifest" | "local-command";
+export type VideoKeyframeProviderKind = "manifest" | "local-command" | "ffmpeg";
 
 export interface ModelCapabilityState {
   enabled: boolean;
@@ -65,6 +67,8 @@ export class VideoKeyframeExtractor implements TextExtractor {
   private readonly keyframeCommand: string;
   private readonly keyframeCommandArgs: string[];
   private readonly keyframeTimeoutMs: number;
+  private readonly ffmpegCommand: string;
+  private readonly ffprobeCommand: string;
   private readonly ocr: ModelCapabilityState;
   private readonly visionCaptioning: ModelCapabilityState;
   private readonly ocrProvider: LlmOcrProvider | undefined;
@@ -78,6 +82,8 @@ export class VideoKeyframeExtractor implements TextExtractor {
     this.keyframeCommand = options.keyframeCommand ?? "";
     this.keyframeCommandArgs = options.keyframeCommandArgs ?? [];
     this.keyframeTimeoutMs = Math.max(1, options.keyframeTimeoutMs ?? 120_000);
+    this.ffmpegCommand = options.ffmpegCommand ?? "ffmpeg";
+    this.ffprobeCommand = options.ffprobeCommand ?? "ffprobe";
     this.ocr = options.ocr ?? disabledCapability();
     this.visionCaptioning = options.visionCaptioning ?? disabledCapability();
     this.ocrProvider = options.ocrProvider;
@@ -122,7 +128,7 @@ export class VideoKeyframeExtractor implements TextExtractor {
           frame_index: index,
           timestamp_ms: frame.timestampMs,
           labels: frame.labels ?? [],
-          source: frame.source ?? "embedded_video_manifest",
+          source: frame.source ?? providerSource(this.keyframeProvider),
           caption: frame.caption ?? null,
           ocr_text: frame.ocrText ?? null,
           image_mime_type: frame.mimeType ?? null,
@@ -144,6 +150,7 @@ export class VideoKeyframeExtractor implements TextExtractor {
         max_keyframes: this.maxKeyframes,
         keyframe_provider: this.keyframeProvider,
         keyframe_command: this.keyframeProvider === "local-command" ? this.keyframeCommand : "",
+        ffmpeg_command: this.keyframeProvider === "ffmpeg" ? this.ffmpegCommand : "",
         capabilities: {
           ocr: capabilitySnapshot(this.ocr, frames.some((frame) => frame.ocrStatus === "provider_ocr") ? "provider_ocr" : this.ocr.enabled ? "skipped_no_frame_image" : "disabled"),
           vision_captioning: capabilitySnapshot(this.visionCaptioning, frames.some((frame) => frame.visionStatus === "provider_caption") ? "provider_caption" : this.visionCaptioning.enabled ? "skipped_no_frame_image" : "disabled")
@@ -168,6 +175,17 @@ export class VideoKeyframeExtractor implements TextExtractor {
         maxKeyframes: this.maxKeyframes
       });
     }
+    if (this.keyframeProvider === "ffmpeg") {
+      return new FfmpegVideoKeyframeProvider({
+        ffmpegCommand: this.ffmpegCommand,
+        ffprobeCommand: this.ffprobeCommand,
+        timeoutMs: this.keyframeTimeoutMs
+      }).extract({
+        bytes,
+        filename: input.document.originalFilename,
+        maxKeyframes: this.maxKeyframes
+      });
+    }
     return readVideoManifest(bytes) ?? fallbackManifest(input.document.originalFilename);
   }
 
@@ -184,7 +202,7 @@ export class VideoKeyframeExtractor implements TextExtractor {
     const mimeType = frame.mimeType ?? "image/png";
     const enriched: VideoFrameManifest = {
       ...frame,
-      source: frame.source ?? (this.keyframeProvider === "local-command" ? "local_command_keyframes" : "embedded_video_manifest")
+      source: frame.source ?? providerSource(this.keyframeProvider)
     };
 
     if (imageBytes === null) {
@@ -274,6 +292,65 @@ export class LocalCommandVideoKeyframeProvider {
   }
 }
 
+export class FfmpegVideoKeyframeProvider {
+  constructor(private readonly options: { ffmpegCommand: string; ffprobeCommand: string; timeoutMs: number }) {}
+
+  async extract(input: { bytes: Buffer; filename: string; maxKeyframes: number }): Promise<VideoManifest> {
+    const tempDir = await mkdtemp(path.join(tmpdir(), "mindory-video-ffmpeg-"));
+    const inputPath = path.join(tempDir, `input${fileExtension(input.filename) || ".video"}`);
+    const outputPattern = path.join(tempDir, "frame-%06d.png");
+    try {
+      await writeFile(inputPath, input.bytes);
+      const durationMs = await probeVideoDuration(this.options.ffprobeCommand, inputPath, this.options.timeoutMs);
+      await runLocalCommand(this.options.ffmpegCommand, [
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-i",
+        inputPath,
+        "-vf",
+        "fps=1",
+        "-frames:v",
+        String(input.maxKeyframes),
+        outputPattern
+      ], this.options.timeoutMs);
+      const frameFiles = (await readdir(tempDir))
+        .filter((file) => /^frame-\d+\.png$/.test(file))
+        .sort()
+        .slice(0, input.maxKeyframes);
+      if (frameFiles.length === 0) {
+        throw new ProcessingError("text_extraction_failed", "ffmpeg keyframe extraction produced no frame images.");
+      }
+      const frames: VideoFrameManifest[] = [];
+      for (const [index, file] of frameFiles.entries()) {
+        const timestampMs = index * 1000;
+        const frameBytes = await readFile(path.join(tempDir, file));
+        frames.push({
+          timestampMs,
+          description: `ffmpeg extracted keyframe ${index + 1} at ${timestampMs}ms`,
+          labels: ["ffmpeg", "keyframe"],
+          imageDataBase64: frameBytes.toString("base64"),
+          mimeType: "image/png",
+          source: "ffmpeg_keyframes"
+        });
+      }
+      return {
+        durationMs,
+        codec: "ffmpeg",
+        frames
+      };
+    } catch (error) {
+      if (error instanceof ProcessingError) {
+        throw error;
+      }
+      throw new ProcessingError("text_extraction_failed", ffmpegFailureMessage(error, this.options.ffmpegCommand));
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  }
+}
+
 export function readVideoManifest(bytes: Buffer): VideoManifest | null {
   const text = bytes.toString("utf8");
   const start = text.indexOf(manifestPrefix);
@@ -355,6 +432,45 @@ function replaceCommandToken(arg: string, values: { inputPath: string; filename:
     .replaceAll("{filename}", values.filename)
     .replaceAll("{mimeType}", values.mimeType)
     .replaceAll("{maxKeyframes}", String(values.maxKeyframes));
+}
+
+async function probeVideoDuration(ffprobeCommand: string, inputPath: string, timeoutMs: number): Promise<number | null> {
+  if (ffprobeCommand.trim() === "") {
+    return null;
+  }
+  try {
+    const output = await runLocalCommand(ffprobeCommand, [
+      "-v",
+      "error",
+      "-show_entries",
+      "format=duration",
+      "-of",
+      "default=nokey=1:noprint_wrappers=1",
+      inputPath
+    ], timeoutMs);
+    const seconds = Number.parseFloat(output.trim());
+    return Number.isFinite(seconds) && seconds >= 0 ? Math.round(seconds * 1000) : null;
+  } catch {
+    return null;
+  }
+}
+
+function providerSource(provider: VideoKeyframeProviderKind): string {
+  if (provider === "local-command") {
+    return "local_command_keyframes";
+  }
+  if (provider === "ffmpeg") {
+    return "ffmpeg_keyframes";
+  }
+  return "embedded_video_manifest";
+}
+
+function ffmpegFailureMessage(error: unknown, command: string): string {
+  const message = error instanceof Error ? error.message : String(error);
+  if (message.includes("ENOENT") || message.includes("failed to start")) {
+    return `ffmpeg keyframe extraction could not start ${command}. Install ffmpeg or set MINDORY_DOCUMENT_PROCESSING_VIDEO_FFMPEG_COMMAND to an executable path.`;
+  }
+  return `ffmpeg keyframe extraction failed: ${message}`;
 }
 
 function runLocalCommand(command: string, args: string[], timeoutMs: number): Promise<string> {

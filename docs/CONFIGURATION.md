@@ -157,11 +157,14 @@ should not enqueue that media type.
 
 `MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES` sets the video keyframe cap
 and defaults to `10`. `MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_PROVIDER`
-defaults to `manifest`; set it to `local-command` with
+defaults to `manifest`; set it to `ffmpeg` to extract PNG frames with the
+bundled ffmpeg provider. `MINDORY_DOCUMENT_PROCESSING_VIDEO_FFMPEG_COMMAND`
+and `MINDORY_DOCUMENT_PROCESSING_VIDEO_FFPROBE_COMMAND` select the runtime
+executables. Set the provider to `local-command` with
 `MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_COMMAND`,
 `MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_ARGS` and
-`MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_TIMEOUT_MS` to run an external
-keyframe extractor.
+`MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_TIMEOUT_MS` to run a custom
+external keyframe extractor.
 
 ## Docling Extraction Service
 
@@ -196,7 +199,9 @@ Audio extraction can call the local HTTP ASR provider for transcript segments,
 or derive transcript segments from embedded WAV `INFO/ICMT` text when ASR is
 disabled.
 Video extraction uses `MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES` to cap
-manifest-derived or local-command keyframes; the default remains `10`.
+manifest-derived, bundled ffmpeg or local-command keyframes; the default
+remains `10`. The ffmpeg provider writes the RAW video bytes to a temporary
+file, extracts frame PNGs without a shell, and removes the temporary files.
 Local-command keyframe extraction is opt-in and parses a JSON manifest from
 stdout without mutating the RAW video object.
 
@@ -309,6 +314,15 @@ The command must print a JSON object with `durationMs`, `codec` and `frames`.
 Each frame must include `timestampMs` and `description`; optional `labels`,
 `mime_type` and `data_base64` let Mindory run configured OCR/vision providers
 on extracted frame bytes.
+
+Bundled ffmpeg video keyframe extraction uses:
+
+```env
+MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_PROVIDER=ffmpeg
+MINDORY_DOCUMENT_PROCESSING_VIDEO_FFMPEG_COMMAND=ffmpeg
+MINDORY_DOCUMENT_PROCESSING_VIDEO_FFPROBE_COMMAND=ffprobe
+MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_TIMEOUT_MS=120000
+```
 
 Runtime consumers must obtain operation providers and role snapshots from
 `@mindory/llm`. Worker processors may receive simple capability snapshots, but

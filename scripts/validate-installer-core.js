@@ -84,7 +84,8 @@ for (const symbol of [
   "formatInstallerDiagnostic",
   "ClamAvInstallerHealthError",
   "checkClamAvInstallerHealth",
-  "checkLocalCommandLlmInstallerHealth"
+  "checkLocalCommandLlmInstallerHealth",
+  "checkFfmpegInstallerHealth"
 ]) {
   assert(installerSource.includes(symbol), `Installer core must expose ${symbol}.`);
 }
@@ -97,6 +98,11 @@ for (const token of ["MINDORY_CLAMAV_HEALTH_RETRIES", "MINDORY_CLAMAV_HEALTH_TIM
 }
 for (const token of ["MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND", "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS", "MINDORY_LLM_LOCAL_COMMAND_OPERATION_COMMAND", "MINDORY_LLM_LOCAL_COMMAND_OPERATION_ARGS", "MINDORY_LLM_LOCAL_COMMAND_MAX_INPUT_BYTES", "MINDORY_LLM_LOCAL_COMMAND_MAX_OUTPUT_BYTES"]) {
   assert(installerSource.includes(token), `Installer local-command health must include ${token}.`);
+  assert(envExample.includes(token), `.env.example must include ${token}.`);
+  assert(composeFile.includes(token), `docker-compose.yml must include ${token}.`);
+}
+for (const token of ["MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_PROVIDER", "MINDORY_DOCUMENT_PROCESSING_VIDEO_FFMPEG_COMMAND", "MINDORY_DOCUMENT_PROCESSING_VIDEO_FFPROBE_COMMAND"]) {
+  assert(installerSource.includes(token), `Installer ffmpeg video provider support must include ${token}.`);
   assert(envExample.includes(token), `.env.example must include ${token}.`);
   assert(composeFile.includes(token), `docker-compose.yml must include ${token}.`);
 }
@@ -124,6 +130,9 @@ for (const promptId of [
   "docling.timeout_ms",
   "docling.port",
   "modalities.video_max_keyframes",
+  "modalities.video_keyframe_provider",
+  "modalities.video_ffmpeg_command",
+  "modalities.video_ffprobe_command",
   "interfaces.api_port",
   "tokens.cli_api_token",
   "llm.TEXT_EMBEDDING.enabled",

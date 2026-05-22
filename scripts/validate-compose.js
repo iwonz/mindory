@@ -37,6 +37,7 @@ assert(compose.includes("redis:7-alpine"), "redis service must use the Redis ima
 assert(compose.includes("x-mindory-app"), "compose must define a shared built app image.");
 assert(compose.includes("dockerfile: Dockerfile"), "app services must build from the root Dockerfile.");
 assert(dockerfile.includes("pnpm install --frozen-lockfile"), "Dockerfile must install from the locked pnpm dependency graph.");
+assert(dockerfile.includes("apk add --no-cache ffmpeg"), "Dockerfile must install ffmpeg for bundled video keyframe extraction.");
 assert(dockerfile.includes("pnpm typecheck"), "Dockerfile must build TypeScript workspace outputs.");
 assert(dockerignore.includes("node_modules"), ".dockerignore must exclude node_modules.");
 assert(compose.includes("command: [\"pnpm\", \"db:migrate\"]"), "compose must run migrations before app services.");
@@ -85,6 +86,13 @@ for (const envName of [
   "MINDORY_DOCUMENT_PROCESSING_VIDEO_ENABLED: ${MINDORY_DOCUMENT_PROCESSING_VIDEO_ENABLED:-true}"
 ]) {
   assert(compose.includes(envName), `Compose demo defaults must enable multimodal routing: ${envName}.`);
+}
+for (const envName of [
+  "MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_PROVIDER",
+  "MINDORY_DOCUMENT_PROCESSING_VIDEO_FFMPEG_COMMAND",
+  "MINDORY_DOCUMENT_PROCESSING_VIDEO_FFPROBE_COMMAND"
+]) {
+  assert(compose.includes(envName), `Compose must include video ffmpeg provider env ${envName}.`);
 }
 assert(override.includes("NODE_ENV: development"), "docker-compose.override.yml must set development mode.");
 assert(testCompose.includes("name: mindory-test"), "docker-compose.test.yml must isolate the integration test project.");

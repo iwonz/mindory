@@ -1,7 +1,7 @@
 {
   "id": "TASK-100",
   "title": "Add bundled video keyframe provider",
-  "status": "draft",
+  "status": "done",
   "type": "feature",
   "priority": "high",
   "branch": "task/TASK-100-bundled-video-keyframe-provider",
