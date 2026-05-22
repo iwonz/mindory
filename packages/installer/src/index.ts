@@ -8,6 +8,7 @@ import {
   accessSync,
   mkdirSync,
   openSync,
+  readdirSync,
   readFileSync,
   rmSync,
   statSync,
@@ -486,6 +487,52 @@ export interface RuntimeRestoreReport {
   manifestPath: string;
   restored: boolean;
   components: RuntimeBackupComponentReport[];
+}
+
+export interface ScheduledBackupConfig {
+  enabled: boolean;
+  intervalMinutes: number;
+  retentionCount: number;
+  retentionDays: number;
+  includeConfig: boolean;
+  includePostgres: boolean;
+  includeObjects: boolean;
+}
+
+export interface ScheduledBackupHealth {
+  schema_version: InstallerSchemaVersion;
+  kind: "mindory-scheduled-backup-health";
+  enabled: boolean;
+  interval_minutes: number;
+  retention_count: number;
+  retention_days: number;
+  last_started_at: string | null;
+  last_success_at: string | null;
+  last_failure_at: string | null;
+  last_error: string | null;
+  last_backup_path: string | null;
+  next_run_at: string | null;
+}
+
+export interface ScheduledBackupRetentionReport {
+  deleted: string[];
+  kept: string[];
+}
+
+export interface ScheduledBackupOptions extends RuntimeBackupOptions {
+  force?: boolean;
+  now?: Date;
+  config?: Partial<ScheduledBackupConfig>;
+}
+
+export interface ScheduledBackupReport {
+  status: "disabled" | "skipped_not_due" | "already_running" | "dry_run" | "backed_up" | "backup_failed";
+  lockPath: string;
+  healthPath: string;
+  logPath: string;
+  health: ScheduledBackupHealth;
+  backup?: RuntimeBackupReport;
+  retention: ScheduledBackupRetentionReport;
 }
 
 export interface InstallStateInspection {
@@ -1212,6 +1259,153 @@ export async function restoreMindoryRuntimeBackup(
     restored: components.some((component) => component.status === "restored"),
     components
   };
+}
+
+export async function runScheduledMindoryBackup(
+  mindoryHome: string,
+  options: ScheduledBackupOptions = {}
+): Promise<ScheduledBackupReport> {
+  const resolvedHome = assertSafeMindoryHome(mindoryHome);
+  const now = options.now ?? new Date();
+  const config = readScheduledBackupConfig(resolvedHome, options.config);
+  const lockPath = scheduledBackupLockPath(resolvedHome);
+  const healthPath = scheduledBackupHealthPath(resolvedHome);
+  const logPath = scheduledBackupLogPath(resolvedHome);
+  const previousHealth = readScheduledBackupHealth(resolvedHome);
+
+  mkdirSync(path.dirname(lockPath), { recursive: true, mode: 0o700 });
+  mkdirSync(path.dirname(logPath), { recursive: true, mode: 0o700 });
+
+  if (!config.enabled && options.force !== true) {
+    const health = buildScheduledBackupHealth(config, previousHealth, now, {
+      nextRunAt: null
+    });
+    writeScheduledBackupHealth(healthPath, health);
+    appendScheduledBackupLog(logPath, "disabled", health);
+    return {
+      status: "disabled",
+      lockPath,
+      healthPath,
+      logPath,
+      health,
+      retention: { deleted: [], kept: listRuntimeBackupDirectories(resolvedHome).map((entry) => entry.path) }
+    };
+  }
+
+  const nextRunAt = computeNextScheduledBackupRun(config, previousHealth, now);
+  if (options.force !== true && now.getTime() < nextRunAt.getTime()) {
+    const health = buildScheduledBackupHealth(config, previousHealth, now, {
+      nextRunAt
+    });
+    writeScheduledBackupHealth(healthPath, health);
+    appendScheduledBackupLog(logPath, "skipped_not_due", health);
+    return {
+      status: "skipped_not_due",
+      lockPath,
+      healthPath,
+      logPath,
+      health,
+      retention: { deleted: [], kept: listRuntimeBackupDirectories(resolvedHome).map((entry) => entry.path) }
+    };
+  }
+
+  if (options.dryRun === true) {
+    const backup = await createMindoryRuntimeBackup(resolvedHome, {
+      ...options,
+      label: options.label ?? "scheduled",
+      dryRun: true,
+      includeConfig: config.includeConfig,
+      includePostgres: config.includePostgres,
+      includeObjects: config.includeObjects
+    });
+    const health = buildScheduledBackupHealth(config, previousHealth, now, {
+      lastStartedAt: now,
+      nextRunAt: addMinutes(now, config.intervalMinutes)
+    });
+    return {
+      status: "dry_run",
+      lockPath,
+      healthPath,
+      logPath,
+      health,
+      backup,
+      retention: { deleted: [], kept: listRuntimeBackupDirectories(resolvedHome).map((entry) => entry.path) }
+    };
+  }
+
+  const lock = acquireScheduledBackupLock(lockPath, now);
+  if (lock === null) {
+    const health = buildScheduledBackupHealth(config, previousHealth, now, {
+      nextRunAt
+    });
+    writeScheduledBackupHealth(healthPath, health);
+    appendScheduledBackupLog(logPath, "already_running", health);
+    return {
+      status: "already_running",
+      lockPath,
+      healthPath,
+      logPath,
+      health,
+      retention: { deleted: [], kept: listRuntimeBackupDirectories(resolvedHome).map((entry) => entry.path) }
+    };
+  }
+
+  try {
+    const backup = await createMindoryRuntimeBackup(resolvedHome, {
+      ...options,
+      label: options.label ?? "scheduled",
+      includeConfig: config.includeConfig,
+      includePostgres: config.includePostgres,
+      includeObjects: config.includeObjects
+    });
+    const retention = applyScheduledBackupRetention(resolvedHome, config, backup.backupPath, now);
+    const health = buildScheduledBackupHealth(config, previousHealth, now, {
+      lastStartedAt: now,
+      lastSuccessAt: now,
+      lastError: null,
+      lastBackupPath: backup.backupPath,
+      nextRunAt: addMinutes(now, config.intervalMinutes)
+    });
+    writeScheduledBackupHealth(healthPath, health);
+    appendScheduledBackupLog(logPath, "backed_up", health, { backupPath: backup.backupPath, deleted: retention.deleted });
+    return {
+      status: "backed_up",
+      lockPath,
+      healthPath,
+      logPath,
+      health,
+      backup,
+      retention
+    };
+  } catch (error) {
+    const health = buildScheduledBackupHealth(config, previousHealth, now, {
+      lastStartedAt: now,
+      lastFailureAt: now,
+      lastError: error instanceof Error ? error.message : String(error),
+      nextRunAt: addMinutes(now, config.intervalMinutes)
+    });
+    writeScheduledBackupHealth(healthPath, health);
+    appendScheduledBackupLog(logPath, "backup_failed", health);
+    return {
+      status: "backup_failed",
+      lockPath,
+      healthPath,
+      logPath,
+      health,
+      retention: { deleted: [], kept: listRuntimeBackupDirectories(resolvedHome).map((entry) => entry.path) }
+    };
+  } finally {
+    releaseScheduledBackupLock(lockPath, lock);
+  }
+}
+
+export function readScheduledBackupHealth(mindoryHome: string): ScheduledBackupHealth | null {
+  const healthPath = scheduledBackupHealthPath(assertSafeMindoryHome(mindoryHome));
+  if (!existsSync(healthPath)) {
+    return null;
+  }
+  const parsed = JSON.parse(readFileSync(healthPath, "utf8")) as ScheduledBackupHealth;
+  return parsed.kind === "mindory-scheduled-backup-health" ? parsed : null;
 }
 
 export function inspectInstallState(mindoryHome: string): InstallStateInspection {
@@ -2400,6 +2594,191 @@ function readMindoryHomeEnvironment(mindoryHome: string): Record<string, string>
     return {};
   }
   return parseEnvFile(readFileSync(envPath, "utf8"));
+}
+
+function readScheduledBackupConfig(mindoryHome: string, overrides: Partial<ScheduledBackupConfig> | undefined): ScheduledBackupConfig {
+  const env = readMindoryHomeEnvironment(mindoryHome);
+  const config = {
+    enabled: overrides?.enabled ?? readEnvBoolean(env, "MINDORY_BACKUP_SCHEDULE_ENABLED"),
+    intervalMinutes: overrides?.intervalMinutes ?? readEnvNumber(env, "MINDORY_BACKUP_SCHEDULE_INTERVAL_MINUTES"),
+    retentionCount: overrides?.retentionCount ?? readEnvNumber(env, "MINDORY_BACKUP_RETENTION_COUNT"),
+    retentionDays: overrides?.retentionDays ?? readEnvNumber(env, "MINDORY_BACKUP_RETENTION_DAYS"),
+    includeConfig: overrides?.includeConfig ?? readEnvBoolean(env, "MINDORY_BACKUP_INCLUDE_CONFIG"),
+    includePostgres: overrides?.includePostgres ?? readEnvBoolean(env, "MINDORY_BACKUP_INCLUDE_POSTGRES"),
+    includeObjects: overrides?.includeObjects ?? readEnvBoolean(env, "MINDORY_BACKUP_INCLUDE_OBJECTS")
+  };
+  validateScheduledBackupConfig(config);
+  return config;
+}
+
+function validateScheduledBackupConfig(config: ScheduledBackupConfig): void {
+  if (!Number.isInteger(config.intervalMinutes) || config.intervalMinutes <= 0) {
+    throw new Error("MINDORY_BACKUP_SCHEDULE_INTERVAL_MINUTES must be a positive integer.");
+  }
+  if (!Number.isInteger(config.retentionCount) || config.retentionCount <= 0) {
+    throw new Error("MINDORY_BACKUP_RETENTION_COUNT must be a positive integer.");
+  }
+  if (!Number.isInteger(config.retentionDays) || config.retentionDays <= 0) {
+    throw new Error("MINDORY_BACKUP_RETENTION_DAYS must be a positive integer.");
+  }
+}
+
+function readEnvBoolean(env: Record<string, string>, name: string): boolean {
+  return (env[name] ?? catalogDefault(name)).toLowerCase() === "true";
+}
+
+function readEnvNumber(env: Record<string, string>, name: string): number {
+  const value = Number(env[name] ?? catalogDefault(name));
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error(`${name} must be greater than zero.`);
+  }
+  return value;
+}
+
+function scheduledBackupLockPath(mindoryHome: string): string {
+  return path.join(mindoryHome, "backups", "scheduled-backup.lock");
+}
+
+function scheduledBackupHealthPath(mindoryHome: string): string {
+  return path.join(mindoryHome, "backups", "scheduled-backup-health.json");
+}
+
+function scheduledBackupLogPath(mindoryHome: string): string {
+  return path.join(mindoryHome, "logs", "scheduled-backup.log");
+}
+
+function acquireScheduledBackupLock(lockPath: string, now: Date): true | null {
+  let fd: number | null = null;
+  try {
+    fd = openSync(lockPath, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY, 0o600);
+    writeFileSync(fd, `${JSON.stringify({ pid: processPid, started_at: now.toISOString() })}\n`);
+    return true;
+  } catch (error) {
+    if (isFileAlreadyExistsError(error)) {
+      return null;
+    }
+    throw error;
+  } finally {
+    if (fd !== null) {
+      closeSync(fd);
+    }
+  }
+}
+
+function releaseScheduledBackupLock(lockPath: string, _lock: true): void {
+  rmSync(lockPath, { force: true });
+}
+
+function isFileAlreadyExistsError(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error && (error as { code?: unknown }).code === "EEXIST";
+}
+
+function computeNextScheduledBackupRun(config: ScheduledBackupConfig, previous: ScheduledBackupHealth | null, now: Date): Date {
+  if (previous?.last_success_at === null || previous?.last_success_at === undefined) {
+    return now;
+  }
+  return addMinutes(new Date(previous.last_success_at), config.intervalMinutes);
+}
+
+function buildScheduledBackupHealth(
+  config: ScheduledBackupConfig,
+  previous: ScheduledBackupHealth | null,
+  now: Date,
+  updates: {
+    lastStartedAt?: Date;
+    lastSuccessAt?: Date;
+    lastFailureAt?: Date;
+    lastError?: string | null;
+    lastBackupPath?: string;
+    nextRunAt: Date | null;
+  }
+): ScheduledBackupHealth {
+  return {
+    schema_version: INSTALLER_SCHEMA_VERSION,
+    kind: "mindory-scheduled-backup-health",
+    enabled: config.enabled,
+    interval_minutes: config.intervalMinutes,
+    retention_count: config.retentionCount,
+    retention_days: config.retentionDays,
+    last_started_at: updates.lastStartedAt?.toISOString() ?? previous?.last_started_at ?? null,
+    last_success_at: updates.lastSuccessAt?.toISOString() ?? previous?.last_success_at ?? null,
+    last_failure_at: updates.lastFailureAt?.toISOString() ?? previous?.last_failure_at ?? null,
+    last_error: updates.lastError === undefined ? previous?.last_error ?? null : updates.lastError,
+    last_backup_path: updates.lastBackupPath ?? previous?.last_backup_path ?? null,
+    next_run_at: updates.nextRunAt?.toISOString() ?? null
+  };
+}
+
+function writeScheduledBackupHealth(healthPath: string, health: ScheduledBackupHealth): void {
+  mkdirSync(path.dirname(healthPath), { recursive: true, mode: 0o700 });
+  writeFileSync(healthPath, `${JSON.stringify(health, null, 2)}\n`, { mode: 0o600 });
+}
+
+function appendScheduledBackupLog(logPath: string, event: ScheduledBackupReport["status"], health: ScheduledBackupHealth, fields: Record<string, unknown> = {}): void {
+  mkdirSync(path.dirname(logPath), { recursive: true, mode: 0o700 });
+  writeFileSync(logPath, `${JSON.stringify({
+    timestamp: new Date().toISOString(),
+    event,
+    health,
+    ...fields
+  })}\n`, { flag: "a", mode: 0o600 });
+}
+
+function applyScheduledBackupRetention(mindoryHome: string, config: ScheduledBackupConfig, activeBackupPath: string, now: Date): ScheduledBackupRetentionReport {
+  const backupsRoot = path.join(mindoryHome, "backups");
+  const active = path.resolve(activeBackupPath);
+  const cutoff = now.getTime() - config.retentionDays * 24 * 60 * 60 * 1000;
+  const entries = listRuntimeBackupDirectories(mindoryHome);
+  const newestFirst = [...entries].sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
+  const keep = new Set(newestFirst.slice(0, config.retentionCount).map((entry) => entry.path));
+  const deleted: string[] = [];
+  for (const entry of newestFirst) {
+    if (entry.path === active) {
+      keep.add(entry.path);
+      continue;
+    }
+    const expiredByCount = !keep.has(entry.path);
+    const expiredByAge = entry.createdAt.getTime() < cutoff;
+    if (!expiredByCount && !expiredByAge) {
+      continue;
+    }
+    assertPathInside(entry.path, backupsRoot);
+    rmSync(entry.path, { recursive: true, force: true });
+    deleted.push(entry.path);
+  }
+  return {
+    deleted,
+    kept: listRuntimeBackupDirectories(mindoryHome).map((entry) => entry.path)
+  };
+}
+
+function listRuntimeBackupDirectories(mindoryHome: string): Array<{ path: string; createdAt: Date }> {
+  const backupsRoot = path.join(mindoryHome, "backups");
+  if (!existsSync(backupsRoot)) {
+    return [];
+  }
+  return readdirSync(backupsRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => path.join(backupsRoot, entry.name))
+    .filter((entryPath) => existsSync(path.join(entryPath, "backup-manifest.json")))
+    .map((entryPath) => {
+      const manifest = readRuntimeBackupManifest(path.join(entryPath, "backup-manifest.json"));
+      return {
+        path: path.resolve(entryPath),
+        createdAt: new Date(manifest.created_at)
+      };
+    });
+}
+
+function addMinutes(date: Date, minutes: number): Date {
+  return new Date(date.getTime() + minutes * 60 * 1000);
+}
+
+function assertPathInside(targetPath: string, parentPath: string): void {
+  const relative = path.relative(path.resolve(parentPath), path.resolve(targetPath));
+  if (relative === "" || relative.startsWith("..") || path.isAbsolute(relative)) {
+    throw new Error(`Refusing to delete path outside ${parentPath}: ${targetPath}`);
+  }
 }
 
 function parseEnvFile(contents: string): Record<string, string> {

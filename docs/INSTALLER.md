@@ -21,6 +21,7 @@ project/token.
 | First project/token provisioning | Supported. It creates the initial project and bearer token, then writes `config/initial-token.json`. |
 | Update assets | Supported for local config/Compose asset refresh with pre-update backup and rollback. Remote release download is future work. |
 | Runtime backup/restore | Supported MVP. It writes `backup-manifest.json`, config, installer metadata, PostgreSQL dumps and local object storage copies. |
+| Scheduled local backups | Supported. `backup-schedule` uses config-driven intervals, a lock file, retention, logs and health state under `$MINDORY_HOME`. |
 | Uninstall | Supported with explicit `--yes`; optional backup is written next to the removed home. |
 | Dependency detection | Supported through injectable probes and diagnostics. |
 | Lock, journal and recovery diagnostics | Supported. `repair` and `resume` inspect current state. |
@@ -145,16 +146,17 @@ pnpm release:bundle -- --version 0.1.0 --url-base https://downloads.example.com/
 The bootstrap launches `bin/mindory-installer` when a packaged binary exists, or
 falls back to `node packages/installer/dist/cli.js wizard` for source-style
 bundles. The installer CLI currently supports `wizard`, `plan`/`dry-run`,
-`prepare`, `start`, `update`, `backup`, `restore`, `uninstall`,
+`prepare`, `start`, `update`, `backup`, `backup-schedule`, `restore`, `uninstall`,
 `render-defaults`, `repair` and `resume`. `prepare` executes only the local
 file preparation steps. `start`
 additionally runs Docker Compose pull/build, infrastructure startup, migrations,
 API/worker/MCP startup, health checks and first project/token provisioning.
 `update --dry-run` previews local asset refresh, while `update` creates a
 pre-update backup before rewriting config and Compose assets. `backup` creates
-a runtime backup under `$MINDORY_HOME/backups`; `restore` requires `--yes`
-before overwriting local state. `uninstall` requires `--yes` and can preserve a
-sibling backup with `--backup`.
+a runtime backup under `$MINDORY_HOME/backups`; `backup-schedule` executes the
+configured scheduled backup runner once and records health. `restore` requires
+`--yes` before overwriting local state. `uninstall` requires `--yes` and can
+preserve a sibling backup with `--backup`.
 
 ## Recovery Surface
 
@@ -170,6 +172,7 @@ mindory-installer repair --home ~/.mindory
 mindory-installer resume --home ~/.mindory
 mindory-installer update --home ~/.mindory --source /path/to/mindory --dry-run
 mindory-installer backup --home ~/.mindory
+mindory-installer backup-schedule --home ~/.mindory --status
 mindory-installer restore --home ~/.mindory --backup ~/.mindory/backups/<backup-dir> --yes
 mindory-installer uninstall --home ~/.mindory --yes --backup
 ```
@@ -343,6 +346,41 @@ Validate the scripted backup/restore path without starting Docker:
 ```bash
 pnpm backup:validate
 ```
+
+### Scheduled Backups
+
+The scheduled backup runner is single-home aware and reads generated config from
+`$MINDORY_HOME/config/.env`:
+
+```env
+MINDORY_BACKUP_SCHEDULE_ENABLED=true
+MINDORY_BACKUP_SCHEDULE_INTERVAL_MINUTES=1440
+MINDORY_BACKUP_RETENTION_COUNT=7
+MINDORY_BACKUP_RETENTION_DAYS=30
+MINDORY_BACKUP_INCLUDE_CONFIG=true
+MINDORY_BACKUP_INCLUDE_POSTGRES=true
+MINDORY_BACKUP_INCLUDE_OBJECTS=true
+```
+
+Run it from cron, systemd timer, launchd or a Windows scheduled task:
+
+```bash
+mindory-installer backup-schedule --home ~/.mindory
+mindory-installer backup-schedule --home ~/.mindory --run-now --label manual-check
+mindory-installer backup-schedule --home ~/.mindory --status
+```
+
+It writes:
+
+- `$MINDORY_HOME/backups/scheduled-backup.lock`
+- `$MINDORY_HOME/backups/scheduled-backup-health.json`
+- `$MINDORY_HOME/logs/scheduled-backup.log`
+
+Only one scheduled run executes at a time. A second runner reports
+`already_running` without starting another backup. Retention deletes only
+directories below `$MINDORY_HOME/backups` that contain a Mindory
+`backup-manifest.json`, so active runtime directories such as
+`$MINDORY_HOME/data/objects` are outside the deletion set.
 
 ## Generated State
 

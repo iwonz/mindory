@@ -191,6 +191,11 @@ export const CONFIG_CATALOG_SECTIONS = [
     description: "OTLP trace and structured log export settings."
   },
   {
+    id: "backups",
+    title: "Scheduled Backups",
+    description: "Local scheduled backup runner and retention settings."
+  },
+  {
     id: "database",
     title: "Database",
     description: "PostgreSQL connection settings."
@@ -319,6 +324,14 @@ export const CONFIG_CATALOG = [
     secret: true
   }),
   entry("MINDORY_OTEL_LOG_EXPORT_TIMEOUT_MS", "telemetry", "number", "5000", "OTLP structured log export timeout in milliseconds.", "both", "supported"),
+
+  entry("MINDORY_BACKUP_SCHEDULE_ENABLED", "backups", "boolean", "false", "Enable scheduled local runtime backups.", "both", "supported"),
+  entry("MINDORY_BACKUP_SCHEDULE_INTERVAL_MINUTES", "backups", "number", "1440", "Scheduled backup interval in minutes.", "both", "supported"),
+  entry("MINDORY_BACKUP_RETENTION_COUNT", "backups", "number", "7", "Maximum scheduled backup sets to retain.", "both", "supported"),
+  entry("MINDORY_BACKUP_RETENTION_DAYS", "backups", "number", "30", "Maximum scheduled backup age in days.", "both", "supported"),
+  entry("MINDORY_BACKUP_INCLUDE_CONFIG", "backups", "boolean", "true", "Include config and installer state in scheduled backups.", "both", "supported"),
+  entry("MINDORY_BACKUP_INCLUDE_POSTGRES", "backups", "boolean", "true", "Include PostgreSQL dumps in scheduled backups.", "both", "supported"),
+  entry("MINDORY_BACKUP_INCLUDE_OBJECTS", "backups", "boolean", "true", "Include local object storage data in scheduled backups.", "both", "supported"),
 
   entry("MINDORY_DATABASE_URL", "database", "string", "postgresql://mindory:mindory@postgres:5432/mindory", "PostgreSQL database URL.", "both", "supported", {
     secret: true

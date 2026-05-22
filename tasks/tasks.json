@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-102",
+  "current_task_id": "TASK-103",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -754,7 +754,7 @@
     {
       "id": "TASK-103",
       "title": "Add scheduled backups",
-      "status": "draft",
+      "status": "done",
       "branch": "task/TASK-103-scheduled-backups",
       "file": "tasks/TASK-103.json"
     },

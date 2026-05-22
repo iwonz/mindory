@@ -1,7 +1,7 @@
 {
   "id": "TASK-103",
   "title": "Add scheduled backups",
-  "status": "draft",
+  "status": "done",
   "type": "feature",
   "priority": "high",
   "branch": "task/TASK-103-scheduled-backups",
