@@ -1,0 +1,100 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version without leading v, for example 0.1.0.
+        required: true
+        type: string
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Resolve release version
+        id: version
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="${{ inputs.version }}"
+          fi
+          if [[ -z "$VERSION" ]]; then
+            echo "Release version is required." >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          echo "url_base=https://github.com/${GITHUB_REPOSITORY}/releases/download/v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Run repository checks
+        run: pnpm check
+        env:
+          MINDORY_TEST_DOCKER_BIN: docker
+
+      - name: Build Docker image
+        id: image
+        shell: bash
+        run: |
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
+          VERSION="${{ steps.version.outputs.version }}"
+          docker build -t "$IMAGE:$VERSION" .
+          docker tag "$IMAGE:$VERSION" "$IMAGE:${GITHUB_SHA::12}"
+          echo "image=$IMAGE:$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Generate release bundle
+        run: pnpm release:bundle -- --version "${{ steps.version.outputs.version }}" --url-base "${{ steps.version.outputs.url_base }}"
+
+      - name: Publish checksum file
+        shell: bash
+        run: |
+          cd dist/releases
+          sha256sum mindory-${{ steps.version.outputs.version }}.tar.gz mindory-${{ steps.version.outputs.version }}.manifest.env > mindory-${{ steps.version.outputs.version }}.sha256
+
+      - name: Smoke release install
+        run: node scripts/smoke-release-install.js --manifest "dist/releases/mindory-${{ steps.version.outputs.version }}.manifest.env" --home "$RUNNER_TEMP/mindory-release-smoke"
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mindory-release-${{ steps.version.outputs.version }}
+          path: |
+            dist/releases/mindory-${{ steps.version.outputs.version }}.tar.gz
+            dist/releases/mindory-${{ steps.version.outputs.version }}.manifest.env
+            dist/releases/mindory-${{ steps.version.outputs.version }}.sha256
+          if-no-files-found: error
+
+      - name: Publish GitHub release artifacts
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --draft --title "$TAG" --notes-file CHANGELOG.md
+          gh release upload "$TAG" dist/releases/mindory-${{ steps.version.outputs.version }}.tar.gz dist/releases/mindory-${{ steps.version.outputs.version }}.manifest.env dist/releases/mindory-${{ steps.version.outputs.version }}.sha256 --clobber
