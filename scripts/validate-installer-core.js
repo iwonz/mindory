@@ -23,6 +23,7 @@ const rootPackage = readJson("package.json");
 const rootTsconfig = readJson("tsconfig.json");
 const installerPackage = readJson("packages/installer/package.json");
 const installerSource = read("packages/installer/src/index.ts");
+const installerCli = read("packages/installer/src/cli.ts");
 
 assert(rootPackage.scripts?.["installer:validate"]?.includes("scripts/validate-installer-core.js"), "Root package must expose installer:validate.");
 assert(rootTsconfig.references?.some((reference) => reference.path === "packages/installer"), "Root tsconfig must reference @mindory/installer.");
@@ -39,6 +40,7 @@ for (const symbol of [
   "renderMindoryConfigJson",
   "buildRedactedInstallSummary",
   "executeInstallPlan",
+  "InstallCommandRunner",
   "buildWizardPromptPlan",
   "runInstallWizard",
   "createReadlineWizardIo",
@@ -51,6 +53,9 @@ for (const symbol of [
 }
 for (const token of ["CONFIG_CATALOG", "MINDORY_HOME_DIRECTORIES", "composeProfilesForAnswers", "redactEnvMap"]) {
   assert(installerSource.includes(token), `Installer core must include ${token}.`);
+}
+for (const token of ["command === \"start\"", "stopBeforeStepId: \"create-first-token\"", "mindory-installer start"]) {
+  assert(installerCli.includes(token), `Installer CLI must expose startup command token ${token}.`);
 }
 
 const installer = await import("../packages/installer/dist/index.js");
@@ -151,6 +156,73 @@ assert(fs.existsSync(installer.installJournalPath(executionHome)), "Prepare exec
 assert(installer.readInstallJournal(executionHome).some((entry) => entry.event === "completed" && entry.actionId === "write-compose-assets"), "Prepare journal must record completed compose asset writes.");
 assert(installer.readInstallLock(executionHome) === null, "Prepare execution must release the install lock.");
 fs.rmSync(executionHome, { recursive: true, force: true });
+
+const composeHome = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-installer-compose-"));
+fs.rmSync(composeHome, { recursive: true, force: true });
+const composeCommands = [];
+const healthyComposePs = JSON.stringify([
+  { Service: "postgres", State: "running", Health: "healthy" },
+  { Service: "redis", State: "running", Health: "healthy" },
+  { Service: "api", State: "running", Health: "healthy" },
+  { Service: "worker", State: "running", Health: "healthy" },
+  { Service: "mcp", State: "running", Health: "healthy" },
+  { Service: "migrate", State: "exited", ExitCode: "0" }
+]);
+const composeReport = await installer.executeInstallPlan(installer.createDefaultInstallAnswers({ mindoryHome: composeHome }), {
+  sourceRoot: root,
+  owner: "validator",
+  stopBeforeStepId: "create-first-token",
+  timeoutMs: 100,
+  pollIntervalMs: 1,
+  apiReadyCheck: async () => true,
+  commandRunner: {
+    async run(command, args) {
+      composeCommands.push(`${command} ${args.join(" ")}`);
+      if (args.includes("ps")) {
+        return { status: 0, stdout: healthyComposePs, stderr: "" };
+      }
+      return { status: 0, stdout: "ok", stderr: "" };
+    }
+  }
+});
+assert(composeReport.executedStepIds.includes("health-check"), "Compose execution must run through health-check.");
+assert(composeReport.pendingStepIds[0] === "create-first-token", "Compose execution must leave first token provisioning pending.");
+for (const token of ["pull --ignore-buildable", "build", "up -d postgres redis clamav", "up migrate", "up -d api worker mcp", "ps --all --format json"]) {
+  assert(composeCommands.some((command) => command.includes(token)), `Compose execution must run ${token}.`);
+}
+fs.rmSync(composeHome, { recursive: true, force: true });
+
+const composeRollbackHome = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-installer-compose-rollback-"));
+fs.rmSync(composeRollbackHome, { recursive: true, force: true });
+const rollbackCommands = [];
+let composeRollbackThrown = false;
+try {
+  await installer.executeInstallPlan(installer.createDefaultInstallAnswers({ mindoryHome: composeRollbackHome }), {
+    sourceRoot: root,
+    owner: "validator",
+    stopBeforeStepId: "create-first-token",
+    timeoutMs: 100,
+    pollIntervalMs: 1,
+    apiReadyCheck: async () => true,
+    commandRunner: {
+      async run(command, args) {
+        rollbackCommands.push(`${command} ${args.join(" ")}`);
+        if (args.join(" ").includes("up -d api worker mcp")) {
+          return { status: 1, stdout: "", stderr: "runtime failed" };
+        }
+        return { status: 0, stdout: args.includes("ps") ? healthyComposePs : "ok", stderr: "" };
+      }
+    }
+  });
+} catch (error) {
+  composeRollbackThrown = String(error).includes("runtime failed");
+}
+assert(composeRollbackThrown, "Compose execution must surface runtime startup failures.");
+assert(rollbackCommands.some((command) => command.includes("down --remove-orphans")), "Compose rollback must run compose down.");
+const composeRollbackJournal = installer.readInstallJournal(composeRollbackHome);
+assert(composeRollbackJournal !== null, "Compose rollback must leave a journal.");
+assert(composeRollbackJournal.some((entry) => entry.event === "rollback_completed" && entry.actionId === "start-infra"), "Compose rollback must record compose_down rollback completion.");
+fs.rmSync(composeRollbackHome, { recursive: true, force: true });
 
 const rollbackHome = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-installer-rollback-"));
 fs.rmSync(rollbackHome, { recursive: true, force: true });

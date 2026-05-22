@@ -1,0 +1,62 @@
+{
+  "id": "TASK-66",
+  "title": "Add installer Compose startup and healthchecks",
+  "status": "done",
+  "type": "feature",
+  "priority": "high",
+  "branch": "task/TASK-66-installer-compose-startup-healthchecks",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Extend installer execution from prepare-only filesystem work to Docker Compose startup through runtime health checks.",
+    "background": "TASK-65 added journaled prepare execution for MINDORY_HOME files. This task adds Docker command execution as a separate opt-in layer while keeping first project/token provisioning for TASK-67."
+  },
+  "scope": {
+    "in": [
+      "Add installer command runner abstraction for Docker Compose commands.",
+      "Implement pull/build, infrastructure startup, migration run, runtime startup and healthcheck steps.",
+      "Wait for Compose service health and API readiness with configurable timeout.",
+      "Rollback started Compose services with compose down on failure.",
+      "Expose a CLI command that runs prepare plus Compose startup and reports pending provisioning steps.",
+      "Add fake-runner validation so normal checks do not mutate Docker.",
+      "Update installer/deployment docs."
+    ],
+    "out": [
+      "Creating the first project/token.",
+      "Running live Docker installer acceptance by default.",
+      "Update/uninstall/repair execution.",
+      "Release image publishing."
+    ]
+  },
+  "acceptance_criteria": [
+    "Installer execution can run through health-check and stop before create-first-token.",
+    "Docker Compose commands are generated with selected profiles, env file and MINDORY_HOME.",
+    "Healthcheck waits for Postgres, Redis, migrate, API, worker and MCP readiness.",
+    "Failed Compose/startup steps roll back completed compose_down rollback steps.",
+    "CLI exposes a start command distinct from prepare and reports pending provisioning.",
+    "pnpm check validates the Compose startup path with fake command/fetch runners."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm installer:validate",
+      "pnpm installer:acceptance",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-66.",
+      "Confirm default installer acceptance still avoids live Docker mutation."
+    ]
+  },
+  "dependencies": [
+    "TASK-65"
+  ],
+  "risks": [
+    "Compose build context can differ between source checkout and future release bundle.",
+    "Healthcheck parsing must tolerate different Docker Compose JSON formats."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch is committed and merged back into master."
+  ]
+}

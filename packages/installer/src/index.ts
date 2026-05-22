@@ -14,7 +14,7 @@ import {
   writeFileSync
 } from "node:fs";
 import path from "node:path";
-import { cwd as processCwd, pid as processPid, stdin as defaultInput, stdout as defaultOutput } from "node:process";
+import { cwd as processCwd, env as processEnv, pid as processPid, stdin as defaultInput, stdout as defaultOutput } from "node:process";
 import { createInterface, type Interface as ReadlineInterface } from "node:readline/promises";
 import {
   CONFIG_CATALOG,
@@ -287,7 +287,27 @@ export interface InstallExecutionOptions {
   owner?: string;
   stopBeforeStepId?: string;
   rollbackOnFailure?: boolean;
+  dockerBinary?: string;
+  timeoutMs?: number;
+  pollIntervalMs?: number;
+  commandRunner?: InstallCommandRunner;
+  apiReadyCheck?: (url: string) => Promise<boolean> | boolean;
   beforeStep?: (step: InstallPlanStep, plan: InstallPlan) => void;
+}
+
+export interface InstallCommandOptions {
+  cwd: string;
+  env: Record<string, string>;
+}
+
+export interface InstallCommandResult {
+  status: number | null;
+  stdout: string;
+  stderr: string;
+}
+
+export interface InstallCommandRunner {
+  run(command: string, args: readonly string[], options: InstallCommandOptions): Promise<InstallCommandResult> | InstallCommandResult;
 }
 
 export interface InstallExecutionReport {
@@ -422,8 +442,8 @@ export function createInstallPlan(answers: MindoryInstallAnswers): InstallPlan {
       step("start-infra", "Start Postgres, Redis and optional infrastructure", "docker", "compose_down"),
       step("run-migrations", "Run database migrations", "migration", "none"),
       step("start-runtime", "Start API, worker and MCP package smoke services", "runtime", "compose_down"),
-      step("create-first-token", "Create initial project and API token", "token", "restore_file", path.posix.join(answers.mindoryHome, "config/initial-token.json")),
-      step("health-check", "Run install health checks", "healthcheck", "none")
+      step("health-check", "Run install health checks", "healthcheck", "none"),
+      step("create-first-token", "Create initial project and API token", "token", "restore_file", path.posix.join(answers.mindoryHome, "config/initial-token.json"))
     ]
   };
 }
@@ -700,7 +720,7 @@ export async function executeInstallPlan(
       writeInstallJournal(plan.mindoryHome, journal);
       try {
         options.beforeStep?.(stepItem, plan);
-        executeSupportedInstallStep(stepItem, answers, plan, options);
+        await executeSupportedInstallStep(stepItem, answers, plan, options);
         journal.markCompleted(stepItem);
         executedStepIds.push(stepItem.id);
         writeInstallJournal(plan.mindoryHome, journal);
@@ -708,7 +728,9 @@ export async function executeInstallPlan(
         journal.markFailed(stepItem, error);
         writeInstallJournal(plan.mindoryHome, journal);
         if (options.rollbackOnFailure ?? answers.rollbackOnFailure) {
-          rollbackReport = await rollbackCompletedActions(plan, journal, defaultRollbackExecutor);
+          rollbackReport = await rollbackCompletedActions(plan, journal, (rollback, completedStep) =>
+            defaultRollbackExecutor(rollback, completedStep, plan, options)
+          );
           writeInstallJournal(plan.mindoryHome, journal);
         }
         throw error;
@@ -1111,12 +1133,12 @@ function formatWizardQuestion(promptItem: WizardPrompt): string {
   return `${promptItem.label}${choices}${secret}${resource}\n${promptItem.help}\nDefault: ${promptItem.defaultValue}\n> `;
 }
 
-function executeSupportedInstallStep(
+async function executeSupportedInstallStep(
   stepItem: InstallPlanStep,
   answers: MindoryInstallAnswers,
   plan: InstallPlan,
   options: InstallExecutionOptions
-): void {
+): Promise<void> {
   if (stepItem.id === "ensure-home") {
     ensureMindoryHomeTree(plan, stepItem);
     return;
@@ -1131,6 +1153,26 @@ function executeSupportedInstallStep(
   }
   if (stepItem.id === "write-compose-assets") {
     writeComposeAssets(options.sourceRoot ?? processCwd(), plan, stepItem);
+    return;
+  }
+  if (stepItem.id === "pull-images") {
+    await pullOrBuildImages(plan, options);
+    return;
+  }
+  if (stepItem.id === "start-infra") {
+    await startComposeInfrastructure(plan, options);
+    return;
+  }
+  if (stepItem.id === "run-migrations") {
+    await runComposeMigrations(plan, options);
+    return;
+  }
+  if (stepItem.id === "start-runtime") {
+    await startComposeRuntime(plan, options);
+    return;
+  }
+  if (stepItem.id === "health-check") {
+    await runInstallHealthChecks(plan, options);
     return;
   }
   throw new Error(`Install step ${stepItem.id} is not implemented by the prepare execution engine.`);
@@ -1180,6 +1222,246 @@ function writeComposeAssets(sourceRoot: string, plan: InstallPlan, stepItem: Ins
   }
 }
 
+async function pullOrBuildImages(plan: InstallPlan, options: InstallExecutionOptions): Promise<void> {
+  await runDockerCompose(plan, ["pull", "--ignore-buildable"], options);
+  await runDockerCompose(plan, ["build"], options);
+}
+
+async function startComposeInfrastructure(plan: InstallPlan, options: InstallExecutionOptions): Promise<void> {
+  await runDockerCompose(plan, ["up", "-d", ...infrastructureServices(plan)], options);
+}
+
+async function runComposeMigrations(plan: InstallPlan, options: InstallExecutionOptions): Promise<void> {
+  await runDockerCompose(plan, ["up", "migrate"], options);
+}
+
+async function startComposeRuntime(plan: InstallPlan, options: InstallExecutionOptions): Promise<void> {
+  await runDockerCompose(plan, ["up", "-d", "api", "worker", "mcp"], options);
+}
+
+async function runInstallHealthChecks(plan: InstallPlan, options: InstallExecutionOptions): Promise<void> {
+  await waitForComposeServices(plan, options);
+  await waitForApiReady(plan, options);
+}
+
+async function waitForComposeServices(plan: InstallPlan, options: InstallExecutionOptions): Promise<void> {
+  const deadline = Date.now() + (options.timeoutMs ?? 240_000);
+  const pollIntervalMs = options.pollIntervalMs ?? 2_000;
+  const required = ["postgres", "redis", "api", "worker", "mcp"];
+  const completed = ["migrate"];
+  let lastStatus = "";
+
+  while (Date.now() < deadline) {
+    const records = parseComposeJson((await runDockerCompose(plan, ["ps", "--all", "--format", "json"], options, { captureOutput: true })).stdout);
+    const missing = required.filter((service) => findComposeService(records, service) === undefined);
+    const notReady = required.filter((service) => {
+      const record = findComposeService(records, service);
+      return record !== undefined && !isComposeRunningAndHealthy(record);
+    });
+    const notCompleted = completed.filter((service) => {
+      const record = findComposeService(records, service);
+      return record === undefined || !isComposeCompletedSuccessfully(record);
+    });
+    const failed = records.find((record) => isComposeFailed(record));
+    if (failed !== undefined) {
+      throw new Error(`Docker Compose service ${composeServiceName(failed)} failed during installer healthcheck.`);
+    }
+    if (missing.length === 0 && notReady.length === 0 && notCompleted.length === 0) {
+      return;
+    }
+    lastStatus = JSON.stringify({ missing, notReady, notCompleted });
+    await sleep(pollIntervalMs);
+  }
+
+  throw new Error(`Timed out waiting for Docker Compose services: ${lastStatus}`);
+}
+
+async function waitForApiReady(plan: InstallPlan, options: InstallExecutionOptions): Promise<void> {
+  const deadline = Date.now() + (options.timeoutMs ?? 240_000);
+  const pollIntervalMs = options.pollIntervalMs ?? 2_000;
+  const apiUrl = `${plan.environment.MINDORY_PUBLIC_URL ?? "http://localhost:3000"}`.replace(/\/$/, "");
+  let lastError = "API did not respond yet.";
+
+  while (Date.now() < deadline) {
+    try {
+      const ok = options.apiReadyCheck === undefined ? await defaultApiReadyCheck(`${apiUrl}/ready`) : await options.apiReadyCheck(`${apiUrl}/ready`);
+      if (ok) {
+        return;
+      }
+      lastError = `GET ${apiUrl}/ready was not ready.`;
+    } catch (error) {
+      lastError = errorToString(error);
+    }
+    await sleep(pollIntervalMs);
+  }
+
+  throw new Error(`Timed out waiting for API readiness at ${apiUrl}/ready: ${lastError}`);
+}
+
+async function runDockerCompose(
+  plan: InstallPlan,
+  composeArgs: readonly string[],
+  options: InstallExecutionOptions,
+  runOptions: { captureOutput?: boolean } = {}
+): Promise<InstallCommandResult> {
+  const runner = options.commandRunner ?? createNodeCommandRunner();
+  const result = await runner.run(options.dockerBinary ?? "docker", [...composeBaseArgs(plan, options), ...composeArgs], {
+    cwd: composeWorkingDirectory(plan, options),
+    env: composeEnvironment(plan)
+  });
+  if ((result.status ?? 1) !== 0) {
+    const details = `${result.stderr || result.stdout}`.trim();
+    throw new Error(`docker compose ${composeArgs.join(" ")} failed with exit code ${result.status ?? 1}${details === "" ? "" : `: ${details}`}`);
+  }
+  if (runOptions.captureOutput === true) {
+    return result;
+  }
+  return result;
+}
+
+function createNodeCommandRunner(): InstallCommandRunner {
+  return {
+    run(command, args, options) {
+      const result = spawnSync(command, [...args], {
+        cwd: options.cwd,
+        env: options.env,
+        encoding: "utf8"
+      });
+      return {
+        status: result.status,
+        stdout: result.stdout ?? "",
+        stderr: result.stderr ?? ""
+      };
+    }
+  };
+}
+
+function composeBaseArgs(plan: InstallPlan, options: InstallExecutionOptions): string[] {
+  const composeRoot = composeWorkingDirectory(plan, options);
+  const args = [
+    "compose",
+    "--env-file",
+    path.join(plan.mindoryHome, "config", ".env"),
+    "-f",
+    path.join(composeRoot, "docker-compose.yml")
+  ];
+  const overridePath = path.join(composeRoot, "docker-compose.override.yml");
+  if (existsSync(overridePath)) {
+    args.push("-f", overridePath);
+  }
+  for (const profile of plan.composeProfiles) {
+    args.push("--profile", profile);
+  }
+  return args;
+}
+
+function composeWorkingDirectory(plan: InstallPlan, options: InstallExecutionOptions): string {
+  return options.sourceRoot ?? path.join(plan.mindoryHome, "install", "compose");
+}
+
+function composeEnvironment(plan: InstallPlan): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const [key, value] of Object.entries(processEnv)) {
+    if (value !== undefined) {
+      env[key] = value;
+    }
+  }
+  return {
+    ...env,
+    ...plan.environment,
+    MINDORY_HOME: plan.mindoryHome
+  };
+}
+
+function infrastructureServices(plan: InstallPlan): string[] {
+  const services = ["postgres", "redis"];
+  const profileServices: Record<string, string> = {
+    clamav: "clamav",
+    librefs: "librefs",
+    minio: "minio",
+    qdrant: "qdrant",
+    docling: "docling",
+    ollama: "ollama",
+    "local-models": "llm"
+  };
+  for (const profile of plan.composeProfiles) {
+    const service = profileServices[profile];
+    if (service !== undefined) {
+      services.push(service);
+    }
+  }
+  return [...new Set(services)];
+}
+
+function parseComposeJson(output: string): Array<Record<string, unknown>> {
+  const trimmed = output.trim();
+  if (trimmed === "") {
+    return [];
+  }
+  if (trimmed.startsWith("[")) {
+    return JSON.parse(trimmed) as Array<Record<string, unknown>>;
+  }
+  return trimmed.split(/\r?\n/).filter(Boolean).map((line) => JSON.parse(line) as Record<string, unknown>);
+}
+
+function findComposeService(records: readonly Record<string, unknown>[], service: string): Record<string, unknown> | undefined {
+  return records.find((record) => composeServiceName(record) === service);
+}
+
+function composeServiceName(record: Record<string, unknown>): string {
+  if (typeof record.Service === "string" && record.Service !== "") {
+    return record.Service;
+  }
+  if (typeof record.Name === "string") {
+    const match = record.Name.match(/^mindory-([^-]+)-\d+$/);
+    return match?.[1] ?? record.Name;
+  }
+  return "unknown";
+}
+
+function isComposeRunningAndHealthy(record: Record<string, unknown>): boolean {
+  const state = composeStatusText(record);
+  const health = String(record.Health ?? "").toLowerCase();
+  if (!state.includes("running")) {
+    return false;
+  }
+  return health === "" || health === "healthy" || state.includes("healthy");
+}
+
+function isComposeCompletedSuccessfully(record: Record<string, unknown>): boolean {
+  const state = composeStatusText(record);
+  const exitCode = String(record.ExitCode ?? "");
+  if (exitCode !== "") {
+    return (state.includes("exited") || state.includes("completed")) && exitCode === "0";
+  }
+  return state.includes("completed") || state.includes("exited (0)") || state.includes("exited(0)");
+}
+
+function isComposeFailed(record: Record<string, unknown>): boolean {
+  const state = composeStatusText(record);
+  const exitCode = String(record.ExitCode ?? "");
+  if (state.includes("unhealthy")) {
+    return true;
+  }
+  if ((state.includes("exited") || state.includes("dead")) && exitCode !== "" && exitCode !== "0") {
+    return true;
+  }
+  return /exited\s*\(([1-9]\d*)\)/.test(state);
+}
+
+function composeStatusText(record: Record<string, unknown>): string {
+  return `${record.State ?? ""} ${record.Status ?? ""} ${record.Health ?? ""}`.toLowerCase();
+}
+
+async function defaultApiReadyCheck(url: string): Promise<boolean> {
+  const response = await fetch(url, { headers: { accept: "application/json" } });
+  return response.ok;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function prepareTargetRollback(targetPath: string, stepItem: InstallPlanStep, mindoryHome: string): void {
   stepItem.rollback.target = targetPath;
   if (!existsSync(targetPath)) {
@@ -1193,7 +1475,12 @@ function prepareTargetRollback(targetPath: string, stepItem: InstallPlanStep, mi
   stepItem.rollback.restoreMode = "restore";
 }
 
-function defaultRollbackExecutor(rollback: InstallRollbackStep): void {
+async function defaultRollbackExecutor(
+  rollback: InstallRollbackStep,
+  _stepItem: InstallPlanStep,
+  plan: InstallPlan,
+  options: InstallExecutionOptions
+): Promise<void> {
   if (rollback.kind === "delete_path") {
     const createdPaths = rollback.createdPaths ?? (rollback.target === undefined ? [] : [rollback.target]);
     for (const createdPath of [...createdPaths].sort((a, b) => b.length - a.length)) {
@@ -1212,6 +1499,10 @@ function defaultRollbackExecutor(rollback: InstallRollbackStep): void {
       return;
     }
     rmSync(rollback.target, { recursive: true, force: true });
+    return;
+  }
+  if (rollback.kind === "compose_down") {
+    await runDockerCompose(plan, ["down", "--remove-orphans"], options);
     return;
   }
   throw new Error(`Rollback kind ${rollback.kind} is not implemented by the prepare execution engine.`);
