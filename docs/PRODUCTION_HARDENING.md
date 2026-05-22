@@ -15,7 +15,7 @@ minimum baseline for the MVP release path.
 | Installer execution | Partial baseline. Current installer can prepare `$MINDORY_HOME`, start Compose through health checks, provision the first token, refresh local assets, create/restore runtime backups and uninstall with explicit confirmation, but remote release update is future work. |
 | Public self-host acceptance | Supported gate. `pnpm selfhost:acceptance` dry-runs the public self-host path; opt-in live mode runs installer start, MVP acceptance, backup, reset and uninstall in a temporary home. |
 | Backup and restore | Supported MVP. Installer commands cover config, installer metadata, PostgreSQL dumps and local object storage state. Point-in-time recovery, scheduled backups and encrypted remote backups are future hardening work. |
-| Observability | Supported baseline. Structured logs, model operation audit helpers, in-process job/stage metrics, health snapshots and rate-limit strategy are documented in `docs/OBSERVABILITY.md`. Metrics exporters, tracing, log aggregation and alerting are future hardening work. |
+| Observability | Supported baseline. Structured logs, model operation audit helpers, Prometheus metrics exporters, in-process job/stage metrics, health snapshots and rate-limit strategy are documented in `docs/OBSERVABILITY.md`. Tracing, log aggregation and alerting remain future hardening. |
 | Public GitHub readiness | Supported baseline. The repo includes license, contribution guide, root security policy, issue/PR templates, changelog/release notes policy, support matrix and repository status docs. |
 
 ## CI Gate
@@ -155,8 +155,8 @@ balancer.
 ## Observability
 
 `docs/OBSERVABILITY.md` is the detailed operations reference for structured
-logs, model operation audit, job stage metrics, health endpoints and the MVP
-rate-limit strategy.
+logs, model operation audit, job stage metrics, Prometheus metrics, health
+endpoints and the MVP rate-limit strategy.
 
 API logs use Fastify structured JSON output. Authorization headers are redacted,
 and requests carry a generated or caller-provided request id. Worker and
@@ -179,8 +179,12 @@ processor name, job type, retry attempt and failed status transition context.
 Model operation audit records include role, provider, model, duration, status,
 usage and project/document/job/session refs. `@mindory/observability` exposes
 local query and summary helpers for those records. Job stage metrics are
-in-process and grouped by job type, stage and status.
+in-process and grouped by job type, stage and status. API and worker metrics
+are exported in Prometheus text format when `MINDORY_METRICS_ENABLED=true`;
+the endpoints support bearer-token protection through
+`MINDORY_METRICS_BEARER_TOKEN` and avoid project/document/session ids as
+labels.
 
-Prometheus exporters, OpenTelemetry tracing, log aggregation and alerting are
-future hardening work, but emitted logs and helper shapes must remain structured
-enough to support those systems without rewriting runtime code.
+OpenTelemetry tracing, log aggregation and alerting remain future hardening,
+but emitted logs and metric names must remain structured enough to support
+those systems without rewriting runtime code.

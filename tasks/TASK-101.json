@@ -1,7 +1,7 @@
 {
   "id": "TASK-101",
   "title": "Add production metrics exporter",
-  "status": "draft",
+  "status": "done",
   "type": "feature",
   "priority": "high",
   "branch": "task/TASK-101-production-metrics-exporter",

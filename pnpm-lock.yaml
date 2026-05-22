@@ -119,6 +119,9 @@ importers:
       '@mindory/llm':
         specifier: workspace:*
         version: link:../../packages/llm
+      '@mindory/observability':
+        specifier: workspace:*
+        version: link:../../packages/observability
       '@mindory/processor-antivirus-clamav':
         specifier: workspace:*
         version: link:../../packages/processors/antivirus-clamav

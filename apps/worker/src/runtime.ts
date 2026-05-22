@@ -1,7 +1,18 @@
 import { randomUUID } from "node:crypto";
 import { loadMindoryConfig, PGVECTOR_EMBEDDING_DIMENSIONS, type MindoryConfig } from "@mindory/config";
 import { ProcessingJobDispatcher, type ProcessingJobProcessor } from "@mindory/core/queue";
-import type { ObjectStorage } from "@mindory/core/storage";
+import type {
+  SearchVectorArtifactsInput,
+  SearchVectorChunksInput,
+  UpsertVectorArtifactsInput,
+  UpsertVectorChunksInput,
+  VectorArtifactIndexResult,
+  VectorArtifactSearchHit,
+  VectorIndex,
+  VectorIndexResult,
+  VectorSearchHit
+} from "@mindory/core/processing";
+import type { ObjectStorage, PutObjectInput, StoredObject, StoredObjectBody } from "@mindory/core/storage";
 import {
   createMindoryDatabaseClient,
   DbDocumentChunkRepository,
@@ -13,6 +24,7 @@ import {
   type MindoryDatabase
 } from "@mindory/db";
 import { buildMindoryLlm } from "@mindory/llm";
+import { PrometheusMetricsRegistry, type PrometheusMetricsHttpServer } from "@mindory/observability";
 import { BullMqProcessingJobQueue } from "@mindory/queue-bullmq";
 import { LocalFsObjectStorage } from "@mindory/storage-local-fs";
 import { S3ObjectStorage } from "@mindory/storage-s3";
@@ -20,21 +32,25 @@ import { PgVectorChunkIndex } from "@mindory/vector-pgvector";
 import { QdrantVectorIndex } from "@mindory/vector-qdrant";
 import { buildDocumentPipelineProcessors, type DocumentPipelineProcessorOptions } from "./document-pipeline.js";
 import { buildMemoryRuntimeProcessors } from "./memory-pipeline.js";
+import { createWorkerMetricsServer } from "./metrics-server.js";
 import { buildWorkerBaseRunner, type WorkerBaseRunner } from "./runner.js";
 
 export interface WorkerRuntime {
   runner: WorkerBaseRunner;
+  metrics: PrometheusMetricsRegistry;
+  metricsServer: PrometheusMetricsHttpServer;
   start(): Promise<void>;
   close(): Promise<void>;
 }
 
 export function buildWorkerRuntime(config: MindoryConfig = loadMindoryConfig()): WorkerRuntime {
+  const metrics = new PrometheusMetricsRegistry();
   const database = createMindoryDatabaseClient(config.database.url);
   const queue = new BullMqProcessingJobQueue({
     redisUrl: config.redis.url,
     queuePrefix: config.redis.queuePrefix
   });
-  const storage = buildObjectStorage(config);
+  const storage = instrumentObjectStorage(buildObjectStorage(config), metrics);
   const documents = new DbDocumentRepository(database.db);
   const artifacts = new DbDerivedArtifactRepository(database.db);
   const chunks = new DbDocumentChunkRepository(database.db);
@@ -45,7 +61,9 @@ export function buildWorkerRuntime(config: MindoryConfig = loadMindoryConfig()):
     store,
     queue
   });
-  const llm = buildMindoryLlm(config);
+  const llm = buildMindoryLlm(config, {
+    auditSink: (audit) => metrics.recordModelOperation(audit)
+  });
   const processorOptions: DocumentPipelineProcessorOptions = {
     config,
     storage,
@@ -60,7 +78,7 @@ export function buildWorkerRuntime(config: MindoryConfig = loadMindoryConfig()):
     processorOptions.embeddings = embeddings;
   }
   if (embeddings || llm.imageEmbeddings) {
-    processorOptions.vectorIndex = buildVectorIndex(config, database.db);
+    processorOptions.vectorIndex = instrumentVectorIndex(buildVectorIndex(config, database.db), metrics);
   }
   const documentProcessors = buildDocumentPipelineProcessors(processorOptions);
   const memoryProcessors = new Map<string, ProcessingJobProcessor>(buildMemoryRuntimeProcessors({
@@ -75,13 +93,21 @@ export function buildWorkerRuntime(config: MindoryConfig = loadMindoryConfig()):
   const runner = buildWorkerBaseRunner({
     config,
     store,
-    processors
+    processors,
+    metrics
   });
+  const metricsServer = createWorkerMetricsServer(config, metrics, queue);
 
   return {
     runner,
-    start: () => runner.start(),
+    metrics,
+    metricsServer,
+    start: async () => {
+      await runner.start();
+      await metricsServer.start();
+    },
     close: async () => {
+      await metricsServer.close();
       await runner.close();
       await queue.close();
       await database.close();
@@ -130,4 +156,96 @@ function buildObjectStorage(config: MindoryConfig): ObjectStorage {
     secretAccessKey: config.storage.s3.secretAccessKey,
     forcePathStyle: config.storage.s3.forcePathStyle
   });
+}
+
+class MetricsObjectStorage implements ObjectStorage {
+  readonly provider;
+
+  constructor(private readonly inner: ObjectStorage, private readonly metrics: PrometheusMetricsRegistry) {
+    this.provider = inner.provider;
+  }
+
+  putObject(input: PutObjectInput): Promise<StoredObject> {
+    return recordStorage(this.metrics, this.provider, "put_object", () => this.inner.putObject(input));
+  }
+
+  getObject(key: string): Promise<StoredObjectBody> {
+    return recordStorage(this.metrics, this.provider, "get_object", () => this.inner.getObject(key));
+  }
+
+  statObject(key: string): Promise<StoredObject> {
+    return recordStorage(this.metrics, this.provider, "stat_object", () => this.inner.statObject(key));
+  }
+
+  objectExists(key: string): Promise<boolean> {
+    return recordStorage(this.metrics, this.provider, "object_exists", () => this.inner.objectExists(key));
+  }
+
+  deleteObject(key: string): Promise<void> {
+    return recordStorage(this.metrics, this.provider, "delete_object", () => this.inner.deleteObject(key));
+  }
+}
+
+class MetricsVectorIndex implements VectorIndex {
+  readonly provider;
+
+  constructor(private readonly inner: VectorIndex, private readonly metrics: PrometheusMetricsRegistry) {
+    this.provider = inner.provider;
+  }
+
+  upsertDocumentChunks(input: UpsertVectorChunksInput): Promise<VectorIndexResult[]> {
+    return recordVector(this.metrics, this.provider, "upsert_document_chunks", () => this.inner.upsertDocumentChunks(input));
+  }
+
+  upsertArtifactVectors(input: UpsertVectorArtifactsInput): Promise<VectorArtifactIndexResult[]> {
+    return recordVector(this.metrics, this.provider, "upsert_artifact_vectors", () => this.inner.upsertArtifactVectors(input));
+  }
+
+  deleteDocumentChunks(projectId: string, documentId: string): Promise<void> {
+    return recordVector(this.metrics, this.provider, "delete_document_chunks", () => this.inner.deleteDocumentChunks(projectId, documentId));
+  }
+
+  deleteDocumentArtifactVectors(projectId: string, documentId: string): Promise<void> {
+    return recordVector(this.metrics, this.provider, "delete_document_artifact_vectors", () => this.inner.deleteDocumentArtifactVectors(projectId, documentId));
+  }
+
+  searchDocumentChunks(input: SearchVectorChunksInput): Promise<VectorSearchHit[]> {
+    return recordVector(this.metrics, this.provider, "search_document_chunks", () => this.inner.searchDocumentChunks(input));
+  }
+
+  searchArtifactVectors(input: SearchVectorArtifactsInput): Promise<VectorArtifactSearchHit[]> {
+    return recordVector(this.metrics, this.provider, "search_artifact_vectors", () => this.inner.searchArtifactVectors(input));
+  }
+}
+
+function instrumentObjectStorage(storage: ObjectStorage, metrics: PrometheusMetricsRegistry): ObjectStorage {
+  return new MetricsObjectStorage(storage, metrics);
+}
+
+function instrumentVectorIndex<T extends VectorIndex>(vectorIndex: T, metrics: PrometheusMetricsRegistry): T {
+  return new MetricsVectorIndex(vectorIndex, metrics) as unknown as T;
+}
+
+async function recordStorage<T>(metrics: PrometheusMetricsRegistry, provider: string, operation: string, run: () => Promise<T>): Promise<T> {
+  const startedAt = performance.now();
+  try {
+    const result = await run();
+    metrics.recordStorageOperation({ provider, operation, status: "success", durationMs: performance.now() - startedAt });
+    return result;
+  } catch (error) {
+    metrics.recordStorageOperation({ provider, operation, status: "failed", durationMs: performance.now() - startedAt });
+    throw error;
+  }
+}
+
+async function recordVector<T>(metrics: PrometheusMetricsRegistry, provider: string, operation: string, run: () => Promise<T>): Promise<T> {
+  const startedAt = performance.now();
+  try {
+    const result = await run();
+    metrics.recordVectorOperation({ provider, operation, status: "success", durationMs: performance.now() - startedAt });
+    return result;
+  } catch (error) {
+    metrics.recordVectorOperation({ provider, operation, status: "failed", durationMs: performance.now() - startedAt });
+    throw error;
+  }
 }

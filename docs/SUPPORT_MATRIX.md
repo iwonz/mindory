@@ -82,6 +82,6 @@ model roles, or before selecting a non-supported provider for a supported role.
 | --- | --- | --- |
 | Project-scoped bearer tokens | Supported | Token create/list/revoke/rotate APIs and CLI commands exist. |
 | API rate limit guard | Supported baseline | In-process guard; distributed enforcement is future hardening. |
-| Observability baseline | Supported baseline | Structured logs, model operation audit helpers, in-process job/stage metrics, health snapshots and rate-limit strategy are documented. Prometheus/OpenTelemetry/exporters/alerting are future work. |
+| Observability baseline | Supported baseline | Structured logs, model operation audit helpers, Prometheus API/worker metrics exporters, in-process job/stage metrics, health snapshots and rate-limit strategy are documented. OpenTelemetry tracing and alerting remain hardening items. |
 | Backup and restore | Supported MVP | Installer CLI creates `backup-manifest.json`, PostgreSQL dumps and local object-storage copies; PITR, scheduled and encrypted remote backups are future work. |
 | Public vulnerability process | Supported baseline | Root `SECURITY.md` defines reporting expectations. |

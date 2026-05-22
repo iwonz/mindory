@@ -133,6 +133,23 @@ EICAR infected probe before it declares ClamAV healthy, so daemon connectivity,
 scan protocol errors and missing infected-file detection are reported before API
 startup is accepted.
 
+## Metrics Exporter
+
+`MINDORY_METRICS_ENABLED=true` enables Prometheus-compatible metrics. The API
+serves `MINDORY_METRICS_PATH`, default `/metrics`, on the API listener. The
+worker starts a separate metrics listener on `MINDORY_METRICS_WORKER_HOST` and
+`MINDORY_METRICS_WORKER_PORT`, default `0.0.0.0:3001`.
+
+Set `MINDORY_METRICS_BEARER_TOKEN` to require `Authorization: Bearer <token>`
+on both API and worker metrics endpoints. Keep the worker metrics port private
+to the Prometheus network when the token is empty.
+
+The exporter includes API request counters/durations, worker job and stage
+counters/durations, BullMQ queue depth, model operation metrics, object storage
+operation metrics and vector backend operation metrics. Labels intentionally
+avoid project ids, document ids, raw prompts, bearer tokens and other
+high-cardinality or secret values.
+
 ## Queue And Workers
 
 `MINDORY_REDIS_URL` points BullMQ at Redis. `MINDORY_QUEUE_PREFIX` namespaces

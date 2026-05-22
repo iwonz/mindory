@@ -88,6 +88,9 @@ for (const symbol of [
   "QdrantDocumentChunkSearchRepository",
   "QdrantArtifactSearchRepository",
   "buildMindoryLlm",
+  "PrometheusMetricsRegistry",
+  "instrumentObjectStorage",
+  "instrumentVectorIndex",
   "FaceService",
   "MemoryService",
   "UnifiedSearchService",
@@ -104,6 +107,7 @@ assert(app.includes("registerTokenRoutes"), "API app must register token routes.
 assert(app.includes("registerSessionRoutes"), "API app must register session routes.");
 assert(app.includes("registerFaceRoutes"), "API app must register face routes.");
 assert(app.includes("registerSearchRoutes"), "API app must register unified search routes.");
+assert(app.includes("registerMetricsRoutes"), "API app must register metrics routes.");
 assert(app.includes("options.close"), "API app must close runtime dependencies on shutdown.");
 assert(errors.includes("isRepositoryNotFoundError"), "API error handler must map repository not-found errors.");
 
@@ -175,7 +179,7 @@ assert(runtime.includes("faceService"), "API runtime must inject FaceService int
 assert(runtime.includes("unifiedSearchService"), "API runtime must inject UnifiedSearchService into search routes.");
 assert(runtime.includes("buildVectorSearchRepositories"), "API runtime must choose text or vector document chunk and artifact search.");
 assert(runtime.includes("config.vector.provider === \"qdrant\""), "API runtime must select Qdrant when configured.");
-assert(runtime.includes("buildEmbeddingsProvider"), "API runtime must build query embeddings when semantic search is configured.");
+assert(runtime.includes("llm.textEmbeddings"), "API runtime must build query embeddings when semantic search is configured.");
 assert(runtime.includes("queue.close()"), "API runtime close hook must close the processing queue.");
 assert(runtime.includes("database.close()"), "API runtime close hook must close the database pool.");
 assert(runtime.includes("auth:") && runtime.includes("accessTokenRepository"), "API runtime must wire access token repository.");

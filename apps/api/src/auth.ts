@@ -5,6 +5,7 @@ import {
   dependencyFreeAuthorizationContext,
   parseBearerToken,
   requireProjectPermission as requireProjectPermissionFromContext,
+  unauthenticatedContext,
   verifyBearerToken,
   type AccessTokenRepository,
   type AuthorizationContext,
@@ -32,6 +33,11 @@ export async function registerAuth(app: FastifyInstance, dependencies: ApiAuthDe
   app.decorateRequest("authorizationContext", null);
 
   app.addHook("onRequest", async (request) => {
+    if (isMetricsRoute(request, app)) {
+      request.authorizationContext = unauthenticatedContext(false);
+      return;
+    }
+
     if (!dependencies.accessTokenRepository) {
       if (dependencies.allowDependencyFreeRoutes !== true) {
         throw new Error("API auth requires accessTokenRepository runtime dependency.");
@@ -54,6 +60,12 @@ export async function registerAuth(app: FastifyInstance, dependencies: ApiAuthDe
 
 export async function registerDependencyFreeAuth(app: FastifyInstance): Promise<void> {
   await registerAuth(app, { allowDependencyFreeRoutes: true });
+}
+
+function isMetricsRoute(request: FastifyRequest, app: FastifyInstance): boolean {
+  const metricsPath = app.mindoryConfig.metrics.path;
+  const requestPath = request.url.split("?", 1)[0] ?? request.url;
+  return requestPath === metricsPath;
 }
 
 export function requireProjectPermission(request: FastifyRequest, projectId: string, permission: MindoryPermission): void {

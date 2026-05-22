@@ -4,11 +4,22 @@ import { DocumentUploadService } from "@mindory/core/documents";
 import { FaceService } from "@mindory/core/faces";
 import { ContextBuilder, MemoryService } from "@mindory/core/memory";
 import type { DocumentChunkSearchRepository } from "@mindory/core/memory";
-import type { EmbeddingsProvider } from "@mindory/core/processing";
+import type {
+  EmbeddingsProvider,
+  SearchVectorArtifactsInput,
+  SearchVectorChunksInput,
+  UpsertVectorArtifactsInput,
+  UpsertVectorChunksInput,
+  VectorArtifactIndexResult,
+  VectorArtifactSearchHit,
+  VectorIndex,
+  VectorIndexResult,
+  VectorSearchHit
+} from "@mindory/core/processing";
 import { ProcessingJobDispatcher } from "@mindory/core/queue";
 import { DocumentRecomputeService } from "@mindory/core/recompute";
 import { UnifiedSearchService } from "@mindory/core/search";
-import type { ObjectStorage } from "@mindory/core/storage";
+import type { ObjectStorage, PutObjectInput, StoredObject, StoredObjectBody } from "@mindory/core/storage";
 import {
   DbAccessTokenRepository,
   createMindoryDatabaseClient,
@@ -23,6 +34,7 @@ import {
   type MindoryDatabase
 } from "@mindory/db";
 import { buildMindoryLlm } from "@mindory/llm";
+import { PrometheusMetricsRegistry } from "@mindory/observability";
 import { ClamAvScanner } from "@mindory/processor-antivirus-clamav";
 import { BullMqProcessingJobQueue } from "@mindory/queue-bullmq";
 import { LocalFsObjectStorage } from "@mindory/storage-local-fs";
@@ -33,10 +45,11 @@ import type { BuildApiAppOptions } from "./app.js";
 
 export interface ApiRuntimeDependencies extends Pick<
   BuildApiAppOptions,
-  "artifacts" | "auth" | "close" | "context" | "documents" | "faces" | "jobs" | "memories" | "peers" | "projects" | "search" | "sessions" | "tokens"
+  "artifacts" | "auth" | "close" | "context" | "documents" | "faces" | "jobs" | "memories" | "metrics" | "peers" | "projects" | "search" | "sessions" | "tokens"
 > {}
 
 export function buildApiRuntimeDependencies(config: MindoryConfig): ApiRuntimeDependencies {
+  const metrics = new PrometheusMetricsRegistry();
   const database = createMindoryDatabaseClient(config.database.url);
   const queue = new BullMqProcessingJobQueue({
     redisUrl: config.redis.url,
@@ -48,7 +61,10 @@ export function buildApiRuntimeDependencies(config: MindoryConfig): ApiRuntimeDe
   const sessionRepository = new DbSessionRepository(database.db);
   const documentRepository = new DbDocumentRepository(database.db);
   const artifactRepository = new DbDerivedArtifactRepository(database.db);
-  const vectorSearch = buildVectorSearchRepositories(config, database.db);
+  const llm = buildMindoryLlm(config, {
+    auditSink: (audit) => metrics.recordModelOperation(audit)
+  });
+  const vectorSearch = buildVectorSearchRepositories(config, database.db, metrics, llm.textEmbeddings);
   const chunkSearchRepository = vectorSearch.documentRepository;
   const memoryRepository = new DbMemoryRepository(database.db);
   const processingJobStore = new DbProcessingJobStore(database.db, () => `job_${randomUUID()}`);
@@ -56,7 +72,7 @@ export function buildApiRuntimeDependencies(config: MindoryConfig): ApiRuntimeDe
     store: processingJobStore,
     queue
   });
-  const storage = buildObjectStorage(config);
+  const storage = instrumentObjectStorage(buildObjectStorage(config), metrics);
   const uploadServiceOptions = {
     storage,
     documents: documentRepository,
@@ -120,6 +136,10 @@ export function buildApiRuntimeDependencies(config: MindoryConfig): ApiRuntimeDe
       jobStore: processingJobStore,
       jobDispatcher
     },
+    metrics: {
+      registry: metrics,
+      queues: [queue]
+    },
     memories: {
       memoryService: new MemoryService({
         repository: memoryRepository
@@ -173,18 +193,22 @@ function buildObjectStorage(config: MindoryConfig): ObjectStorage {
   });
 }
 
-function buildVectorSearchRepositories(config: MindoryConfig, db: MindoryDatabase): {
+function buildVectorSearchRepositories(
+  config: MindoryConfig,
+  db: MindoryDatabase,
+  metrics: PrometheusMetricsRegistry,
+  embeddings: EmbeddingsProvider | undefined
+): {
   documentRepository: DocumentChunkSearchRepository;
   artifactRepository?: PgVectorArtifactSearchRepository | QdrantArtifactSearchRepository;
 } {
-  const embeddings = buildEmbeddingsProvider(config);
   if (!embeddings) {
     return {
       documentRepository: new DbDocumentChunkSearchRepository(db)
     };
   }
 
-  const vectorIndex = buildVectorIndex(config, db);
+  const vectorIndex = instrumentVectorIndex(buildVectorIndex(config, db), metrics);
   if (vectorIndex.provider === "qdrant") {
     return {
       documentRepository: new QdrantDocumentChunkSearchRepository({
@@ -210,10 +234,6 @@ function buildVectorSearchRepositories(config: MindoryConfig, db: MindoryDatabas
   };
 }
 
-function buildEmbeddingsProvider(config: MindoryConfig): EmbeddingsProvider | undefined {
-  return buildMindoryLlm(config).textEmbeddings;
-}
-
 function buildVectorIndex(config: MindoryConfig, db: MindoryDatabase): PgVectorChunkIndex | QdrantVectorIndex {
   const dimensions = configuredVectorDimensions(config);
   if (config.vector.provider === "qdrant") {
@@ -228,6 +248,98 @@ function buildVectorIndex(config: MindoryConfig, db: MindoryDatabase): PgVectorC
     db,
     dimensions
   });
+}
+
+class MetricsObjectStorage implements ObjectStorage {
+  readonly provider;
+
+  constructor(private readonly inner: ObjectStorage, private readonly metrics: PrometheusMetricsRegistry) {
+    this.provider = inner.provider;
+  }
+
+  putObject(input: PutObjectInput): Promise<StoredObject> {
+    return recordStorage(this.metrics, this.provider, "put_object", () => this.inner.putObject(input));
+  }
+
+  getObject(key: string): Promise<StoredObjectBody> {
+    return recordStorage(this.metrics, this.provider, "get_object", () => this.inner.getObject(key));
+  }
+
+  statObject(key: string): Promise<StoredObject> {
+    return recordStorage(this.metrics, this.provider, "stat_object", () => this.inner.statObject(key));
+  }
+
+  objectExists(key: string): Promise<boolean> {
+    return recordStorage(this.metrics, this.provider, "object_exists", () => this.inner.objectExists(key));
+  }
+
+  deleteObject(key: string): Promise<void> {
+    return recordStorage(this.metrics, this.provider, "delete_object", () => this.inner.deleteObject(key));
+  }
+}
+
+class MetricsVectorIndex implements VectorIndex {
+  readonly provider;
+
+  constructor(private readonly inner: VectorIndex, private readonly metrics: PrometheusMetricsRegistry) {
+    this.provider = inner.provider;
+  }
+
+  upsertDocumentChunks(input: UpsertVectorChunksInput): Promise<VectorIndexResult[]> {
+    return recordVector(this.metrics, this.provider, "upsert_document_chunks", () => this.inner.upsertDocumentChunks(input));
+  }
+
+  upsertArtifactVectors(input: UpsertVectorArtifactsInput): Promise<VectorArtifactIndexResult[]> {
+    return recordVector(this.metrics, this.provider, "upsert_artifact_vectors", () => this.inner.upsertArtifactVectors(input));
+  }
+
+  deleteDocumentChunks(projectId: string, documentId: string): Promise<void> {
+    return recordVector(this.metrics, this.provider, "delete_document_chunks", () => this.inner.deleteDocumentChunks(projectId, documentId));
+  }
+
+  deleteDocumentArtifactVectors(projectId: string, documentId: string): Promise<void> {
+    return recordVector(this.metrics, this.provider, "delete_document_artifact_vectors", () => this.inner.deleteDocumentArtifactVectors(projectId, documentId));
+  }
+
+  searchDocumentChunks(input: SearchVectorChunksInput): Promise<VectorSearchHit[]> {
+    return recordVector(this.metrics, this.provider, "search_document_chunks", () => this.inner.searchDocumentChunks(input));
+  }
+
+  searchArtifactVectors(input: SearchVectorArtifactsInput): Promise<VectorArtifactSearchHit[]> {
+    return recordVector(this.metrics, this.provider, "search_artifact_vectors", () => this.inner.searchArtifactVectors(input));
+  }
+}
+
+function instrumentObjectStorage(storage: ObjectStorage, metrics: PrometheusMetricsRegistry): ObjectStorage {
+  return new MetricsObjectStorage(storage, metrics);
+}
+
+function instrumentVectorIndex<T extends VectorIndex>(vectorIndex: T, metrics: PrometheusMetricsRegistry): T {
+  return new MetricsVectorIndex(vectorIndex, metrics) as unknown as T;
+}
+
+async function recordStorage<T>(metrics: PrometheusMetricsRegistry, provider: string, operation: string, run: () => Promise<T>): Promise<T> {
+  const startedAt = performance.now();
+  try {
+    const result = await run();
+    metrics.recordStorageOperation({ provider, operation, status: "success", durationMs: performance.now() - startedAt });
+    return result;
+  } catch (error) {
+    metrics.recordStorageOperation({ provider, operation, status: "failed", durationMs: performance.now() - startedAt });
+    throw error;
+  }
+}
+
+async function recordVector<T>(metrics: PrometheusMetricsRegistry, provider: string, operation: string, run: () => Promise<T>): Promise<T> {
+  const startedAt = performance.now();
+  try {
+    const result = await run();
+    metrics.recordVectorOperation({ provider, operation, status: "success", durationMs: performance.now() - startedAt });
+    return result;
+  } catch (error) {
+    metrics.recordVectorOperation({ provider, operation, status: "failed", durationMs: performance.now() - startedAt });
+    throw error;
+  }
 }
 
 function configuredVectorDimensions(config: MindoryConfig): number {

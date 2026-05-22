@@ -181,6 +181,11 @@ export const CONFIG_CATALOG_SECTIONS = [
     description: "HTTP API listener, public URL and request guard settings."
   },
   {
+    id: "metrics",
+    title: "Metrics Exporter",
+    description: "Prometheus-compatible API and worker metrics settings."
+  },
+  {
     id: "database",
     title: "Database",
     description: "PostgreSQL connection settings."
@@ -286,6 +291,14 @@ export const CONFIG_CATALOG = [
   entry("MINDORY_API_RATE_LIMIT_ENABLED", "api", "boolean", "true", "Enable the in-process API rate limit guard.", "runtime", "supported"),
   entry("MINDORY_API_RATE_LIMIT_WINDOW_MS", "api", "number", "60000", "Rate limit window length in milliseconds.", "runtime", "supported"),
   entry("MINDORY_API_RATE_LIMIT_MAX", "api", "number", "600", "Maximum requests allowed per rate limit window.", "runtime", "supported"),
+
+  entry("MINDORY_METRICS_ENABLED", "metrics", "boolean", "false", "Enable Prometheus-compatible metrics endpoints.", "both", "supported"),
+  entry("MINDORY_METRICS_PATH", "metrics", "string", "/metrics", "HTTP path for metrics scraping.", "both", "supported"),
+  entry("MINDORY_METRICS_BEARER_TOKEN", "metrics", "string", "", "Optional bearer token required by metrics endpoints.", "both", "supported", {
+    secret: true
+  }),
+  entry("MINDORY_METRICS_WORKER_HOST", "metrics", "string", "0.0.0.0", "Worker metrics HTTP listen host.", "runtime", "supported"),
+  entry("MINDORY_METRICS_WORKER_PORT", "metrics", "number", "3001", "Worker metrics HTTP listen port.", "both", "supported"),
 
   entry("MINDORY_DATABASE_URL", "database", "string", "postgresql://mindory:mindory@postgres:5432/mindory", "PostgreSQL database URL.", "both", "supported", {
     secret: true
