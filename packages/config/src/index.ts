@@ -87,6 +87,18 @@ export interface MindoryConfig {
     workerHost: string;
     workerPort: number;
   };
+  telemetry: {
+    tracesEnabled: boolean;
+    serviceName: string;
+    tracesEndpoint: string;
+    tracesHeaders: string;
+    tracesTimeoutMs: number;
+    sampleRate: number;
+    logExportEnabled: boolean;
+    logExportEndpoint: string;
+    logExportHeaders: string;
+    logExportTimeoutMs: number;
+  };
   database: {
     url: string;
   };
@@ -346,6 +358,18 @@ export function loadMindoryConfig(env: EnvSource = process.env): MindoryConfig {
       workerHost: readString(env, "MINDORY_METRICS_WORKER_HOST", catalogString("MINDORY_METRICS_WORKER_HOST")),
       workerPort: readNumber(env, "MINDORY_METRICS_WORKER_PORT", catalogNumber("MINDORY_METRICS_WORKER_PORT"))
     },
+    telemetry: {
+      tracesEnabled: readBoolean(env, "MINDORY_OTEL_TRACES_ENABLED", catalogBoolean("MINDORY_OTEL_TRACES_ENABLED")),
+      serviceName: readString(env, "MINDORY_OTEL_SERVICE_NAME", catalogString("MINDORY_OTEL_SERVICE_NAME")),
+      tracesEndpoint: readString(env, "MINDORY_OTEL_EXPORTER_OTLP_ENDPOINT", catalogString("MINDORY_OTEL_EXPORTER_OTLP_ENDPOINT")),
+      tracesHeaders: readString(env, "MINDORY_OTEL_EXPORTER_OTLP_HEADERS", catalogString("MINDORY_OTEL_EXPORTER_OTLP_HEADERS")),
+      tracesTimeoutMs: readNumber(env, "MINDORY_OTEL_EXPORT_TIMEOUT_MS", catalogNumber("MINDORY_OTEL_EXPORT_TIMEOUT_MS")),
+      sampleRate: readNumber(env, "MINDORY_OTEL_SAMPLE_RATE", catalogNumber("MINDORY_OTEL_SAMPLE_RATE")),
+      logExportEnabled: readBoolean(env, "MINDORY_OTEL_LOG_EXPORT_ENABLED", catalogBoolean("MINDORY_OTEL_LOG_EXPORT_ENABLED")),
+      logExportEndpoint: readString(env, "MINDORY_OTEL_LOG_EXPORT_ENDPOINT", catalogString("MINDORY_OTEL_LOG_EXPORT_ENDPOINT")),
+      logExportHeaders: readString(env, "MINDORY_OTEL_LOG_EXPORT_HEADERS", catalogString("MINDORY_OTEL_LOG_EXPORT_HEADERS")),
+      logExportTimeoutMs: readNumber(env, "MINDORY_OTEL_LOG_EXPORT_TIMEOUT_MS", catalogNumber("MINDORY_OTEL_LOG_EXPORT_TIMEOUT_MS"))
+    },
     database: {
       url: readString(env, "MINDORY_DATABASE_URL", catalogString("MINDORY_DATABASE_URL"))
     },
@@ -472,6 +496,7 @@ export function loadMindoryConfig(env: EnvSource = process.env): MindoryConfig {
 export function validateMindoryConfig(config: MindoryConfig): void {
   validateApiConfig(config);
   validateMetricsConfig(config);
+  validateTelemetryConfig(config);
   validateDocumentProcessingConfig(config);
   validateDoclingConfig(config);
   validateLlmConfig(config);
@@ -500,6 +525,38 @@ function validateMetricsConfig(config: MindoryConfig): void {
   }
   if (config.metrics.workerPort <= 0 || config.metrics.workerPort > 65535) {
     throw new Error("MINDORY_METRICS_WORKER_PORT must be a valid TCP port.");
+  }
+}
+
+function validateTelemetryConfig(config: MindoryConfig): void {
+  if (config.telemetry.serviceName.trim() === "") {
+    throw new Error("MINDORY_OTEL_SERVICE_NAME must not be empty.");
+  }
+  if (config.telemetry.tracesTimeoutMs <= 0) {
+    throw new Error("MINDORY_OTEL_EXPORT_TIMEOUT_MS must be greater than zero.");
+  }
+  if (config.telemetry.logExportTimeoutMs <= 0) {
+    throw new Error("MINDORY_OTEL_LOG_EXPORT_TIMEOUT_MS must be greater than zero.");
+  }
+  if (config.telemetry.sampleRate < 0 || config.telemetry.sampleRate > 1) {
+    throw new Error("MINDORY_OTEL_SAMPLE_RATE must be between 0 and 1.");
+  }
+  if (config.telemetry.tracesEnabled) {
+    validateHttpUrl(config.telemetry.tracesEndpoint, "MINDORY_OTEL_EXPORTER_OTLP_ENDPOINT");
+  }
+  if (config.telemetry.logExportEnabled) {
+    validateHttpUrl(config.telemetry.logExportEndpoint, "MINDORY_OTEL_LOG_EXPORT_ENDPOINT");
+  }
+}
+
+function validateHttpUrl(value: string, envName: string): void {
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      throw new Error("protocol");
+    }
+  } catch {
+    throw new Error(`${envName} must be an http:// or https:// URL.`);
   }
 }
 

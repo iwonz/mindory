@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { createServer } from "node:http";
 import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -33,6 +34,7 @@ const source = read("packages/observability/src/index.ts");
 const healthRoute = read("apps/api/src/routes/health.ts");
 const apiApp = read("apps/api/src/app.ts");
 const apiMetricsRoute = read("apps/api/src/routes/metrics.ts");
+const apiTracingRoute = read("apps/api/src/routes/tracing.ts");
 const apiRuntime = read("apps/api/src/runtime.ts");
 const workerRuntime = read("apps/worker/src/runtime.ts");
 const workerRunner = read("apps/worker/src/runner.ts");
@@ -60,6 +62,12 @@ for (const symbol of [
   "summarizeJobStageMetrics",
   "PrometheusMetricsRegistry",
   "createPrometheusMetricsHttpServer",
+  "createMindoryTracer",
+  "createOtlpStructuredLogExporter",
+  "startActiveSpan",
+  "activateSpan",
+  "currentTraceMetadata",
+  "recordOperation",
   "recordApiRequest",
   "recordJobStage",
   "recordQueueDepth",
@@ -84,20 +92,28 @@ for (const token of ["request_id", "timestamp", "uptime_ms", "rate_limit", "BASI
 for (const token of ["registerMetricsRoutes", "onResponse", "isMetricsRequestAuthorized", "renderPrometheus", "collectQueueDepth"]) {
   assertIncludes(apiMetricsRoute, token, "apps/api/src/routes/metrics.ts");
 }
-for (const token of ["registerMetricsRoutes(app, config, metrics)", "createApiMetricsDependencies"]) {
+for (const token of ["registerTracingHooks", "traceparent", "activateSpan", "mindoryTraceSpan"]) {
+  assertIncludes(apiTracingRoute, token, "apps/api/src/routes/tracing.ts");
+}
+for (const token of ["registerTracingHooks(app, options.tracing)", "registerMetricsRoutes(app, config, metrics)", "createApiMetricsDependencies"]) {
   assertIncludes(apiApp, token, "apps/api/src/app.ts");
 }
-for (const token of ["PrometheusMetricsRegistry", "auditSink: (audit) => metrics.recordModelOperation(audit)", "instrumentObjectStorage", "instrumentVectorIndex", "queues: [queue]"]) {
+for (const token of ["PrometheusMetricsRegistry", "createMindoryTracer", "tracing.recordModelOperation(audit)", "createOtlpStructuredLogExporter", "instrumentObjectStorage", "instrumentVectorIndex", "metadataFactory: () => tracing.currentTraceMetadata()", "queues: [queue]"]) {
   assertIncludes(apiRuntime, token, "apps/api/src/runtime.ts");
   assertIncludes(workerRuntime, token === "queues: [queue]" ? "createWorkerMetricsServer" : token, "apps/worker/src/runtime.ts");
 }
-for (const token of ["runWithMetrics", "recordJobMetrics", "recordJobStage"]) {
+for (const token of ["runWithMetrics", "recordJobMetrics", "recordJobStage", "startActiveSpan(\"worker.job\"", "extractTraceparent"]) {
   assertIncludes(workerRunner, token, "apps/worker/src/runner.ts");
 }
 for (const token of ["createWorkerMetricsServer", "createPrometheusMetricsHttpServer", "recordQueueDepth"]) {
   assertIncludes(workerMetricsServer, token, "apps/worker/src/metrics-server.ts");
 }
 for (const token of ["MINDORY_METRICS_ENABLED", "MINDORY_METRICS_PATH", "MINDORY_METRICS_BEARER_TOKEN", "MINDORY_METRICS_WORKER_PORT"]) {
+  assertIncludes(config, token, "packages/config/src/index.ts");
+  assertIncludes(envExample, token, ".env.example");
+  assertIncludes(compose, token, "docker-compose.yml");
+}
+for (const token of ["MINDORY_OTEL_TRACES_ENABLED", "MINDORY_OTEL_EXPORTER_OTLP_ENDPOINT", "MINDORY_OTEL_SAMPLE_RATE", "MINDORY_OTEL_LOG_EXPORT_ENABLED", "MINDORY_OTEL_LOG_EXPORT_ENDPOINT"]) {
   assertIncludes(config, token, "packages/config/src/index.ts");
   assertIncludes(envExample, token, ".env.example");
   assertIncludes(compose, token, "docker-compose.yml");
@@ -109,10 +125,11 @@ for (const token of [
   "Job Stage Metrics",
   "Prometheus Metrics",
   "Prometheus scrape_config",
+  "OTLP Tracing",
+  "local collector",
   "Health Endpoints",
   "Rate Limit Strategy",
-  "OpenTelemetry",
-  "future"
+  "OpenTelemetry"
 ]) {
   assertIncludes(docs, token, "docs/OBSERVABILITY.md");
 }
@@ -236,6 +253,92 @@ try {
   await metricsServer.close();
 }
 
+const traceCollector = await startOtlpCollector("/v1/traces");
+const logCollector = await startOtlpCollector("/v1/logs");
+try {
+  const tracer = observability.createMindoryTracer({
+    enabled: true,
+    serviceName: "mindory-validator",
+    endpoint: traceCollector.url,
+    headers: "x-test-token=secret",
+    timeoutMs: 1000,
+    sampleRate: 1
+  });
+  await tracer.startActiveSpan("api.request", {
+    kind: "server",
+    refs: { requestId: "req_trace" },
+    attributes: {
+      "http.request.method": "GET",
+      authorization: "must-redact"
+    }
+  }, async () => {
+    const metadata = tracer.currentTraceMetadata();
+    assert(typeof metadata.traceparent === "string", "Tracer must expose current traceparent metadata.");
+    tracer.recordOperation({
+      name: "storage.put_object",
+      kind: "client",
+      provider: "local-fs",
+      operation: "put_object",
+      status: "success",
+      durationMs: 10,
+      refs: { requestId: "req_trace", projectId: "project_trace" }
+    });
+
+    const workerTracer = observability.createMindoryTracer({
+      enabled: true,
+      serviceName: "mindory-validator-worker",
+      endpoint: traceCollector.url,
+      timeoutMs: 1000,
+      sampleRate: 1
+    });
+    await workerTracer.startActiveSpan("worker.job", {
+      kind: "consumer",
+      parentTraceparent: metadata.traceparent,
+      refs: { jobId: "job_trace", projectId: "project_trace" }
+    }, async () => undefined);
+    await workerTracer.shutdown();
+  });
+  await tracer.shutdown();
+
+  const logExporter = observability.createOtlpStructuredLogExporter({
+    enabled: true,
+    serviceName: "mindory-validator",
+    endpoint: logCollector.url,
+    timeoutMs: 1000
+  });
+  logExporter.export(observability.createStructuredLogEvent({
+    service: "validator",
+    event: "trace_validation",
+    message: "trace validation completed",
+    refs: { requestId: "req_trace" },
+    fields: {
+      token: "must-redact",
+      status: "ok"
+    }
+  }));
+  await logExporter.shutdown();
+
+  const tracePayload = JSON.stringify(traceCollector.payloads);
+  assertIncludes(tracePayload, "api.request", "OTLP trace export payload");
+  assertIncludes(tracePayload, "worker.job", "OTLP trace export payload");
+  assertIncludes(tracePayload, "storage.put_object", "OTLP trace export payload");
+  assertIncludes(tracePayload, "mindory.request_id", "OTLP trace export payload");
+  assert(!tracePayload.includes("must-redact"), "OTLP trace export must redact secret attributes.");
+  const traceSpans = traceCollector.payloads.flatMap((payload) => extractOtlpSpans(payload));
+  const rootSpan = traceSpans.find((span) => span.name === "api.request");
+  const workerSpan = traceSpans.find((span) => span.name === "worker.job");
+  assert(rootSpan?.traceId !== undefined, "Root trace span must include traceId.");
+  assert(workerSpan?.traceId === rootSpan.traceId, "Worker span must continue API trace id from traceparent metadata.");
+  assert(workerSpan.parentSpanId === rootSpan.spanId, "Worker span must use API span as parent.");
+
+  const logPayload = JSON.stringify(logCollector.payloads);
+  assertIncludes(logPayload, "trace_validation", "OTLP log export payload");
+  assert(!logPayload.includes("must-redact"), "OTLP log export must redact secret fields.");
+} finally {
+  await traceCollector.close();
+  await logCollector.close();
+}
+
 const health = observability.createHealthSnapshot({
   service: "validator",
   startedAt: new Date("2026-05-22T00:00:00.000Z").getTime(),
@@ -252,6 +355,56 @@ assert(health.observability.metrics === "in_process", "Health snapshot must desc
 assert(observability.BASIC_RATE_LIMIT_STRATEGY.distributed === false, "Rate-limit strategy must be documented as in-process.");
 
 console.log("Observability baseline validated.");
+
+function startOtlpCollector(pathname) {
+  const payloads = [];
+  const server = createServer((request, response) => {
+    let body = "";
+    request.setEncoding("utf8");
+    request.on("data", (chunk) => {
+      body += chunk;
+    });
+    request.on("end", () => {
+      if (request.url !== pathname || request.method !== "POST") {
+        response.writeHead(404, { "content-type": "application/json" });
+        response.end(JSON.stringify({ error: "not_found" }));
+        return;
+      }
+      payloads.push(JSON.parse(body));
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end("{}");
+    });
+  });
+  return new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      if (typeof address !== "object" || address === null) {
+        reject(new Error("Could not bind OTLP collector."));
+        return;
+      }
+      resolve({
+        payloads,
+        url: `http://127.0.0.1:${address.port}${pathname}`,
+        close: () => new Promise((closeResolve, closeReject) => {
+          server.close((error) => {
+            if (error) {
+              closeReject(error);
+              return;
+            }
+            closeResolve();
+          });
+        })
+      });
+    });
+  });
+}
+
+function extractOtlpSpans(payload) {
+  return (payload.resourceSpans ?? [])
+    .flatMap((resourceSpan) => resourceSpan.scopeSpans ?? [])
+    .flatMap((scopeSpan) => scopeSpan.spans ?? []);
+}
 
 function getFreePort() {
   return new Promise((resolve, reject) => {

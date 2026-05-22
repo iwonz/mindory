@@ -78,6 +78,9 @@ assert(compose.includes("MINDORY_CLAMAV_PLATFORM"), "Compose must allow ClamAV p
 for (const envName of ["MINDORY_METRICS_ENABLED", "MINDORY_METRICS_PATH", "MINDORY_METRICS_BEARER_TOKEN", "MINDORY_METRICS_WORKER_PORT"]) {
   assert(compose.includes(envName), `Compose must include metrics env ${envName}.`);
 }
+for (const envName of ["MINDORY_OTEL_TRACES_ENABLED", "MINDORY_OTEL_EXPORTER_OTLP_ENDPOINT", "MINDORY_OTEL_LOG_EXPORT_ENABLED", "MINDORY_OTEL_LOG_EXPORT_ENDPOINT"]) {
+  assert(compose.includes(envName), `Compose must include OpenTelemetry env ${envName}.`);
+}
 assert(compose.includes("${MINDORY_METRICS_WORKER_PORT:-3001}:${MINDORY_METRICS_WORKER_PORT:-3001}"), "Worker service must publish the configured metrics port.");
 assert(compose.includes("clamdscan --no-summary /tmp/mindory-clamav-health.txt"), "Compose must health-check the ClamAV daemon with a real scan.");
 assert(compose.includes("\n  llm:"), "Compose must define an optional local LLM SDK service.");

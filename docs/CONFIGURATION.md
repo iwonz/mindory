@@ -150,14 +150,32 @@ operation metrics and vector backend operation metrics. Labels intentionally
 avoid project ids, document ids, raw prompts, bearer tokens and other
 high-cardinality or secret values.
 
+## OpenTelemetry Export
+
+`MINDORY_OTEL_TRACES_ENABLED=true` enables OTLP HTTP trace export. Configure the
+collector with `MINDORY_OTEL_EXPORTER_OTLP_ENDPOINT`; the default is
+`http://localhost:4318/v1/traces`. `MINDORY_OTEL_SERVICE_NAME` defaults to
+`mindory`, and API/worker append their runtime names. Use
+`MINDORY_OTEL_EXPORTER_OTLP_HEADERS` for comma-separated headers such as
+`x-api-key=value`; this value is treated as secret config.
+
+`MINDORY_OTEL_SAMPLE_RATE` must be between `0` and `1`, and
+`MINDORY_OTEL_EXPORT_TIMEOUT_MS` controls trace export timeout. Export failures
+do not fail API requests or worker jobs.
+
+`MINDORY_OTEL_LOG_EXPORT_ENABLED=true` enables OTLP structured log export.
+Configure it with `MINDORY_OTEL_LOG_EXPORT_ENDPOINT`,
+`MINDORY_OTEL_LOG_EXPORT_HEADERS` and `MINDORY_OTEL_LOG_EXPORT_TIMEOUT_MS`.
+Shared observability helpers redact secret-like fields before trace/log export.
+
 ## Queue And Workers
 
 `MINDORY_REDIS_URL` points BullMQ at Redis. `MINDORY_QUEUE_PREFIX` namespaces
 queue keys. `MINDORY_WORKER_CONCURRENCY` controls the BullMQ worker concurrency
 used by the worker base runner.
 
-`MINDORY_WORKER_TYPE` is already represented for future worker filtering, but
-TASK-7 does not register concrete processors yet.
+`MINDORY_WORKER_TYPE` identifies the worker role. The local runtime uses `all`
+to register document and memory processors in one process.
 
 ## Document Processing Router
 

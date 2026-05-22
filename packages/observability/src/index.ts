@@ -1,4 +1,7 @@
-import { createServer, type Server } from "node:http";
+import { AsyncLocalStorage } from "node:async_hooks";
+import { randomBytes } from "node:crypto";
+import { createServer, request as httpRequest, type RequestOptions, type Server } from "node:http";
+import { request as httpsRequest } from "node:https";
 
 export type ObservabilityLevel = "debug" | "info" | "warn" | "error";
 export type HealthStatus = "ok" | "degraded" | "failed";
@@ -170,6 +173,88 @@ export interface PrometheusMetricsHttpServerOptions {
 export interface PrometheusMetricsHttpServer {
   start(): Promise<void>;
   close(): Promise<void>;
+}
+
+export type TraceSpanKind = "internal" | "server" | "client" | "producer" | "consumer";
+export type TraceSpanStatus = "ok" | "error" | "unset";
+export type TraceAttributeValue = string | number | boolean;
+export type TraceAttributes = Record<string, TraceAttributeValue | undefined>;
+
+export interface TelemetryTracerConfig {
+  enabled: boolean;
+  serviceName: string;
+  endpoint: string;
+  headers?: string;
+  timeoutMs: number;
+  sampleRate: number;
+}
+
+export interface StructuredLogExportConfig {
+  enabled: boolean;
+  serviceName: string;
+  endpoint: string;
+  headers?: string;
+  timeoutMs: number;
+}
+
+export interface TraceContext {
+  traceId: string;
+  spanId: string;
+  traceFlags: string;
+  traceparent: string;
+}
+
+export interface TraceSpanEndOptions {
+  status?: TraceSpanStatus;
+  error?: unknown;
+  endTimeUnixNano?: bigint;
+}
+
+export interface TraceSpanOptions {
+  kind?: TraceSpanKind;
+  parentTraceparent?: string;
+  attributes?: TraceAttributes;
+  refs?: ObservabilityRefs;
+  startTimeUnixNano?: bigint;
+}
+
+export interface TraceOperationInput {
+  name: string;
+  kind?: TraceSpanKind;
+  provider?: string;
+  operation?: string;
+  status: PrometheusMetricStatus;
+  durationMs: number;
+  refs?: ObservabilityRefs;
+  attributes?: TraceAttributes;
+}
+
+export interface MindoryTraceSpan {
+  readonly context: TraceContext;
+  readonly name: string;
+  setAttribute(key: string, value: TraceAttributeValue | undefined): void;
+  end(options?: TraceSpanEndOptions): void;
+}
+
+export interface MindoryTracer {
+  readonly enabled: boolean;
+  startSpan(name: string, options?: TraceSpanOptions): MindoryTraceSpan;
+  startActiveSpan<T>(name: string, options: TraceSpanOptions, run: (span: MindoryTraceSpan) => Promise<T>): Promise<T>;
+  withSpan<T>(span: MindoryTraceSpan, run: () => T): T;
+  activateSpan(span: MindoryTraceSpan): void;
+  currentTraceContext(): TraceContext | null;
+  currentTraceMetadata(): Record<string, string>;
+  extractTraceparent(metadata: unknown): string | undefined;
+  recordOperation(input: TraceOperationInput): void;
+  recordModelOperation(input: ModelOperationAuditRecord): void;
+  flush(): Promise<void>;
+  shutdown(): Promise<void>;
+}
+
+export interface StructuredLogExporter {
+  export(event: StructuredLogEvent): void;
+  flush(): Promise<void>;
+  shutdown(): Promise<void>;
 }
 
 export interface RateLimitStrategy {
@@ -405,6 +490,313 @@ export class PrometheusMetricsRegistry {
   }
 }
 
+interface CompletedTraceSpan {
+  traceId: string;
+  spanId: string;
+  parentSpanId?: string;
+  name: string;
+  kind: TraceSpanKind;
+  startTimeUnixNano: bigint;
+  endTimeUnixNano: bigint;
+  attributes: Record<string, TraceAttributeValue>;
+  status: TraceSpanStatus;
+  statusMessage?: string;
+}
+
+export function createMindoryTracer(config: TelemetryTracerConfig): MindoryTracer {
+  return new OtlpMindoryTracer(config);
+}
+
+export function createOtlpStructuredLogExporter(config: StructuredLogExportConfig): StructuredLogExporter {
+  return new OtlpStructuredLogExporter(config);
+}
+
+class OtlpMindoryTracer implements MindoryTracer {
+  readonly enabled: boolean;
+  private readonly storage = new AsyncLocalStorage<RecordingTraceSpan>();
+  private readonly pending = new Set<Promise<void>>();
+  private readonly headers: Record<string, string>;
+
+  constructor(private readonly config: TelemetryTracerConfig) {
+    this.enabled = config.enabled;
+    this.headers = parseOtlpHeaders(config.headers ?? "");
+  }
+
+  startSpan(name: string, options: TraceSpanOptions = {}): MindoryTraceSpan {
+    if (!this.enabled || !shouldSample(this.config.sampleRate)) {
+      return new NoopTraceSpan(name);
+    }
+
+    const parent = parseTraceparent(options.parentTraceparent) ?? this.currentTraceContext();
+    const spanId = randomHex(8);
+    const traceId = parent?.traceId ?? randomHex(16);
+    const traceFlags = parent?.traceFlags ?? "01";
+    const context: TraceContext = {
+      traceId,
+      spanId,
+      traceFlags,
+      traceparent: formatTraceparent(traceId, spanId, traceFlags)
+    };
+    const attributes = normalizeTraceAttributes({
+      ...(options.attributes ?? {}),
+      ...refsToAttributes(options.refs ?? {})
+    });
+
+    return new RecordingTraceSpan(this, {
+      context,
+      name,
+      kind: options.kind ?? "internal",
+      startTimeUnixNano: options.startTimeUnixNano ?? nowUnixNano(),
+      attributes,
+      ...(parent?.spanId === undefined ? {} : { parentSpanId: parent.spanId })
+    });
+  }
+
+  async startActiveSpan<T>(name: string, options: TraceSpanOptions, run: (span: MindoryTraceSpan) => Promise<T>): Promise<T> {
+    const span = this.startSpan(name, options);
+    return this.withSpan(span, async () => {
+      try {
+        const result = await run(span);
+        span.end({ status: "ok" });
+        return result;
+      } catch (error) {
+        span.end({ status: "error", error });
+        throw error;
+      }
+    });
+  }
+
+  withSpan<T>(span: MindoryTraceSpan, run: () => T): T {
+    if (span instanceof RecordingTraceSpan) {
+      return this.storage.run(span, run);
+    }
+    return run();
+  }
+
+  activateSpan(span: MindoryTraceSpan): void {
+    if (span instanceof RecordingTraceSpan) {
+      this.storage.enterWith(span);
+    }
+  }
+
+  currentTraceContext(): TraceContext | null {
+    return this.storage.getStore()?.context ?? null;
+  }
+
+  currentTraceMetadata(): Record<string, string> {
+    const span = this.storage.getStore();
+    if (span === undefined) {
+      return {};
+    }
+    const metadata: Record<string, string> = {
+      traceparent: span.context.traceparent,
+      trace_id: span.context.traceId,
+      parent_span_id: span.context.spanId
+    };
+    const requestId = span.getAttribute("mindory.request_id");
+    if (typeof requestId === "string" && requestId.trim() !== "") {
+      metadata.correlation_id = requestId;
+      metadata.request_id = requestId;
+    }
+    return metadata;
+  }
+
+  extractTraceparent(metadata: unknown): string | undefined {
+    if (!isRecord(metadata)) {
+      return undefined;
+    }
+    const traceparent = metadata.traceparent;
+    return typeof traceparent === "string" && parseTraceparent(traceparent) !== null ? traceparent : undefined;
+  }
+
+  recordOperation(input: TraceOperationInput): void {
+    if (!this.enabled) {
+      return;
+    }
+    const endTimeUnixNano = nowUnixNano();
+    const durationNanos = BigInt(Math.max(0, Math.round(input.durationMs * 1_000_000)));
+    const span = this.startSpan(input.name, {
+      kind: input.kind ?? "client",
+      attributes: {
+        ...(input.attributes ?? {}),
+        "mindory.provider": input.provider,
+        "mindory.operation": input.operation,
+        "mindory.status": input.status,
+        "mindory.duration_ms": input.durationMs
+      },
+      startTimeUnixNano: endTimeUnixNano - durationNanos,
+      ...(input.refs === undefined ? {} : { refs: input.refs })
+    });
+    span.end({
+      status: input.status === "failed" ? "error" : "ok",
+      endTimeUnixNano
+    });
+  }
+
+  recordModelOperation(input: ModelOperationAuditRecord): void {
+    const endTimeUnixNano = timestampToUnixNano(input.timestamp) ?? nowUnixNano();
+    const durationNanos = BigInt(Math.max(0, Math.round(input.durationMs * 1_000_000)));
+    const span = this.startSpan(`model.${input.role}`, {
+      kind: "client",
+      refs: input.refs,
+      attributes: {
+        "mindory.model.role": input.role,
+        "mindory.model.provider": input.provider,
+        "mindory.model.name": input.model || "unset",
+        "mindory.model.status": input.status,
+        "mindory.model.duration_ms": input.durationMs,
+        "mindory.model.input_tokens": input.usage.inputTokens,
+        "mindory.model.output_tokens": input.usage.outputTokens,
+        "mindory.model.total_tokens": input.usage.totalTokens,
+        "mindory.model.embedding_dimensions": input.usage.embeddingDimensions,
+        "mindory.model.image_count": input.usage.imageCount,
+        "mindory.model.audio_seconds": input.usage.audioSeconds,
+        "mindory.error_code": input.errorCode
+      },
+      startTimeUnixNano: endTimeUnixNano - durationNanos
+    });
+    span.end({
+      status: input.status === "failed" ? "error" : "ok",
+      error: input.errorMessage,
+      endTimeUnixNano
+    });
+  }
+
+  exportSpan(span: CompletedTraceSpan): void {
+    if (!this.enabled) {
+      return;
+    }
+    const promise = postJson(this.config.endpoint, this.headers, buildOtlpTracePayload(this.config.serviceName, span), this.config.timeoutMs)
+      .catch(() => undefined);
+    this.pending.add(promise);
+    void promise.finally(() => {
+      this.pending.delete(promise);
+    });
+  }
+
+  async flush(): Promise<void> {
+    await Promise.all(Array.from(this.pending));
+  }
+
+  async shutdown(): Promise<void> {
+    await this.flush();
+  }
+}
+
+class RecordingTraceSpan implements MindoryTraceSpan {
+  private ended = false;
+  private readonly attributes: Record<string, TraceAttributeValue>;
+  readonly context: TraceContext;
+  readonly name: string;
+
+  constructor(
+    private readonly tracer: OtlpMindoryTracer,
+    private readonly input: {
+      context: TraceContext;
+      parentSpanId?: string;
+      name: string;
+      kind: TraceSpanKind;
+      startTimeUnixNano: bigint;
+      attributes: Record<string, TraceAttributeValue>;
+    }
+  ) {
+    this.context = input.context;
+    this.name = input.name;
+    this.attributes = { ...input.attributes };
+  }
+
+  setAttribute(key: string, value: TraceAttributeValue | undefined): void {
+    if (value === undefined || isSecretKey(key)) {
+      return;
+    }
+    this.attributes[normalizeAttributeKey(key)] = value;
+  }
+
+  getAttribute(key: string): TraceAttributeValue | undefined {
+    return this.attributes[normalizeAttributeKey(key)];
+  }
+
+  end(options: TraceSpanEndOptions = {}): void {
+    if (this.ended) {
+      return;
+    }
+    this.ended = true;
+    if (options.error !== undefined) {
+      this.setAttribute("error.type", errorName(options.error));
+      this.setAttribute("error.message", errorMessage(options.error));
+    }
+    const span: CompletedTraceSpan = {
+      traceId: this.context.traceId,
+      spanId: this.context.spanId,
+      name: this.input.name,
+      kind: this.input.kind,
+      startTimeUnixNano: this.input.startTimeUnixNano,
+      endTimeUnixNano: options.endTimeUnixNano ?? nowUnixNano(),
+      attributes: { ...this.attributes },
+      status: options.status ?? (options.error === undefined ? "unset" : "error")
+    };
+    if (this.input.parentSpanId !== undefined) {
+      span.parentSpanId = this.input.parentSpanId;
+    }
+    if (options.error !== undefined) {
+      span.statusMessage = errorMessage(options.error);
+    }
+    this.tracer.exportSpan(span);
+  }
+}
+
+class NoopTraceSpan implements MindoryTraceSpan {
+  readonly context: TraceContext;
+
+  constructor(readonly name: string) {
+    const traceId = randomHex(16);
+    const spanId = randomHex(8);
+    this.context = {
+      traceId,
+      spanId,
+      traceFlags: "00",
+      traceparent: formatTraceparent(traceId, spanId, "00")
+    };
+  }
+
+  setAttribute(): void {}
+  end(): void {}
+}
+
+class OtlpStructuredLogExporter implements StructuredLogExporter {
+  private readonly pending = new Set<Promise<void>>();
+  private readonly headers: Record<string, string>;
+
+  constructor(private readonly config: StructuredLogExportConfig) {
+    this.headers = parseOtlpHeaders(config.headers ?? "");
+  }
+
+  export(event: StructuredLogEvent): void {
+    if (!this.config.enabled) {
+      return;
+    }
+    const sanitized = {
+      ...event,
+      refs: compactRefs(event.refs),
+      fields: redactSecrets(event.fields) as Record<string, unknown>
+    };
+    const promise = postJson(this.config.endpoint, this.headers, buildOtlpLogPayload(this.config.serviceName, sanitized), this.config.timeoutMs)
+      .catch(() => undefined);
+    this.pending.add(promise);
+    void promise.finally(() => {
+      this.pending.delete(promise);
+    });
+  }
+
+  async flush(): Promise<void> {
+    await Promise.all(Array.from(this.pending));
+  }
+
+  async shutdown(): Promise<void> {
+    await this.flush();
+  }
+}
+
 export function createStructuredLogEvent(input: StructuredLogInput): StructuredLogEvent {
   return {
     timestamp: (input.now ?? new Date()).toISOString(),
@@ -581,6 +973,315 @@ export function isMetricsRequestAuthorized(authorizationHeader: string | undefin
     return true;
   }
   return authorizationHeader === `Bearer ${bearerToken}`;
+}
+
+function buildOtlpTracePayload(serviceName: string, span: CompletedTraceSpan): Record<string, unknown> {
+  const otlpSpan: Record<string, unknown> = {
+    traceId: span.traceId,
+    spanId: span.spanId,
+    name: span.name,
+    kind: spanKindToOtlp(span.kind),
+    startTimeUnixNano: span.startTimeUnixNano.toString(),
+    endTimeUnixNano: span.endTimeUnixNano.toString(),
+    attributes: objectToOtlpAttributes(span.attributes),
+    status: {
+      code: spanStatusToOtlp(span.status),
+      ...(span.statusMessage === undefined ? {} : { message: span.statusMessage })
+    }
+  };
+  if (span.parentSpanId !== undefined) {
+    otlpSpan.parentSpanId = span.parentSpanId;
+  }
+
+  return {
+    resourceSpans: [{
+      resource: {
+        attributes: objectToOtlpAttributes({
+          "service.name": serviceName,
+          "service.namespace": "mindory"
+        })
+      },
+      scopeSpans: [{
+        scope: {
+          name: "@mindory/observability"
+        },
+        spans: [otlpSpan]
+      }]
+    }]
+  };
+}
+
+function buildOtlpLogPayload(serviceName: string, event: StructuredLogEvent): Record<string, unknown> {
+  const fields = redactSecrets(event.fields) as Record<string, unknown>;
+  return {
+    resourceLogs: [{
+      resource: {
+        attributes: objectToOtlpAttributes({
+          "service.name": serviceName,
+          "service.namespace": "mindory"
+        })
+      },
+      scopeLogs: [{
+        scope: {
+          name: "@mindory/observability"
+        },
+        logRecords: [{
+          timeUnixNano: timestampToUnixNano(event.timestamp)?.toString() ?? nowUnixNano().toString(),
+          severityText: event.level.toUpperCase(),
+          severityNumber: severityNumber(event.level),
+          body: {
+            stringValue: event.message
+          },
+          attributes: objectToOtlpAttributes({
+            "event.name": event.event,
+            "mindory.service": event.service,
+            ...refsToAttributes(event.refs),
+            ...flattenLogFields(fields)
+          })
+        }]
+      }]
+    }]
+  };
+}
+
+function postJson(endpoint: string, headers: Record<string, string>, body: unknown, timeoutMs: number): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const url = new URL(endpoint);
+    const payload = JSON.stringify(body);
+    const transport = url.protocol === "https:" ? httpsRequest : httpRequest;
+    const requestOptions: RequestOptions = {
+      method: "POST",
+      protocol: url.protocol,
+      hostname: url.hostname,
+      port: url.port,
+      path: `${url.pathname}${url.search}`,
+      headers: {
+        "content-type": "application/json",
+        "content-length": Buffer.byteLength(payload),
+        ...headers
+      }
+    };
+    const request = transport(requestOptions, (response) => {
+      response.resume();
+      response.on("end", () => {
+        const statusCode = response.statusCode ?? 0;
+        if (statusCode >= 200 && statusCode < 300) {
+          resolve();
+          return;
+        }
+        reject(new Error(`OTLP export failed with HTTP ${statusCode}.`));
+      });
+    });
+    request.setTimeout(timeoutMs, () => {
+      request.destroy(new Error(`OTLP export timed out after ${timeoutMs}ms.`));
+    });
+    request.on("error", reject);
+    request.write(payload);
+    request.end();
+  });
+}
+
+function objectToOtlpAttributes(input: Record<string, unknown>): Array<{ key: string; value: Record<string, unknown> }> {
+  const attributes: Array<{ key: string; value: Record<string, unknown> }> = [];
+  for (const [key, value] of Object.entries(input)) {
+    if (value === undefined || isSecretKey(key)) {
+      continue;
+    }
+    const otlpValue = toOtlpAnyValue(value);
+    if (otlpValue !== null) {
+      attributes.push({
+        key: normalizeAttributeKey(key),
+        value: otlpValue
+      });
+    }
+  }
+  return attributes.sort((left, right) => left.key.localeCompare(right.key));
+}
+
+function toOtlpAnyValue(value: unknown): Record<string, unknown> | null {
+  if (typeof value === "string") {
+    return { stringValue: sanitizeAttributeString(value) };
+  }
+  if (typeof value === "number") {
+    return Number.isInteger(value) ? { intValue: String(value) } : { doubleValue: Number.isFinite(value) ? value : 0 };
+  }
+  if (typeof value === "boolean") {
+    return { boolValue: value };
+  }
+  if (value === null) {
+    return { stringValue: "null" };
+  }
+  if (Array.isArray(value)) {
+    return {
+      stringValue: JSON.stringify(redactSecrets(value)).slice(0, 2000)
+    };
+  }
+  if (isRecord(value)) {
+    return {
+      stringValue: JSON.stringify(redactSecrets(value)).slice(0, 2000)
+    };
+  }
+  return null;
+}
+
+function normalizeTraceAttributes(attributes: TraceAttributes): Record<string, TraceAttributeValue> {
+  const normalized: Record<string, TraceAttributeValue> = {};
+  for (const [key, value] of Object.entries(attributes)) {
+    if (value === undefined || isSecretKey(key)) {
+      continue;
+    }
+    normalized[normalizeAttributeKey(key)] = typeof value === "string" ? sanitizeAttributeString(value) : value;
+  }
+  return normalized;
+}
+
+function refsToAttributes(refs: ObservabilityRefs): TraceAttributes {
+  return {
+    "mindory.request_id": refs.requestId,
+    "mindory.project_id": refs.projectId,
+    "mindory.document_id": refs.documentId,
+    "mindory.job_id": refs.jobId,
+    "mindory.session_id": refs.sessionId,
+    "mindory.memory_id": refs.memoryId,
+    "mindory.processing_run_id": refs.processingRunId
+  };
+}
+
+function flattenLogFields(fields: Record<string, unknown>): Record<string, unknown> {
+  const flattened: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(fields)) {
+    if (isSecretKey(key)) {
+      continue;
+    }
+    flattened[`mindory.log.${key}`] = value;
+  }
+  return flattened;
+}
+
+function parseOtlpHeaders(input: string): Record<string, string> {
+  const headers: Record<string, string> = {};
+  for (const entry of input.split(",")) {
+    const trimmed = entry.trim();
+    if (trimmed === "") {
+      continue;
+    }
+    const separatorIndex = trimmed.indexOf("=");
+    if (separatorIndex <= 0) {
+      continue;
+    }
+    const key = trimmed.slice(0, separatorIndex).trim();
+    const value = trimmed.slice(separatorIndex + 1).trim();
+    if (key !== "" && value !== "") {
+      headers[key] = value;
+    }
+  }
+  return headers;
+}
+
+function parseTraceparent(input: string | undefined): TraceContext | null {
+  if (input === undefined) {
+    return null;
+  }
+  const match = /^00-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})$/i.exec(input.trim());
+  if (match === null || match[1] === undefined || match[2] === undefined || match[3] === undefined) {
+    return null;
+  }
+  const traceId = match[1].toLowerCase();
+  const spanId = match[2].toLowerCase();
+  const traceFlags = match[3].toLowerCase();
+  return {
+    traceId,
+    spanId,
+    traceFlags,
+    traceparent: formatTraceparent(traceId, spanId, traceFlags)
+  };
+}
+
+function formatTraceparent(traceId: string, spanId: string, traceFlags: string): string {
+  return `00-${traceId}-${spanId}-${traceFlags}`;
+}
+
+function spanKindToOtlp(kind: TraceSpanKind): number {
+  switch (kind) {
+    case "server":
+      return 2;
+    case "client":
+      return 3;
+    case "producer":
+      return 4;
+    case "consumer":
+      return 5;
+    case "internal":
+      return 1;
+  }
+}
+
+function spanStatusToOtlp(status: TraceSpanStatus): number {
+  if (status === "ok") {
+    return 1;
+  }
+  if (status === "error") {
+    return 2;
+  }
+  return 0;
+}
+
+function severityNumber(level: ObservabilityLevel): number {
+  switch (level) {
+    case "debug":
+      return 5;
+    case "info":
+      return 9;
+    case "warn":
+      return 13;
+    case "error":
+      return 17;
+  }
+}
+
+function shouldSample(sampleRate: number): boolean {
+  if (sampleRate <= 0) {
+    return false;
+  }
+  if (sampleRate >= 1) {
+    return true;
+  }
+  return Math.random() < sampleRate;
+}
+
+function randomHex(bytes: number): string {
+  return randomBytes(bytes).toString("hex");
+}
+
+function nowUnixNano(): bigint {
+  return BigInt(Date.now()) * 1_000_000n;
+}
+
+function timestampToUnixNano(timestamp: string | undefined): bigint | null {
+  if (timestamp === undefined) {
+    return null;
+  }
+  const millis = Date.parse(timestamp);
+  return Number.isFinite(millis) ? BigInt(millis) * 1_000_000n : null;
+}
+
+function normalizeAttributeKey(key: string): string {
+  return key.trim().replace(/[^a-zA-Z0-9_.-]/g, "_").slice(0, 160);
+}
+
+function sanitizeAttributeString(value: string): string {
+  return value.length > 2000 ? `${value.slice(0, 1997)}...` : value;
+}
+
+function errorName(error: unknown): string {
+  return error instanceof Error ? error.name : typeof error;
+}
+
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return typeof error === "string" ? error : String(error);
 }
 
 export function redactSecrets(value: unknown): unknown {

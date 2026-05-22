@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-101",
+  "current_task_id": "TASK-102",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -747,7 +747,7 @@
     {
       "id": "TASK-102",
       "title": "Add OpenTelemetry tracing and structured log export",
-      "status": "draft",
+      "status": "done",
       "branch": "task/TASK-102-opentelemetry-tracing-structured-log-export",
       "file": "tasks/TASK-102.json"
     },

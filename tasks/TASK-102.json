@@ -1,7 +1,7 @@
 {
   "id": "TASK-102",
   "title": "Add OpenTelemetry tracing and structured log export",
-  "status": "draft",
+  "status": "done",
   "type": "feature",
   "priority": "high",
   "branch": "task/TASK-102-opentelemetry-tracing-structured-log-export",

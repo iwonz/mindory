@@ -27,7 +27,7 @@ experimental profile surfaces and planned hardening:
 | Interfaces | Supported local MVP: HTTP API, CLI and MCP stdio tools call the API, including unified multimodal search. Hermes adapter exposes lifecycle helpers, hook registration for Hermes-like runtimes and a fake-compatible runtime harness; an official Hermes SDK is not vendored. |
 | Installer | Supported today: wizard, plan/dry-run, prepare execution for `$MINDORY_HOME` directories/config/compose assets, Docker Compose startup through health checks, S3 bucket bootstrap/access checks, first project/token provisioning, local asset update, runtime backup/restore, guarded uninstall, dependency detection, lock/journal diagnostics, bootstrap staging, installer acceptance and public self-host acceptance. Future: remote release update, scheduled backups and full automated resume execution. |
 | Deployment | Supported local MVP: Compose stack with single-home bind mounts under `MINDORY_HOME`, defaulting to `${HOME}/.mindory` outside demo scripts. Future: release artifact publishing and production-grade update/rollback automation. |
-| Observability | Supported baseline: structured log helpers, model operation audit queries, Prometheus API/worker metrics exporters, in-process job/stage metrics, health snapshots and documented in-process rate-limit strategy. OpenTelemetry and alerting remain hardening items. |
+| Observability | Supported baseline: structured log helpers, model operation audit queries, Prometheus API/worker metrics exporters, OpenTelemetry OTLP tracing/log export, in-process job/stage metrics, health snapshots and documented in-process rate-limit strategy. |
 
 Public repository files:
 

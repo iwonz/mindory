@@ -6,7 +6,7 @@ import {
   type ProcessingJobStore,
   stageNameForJobType
 } from "@mindory/core/queue";
-import type { PrometheusMetricsRegistry } from "@mindory/observability";
+import type { MindoryTracer, PrometheusMetricsRegistry } from "@mindory/observability";
 import { BullMqProcessingJobWorker, DEFAULT_PROCESSING_QUEUE_NAME } from "@mindory/queue-bullmq";
 
 export interface BuildWorkerBaseRunnerOptions {
@@ -15,6 +15,7 @@ export interface BuildWorkerBaseRunnerOptions {
   processors: ProcessingJobProcessorRegistry;
   queueName?: string;
   metrics?: PrometheusMetricsRegistry;
+  tracing?: MindoryTracer;
 }
 
 export interface WorkerBaseRunner {
@@ -40,7 +41,7 @@ export function buildWorkerBaseRunner(options: BuildWorkerBaseRunnerOptions): Wo
   return {
     runner,
     worker,
-    start: () => worker.start((payload) => runWithMetrics(payload, runner, options.metrics)),
+    start: () => worker.start((payload) => runWithMetrics(payload, runner, options.metrics, options.tracing)),
     close: () => worker.close()
   };
 }
@@ -48,40 +49,88 @@ export function buildWorkerBaseRunner(options: BuildWorkerBaseRunnerOptions): Wo
 async function runWithMetrics(
   payload: ProcessingJobQueuePayload,
   runner: ProcessingJobRunner,
-  metrics: PrometheusMetricsRegistry | undefined
+  metrics: PrometheusMetricsRegistry | undefined,
+  tracing: MindoryTracer | undefined
 ): Promise<void> {
   const startedAt = performance.now();
+  const run = () => runner.run(payload);
   try {
-    await runner.run(payload);
-    recordJobMetrics(metrics, payload, "succeeded", performance.now() - startedAt);
+    await runWorkerJobWithTracing(payload, tracing, run);
+    recordJobMetrics(metrics, tracing, payload, "succeeded", performance.now() - startedAt);
   } catch (error) {
-    recordJobMetrics(metrics, payload, "failed", performance.now() - startedAt);
+    recordJobMetrics(metrics, tracing, payload, "failed", performance.now() - startedAt);
     throw error;
   }
 }
 
+async function runWorkerJobWithTracing(
+  payload: ProcessingJobQueuePayload,
+  tracing: MindoryTracer | undefined,
+  run: () => Promise<void>
+): Promise<void> {
+  if (tracing === undefined || !tracing.enabled) {
+    await run();
+    return;
+  }
+  const parentTraceparent = tracing.extractTraceparent(payload.metadata);
+  await tracing.startActiveSpan("worker.job", {
+    kind: "consumer",
+    refs: jobTraceRefs(payload),
+    attributes: {
+      "mindory.job_type": payload.type,
+      "mindory.target_type": payload.targetType,
+      "messaging.system": "bullmq",
+      "messaging.operation": "process"
+    },
+    ...(parentTraceparent === undefined ? {} : { parentTraceparent })
+  }, async () => {
+    await run();
+  });
+}
+
 function recordJobMetrics(
   metrics: PrometheusMetricsRegistry | undefined,
+  tracing: MindoryTracer | undefined,
   payload: ProcessingJobQueuePayload,
   status: "succeeded" | "failed",
   durationMs: number
 ): void {
-  if (metrics === undefined) {
-    return;
+  if (metrics !== undefined) {
+    metrics.recordJob({
+      jobType: payload.type,
+      status,
+      durationMs
+    });
+    metrics.recordJobStage({
+      jobType: payload.type,
+      stage: stageNameForJobType(payload.type),
+      status: status === "succeeded" ? "success" : "failed",
+      durationMs,
+      refs: {
+        projectId: payload.projectId,
+        jobId: payload.jobId
+      }
+    });
   }
-  metrics.recordJob({
-    jobType: payload.type,
-    status,
-    durationMs
-  });
-  metrics.recordJobStage({
-    jobType: payload.type,
-    stage: stageNameForJobType(payload.type),
+  tracing?.recordOperation({
+    name: `worker.stage.${stageNameForJobType(payload.type)}`,
+    kind: "internal",
+    operation: stageNameForJobType(payload.type),
+    provider: "worker",
     status: status === "succeeded" ? "success" : "failed",
     durationMs,
-    refs: {
-      projectId: payload.projectId,
-      jobId: payload.jobId
+    refs: jobTraceRefs(payload),
+    attributes: {
+      "mindory.job_type": payload.type,
+      "mindory.target_type": payload.targetType
     }
   });
+}
+
+function jobTraceRefs(payload: ProcessingJobQueuePayload): { projectId: string; documentId?: string; jobId: string } {
+  return {
+    projectId: payload.projectId,
+    jobId: payload.jobId,
+    ...(payload.targetType === "document" ? { documentId: payload.targetId } : {})
+  };
 }

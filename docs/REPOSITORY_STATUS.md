@@ -52,8 +52,9 @@ Supported local MVP path:
   plus a fake-compatible harness covering context-before-prompt, attachment
   upload, saved turns and later-session recall.
 - Observability baseline includes structured log helpers, model operation audit
-  querying, in-process job/stage metrics, health snapshots and documented
-  in-process rate-limit strategy.
+  querying, Prometheus metrics exporters, OpenTelemetry OTLP trace/log export,
+  in-process job/stage metrics, health snapshots and documented in-process
+  rate-limit strategy.
 - Backup/restore MVP includes installer CLI commands for config, installer
   metadata, PostgreSQL dumps and local object-storage state.
 - Public self-host acceptance is documented as the release-readiness gate for
@@ -77,8 +78,8 @@ Public GitHub hygiene baseline:
 - Full automated installer resume is future work.
 - Point-in-time recovery, scheduled backups, encrypted remote backups and
   external S3 bucket streaming backups are future work.
-- Prometheus/OpenTelemetry exporters, log aggregation and alerting are future
-  observability hardening work.
+- Alerting policy is not bundled; route Prometheus and OTLP exports to the
+  monitoring stack used by the deployment.
 - Official Hermes SDK certification is future work; the current supported path
   is the fake-compatible runtime harness.
 - Heavy multimodal model adapters are still experimental unless a role is

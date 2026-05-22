@@ -164,25 +164,44 @@ export interface ProcessingJobProcessorRegistry {
 export interface ProcessingJobDispatcherOptions {
   store: ProcessingJobStore;
   queue: ProcessingJobQueue;
+  metadataFactory?: () => Record<string, unknown>;
 }
 
 export class ProcessingJobDispatcher {
   readonly store: ProcessingJobStore;
   readonly queue: ProcessingJobQueue;
+  private readonly metadataFactory: (() => Record<string, unknown>) | undefined;
 
   constructor(options: ProcessingJobDispatcherOptions) {
     this.store = options.store;
     this.queue = options.queue;
+    this.metadataFactory = options.metadataFactory;
   }
 
   async createAndEnqueue(input: CreateProcessingJobInput): Promise<EnqueuedProcessingJob> {
-    const job = await this.store.createPendingJob(input);
+    const job = await this.store.createPendingJob(this.withRuntimeMetadata(input));
     return this.queue.enqueueProcessingJob(toQueuePayload(job));
   }
 
   async retry(projectId: string, jobId: string): Promise<EnqueuedProcessingJob> {
     const job = await this.store.resetJobForRetry(projectId, jobId);
     return this.queue.enqueueProcessingJob(toQueuePayload(job));
+  }
+
+  private withRuntimeMetadata(input: CreateProcessingJobInput): CreateProcessingJobInput {
+    const runtimeMetadata = this.metadataFactory?.() ?? {};
+    const inputMetadata = input.metadata ?? {};
+    const metadata = {
+      ...runtimeMetadata,
+      ...inputMetadata
+    };
+    if (Object.keys(metadata).length === 0) {
+      return input;
+    }
+    return {
+      ...input,
+      metadata
+    };
   }
 }
 
