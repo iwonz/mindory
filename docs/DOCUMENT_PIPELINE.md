@@ -17,7 +17,8 @@ classifies uploaded files and creates only the enabled downstream jobs.
 adds model-backed scanned-PDF OCR through `@mindory/llm`.
 `TASK-44` adds the first image semantic extraction path. `TASK-77` adds
 model-backed image OCR and vision captioning through `@mindory/llm`.
-`TASK-46` adds the first audio transcript extraction path.
+`TASK-46` adds the first audio transcript extraction path. `TASK-78` adds
+model-backed audio ASR through `@mindory/llm`.
 `TASK-47` adds the first video keyframe extraction path.
 
 ## MVP Pipeline
@@ -48,7 +49,7 @@ Processing status must be durable in PostgreSQL, not only in BullMQ.
 | Scanned PDF OCR | Supported when the OCR role is enabled with a local HTTP OCR provider; disabled by default. |
 | Image | Supported deterministic fallback plus experimental local HTTP OCR and vision captioning through `@mindory/llm` when enabled. Stores derived caption, analysis, labels and OCR text. Future work adds image embeddings and object detection. |
 | Face observations | Supported deterministic fallback only when explicit people-count signals are present. Future work adds real face detection and recognition adapters. |
-| Audio | Supported deterministic fallback for WAV metadata and embedded `INFO/ICMT` transcript text. Future work adds real ASR. |
+| Audio | Supported WAV metadata and embedded `INFO/ICMT` transcript fallback plus experimental local HTTP ASR through `@mindory/llm` when enabled. |
 | Video | Supported deterministic fallback through embedded `MINDORY_VIDEO_MANIFEST`. Future work adds real ffmpeg keyframe extraction and frame bitmap artifacts. |
 | Embeddings and vector search | Supported for text chunks through `@mindory/llm` and pgvector when a compatible 1536-dimensional provider is configured. Full-text fallback is supported when embeddings are disabled. |
 
@@ -214,9 +215,9 @@ reaches the threshold and keeps the RAW image unchanged.
 ## Audio Processing
 
 When `MINDORY_DOCUMENT_PROCESSING_AUDIO_ENABLED=true`, routing sends audio
-uploads to `document.extract`. The `@mindory/extractor-audio-transcript` MVP
-extractor reads WAV metadata and embedded RIFF `INFO/ICMT` transcript text
-without mutating the RAW object. It writes:
+uploads to `document.extract`. The `@mindory/extractor-audio-transcript`
+extractor reads WAV metadata without mutating the RAW object, then uses
+configured ASR or embedded RIFF `INFO/ICMT` transcript text. It writes:
 
 - a top-level extracted text artifact;
 - a `transcript` artifact with transcript text;
@@ -224,9 +225,13 @@ without mutating the RAW object. It writes:
 - chunk metadata and source refs that point back to transcript artifacts and
   time ranges.
 
-The default runtime records ASR capability state from `@mindory/llm`.
-Real cloud/local ASR execution is future adapter work; current local tests use
-deterministic embedded transcript fallback text.
+The default runtime keeps ASR disabled and uses deterministic embedded
+transcript fallback text. When `MINDORY_LLM_ASR_ENABLED=true` and
+`MINDORY_LLM_ASR_PROVIDER=local-http`, the extractor calls `@mindory/llm` ASR
+over `POST /asr`, stores provider transcript segments as derived state and
+uses their `start_ms`/`end_ms` refs in artifact search and chunk metadata. If
+ASR is required and the provider fails or returns no transcript, extraction
+fails with a readable processing error.
 
 ## Video Processing
 
@@ -265,7 +270,7 @@ and `video`, with all listed stages reaching concrete extractors when enabled.
 extractor supports plain text and Markdown inputs, `@mindory/extractor-docling`
 supports native-text PDF inputs, `@mindory/extractor-image-semantic` supports
 image semantic fallback extraction, `@mindory/extractor-audio-transcript`
-supports embedded-transcript audio fallback extraction,
+supports local HTTP ASR plus embedded-transcript audio fallback extraction,
 `@mindory/extractor-video-keyframe` supports manifest-derived keyframe
 fallback extraction, and `FixedSizeTextChunker` creates
 deterministic token windows with offset metadata. Text/PDF/image extraction

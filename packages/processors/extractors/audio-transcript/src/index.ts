@@ -5,9 +5,12 @@ import {
   type ExtractTextInput,
   type TextExtractor
 } from "@mindory/core/processing";
+import type { LlmAsrProvider, LlmAsrSegment, LlmRoleDescriptor } from "@mindory/llm";
 
 export interface AudioTranscriptExtractorOptions {
   asr?: ModelCapabilityState;
+  asrProvider?: LlmAsrProvider;
+  asrRole?: LlmRoleDescriptor;
 }
 
 export interface ModelCapabilityState {
@@ -33,11 +36,15 @@ const supportedExtensions = new Set([".wav", ".wave", ".mp3", ".m4a", ".aac", ".
 
 export class AudioTranscriptExtractor implements TextExtractor {
   readonly name = "audio-transcript";
-  readonly version = "audio-transcript-v1";
+  readonly version = "audio-transcript-v2";
   private readonly asr: ModelCapabilityState;
+  private readonly asrProvider: LlmAsrProvider | undefined;
+  private readonly asrRole: LlmRoleDescriptor | undefined;
 
   constructor(options: AudioTranscriptExtractorOptions = {}) {
     this.asr = options.asr ?? disabledCapability();
+    this.asrProvider = options.asrProvider;
+    this.asrRole = options.asrRole;
   }
 
   supports(document: { originalFilename: string; mimeType: string }): boolean {
@@ -55,11 +62,11 @@ export class AudioTranscriptExtractor implements TextExtractor {
 
     const bytes = await readAllBytes(input.body);
     const metadata = extractAudioMetadata(bytes, input.document.originalFilename, input.document.mimeType);
-    const transcript = (metadata.embeddedTranscript ?? fallbackTranscriptFromFilename(input.document.originalFilename)).trim();
-    if (this.asr.enabled && this.asr.required && transcript.length === 0) {
-      throw new ProcessingError("text_extraction_failed", "Audio ASR is required, but no concrete ASR adapter produced a transcript.");
-    }
-    const segments = buildTranscriptSegments(transcript, metadata.durationMs);
+    const modelResult = await this.runAsr({ bytes, input, metadata });
+    const transcript = modelResult.transcript;
+    const segments = modelResult.segments.length > 0
+      ? modelResult.segments
+      : buildTranscriptSegments(transcript, metadata.durationMs, modelResult.transcriptSource);
     const text = segments.map((segment) => segment.text).join("\n");
     const segmentsWithOffsets = attachOffsets(segments, text);
 
@@ -81,9 +88,64 @@ export class AudioTranscriptExtractor implements TextExtractor {
         bits_per_sample: metadata.bitsPerSample,
         transcript_segment_count: segmentsWithOffsets.length,
         capabilities: {
-          asr: capabilitySnapshot(this.asr, transcript.length > 0 ? "embedded_transcript_extracted" : this.asr.enabled ? "skipped_no_adapter" : "disabled")
+          asr: capabilitySnapshot(this.asr, modelResult.asrStatus)
         }
       }
+    };
+  }
+
+  private async runAsr(input: {
+    bytes: Buffer;
+    input: ExtractTextInput;
+    metadata: AudioMetadata;
+  }): Promise<{
+    transcript: string;
+    transcriptSource: string;
+    segments: ExtractedTranscriptSegment[];
+    asrStatus: string;
+  }> {
+    const fallbackTranscript = (input.metadata.embeddedTranscript ?? fallbackTranscriptFromFilename(input.input.document.originalFilename)).trim();
+    let transcript = fallbackTranscript;
+    let transcriptSource = input.metadata.embeddedTranscript !== null ? "embedded_audio_transcript" : "filename_fallback";
+    let segments: ExtractedTranscriptSegment[] = [];
+    let asrStatus = fallbackTranscript.length > 0
+      ? input.metadata.embeddedTranscript !== null ? "embedded_transcript_extracted" : "filename_fallback_transcript"
+      : this.asr.enabled ? "skipped_no_adapter" : "disabled";
+
+    if (this.asr.enabled && this.asrProvider !== undefined && this.asrRole !== undefined) {
+      const result = await this.asrProvider.transcribe({
+        bytes: input.bytes,
+        mimeType: input.input.document.mimeType
+      }, {
+        role: this.asrRole,
+        refs: {
+          projectId: input.input.document.projectId,
+          documentId: input.input.document.id
+        }
+      });
+      if (result.status === "success" && result.value !== undefined && result.value.text.trim().length > 0) {
+        transcript = result.value.text.trim();
+        transcriptSource = "llm_asr_provider";
+        segments = asrSegmentsToExtractedSegments(result.value.segments, transcript, input.metadata.durationMs, this.asr);
+        asrStatus = "provider_asr";
+      } else if (this.asr.required) {
+        throw new ProcessingError("text_extraction_failed", result.audit.errorMessage ?? "Audio ASR provider returned no transcript.");
+      } else if (result.status === "failed") {
+        asrStatus = "provider_failed";
+      }
+    } else if (this.asr.enabled && this.asr.required && transcript.length === 0) {
+      throw new ProcessingError("text_extraction_failed", "Audio ASR is required, but no concrete ASR adapter produced a transcript.");
+    }
+
+    if (this.asr.required && transcript.length === 0) {
+      throw new ProcessingError("text_extraction_failed", "Audio ASR is required, but no transcript text was produced.");
+    }
+
+    return {
+      transcript,
+      transcriptSource,
+      segments,
+      asrStatus
     };
   }
 }
@@ -167,7 +229,7 @@ function readInfoTranscript(infoBytes: Buffer): string | null {
   return null;
 }
 
-function buildTranscriptSegments(transcript: string, durationMs: number | null): ExtractedTranscriptSegment[] {
+function buildTranscriptSegments(transcript: string, durationMs: number | null, source = "embedded_audio_transcript"): ExtractedTranscriptSegment[] {
   if (transcript.length === 0) {
     return [];
   }
@@ -186,10 +248,44 @@ function buildTranscriptSegments(transcript: string, durationMs: number | null):
       endMs,
       confidence: 0.5,
       metadata: {
-        source: "embedded_audio_transcript"
+        source
       }
     };
   });
+}
+
+function asrSegmentsToExtractedSegments(
+  segments: LlmAsrSegment[],
+  transcript: string,
+  durationMs: number | null,
+  asr: ModelCapabilityState
+): ExtractedTranscriptSegment[] {
+  const validSegments = segments
+    .filter((segment) => segment.text.trim().length > 0)
+    .map((segment) => ({
+      segmentIndex: segment.segmentIndex,
+      text: segment.text.trim(),
+      startMs: segment.startMs,
+      endMs: segment.endMs > segment.startMs ? segment.endMs : segment.startMs + 1000,
+      confidence: segment.confidence,
+      metadata: {
+        source: "llm_asr_provider",
+        provider: asr.provider,
+        model: asr.model
+      }
+    }));
+  if (validSegments.length > 0) {
+    return validSegments;
+  }
+  return buildTranscriptSegments(transcript, durationMs, "llm_asr_provider").map((segment) => ({
+    ...segment,
+    confidence: 0.8,
+    metadata: {
+      ...(segment.metadata ?? {}),
+      provider: asr.provider,
+      model: asr.model
+    }
+  }));
 }
 
 function attachOffsets(segments: ExtractedTranscriptSegment[], text: string): ExtractedTranscriptSegment[] {

@@ -77,6 +77,27 @@ const server = http.createServer(async (request, response) => {
       return;
     }
 
+    if (request.method === "POST" && url.pathname === "/asr") {
+      const body = await readJson(request);
+      const model = stringOrDefault(body.model, "mindory-local-asr");
+      const text = "Local deterministic ASR transcript from Mindory local model service.";
+      writeJson(response, 200, {
+        model,
+        text,
+        segments: [
+          {
+            segment_index: 0,
+            text,
+            start_ms: 0,
+            end_ms: 1000,
+            confidence: 0.98
+          }
+        ],
+        duration_seconds: 1
+      });
+      return;
+    }
+
     if (request.method === "POST" && url.pathname === "/chat/completions") {
       const body = await readJson(request);
       const model = stringOrDefault(body.model, "mindory-local-chat");

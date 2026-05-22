@@ -20,6 +20,8 @@ documentation.
 
 ### Added
 
+- `TASK-78`: audio ASR through `@mindory/llm` local HTTP, with searchable
+  derived transcript segments and time refs.
 - `TASK-77`: image OCR and vision captioning through `@mindory/llm` local HTTP,
   with searchable derived OCR text, captions and labels.
 - `TASK-76`: scanned-PDF OCR pipeline through `@mindory/llm` local HTTP OCR,

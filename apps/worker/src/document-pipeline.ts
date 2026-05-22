@@ -42,7 +42,7 @@ import {
 } from "@mindory/core/processing";
 import { FaceService } from "@mindory/core/faces";
 import type { ObjectStorage } from "@mindory/core/storage";
-import { AudioTranscriptExtractor } from "@mindory/extractor-audio-transcript";
+import { AudioTranscriptExtractor, type AudioTranscriptExtractorOptions } from "@mindory/extractor-audio-transcript";
 import { BuiltinTextExtractor } from "@mindory/extractor-builtin-text";
 import { DoclingPdfExtractor, type DoclingPdfExtractorOptions } from "@mindory/extractor-docling";
 import { ImageSemanticExtractor, type ImageSemanticExtractorOptions } from "@mindory/extractor-image-semantic";
@@ -81,9 +81,7 @@ export function buildDocumentPipelineProcessors(options: DocumentPipelineProcess
   const llm = options.llm ?? buildMindoryLlm(options.config);
   const extractors = options.extractors ?? [
     new BuiltinTextExtractor(),
-    new AudioTranscriptExtractor({
-      asr: llmRoleState(llm, "asr")
-    }),
+    new AudioTranscriptExtractor(audioTranscriptExtractorOptions(llm)),
     new VideoKeyframeExtractor({
       maxKeyframes: options.config.documentProcessing.video.maxKeyframes
     }),
@@ -189,6 +187,17 @@ function doclingPdfExtractorOptions(llm: MindoryLlm): DoclingPdfExtractorOptions
   };
   if (llm.ocr !== undefined) {
     options.ocrProvider = llm.ocr;
+  }
+  return options;
+}
+
+function audioTranscriptExtractorOptions(llm: MindoryLlm): AudioTranscriptExtractorOptions {
+  const options: AudioTranscriptExtractorOptions = {
+    asr: llmRoleState(llm, "asr"),
+    asrRole: llm.registry.require("asr")
+  };
+  if (llm.asr !== undefined) {
+    options.asrProvider = llm.asr;
   }
   return options;
 }

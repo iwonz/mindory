@@ -2,10 +2,10 @@
 
 `@mindory/llm` is the single runtime entrypoint for Mindory subsystems
 that need model-backed capabilities. Current runtime use includes text
-embeddings for document indexing/query-time semantic search, PDF/image OCR and
-image vision captioning. The same module owns the role registry for chat, text
-embeddings, image embeddings, OCR, ASR, vision captioning, face detection, face
-recognition, image generation and audio generation.
+embeddings for document indexing/query-time semantic search, PDF/image OCR,
+image vision captioning and audio ASR. The same module owns the role registry
+for chat, text embeddings, image embeddings, OCR, ASR, vision captioning, face
+detection, face recognition, image generation and audio generation.
 
 ## Capabilities
 
@@ -123,8 +123,8 @@ auth configuration and audit path.
 
 `MINDORY_LLM_LOCAL_HTTP_BASE_URL` configures an unauthenticated local model
 service intended for trusted single-host or private-network deployments. It is
-supported for `chat` and `text-embedding` roles and experimental for OCR and
-vision captioning.
+supported for `chat` and `text-embedding` roles and experimental for OCR,
+vision captioning and ASR.
 
 The local HTTP contract is intentionally small:
 
@@ -138,16 +138,21 @@ The local HTTP contract is intentionally small:
   or `{ pages: [{ page_number, text, confidence }] }` for OCR-capable roles.
 - `POST /vision/caption` accepts `{ model, mime_type, data_base64 }` and
   returns `{ caption, labels }` or `{ text, labels }` for image captioning.
+- `POST /asr` accepts `{ model, mime_type, data_base64 }` and returns
+  `{ text, segments }`, where each segment may include `segment_index`,
+  `start_ms`, `end_ms` and `confidence`.
 
 `buildMindoryLlm(config).healthCheck("local-http")` checks `/health`.
 `healthCheck("ollama")` checks Ollama `/api/tags`; this verifies that the
 service is reachable without performing a model operation.
 
-OCR and vision captioning remain experimental and require
+OCR, vision captioning and ASR remain experimental and require
 `MINDORY_INSTALL_ALLOW_EXPERIMENTAL=true` when enabled. The scanned-PDF
 pipeline uses the local HTTP OCR contract for pages without native PDF text.
 The image pipeline uses local HTTP OCR and vision captioning to derive
 searchable OCR text, captions and labels without changing RAW originals.
+The audio pipeline uses local HTTP ASR to derive searchable transcript segments
+with time refs.
 
 ## Runtime Boundary
 
@@ -165,8 +170,8 @@ current pgvector dimension guard.
 
 `buildMindoryLlm` accepts an optional `auditSink` callback. The SDK calls it for
 disabled role attempts through `disabledResult` and for current chat/text
-embedding/OCR/vision provider calls with `success` or `failed` status, role,
-provider, model, duration, usage details when available and optional
+embedding/OCR/vision/ASR provider calls with `success` or `failed` status,
+role, provider, model, duration, usage details when available and optional
 project/document/job/session refs. TASK-55 keeps this as an in-process hook;
 durable audit persistence is future work.
 
