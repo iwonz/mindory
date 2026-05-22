@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-67",
+  "current_task_id": "TASK-68",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -505,6 +505,13 @@
       "status": "done",
       "branch": "task/TASK-67-installer-first-run-provisioning",
       "file": "tasks/TASK-67.json"
+    },
+    {
+      "id": "TASK-68",
+      "title": "Add installer update uninstall and repair flows",
+      "status": "done",
+      "branch": "task/TASK-68-installer-update-uninstall-repair",
+      "file": "tasks/TASK-68.json"
     }
   ]
 }

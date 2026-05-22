@@ -330,6 +330,42 @@ export interface InstallExecutionReport {
   rollbackReport?: RollbackReport;
 }
 
+export interface InstallBackupReport {
+  backupPath: string;
+  copiedPaths: string[];
+}
+
+export interface InstallUpdateOptions extends InstallExecutionOptions {
+  dryRun?: boolean;
+  backupLabel?: string;
+}
+
+export interface InstallUpdateReport {
+  dryRun: boolean;
+  backup?: InstallBackupReport;
+  executedStepIds: string[];
+  pendingStepIds: string[];
+}
+
+export interface InstallUninstallOptions {
+  yes: boolean;
+  backup?: boolean;
+}
+
+export interface InstallUninstallReport {
+  removed: boolean;
+  backupPath?: string;
+}
+
+export interface InstallStateInspection {
+  lockPath: string;
+  lock: InstallLockRecord | null;
+  journalPath: string;
+  journalEntries: number;
+  lastEvent?: InstallJournalEntry;
+  recommendedAction: string;
+}
+
 export function createDefaultInstallAnswers(overrides: Partial<MindoryInstallAnswers> = {}): MindoryInstallAnswers {
   const defaults: MindoryInstallAnswers = {
     schemaVersion: INSTALLER_SCHEMA_VERSION,
@@ -759,6 +795,77 @@ export async function executeInstallPlan(
   } finally {
     lock.release();
   }
+}
+
+export async function updateInstallAssets(
+  answers: MindoryInstallAnswers,
+  options: InstallUpdateOptions = {}
+): Promise<InstallUpdateReport> {
+  const plan = createInstallPlan(answers);
+  if (options.dryRun === true) {
+    return {
+      dryRun: true,
+      executedStepIds: [],
+      pendingStepIds: plan.steps.map((stepItem) => stepItem.id)
+    };
+  }
+
+  const backup = createInstallBackup(plan.mindoryHome, options.backupLabel ?? "pre-update");
+  try {
+    const report = await executeInstallPlan(answers, {
+      ...options,
+      stopBeforeStepId: "pull-images",
+      owner: options.owner ?? "mindory-installer-update"
+    });
+    return {
+      dryRun: false,
+      backup,
+      executedStepIds: report.executedStepIds,
+      pendingStepIds: report.pendingStepIds
+    };
+  } catch (error) {
+    restoreInstallBackup(plan.mindoryHome, backup.backupPath);
+    throw error;
+  }
+}
+
+export function uninstallMindoryHome(mindoryHome: string, options: InstallUninstallOptions): InstallUninstallReport {
+  if (!options.yes) {
+    throw new Error("Uninstall requires explicit confirmation through yes=true or --yes.");
+  }
+  const resolvedHome = assertSafeMindoryHome(mindoryHome);
+  let backupPath: string | undefined;
+  if (options.backup === true && existsSync(resolvedHome)) {
+    backupPath = `${resolvedHome}.backup.${timestampLabel()}`;
+    cpSync(resolvedHome, backupPath, { recursive: true });
+  }
+  rmSync(resolvedHome, { recursive: true, force: true });
+  return {
+    removed: true,
+    ...(backupPath === undefined ? {} : { backupPath })
+  };
+}
+
+export function inspectInstallState(mindoryHome: string): InstallStateInspection {
+  const lock = readInstallLock(mindoryHome);
+  const journal = readInstallJournal(mindoryHome) ?? [];
+  const lastEvent = journal.at(-1);
+  let recommendedAction = "No install journal was found. Run prepare or start to create an installation.";
+  if (lock !== null) {
+    recommendedAction = "An install lock exists. Confirm no installer is running, then run repair before retrying.";
+  } else if (lastEvent?.event === "failed" || lastEvent?.event === "rollback_failed") {
+    recommendedAction = "The last installer run failed. Review the journal, fix the cause and rerun the installer.";
+  } else if (journal.length > 0) {
+    recommendedAction = "The installer journal is readable. Resume execution is not automated yet; rerun the intended command after reviewing state.";
+  }
+  return {
+    lockPath: installLockPath(mindoryHome),
+    lock,
+    journalPath: installJournalPath(mindoryHome),
+    journalEntries: journal.length,
+    ...(lastEvent === undefined ? {} : { lastEvent }),
+    recommendedAction
+  };
 }
 
 export function answersToEnvMap(answers: MindoryInstallAnswers): Record<string, string> {
@@ -1464,6 +1571,48 @@ function renderInitialTokenFile(credentials: FirstRunCredentials): string {
 
 function randomHex(bytes: number): string {
   return randomBytes(bytes).toString("hex");
+}
+
+function createInstallBackup(mindoryHome: string, label: string): InstallBackupReport {
+  const backupPath = path.join(mindoryHome, "backups", `${timestampLabel()}-${label}`);
+  const copiedPaths: string[] = [];
+  mkdirSync(backupPath, { recursive: true, mode: 0o700 });
+  for (const relativePath of ["config", path.join("install", "compose")]) {
+    const sourcePath = path.join(mindoryHome, relativePath);
+    if (!existsSync(sourcePath)) {
+      continue;
+    }
+    const targetPath = path.join(backupPath, relativePath);
+    mkdirSync(path.dirname(targetPath), { recursive: true, mode: 0o700 });
+    cpSync(sourcePath, targetPath, { recursive: true });
+    copiedPaths.push(relativePath);
+  }
+  return { backupPath, copiedPaths };
+}
+
+function restoreInstallBackup(mindoryHome: string, backupPath: string): void {
+  for (const relativePath of ["config", path.join("install", "compose")]) {
+    const sourcePath = path.join(backupPath, relativePath);
+    const targetPath = path.join(mindoryHome, relativePath);
+    if (!existsSync(sourcePath)) {
+      continue;
+    }
+    rmSync(targetPath, { recursive: true, force: true });
+    mkdirSync(path.dirname(targetPath), { recursive: true, mode: 0o700 });
+    cpSync(sourcePath, targetPath, { recursive: true });
+  }
+}
+
+function assertSafeMindoryHome(mindoryHome: string): string {
+  const resolved = path.resolve(mindoryHome);
+  if (resolved === path.parse(resolved).root || resolved.length < 6) {
+    throw new Error(`Refusing to operate on unsafe MINDORY_HOME path ${resolved}.`);
+  }
+  return resolved;
+}
+
+function timestampLabel(): string {
+  return new Date().toISOString().replace(/[:.]/g, "-");
 }
 
 function parseComposeJson(output: string): Array<Record<string, unknown>> {

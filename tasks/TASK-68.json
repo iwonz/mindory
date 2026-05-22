@@ -1,0 +1,61 @@
+{
+  "id": "TASK-68",
+  "title": "Add installer update uninstall and repair flows",
+  "status": "done",
+  "type": "feature",
+  "priority": "high",
+  "branch": "task/TASK-68-installer-update-uninstall-repair",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Add safe local lifecycle operations for installed Mindory homes: update staging, backups, uninstall and repair/resume diagnostics.",
+    "background": "The installer can now prepare, start and provision a first token. It needs lifecycle primitives before release bundling and public use."
+  },
+  "scope": {
+    "in": [
+      "Create timestamped backups under MINDORY_HOME/backups.",
+      "Add update staging for config and Compose assets with rollback to previous files on failure.",
+      "Add uninstall that optionally creates a backup, runs compose down when requested and removes MINDORY_HOME only with explicit confirmation.",
+      "Improve repair and resume output using lock and journal state.",
+      "Expose CLI commands for update dry-run/apply and uninstall.",
+      "Validate lifecycle operations in temp homes without mutating real Docker."
+    ],
+    "out": [
+      "Remote release download.",
+      "Database dump/restore automation.",
+      "Release image publishing.",
+      "Interactive updater UI."
+    ]
+  },
+  "acceptance_criteria": [
+    "Update dry-run reports planned backup and asset replacement without mutation.",
+    "Update apply backs up current config/assets and rewrites prepare assets.",
+    "Update failure restores previous config/assets from backup.",
+    "Uninstall requires explicit confirmation and can create a backup before removing MINDORY_HOME.",
+    "Repair/resume summarize lock, journal and recommended next actions.",
+    "pnpm check validates lifecycle flows in temporary directories."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm installer:validate",
+      "pnpm installer:acceptance",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-68.",
+      "Confirm destructive uninstall is guarded by --yes."
+    ]
+  },
+  "dependencies": [
+    "TASK-67"
+  ],
+  "risks": [
+    "Uninstall must not remove paths outside the selected MINDORY_HOME.",
+    "Backups may include secrets and must stay under MINDORY_HOME/backups."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch is committed and merged back into master."
+  ]
+}
