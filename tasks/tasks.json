@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-57",
+  "current_task_id": "TASK-58",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -435,6 +435,13 @@
       "status": "done",
       "branch": "task/TASK-57-single-home-compose-layout",
       "file": "tasks/TASK-57.json"
+    },
+    {
+      "id": "TASK-58",
+      "title": "Add installer core",
+      "status": "done",
+      "branch": "task/TASK-58-installer-core",
+      "file": "tasks/TASK-58.json"
     }
   ]
 }

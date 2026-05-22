@@ -36,9 +36,10 @@ runtime exists. The cataloged installer settings include `MINDORY_HOME`,
 install profile, release channel, experimental-mode flag, dependency policy,
 rollback-on-failure behavior and dev-mode flag.
 
-The default installation root is `~/.mindory`. Future installer tasks must use
-the catalog for prompts, defaults, validation and redacted summaries rather than
-hardcoding wizard choices in installer code.
+The default installation root is `~/.mindory`. `@mindory/installer` uses the
+catalog for answer validation, generated `.env` output and redacted summaries.
+Future wizard tasks must use the same catalog for prompts rather than hardcoding
+choices in installer code.
 
 Docker Compose uses `MINDORY_HOME` on the host as the single Mindory-owned root.
 If it is not set, Compose falls back to `${HOME}/.mindory`. Runtime state is

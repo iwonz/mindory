@@ -117,6 +117,11 @@ This keeps installer work, Docker profiles and runtime packages aligned: new
 `MINDORY_*` settings are invalid until the catalog describes their type,
 default, support status, visibility and secret handling.
 
+`TASK-58` adds `@mindory/installer` as the deterministic installer core. It
+builds answer-file install plans, dependency check results, generated config and
+env files, transaction journal entries, rollback ordering and redacted summaries
+without running interactive prompts or mutating host dependencies.
+
 ## Object Storage
 
 `TASK-6` adds the shared `ObjectStorage` contract in `@mindory/core` and adapter
