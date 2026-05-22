@@ -136,13 +136,14 @@ keyframe cap and defaults to `10`.
 `*_TIMEOUT_MS` and `*_CONCURRENCY` setting. Providers are `disabled`,
 `openai-compatible`, `ollama`, `local-http` or `local-command`.
 
-Text embeddings are currently the only capability that performs live model
-calls. The image pipeline records OCR, vision-captioning and image-embedding
-capability state in derived artifacts, but the current MVP extractor uses a
-deterministic metadata and embedded PNG text fallback until concrete vision/OCR
-adapters are added. When `MINDORY_LLM_FACE_DETECTION_ENABLED=true`,
-the fallback image extractor can also derive face observations from explicit
-people-count signals and match them through the workspace-scoped face subsystem.
+Text embeddings, scanned-PDF OCR, image OCR and image vision captioning can
+perform live model calls through `@mindory/llm` when their roles are enabled.
+The image pipeline stores provider OCR text, captions and labels as derived
+artifacts, and falls back to deterministic metadata plus embedded PNG text when
+OCR or vision captioning is disabled. When
+`MINDORY_LLM_FACE_DETECTION_ENABLED=true`, the fallback image extractor can
+also derive face observations from explicit people-count signals and match them
+through the workspace-scoped face subsystem.
 Audio extraction records ASR capability state and can derive transcript segments
 from embedded WAV `INFO/ICMT` text until a concrete ASR adapter is installed.
 Video extraction uses `MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES` to cap
@@ -150,10 +151,10 @@ manifest-derived keyframes; the default remains `10`.
 
 The role/provider support matrix is centralized in `@mindory/llm` and the
 config catalog. `chat` and `text-embedding` have supported OpenAI-compatible
-and local HTTP adapters today; text embeddings also support Ollama. OCR, ASR,
-vision, image embeddings and face roles are experimental; generation roles are
-future. Scanned-PDF OCR is implemented through the experimental OCR role and the
-local HTTP provider. Any
+and local HTTP adapters today; text embeddings also support Ollama. OCR,
+vision, ASR, image embeddings and face roles are experimental; generation roles
+are future. Scanned-PDF OCR, image OCR and image vision captioning are
+implemented through experimental local HTTP providers. Any
 enabled role or selected provider that is not
 `supported` requires `MINDORY_INSTALL_ALLOW_EXPERIMENTAL=true`, including
 answer-file and non-interactive installer runs.
@@ -217,20 +218,23 @@ MINDORY_LLM_OLLAMA_BASE_URL=http://ollama:11434
 
 `MINDORY_LLM_LOCAL_HTTP_BASE_URL` configures the optional local HTTP model
 service used by supported `chat` and `text-embedding` roles and by the
-experimental scanned-PDF OCR path. The service must answer `GET /health`,
-`POST /chat/completions`, `POST /embeddings` and `POST /ocr`; the SDK accepts
-OpenAI-compatible response shapes plus simple `{ text }`, `{ output }`,
-`{ embeddings }` and OCR `{ pages }` bodies. `MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS`
-controls the default guardrail for future `local-command` adapters.
+experimental PDF/image OCR and image vision captioning paths. The service must
+answer `GET /health`, `POST /chat/completions`, `POST /embeddings`,
+`POST /ocr` and `POST /vision/caption`; the SDK accepts OpenAI-compatible
+response shapes plus simple `{ text }`, `{ output }`, `{ embeddings }`, OCR
+`{ pages }` bodies and vision `{ caption, labels }` bodies.
+`MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS` controls the default guardrail for
+future `local-command` adapters.
 
 Runtime consumers must obtain operation providers and role snapshots from
 `@mindory/llm`. Worker processors may receive simple capability snapshots, but
 those snapshots are projected from the SDK registry rather than assembled from
 `config.llm` in each consumer.
 
-`@mindory/llm` also exposes an in-process `auditSink` hook. Current chat and
-text embedding calls emit `success` or `failed` audit records when the sink is
-provided; disabled role attempts emit `disabled` records through
+`@mindory/llm` also exposes an in-process `auditSink` hook. Current chat, text
+embedding, OCR and vision captioning calls emit `success` or `failed` audit
+records when the sink is provided; disabled role attempts emit `disabled`
+records through
 `disabledResult`. The runtime also exposes provider health checks for local HTTP
 and Ollama services. Database-backed audit persistence is not part of this
 task.

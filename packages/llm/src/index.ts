@@ -138,6 +138,12 @@ export interface LlmOcrOutput {
   usage?: LlmOperationUsage;
 }
 
+export interface LlmVisionCaptionOutput {
+  caption: string;
+  labels?: string[];
+  usage?: LlmOperationUsage;
+}
+
 export interface OpenAICompatibleChatOptions {
   baseUrl: string;
   model: string;
@@ -185,7 +191,7 @@ export interface LlmAsrProvider {
 }
 
 export interface LlmVisionProvider {
-  captionImage(input: { bytes: Uint8Array; mimeType: string }, context: LlmProviderCallContext): Promise<LlmOperationResult<{ caption: string }>>;
+  captionImage(input: { bytes: Uint8Array; mimeType: string }, context: LlmProviderCallContext): Promise<LlmOperationResult<LlmVisionCaptionOutput>>;
 }
 
 export interface LlmFaceProvider {
@@ -211,6 +217,7 @@ export interface MindoryLlm {
   chat?: LlmChatProvider;
   textEmbeddings?: EmbeddingsProvider;
   ocr?: LlmOcrProvider;
+  vision?: LlmVisionProvider;
   healthCheck(provider: Exclude<LlmProvider, "disabled">, options?: Omit<LlmProviderHealthCheckOptions, "fetchImpl">): Promise<LlmProviderHealth>;
   disabledResult<TValue>(role: LlmRole, refs?: LlmOperationRefs): LlmOperationResult<TValue>;
 }
@@ -284,6 +291,10 @@ export function buildMindoryLlm(
   const ocr = buildMindoryOcrProvider(config, options);
   if (ocr !== undefined) {
     runtime.ocr = ocr;
+  }
+  const vision = buildMindoryVisionProvider(config, options);
+  if (vision !== undefined) {
+    runtime.vision = vision;
   }
   return runtime;
 }
@@ -451,6 +462,34 @@ export function buildMindoryOcrProvider(
   }
 
   throw new Error(`${ocr.provider} OCR is configured but no OCR adapter is installed.`);
+}
+
+export function buildMindoryVisionProvider(
+  config: MindoryConfig,
+  options: MindoryLlmOptions = {}
+): LlmVisionProvider | undefined {
+  const vision = config.llm.visionCaptioning;
+  if (!vision.enabled || vision.provider === "disabled") {
+    return undefined;
+  }
+
+  if (vision.provider === "local-http") {
+    const providerOptions: LocalHttpModelOptions = {
+      baseUrl: config.llm.localHttp.baseUrl,
+      model: vision.model
+    };
+    if (options.fetchImpl !== undefined) {
+      providerOptions.fetchImpl = options.fetchImpl;
+    }
+    return new LocalHttpVisionProvider(
+      providerOptions,
+      descriptor("vision-captioning", vision),
+      options.auditSink,
+      options.operationRefs ?? {}
+    );
+  }
+
+  throw new Error(`${vision.provider} vision captioning is configured but no vision adapter is installed.`);
 }
 
 export async function checkMindoryLlmProviderHealth(
@@ -774,6 +813,90 @@ export class LocalHttpOcrProvider implements LlmOcrProvider {
   }
 }
 
+export class LocalHttpVisionProvider implements LlmVisionProvider {
+  private readonly fetchImpl: typeof fetch;
+
+  constructor(
+    private readonly options: LocalHttpModelOptions,
+    private readonly role: LlmRoleDescriptor,
+    private readonly auditSink: LlmAuditSink | undefined,
+    private readonly refs: LlmOperationRefs
+  ) {
+    this.fetchImpl = options.fetchImpl ?? fetch;
+  }
+
+  async captionImage(input: { bytes: Uint8Array; mimeType: string }, context: LlmProviderCallContext): Promise<LlmOperationResult<LlmVisionCaptionOutput>> {
+    const startedAt = Date.now();
+    const model = context.role.model || this.options.model;
+    try {
+      const requestInit: RequestInit = {
+        method: "POST",
+        headers: {
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          model,
+          mime_type: input.mimeType,
+          data_base64: Buffer.from(input.bytes).toString("base64")
+        })
+      };
+      if (context.signal !== undefined) {
+        requestInit.signal = context.signal;
+      }
+      const response = await this.fetchImpl(`${trimTrailingSlash(this.options.baseUrl)}/vision/caption`, requestInit);
+      const responseText = await response.text();
+      if (!response.ok) {
+        throw new Error(`Local HTTP vision caption request failed with ${response.status}: ${responseText}`);
+      }
+      const payload = JSON.parse(responseText) as LocalHttpVisionCaptionResponse;
+      const output: LlmVisionCaptionOutput = {
+        caption: payload.caption ?? payload.text ?? "",
+        labels: Array.isArray(payload.labels) ? payload.labels.filter((label): label is string => typeof label === "string") : [],
+        usage: usageFromOpenAI(payload.usage)
+      };
+      return this.result("success", startedAt, model, output, context.refs);
+    } catch (error) {
+      return this.result("failed", startedAt, model, undefined, context.refs, error);
+    }
+  }
+
+  private result(
+    status: LlmOperationStatus,
+    startedAt: number,
+    model: string,
+    value?: LlmVisionCaptionOutput,
+    refs: LlmOperationRefs = {},
+    error?: unknown
+  ): LlmOperationResult<LlmVisionCaptionOutput> {
+    const durationMs = Date.now() - startedAt;
+    const audit: LlmOperationAudit = {
+      role: this.role.role,
+      provider: this.role.provider,
+      model,
+      status,
+      durationMs,
+      usage: {
+        ...value?.usage,
+        durationMs
+      },
+      refs: {
+        ...this.refs,
+        ...refs
+      }
+    };
+    if (error !== undefined) {
+      audit.errorCode = errorCode(error);
+      audit.errorMessage = errorMessage(error);
+    }
+    this.auditSink?.(audit);
+    return {
+      status,
+      ...(value === undefined ? {} : { value }),
+      audit
+    };
+  }
+}
+
 export class OpenAICompatibleChatProvider implements LlmChatProvider {
   private readonly fetchImpl: typeof fetch;
 
@@ -912,6 +1035,13 @@ interface LocalHttpOcrResponse {
     text?: string;
     confidence?: number | null;
   }>;
+  usage?: OpenAICompatibleChatResponse["usage"];
+}
+
+interface LocalHttpVisionCaptionResponse {
+  caption?: string;
+  text?: string;
+  labels?: unknown[];
   usage?: OpenAICompatibleChatResponse["usage"];
 }
 

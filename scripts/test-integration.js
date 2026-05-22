@@ -108,13 +108,19 @@ test("MVP runtime integration covers auth, upload, worker jobs and context", { t
       pageNumber: 1,
       text: "Scanned PDF OCR provider text keeps page source refs searchable.",
       confidence: 0.98
-    }]
+    }],
+    imageText: "Image OCR provider text detects passport at airport.",
+    visionCaption: "Vision provider caption sees passport in hand at airport with nature.",
+    labels: ["passport", "airport", "nature", "people"]
   });
   const config = modules.loadMindoryConfig({
     ...testEnv,
     MINDORY_LLM_OCR_ENABLED: "true",
     MINDORY_LLM_OCR_PROVIDER: "local-http",
     MINDORY_LLM_OCR_MODEL: "mindory-test-ocr",
+    MINDORY_LLM_VISION_CAPTIONING_ENABLED: "true",
+    MINDORY_LLM_VISION_CAPTIONING_PROVIDER: "local-http",
+    MINDORY_LLM_VISION_CAPTIONING_MODEL: "mindory-test-vision",
     MINDORY_LLM_LOCAL_HTTP_BASE_URL: fakeOcr.baseUrl
   });
   let apiApp = null;
@@ -571,10 +577,12 @@ async function uploadAndProcessImageDocument(apiUrl) {
   assert.equal(document.metadata.routing.classification.kind, "image");
   assert.equal(document.metadata.extraction.processing_stage, "image");
   assert.equal(document.metadata.extraction.image_semantic, true);
+  assert.equal(document.metadata.extraction.capabilities.ocr.status, "provider_ocr");
+  assert.equal(document.metadata.extraction.capabilities.image_captioning.status, "provider_caption");
 
   const search = await requestJson(apiUrl, "POST", "/v1/documents/search", {
     projectIds: [projectId],
-    query: "passport airport nature 3 people",
+    query: "Vision provider caption passport airport",
     limit: 5,
     metadataFilters: [{ key: "extension", valueText: "png" }]
   });
@@ -1235,7 +1243,7 @@ function startOpenAiCompatibleEmbeddingServer(options) {
 function startLocalHttpOcrServer(options) {
   const calls = [];
   const server = http.createServer(async (request, response) => {
-    if (request.method !== "POST" || request.url !== "/ocr") {
+    if (request.method !== "POST" || !["/ocr", "/vision/caption"].includes(request.url ?? "")) {
       response.writeHead(404, { "content-type": "application/json" });
       response.end(JSON.stringify({ error: "not_found" }));
       return;
@@ -1244,11 +1252,21 @@ function startLocalHttpOcrServer(options) {
     try {
       const body = JSON.parse(await readRequestBody(request));
       calls.push({ model: body.model, mimeType: body.mime_type });
+      if (request.url === "/vision/caption") {
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(JSON.stringify({
+          model: body.model ?? "mindory-test-vision",
+          caption: options.visionCaption,
+          labels: options.labels
+        }));
+        return;
+      }
+      const isImage = String(body.mime_type ?? "").startsWith("image/");
       response.writeHead(200, { "content-type": "application/json" });
       response.end(JSON.stringify({
         model: body.model ?? "mindory-test-ocr",
-        text: options.pages.map((page) => page.text).join("\n\n"),
-        pages: options.pages.map((page) => ({
+        text: isImage ? options.imageText : options.pages.map((page) => page.text).join("\n\n"),
+        pages: (isImage ? [{ pageNumber: 1, text: options.imageText, confidence: 0.97 }] : options.pages).map((page) => ({
           page_number: page.pageNumber,
           text: page.text,
           confidence: page.confidence

@@ -15,7 +15,8 @@ classifies uploaded files and creates only the enabled downstream jobs.
 `TASK-42` adds typed attachment metadata indexing for search filters.
 `TASK-43` adds PDF native text extraction on page-level artifacts. `TASK-76`
 adds model-backed scanned-PDF OCR through `@mindory/llm`.
-`TASK-44` adds the first image semantic extraction path.
+`TASK-44` adds the first image semantic extraction path. `TASK-77` adds
+model-backed image OCR and vision captioning through `@mindory/llm`.
 `TASK-46` adds the first audio transcript extraction path.
 `TASK-47` adds the first video keyframe extraction path.
 
@@ -45,7 +46,7 @@ Processing status must be durable in PostgreSQL, not only in BullMQ.
 | Text and Markdown | Supported local MVP. Extracts text, chunks it, stores spans and can search through full-text or pgvector when embeddings are enabled. |
 | Native-text PDF | Supported local MVP. Extracts page-level native text and source refs. |
 | Scanned PDF OCR | Supported when the OCR role is enabled with a local HTTP OCR provider; disabled by default. |
-| Image | Supported deterministic fallback. Stores derived caption/analysis text from file metadata and embedded text signals. Future work adds real OCR, vision labels, image embeddings and object detection. |
+| Image | Supported deterministic fallback plus experimental local HTTP OCR and vision captioning through `@mindory/llm` when enabled. Stores derived caption, analysis, labels and OCR text. Future work adds image embeddings and object detection. |
 | Face observations | Supported deterministic fallback only when explicit people-count signals are present. Future work adds real face detection and recognition adapters. |
 | Audio | Supported deterministic fallback for WAV metadata and embedded `INFO/ICMT` transcript text. Future work adds real ASR. |
 | Video | Supported deterministic fallback through embedded `MINDORY_VIDEO_MANIFEST`. Future work adds real ffmpeg keyframe extraction and frame bitmap artifacts. |
@@ -184,15 +185,24 @@ artifact-backed spans. It writes:
 - a top-level extracted text artifact;
 - `image_caption` and `image_analysis` artifacts with text spans;
 - an `image_embedding` artifact that records image-embedding capability state;
-- an `ocr_text` artifact and span when embedded PNG `tEXt` metadata is present;
+- an `ocr_text` artifact and span when embedded PNG `tEXt` metadata is present
+  or when the configured OCR provider returns text;
 - `face_observation` artifacts and `face_observations` rows when face detection
   is enabled and the fallback extractor can infer people count;
 - chunk metadata and source refs that point back to semantic image artifacts.
 
-The current extractor is deterministic and does not call cloud or local vision
-models. It records configured OCR, vision-captioning and image-embedding
-capability state from `@mindory/llm` so a future concrete adapter can replace
-derived outputs without changing RAW originals.
+When `MINDORY_LLM_OCR_ENABLED=true` and
+`MINDORY_LLM_OCR_PROVIDER=local-http`, the image extractor calls
+`@mindory/llm` OCR over `POST /ocr` and persists provider OCR as derived
+`ocr_text` artifacts and spans. When
+`MINDORY_LLM_VISION_CAPTIONING_ENABLED=true` and
+`MINDORY_LLM_VISION_CAPTIONING_PROVIDER=local-http`, it calls
+`POST /vision/caption`, stores the provider caption and labels in derived
+image caption/analysis artifacts, and includes them in searchable chunk text.
+Disabled OCR/vision remains non-blocking and falls back to deterministic
+metadata/embedded text extraction. If a role is marked required and its
+provider fails or returns no usable output, extraction fails with a readable
+processing error.
 
 When face detection is enabled, the same fallback extractor can create
 workspace-scoped face observations from explicit people-count signals in the

@@ -6,7 +6,7 @@ The repository should be described with the support levels in
 
 ## Current Baseline
 
-The repository is complete through `TASK-76`.
+The repository is complete through `TASK-77`.
 
 Supported local MVP path:
 
@@ -27,6 +27,9 @@ Supported local MVP path:
   indexed pgvector path with a deterministic local HTTP embeddings service.
 - Scanned-PDF OCR can run through `@mindory/llm` local HTTP OCR when the
   experimental OCR role is enabled.
+- Image OCR and vision captioning can run through `@mindory/llm` local HTTP
+  providers when the experimental OCR and vision-captioning roles are enabled;
+  their derived captions, labels and OCR text are searchable.
 
 Public GitHub hygiene baseline:
 

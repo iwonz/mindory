@@ -20,6 +20,8 @@ documentation.
 
 ### Added
 
+- `TASK-77`: image OCR and vision captioning through `@mindory/llm` local HTTP,
+  with searchable derived OCR text, captions and labels.
 - `TASK-76`: scanned-PDF OCR pipeline through `@mindory/llm` local HTTP OCR,
   with OCR page artifacts, `ocr_text` spans and integration coverage.
 - `TASK-75`: self-contained local strict indexed acceptance with deterministic

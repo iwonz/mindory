@@ -66,6 +66,17 @@ const server = http.createServer(async (request, response) => {
       return;
     }
 
+    if (request.method === "POST" && url.pathname === "/vision/caption") {
+      const body = await readJson(request);
+      const model = stringOrDefault(body.model, "mindory-local-vision");
+      writeJson(response, 200, {
+        model,
+        caption: "Local deterministic vision caption: image contains a document, nature and people.",
+        labels: ["document", "nature", "people", "local-vision"]
+      });
+      return;
+    }
+
     if (request.method === "POST" && url.pathname === "/chat/completions") {
       const body = await readJson(request);
       const model = stringOrDefault(body.model, "mindory-local-chat");

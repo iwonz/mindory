@@ -1,0 +1,64 @@
+{
+  "id": "TASK-77",
+  "title": "Add image OCR and vision pipeline",
+  "status": "done",
+  "type": "feature",
+  "priority": "high",
+  "branch": "task/TASK-77-image-ocr-vision-pipeline",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Route image OCR and vision captioning through @mindory/llm and persist searchable OCR/caption/label artifacts.",
+    "background": "The image extractor currently provides deterministic metadata and embedded PNG text fallback. TASK-77 makes configured local HTTP OCR and vision calls real through the central LLM SDK."
+  },
+  "scope": {
+    "in": [
+      "Expose a local-http vision captioning provider from @mindory/llm.",
+      "Reuse @mindory/llm OCR for image OCR.",
+      "Wire OCR and vision providers into the image semantic extractor.",
+      "Persist OCR text, captions, analysis and labels as derived artifacts/spans.",
+      "Add integration coverage with a fake local OCR/vision provider.",
+      "Update docs and validators for image OCR/vision support."
+    ],
+    "out": [
+      "Image embeddings/CLIP vector indexing.",
+      "Object detection bounding boxes beyond labels/caption text.",
+      "Face detection/recognition adapters.",
+      "Heavy local model downloads."
+    ]
+  },
+  "acceptance_criteria": [
+    "@mindory/llm exposes a local-http vision caption provider when vision-captioning is enabled.",
+    "Image OCR calls @mindory/llm OCR when OCR is enabled.",
+    "Image vision captioning calls POST /vision/caption through @mindory/llm.",
+    "Image OCR/caption/labels are searchable through artifact/document search with source refs.",
+    "Disabled OCR/vision remains non-blocking and fallback extraction still works.",
+    "pnpm check passes."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm llm:validate",
+      "pnpm processing:validate",
+      "pnpm test",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-77.",
+      "Confirm RAW image objects remain immutable and model output is derived state."
+    ]
+  },
+  "dependencies": [
+    "TASK-76"
+  ],
+  "risks": [
+    "Image model calls must remain inside @mindory/llm.",
+    "Required model failures must surface clearly without corrupting fallback metadata.",
+    "Experimental image roles must still require explicit experimental mode."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to done.",
+    "Branch is committed and merged back into master."
+  ]
+}
