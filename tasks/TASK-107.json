@@ -1,7 +1,7 @@
 {
   "id": "TASK-107",
   "title": "Add signed release manifests",
-  "status": "draft",
+  "status": "done",
   "type": "feature",
   "priority": "high",
   "branch": "task/TASK-107-signed-release-manifests",

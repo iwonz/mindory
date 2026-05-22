@@ -34,6 +34,16 @@ function runNode(args, label) {
   return result.stdout;
 }
 
+function runNodeExpectFailure(args, label, expectedDiagnostic) {
+  const result = spawnSync(process.execPath, args, {
+    cwd: root,
+    encoding: "utf8"
+  });
+  assert((result.status ?? 0) !== 0, `${label} must fail.`);
+  const output = `${result.stderr}\n${result.stdout}`;
+  assert(output.includes(expectedDiagnostic), `${label} must report ${expectedDiagnostic}. Output: ${output}`);
+}
+
 const rootPackage = readJson("package.json");
 const checkRepo = read("scripts/check-repo.js");
 const releaseWorkflow = read(".github/workflows/release.yml");
@@ -55,6 +65,7 @@ for (const token of [
   "docker build",
   "pnpm release:bundle",
   "sha256sum",
+  "MINDORY_RELEASE_SIGNING_PRIVATE_KEY_PEM",
   "smoke-release-install.js",
   "actions/upload-artifact@v4",
   "gh release"
@@ -66,6 +77,8 @@ for (const token of [
   "MINDORY_RELEASE_VERSION",
   "MINDORY_RELEASE_BUNDLE_URL",
   "MINDORY_RELEASE_BUNDLE_SHA256",
+  "MINDORY_RELEASE_MANIFEST_SIGNATURE",
+  "MINDORY_RELEASE_PUBLIC_KEY_SHA256",
   "bin/mindory-installer",
   "release_smoke_passed",
   "tar"
@@ -91,18 +104,48 @@ try {
 
   const bundlePath = path.join(outDir, "mindory-0.0.0-release-validate.tar.gz");
   const manifestPath = path.join(outDir, "mindory-0.0.0-release-validate.manifest.env");
+  const publicKeyPath = `${manifestPath}.public.pem`;
   assert(fs.existsSync(bundlePath), "release validation must generate a bundle.");
   assert(fs.existsSync(manifestPath), "release validation must generate a manifest.");
+  assert(fs.existsSync(publicKeyPath), "release validation must generate a manifest public key.");
   const checksum = crypto.createHash("sha256").update(fs.readFileSync(bundlePath)).digest("hex");
-  assert(fs.readFileSync(manifestPath, "utf8").includes(checksum), "release manifest must include the generated bundle checksum.");
+  const manifest = fs.readFileSync(manifestPath, "utf8");
+  assert(manifest.includes(checksum), "release manifest must include the generated bundle checksum.");
+  assert(manifest.includes("MINDORY_RELEASE_MANIFEST_SIGNATURE="), "release manifest must include a signature.");
+  assert(manifest.includes("MINDORY_RELEASE_PUBLIC_KEY_SHA256="), "release manifest must include a public key fingerprint.");
 
   runNode([
     "scripts/smoke-release-install.js",
     "--manifest",
     manifestPath,
+    "--public-key",
+    publicKeyPath,
     "--home",
     path.join(outDir, "home")
   ], "release install smoke");
+
+  const tamperedManifestPath = path.join(outDir, "mindory-0.0.0-release-validate.tampered.manifest.env");
+  fs.writeFileSync(tamperedManifestPath, manifest.replace("MINDORY_RELEASE_VERSION=0.0.0-release-validate", "MINDORY_RELEASE_VERSION=0.0.0-release-tampered"), "utf8");
+  runNodeExpectFailure([
+    "scripts/smoke-release-install.js",
+    "--manifest",
+    tamperedManifestPath,
+    "--public-key",
+    publicKeyPath,
+    "--home",
+    path.join(outDir, "tampered-manifest-home")
+  ], "tampered manifest smoke", "Manifest signature verification failed");
+
+  fs.appendFileSync(bundlePath, "tampered artifact bytes");
+  runNodeExpectFailure([
+    "scripts/smoke-release-install.js",
+    "--manifest",
+    manifestPath,
+    "--public-key",
+    publicKeyPath,
+    "--home",
+    path.join(outDir, "tampered-artifact-home")
+  ], "tampered artifact smoke", "Checksum mismatch");
 } finally {
   fs.rmSync(outDir, { recursive: true, force: true });
 }

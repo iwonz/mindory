@@ -17,7 +17,7 @@ secrets, rate limits, structured logs and observability are maintained in
 | Installer Compose startup | Supported as an explicit start step. It can pull/build, start infrastructure, run migrations, start API/worker/MCP and wait for health checks. |
 | Installer first-run provisioning | Supported. The start step creates the first project/token and writes `config/initial-token.json` under `$MINDORY_HOME`. |
 | Installer lifecycle operations | Supported baseline for local asset update, runtime backup/restore, scheduled local backup, encrypted remote backup archives, external S3 streaming backups and guarded uninstall. Remote release update and full automated resume remain future work. |
-| Release images and bundles | Bundle generation is supported with `pnpm release:bundle`. Publishing automation and signed release manifests are future release tasks. |
+| Release images and bundles | Bundle generation is supported with `pnpm release:bundle`. Generated manifests are RSA-SHA256 signed, and bootstrap scripts verify the signature before trusting bundle checksums. Publishing automation uploads release artifacts to draft GitHub Releases. |
 | Heavy local models | Experimental. Profiles exist for wiring checks or local experiments, not as a guaranteed default install. |
 
 The expected local demo flow is:
@@ -113,10 +113,11 @@ baseline bundle builder is:
 pnpm release:bundle -- --version 0.1.0
 ```
 
-It writes `dist/releases/mindory-<version>.tar.gz` and a matching env-style
-manifest with the bundle SHA-256. Without `--url-base`, the manifest uses a
-local `file://` bundle URL so the bootstrap path can be tested without a remote
-release server.
+It writes `dist/releases/mindory-<version>.tar.gz`, a matching env-style
+manifest with the bundle SHA-256 and RSA-SHA256 manifest signature, and
+`dist/releases/mindory-<version>.manifest.env.public.pem`. Without `--url-base`,
+the manifest uses a local `file://` bundle URL so the bootstrap path can be
+tested without a remote release server.
 
 MCP stdio is normally launched by an MCP client, not exposed as a Compose
 network service. The Compose `mcp` service is a packaging artifact that proves
@@ -181,9 +182,18 @@ Postgres uses a pgvector-capable image and the initial migration enables the
 `.github/workflows/release.yml` is the public release baseline. It runs
 `pnpm check`, builds the Docker image, generates the release bundle with
 `pnpm release:bundle`, writes a `.sha256` checksum file, runs
-`scripts/smoke-release-install.js` against the generated manifest and uploads
-the release artifacts to the workflow run. For tag builds, it also creates or
-updates a draft GitHub Release with the bundle, manifest and checksum.
+`scripts/smoke-release-install.js` against the generated signed manifest and
+uploads the release artifacts to the workflow run. For tag builds, it also
+creates or updates a draft GitHub Release with the bundle, signed manifest,
+public key sidecar and checksum.
+
+Tag and manual release publishing require the GitHub secret
+`MINDORY_RELEASE_SIGNING_PRIVATE_KEY_PEM`. The bundle builder signs the
+manifest over all release metadata except the final signature line and writes
+`MINDORY_RELEASE_PUBLIC_KEY_SHA256` into the manifest. Rotate the release key
+by adding the new private key as the workflow secret, publishing the matching
+public key fingerprint in release notes, and keeping the old public key
+available for users who need to verify older manifests.
 
 Validate this path locally without publishing:
 
@@ -192,6 +202,7 @@ pnpm release:validate
 ```
 
 The local validation builds a temporary release bundle, verifies the manifest
+signature, rejects tampered manifest and artifact cases, verifies the bundle
 checksum and runs the packaged installer `plan` command from the extracted
 bundle. It does not start Docker or publish artifacts.
 

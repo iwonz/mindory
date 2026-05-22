@@ -25,7 +25,7 @@ writing README, issues, release notes and docs.
 | One-home installer layout | Supported baseline | `$MINDORY_HOME` config, logs, data, install and backups layout is implemented. |
 | Backup and restore | Supported MVP | `mindory-installer backup`, `backup-schedule`, `pitr-backup`, `pitr-restore`, `backup-archive`, `backup-upload`, `backup-download`, `backup-restore-archive`, `s3-inventory`, `s3-backup`, `s3-restore` and `restore` cover config, installer metadata, PostgreSQL dumps, local object storage state, scheduled retention/health, local Compose PostgreSQL PITR, encrypted S3-compatible remote backup archives and external S3 object inventory/streaming backup/restore. |
 | Remote release update | Future | Local asset update exists; remote release orchestration is later work. |
-| Release artifact publishing | Supported baseline | Release workflow generates bundle, manifest and checksum artifacts; tag builds upload them to a draft GitHub Release. |
+| Release artifact publishing | Supported baseline | Release workflow generates bundle, signed manifest, public key sidecar and checksum artifacts; tag builds upload them to a draft GitHub Release. |
 
 ## Product Surfaces
 

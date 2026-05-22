@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-106",
+  "current_task_id": "TASK-107",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -782,7 +782,7 @@
     {
       "id": "TASK-107",
       "title": "Add signed release manifests",
-      "status": "draft",
+      "status": "done",
       "branch": "task/TASK-107-signed-release-manifests",
       "file": "tasks/TASK-107.json"
     },

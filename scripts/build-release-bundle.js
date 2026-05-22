@@ -11,7 +11,10 @@ function parseArgs(argv) {
   const options = {
     outDir: path.join(root, "dist", "releases"),
     urlBase: "",
-    version: process.env.MINDORY_RELEASE_VERSION ?? ""
+    version: process.env.MINDORY_RELEASE_VERSION ?? "",
+    signingKeyPath: process.env.MINDORY_RELEASE_SIGNING_PRIVATE_KEY_PATH ?? "",
+    signingKeyPem: process.env.MINDORY_RELEASE_SIGNING_PRIVATE_KEY_PEM ?? "",
+    requireSigningKey: false
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -24,6 +27,10 @@ function parseArgs(argv) {
       options.urlBase = argv[++index] ?? "";
     } else if (arg === "--version") {
       options.version = argv[++index] ?? "";
+    } else if (arg === "--signing-key") {
+      options.signingKeyPath = path.resolve(argv[++index] ?? "");
+    } else if (arg === "--require-signing-key") {
+      options.requireSigningKey = true;
     } else if (arg === "--help" || arg === "-h") {
       options.help = true;
     } else {
@@ -38,13 +45,15 @@ function usage() {
   console.log(`Mindory release bundle builder
 
 Usage:
-  node scripts/build-release-bundle.js --version <version> [--out <dir>] [--url-base <url>]
+  node scripts/build-release-bundle.js --version <version> [--out <dir>] [--url-base <url>] [--signing-key <pem>]
 
 Outputs:
   mindory-<version>.tar.gz
   mindory-<version>.manifest.env
+  mindory-<version>.manifest.env.public.pem
 
 When --url-base is omitted, the manifest points at the local file:// bundle.
+Set MINDORY_RELEASE_SIGNING_PRIVATE_KEY_PEM or MINDORY_RELEASE_SIGNING_PRIVATE_KEY_PATH for production signing.
 `);
 }
 
@@ -138,6 +147,10 @@ function sha256File(filePath) {
   return crypto.createHash("sha256").update(fs.readFileSync(filePath)).digest("hex");
 }
 
+function sha256Text(content) {
+  return crypto.createHash("sha256").update(content, "utf8").digest("hex");
+}
+
 function tarGzip(stagingParent, bundleName, bundlePath) {
   const result = spawnSync("tar", ["-czf", bundlePath, "-C", stagingParent, bundleName], {
     cwd: root,
@@ -148,17 +161,55 @@ function tarGzip(stagingParent, bundleName, bundlePath) {
   }
 }
 
-function writeManifest({ manifestPath, version, bundleUrl, checksum, bundleName }) {
-  const content = [
+function loadSigningKey(options) {
+  if (options.signingKeyPem) {
+    return {
+      privateKey: crypto.createPrivateKey(options.signingKeyPem),
+      source: "env"
+    };
+  }
+  if (options.signingKeyPath) {
+    return {
+      privateKey: crypto.createPrivateKey(fs.readFileSync(options.signingKeyPath, "utf8")),
+      source: options.signingKeyPath
+    };
+  }
+  if (options.requireSigningKey) {
+    throw new Error("A release signing key is required. Set MINDORY_RELEASE_SIGNING_PRIVATE_KEY_PEM, MINDORY_RELEASE_SIGNING_PRIVATE_KEY_PATH or pass --signing-key.");
+  }
+  const generated = crypto.generateKeyPairSync("rsa", { modulusLength: 3072 });
+  return {
+    privateKey: generated.privateKey,
+    source: "ephemeral-dev-key"
+  };
+}
+
+function writeManifest({ manifestPath, version, bundleUrl, checksum, bundleName, signingKey }) {
+  const publicKeyPem = crypto.createPublicKey(signingKey.privateKey).export({
+    type: "spki",
+    format: "pem"
+  }).toString();
+  const publicKeySha256 = sha256Text(publicKeyPem);
+  const unsignedContent = [
     "# Mindory release manifest",
     `MINDORY_RELEASE_VERSION=${version}`,
     `MINDORY_RELEASE_BUNDLE_URL=${bundleUrl}`,
     `MINDORY_RELEASE_BUNDLE_SHA256=${checksum}`,
     `MINDORY_RELEASE_BUNDLE_NAME=${bundleName}.tar.gz`,
     `MINDORY_RELEASE_CREATED_AT=${new Date().toISOString()}`,
+    "MINDORY_RELEASE_MANIFEST_SIGNATURE_ALGORITHM=RSA-SHA256",
+    `MINDORY_RELEASE_PUBLIC_KEY_SHA256=${publicKeySha256}`,
     ""
-  ].join(os.EOL);
-  fs.writeFileSync(manifestPath, content, "utf8");
+  ].join("\n");
+  const signature = crypto.sign("sha256", Buffer.from(unsignedContent, "utf8"), signingKey.privateKey).toString("base64");
+  const signedContent = `${unsignedContent}MINDORY_RELEASE_MANIFEST_SIGNATURE=${signature}\n`;
+  fs.writeFileSync(manifestPath, signedContent, "utf8");
+  fs.writeFileSync(`${manifestPath}.public.pem`, publicKeyPem, "utf8");
+  return {
+    publicKeyPath: `${manifestPath}.public.pem`,
+    publicKeySha256,
+    signingKeySource: signingKey.source
+  };
 }
 
 function validateReleaseAssets() {
@@ -232,6 +283,7 @@ if (options.help) {
 validateVersion(options.version);
 validateReleaseAssets();
 buildInstallerArtifacts();
+const signingKey = loadSigningKey(options);
 
 const bundleName = `mindory-${options.version}`;
 const stagingParent = fs.mkdtempSync(path.join(os.tmpdir(), `${bundleName}-bundle-`));
@@ -255,17 +307,21 @@ try {
     ? `${options.urlBase.replace(/\/$/, "")}/${path.basename(bundlePath)}`
     : pathToFileURL(bundlePath).href;
 
-  writeManifest({
+  const signedManifest = writeManifest({
     manifestPath,
     version: options.version,
     bundleUrl,
     checksum,
-    bundleName
+    bundleName,
+    signingKey
   });
 
   console.log(JSON.stringify({
     bundle: bundlePath,
     manifest: manifestPath,
+    publicKey: signedManifest.publicKeyPath,
+    publicKeySha256: signedManifest.publicKeySha256,
+    signingKeySource: signedManifest.signingKeySource,
     sha256: checksum,
     version: options.version
   }, null, 2));
