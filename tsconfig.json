@@ -10,7 +10,7 @@
     { "path": "packages/db" },
     { "path": "packages/sdk" },
     { "path": "packages/config" },
-    { "path": "packages/model-runtime" },
+    { "path": "packages/llm" },
     { "path": "packages/auth" },
     { "path": "packages/storage/local-fs" },
     { "path": "packages/storage/s3" },

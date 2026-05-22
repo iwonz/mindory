@@ -82,9 +82,9 @@ export const CONFIG_CATALOG_SECTIONS = [
     description: "File-type routing and modality switches."
   },
   {
-    id: "model-runtime",
-    title: "Model Runtime",
-    description: "Central model-backed capability settings before the @mindory/llm migration."
+    id: "llm",
+    title: "LLM SDK",
+    description: "Central model-backed role and provider settings."
   },
   {
     id: "mcp",
@@ -221,42 +221,46 @@ export const CONFIG_CATALOG = [
   entry("MINDORY_DOCUMENT_PROCESSING_VIDEO_REQUIRED", "document-processing", "boolean", "false", "Treat video processing as required.", "runtime", "supported"),
   entry("MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES", "document-processing", "number", "10", "Maximum derived video keyframes.", "both", "supported"),
 
-  modelCapabilityEntries("TEXT_EMBEDDING", "Text embeddings for semantic document search.", "supported", { dimensions: true }),
-  modelCapabilityEntries("IMAGE_EMBEDDING", "CLIP/image embeddings for visual search.", "future", {
+  llmRoleEntries("CHAT", "Chat/completion calls for agent-facing LLM features.", "future"),
+  llmRoleEntries("TEXT_EMBEDDING", "Text embeddings for semantic document search.", "supported", { dimensions: true }),
+  llmRoleEntries("IMAGE_EMBEDDING", "CLIP/image embeddings for visual search.", "future", {
     dimensions: true,
-    provider: "local",
+    provider: "local-http",
     model: "CLIP ViT-L-16-SigLIP2-256__webli",
     resourceHint: { memory: "8GB+", disk: "3GB+", gpu: "recommended" }
   }),
-  modelCapabilityEntries("IMAGE_CAPTIONING", "Vision captioning for image/video frames.", "future"),
-  modelCapabilityEntries("OCR", "OCR for images and scanned PDFs.", "future", {
-    provider: "local",
+  llmRoleEntries("VISION_CAPTIONING", "Vision captioning for image/video frames.", "future"),
+  llmRoleEntries("OCR", "OCR for images and scanned PDFs.", "future", {
+    provider: "local-http",
     model: "ESLAV__PP-OCRv5_mobile",
     resourceHint: { memory: "4GB+", disk: "1GB+" }
   }),
-  modelCapabilityEntries("ASR", "ASR for audio and video transcripts.", "future"),
-  modelCapabilityEntries("FACE_DETECTION", "Face detection for workspace-scoped face observations.", "future", {
-    provider: "local",
+  llmRoleEntries("ASR", "ASR for audio and video transcripts.", "future"),
+  llmRoleEntries("FACE_DETECTION", "Face detection for workspace-scoped face observations.", "future", {
+    provider: "local-http",
     model: "buffalo_l",
     resourceHint: { memory: "4GB+", disk: "1GB+" }
   }),
-  modelCapabilityEntries("FACE_RECOGNITION", "Face recognition for workspace-scoped face identity matching.", "future", {
-    provider: "local",
+  llmRoleEntries("FACE_RECOGNITION", "Face recognition for workspace-scoped face identity matching.", "future", {
+    provider: "local-http",
     model: "buffalo_l",
     resourceHint: { memory: "4GB+", disk: "1GB+" }
   }),
-  entry("MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_BASE_URL", "model-runtime", "string", "", "OpenAI-compatible base URL.", "both", "supported"),
-  entry("MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_AUTH_MODE", "model-runtime", "enum", "none", "OpenAI-compatible auth mode.", "both", "supported", {
+  llmRoleEntries("IMAGE_GENERATION", "Image generation for future agent outputs.", "future"),
+  llmRoleEntries("AUDIO_GENERATION", "Audio generation for future agent outputs.", "future"),
+  entry("MINDORY_LLM_OPENAI_COMPATIBLE_BASE_URL", "llm", "string", "", "OpenAI-compatible base URL.", "both", "supported"),
+  entry("MINDORY_LLM_OPENAI_COMPATIBLE_AUTH_MODE", "llm", "enum", "none", "OpenAI-compatible auth mode.", "both", "supported", {
     allowedValues: ["none", "api-key", "oauth-bearer"]
   }),
-  entry("MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_API_KEY", "model-runtime", "string", "", "OpenAI-compatible API key.", "both", "supported", {
+  entry("MINDORY_LLM_OPENAI_COMPATIBLE_API_KEY", "llm", "string", "", "OpenAI-compatible API key.", "both", "supported", {
     secret: true
   }),
-  entry("MINDORY_MODEL_RUNTIME_OPENAI_OAUTH_ACCESS_TOKEN", "model-runtime", "string", "", "OpenAI-compatible OAuth bearer token.", "both", "supported", {
+  entry("MINDORY_LLM_OPENAI_OAUTH_ACCESS_TOKEN", "llm", "string", "", "OpenAI-compatible OAuth bearer token.", "both", "supported", {
     secret: true
   }),
-  entry("MINDORY_MODEL_RUNTIME_OLLAMA_BASE_URL", "model-runtime", "string", "http://ollama:11434", "Ollama base URL.", "both", "supported"),
-  entry("MINDORY_MODEL_RUNTIME_LOCAL_BASE_URL", "model-runtime", "string", "http://model-runtime:8080", "Local model runtime base URL.", "both", "future"),
+  entry("MINDORY_LLM_OLLAMA_BASE_URL", "llm", "string", "http://ollama:11434", "Ollama base URL.", "both", "supported"),
+  entry("MINDORY_LLM_LOCAL_HTTP_BASE_URL", "llm", "string", "http://llm:8080", "Local HTTP model server base URL.", "both", "future"),
+  entry("MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS", "llm", "number", "120000", "Default timeout for local command providers.", "both", "future"),
 
   entry("MINDORY_MCP_ENABLED", "mcp", "boolean", "true", "Enable the MCP stdio server.", "runtime", "supported"),
   entry("MINDORY_MCP_TRANSPORT", "mcp", "enum", "stdio", "MCP transport.", "runtime", "supported", {
@@ -354,7 +358,7 @@ export function configAllowedValues(name: string): readonly string[] {
   return entry.allowedValues;
 }
 
-function modelCapabilityEntries(
+function llmRoleEntries(
   key: string,
   description: string,
   supportStatus: ConfigSupportStatus,
@@ -365,7 +369,7 @@ function modelCapabilityEntries(
     resourceHint?: ConfigResourceHint;
   } = {}
 ): ConfigCatalogEntry[] {
-  const prefix = `MINDORY_MODEL_RUNTIME_${key}`;
+  const prefix = `MINDORY_LLM_${key}`;
   const role = key.toLowerCase().replace(/_/g, " ");
   const enabledOptions: Parameters<typeof entry>[7] = {
     prompt: {
@@ -379,16 +383,18 @@ function modelCapabilityEntries(
   }
 
   const entries = [
-    entry(`${prefix}_ENABLED`, "model-runtime", "boolean", "false", `Enable ${description}`, "both", supportStatus, enabledOptions),
-    entry(`${prefix}_PROVIDER`, "model-runtime", "enum", options.provider ?? "disabled", `${description} provider.`, "both", supportStatus, {
-      allowedValues: ["disabled", "openai-compatible", "ollama", "local"]
+    entry(`${prefix}_ENABLED`, "llm", "boolean", "false", `Enable ${description}`, "both", supportStatus, enabledOptions),
+    entry(`${prefix}_PROVIDER`, "llm", "enum", options.provider ?? "disabled", `${description} provider.`, "both", supportStatus, {
+      allowedValues: ["disabled", "openai-compatible", "ollama", "local-http", "local-command"]
     }),
-    entry(`${prefix}_MODEL`, "model-runtime", "string", options.model ?? "", `${description} model name.`, "both", supportStatus),
-    entry(`${prefix}_REQUIRED`, "model-runtime", "boolean", "false", `Require ${description}`, "both", supportStatus)
+    entry(`${prefix}_MODEL`, "llm", "string", options.model ?? "", `${description} model name.`, "both", supportStatus),
+    entry(`${prefix}_REQUIRED`, "llm", "boolean", "false", `Require ${description}`, "both", supportStatus),
+    entry(`${prefix}_TIMEOUT_MS`, "llm", "number", "60000", `${description} timeout in milliseconds.`, "both", supportStatus),
+    entry(`${prefix}_CONCURRENCY`, "llm", "number", "1", `${description} concurrency limit.`, "both", supportStatus)
   ];
 
   if (options.dimensions === true) {
-    entries.splice(3, 0, entry(`${prefix}_DIMENSIONS`, "model-runtime", "string", "", `${description} embedding dimensions.`, "both", supportStatus));
+    entries.splice(3, 0, entry(`${prefix}_DIMENSIONS`, "llm", "string", "", `${description} embedding dimensions.`, "both", supportStatus));
   }
 
   return entries;

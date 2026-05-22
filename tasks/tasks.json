@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-52",
+  "current_task_id": "TASK-53",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -400,6 +400,13 @@
       "status": "done",
       "branch": "task/TASK-52-config-catalog",
       "file": "tasks/TASK-52.json"
+    },
+    {
+      "id": "TASK-53",
+      "title": "Add unified @mindory/llm SDK",
+      "status": "done",
+      "branch": "task/TASK-53-llm-sdk",
+      "file": "tasks/TASK-53.json"
     }
   ]
 }

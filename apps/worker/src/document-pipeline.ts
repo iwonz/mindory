@@ -47,7 +47,7 @@ import { BuiltinTextExtractor } from "@mindory/extractor-builtin-text";
 import { DoclingPdfExtractor } from "@mindory/extractor-docling";
 import { ImageSemanticExtractor } from "@mindory/extractor-image-semantic";
 import { readVideoManifest, VideoKeyframeExtractor } from "@mindory/extractor-video-keyframe";
-import { buildMindoryTextEmbeddingsProvider } from "@mindory/model-runtime";
+import { buildMindoryTextEmbeddingsProvider } from "@mindory/llm";
 import { ClamAvDocumentScanProcessor, ClamAvScanner } from "@mindory/processor-antivirus-clamav";
 
 export interface DocumentPipelineProcessorOptions {
@@ -81,10 +81,10 @@ export function buildDocumentPipelineProcessors(options: DocumentPipelineProcess
     new BuiltinTextExtractor(),
     new AudioTranscriptExtractor({
       asr: {
-        enabled: options.config.modelRuntime.asr.enabled,
-        provider: options.config.modelRuntime.asr.provider,
-        model: options.config.modelRuntime.asr.model,
-        required: options.config.modelRuntime.asr.required
+        enabled: options.config.llm.asr.enabled,
+        provider: options.config.llm.asr.provider,
+        model: options.config.llm.asr.model,
+        required: options.config.llm.asr.required
       }
     }),
     new VideoKeyframeExtractor({
@@ -92,42 +92,42 @@ export function buildDocumentPipelineProcessors(options: DocumentPipelineProcess
     }),
     new DoclingPdfExtractor({
       ocr: {
-        enabled: options.config.modelRuntime.ocr.enabled,
-        provider: options.config.modelRuntime.ocr.provider,
-        model: options.config.modelRuntime.ocr.model,
-        required: options.config.modelRuntime.ocr.required
+        enabled: options.config.llm.ocr.enabled,
+        provider: options.config.llm.ocr.provider,
+        model: options.config.llm.ocr.model,
+        required: options.config.llm.ocr.required
       }
     }),
     new ImageSemanticExtractor({
       faceDetection: {
-        enabled: options.config.modelRuntime.faceDetection.enabled,
-        provider: options.config.modelRuntime.faceDetection.provider,
-        model: options.config.modelRuntime.faceDetection.model,
-        required: options.config.modelRuntime.faceDetection.required
+        enabled: options.config.llm.faceDetection.enabled,
+        provider: options.config.llm.faceDetection.provider,
+        model: options.config.llm.faceDetection.model,
+        required: options.config.llm.faceDetection.required
       },
       faceRecognition: {
-        enabled: options.config.modelRuntime.faceRecognition.enabled,
-        provider: options.config.modelRuntime.faceRecognition.provider,
-        model: options.config.modelRuntime.faceRecognition.model,
-        required: options.config.modelRuntime.faceRecognition.required
+        enabled: options.config.llm.faceRecognition.enabled,
+        provider: options.config.llm.faceRecognition.provider,
+        model: options.config.llm.faceRecognition.model,
+        required: options.config.llm.faceRecognition.required
       },
       imageCaptioning: {
-        enabled: options.config.modelRuntime.imageCaptioning.enabled,
-        provider: options.config.modelRuntime.imageCaptioning.provider,
-        model: options.config.modelRuntime.imageCaptioning.model,
-        required: options.config.modelRuntime.imageCaptioning.required
+        enabled: options.config.llm.visionCaptioning.enabled,
+        provider: options.config.llm.visionCaptioning.provider,
+        model: options.config.llm.visionCaptioning.model,
+        required: options.config.llm.visionCaptioning.required
       },
       imageEmbedding: {
-        enabled: options.config.modelRuntime.imageEmbedding.enabled,
-        provider: options.config.modelRuntime.imageEmbedding.provider,
-        model: options.config.modelRuntime.imageEmbedding.model,
-        required: options.config.modelRuntime.imageEmbedding.required
+        enabled: options.config.llm.imageEmbedding.enabled,
+        provider: options.config.llm.imageEmbedding.provider,
+        model: options.config.llm.imageEmbedding.model,
+        required: options.config.llm.imageEmbedding.required
       },
       ocr: {
-        enabled: options.config.modelRuntime.ocr.enabled,
-        provider: options.config.modelRuntime.ocr.provider,
-        model: options.config.modelRuntime.ocr.model,
-        required: options.config.modelRuntime.ocr.required
+        enabled: options.config.llm.ocr.enabled,
+        provider: options.config.llm.ocr.provider,
+        model: options.config.llm.ocr.model,
+        required: options.config.llm.ocr.required
       }
     })
   ];
@@ -149,7 +149,7 @@ export function buildDocumentPipelineProcessors(options: DocumentPipelineProcess
       routeConfig,
       routeProcessorVersion,
       processorVersion: DOCUMENT_RECOMPUTE_PROCESSOR_VERSION,
-      modelRuntimeFingerprint: buildDocumentRecomputeFingerprint(options.config.modelRuntime)
+      modelRuntimeFingerprint: buildDocumentRecomputeFingerprint(options.config.llm)
     }),
     new DocumentRouteProcessor({
       storage: options.storage,

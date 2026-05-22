@@ -8,7 +8,7 @@ The canonical product and engineering specification is `docs/PRD.md`.
 
 ## Repository Status
 
-This repository is currently bootstrapped through `TASK-52`. The repo has the
+This repository is currently bootstrapped through `TASK-53`. The repo has the
 operating model, documentation skeleton, configuration contract, pnpm monorepo
 layout, Docker Compose base scaffold, MVP database schema, Fastify API skeleton
 object storage abstraction, Redis/BullMQ queue scaffold and document upload/scan
@@ -33,6 +33,9 @@ rate-limit guard, and CI runs `pnpm check` for pushes and pull requests to
 readiness, seeds demo credentials and can run live acceptance. Runtime and first
 installer settings are now described in a typed config catalog that generates
 `.env.example` and validates `MINDORY_*` usage across code, scripts and Compose.
+Model-backed work now routes through the `@mindory/llm` SDK boundary with
+role-level configuration for chat, embeddings, OCR, ASR, vision, face and
+generation operations.
 
 ## Development Process
 
@@ -110,7 +113,7 @@ those dependencies for local-fs storage and BullMQ; the bare app factory still
 returns a structured placeholder when dependencies are omitted.
 
 The processing packages expose a built-in text/Markdown extractor, a fixed-size
-chunker, the `@mindory/model-runtime` provider entrypoint, document routing, and
+chunker, the `@mindory/llm` provider entrypoint, document routing, and
 explicit pgvector and Qdrant vector index scaffolds. The worker package
 registers scan, recompute, route, extract, chunk, embed and index processors;
 pgvector is the default vector storage/search path when text embeddings are

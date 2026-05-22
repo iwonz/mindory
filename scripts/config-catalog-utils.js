@@ -54,7 +54,7 @@ export function generateEnvExample(sections, entries) {
     lines.push("");
   }
 
-  lines.push(...modelRuntimeExamples());
+  lines.push(...llmExamples());
   assertKnownSections(sectionById, entries);
   return `${lines.join("\n").replace(/\n{3,}/g, "\n\n").trimEnd()}\n`;
 }
@@ -74,9 +74,9 @@ function sectionNotes(sectionId) {
       "# LibreFS/external S3 installer work and remains adapter-gated until TASK-56."
     ];
   }
-  if (sectionId === "model-runtime") {
+  if (sectionId === "llm") {
     return [
-      "# Per-capability providers: disabled | openai-compatible | ollama | local",
+      "# Per-role providers: disabled | openai-compatible | ollama | local-http | local-command",
       "# Disabled text embeddings reach chunked status and use text fallback search.",
       "# For strict indexed pgvector acceptance, enable a 1536-dimensional text embedding model."
     ];
@@ -84,34 +84,34 @@ function sectionNotes(sectionId) {
   return [];
 }
 
-function modelRuntimeExamples() {
+function llmExamples() {
   return [
     "# -----------------------------------------------------------------------------",
-    "# Model Runtime Examples",
+    "# LLM SDK Examples",
     "# -----------------------------------------------------------------------------",
     "# OpenAI-compatible example:",
-    "# MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_ENABLED=true",
-    "# MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_PROVIDER=openai-compatible",
-    "# MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_MODEL=text-embedding-3-small",
-    "# MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_DIMENSIONS=1536",
-    "# MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_BASE_URL=https://api.openai.com/v1",
-    "# MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_AUTH_MODE=api-key",
-    "# MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_API_KEY=sk-...",
+    "# MINDORY_LLM_TEXT_EMBEDDING_ENABLED=true",
+    "# MINDORY_LLM_TEXT_EMBEDDING_PROVIDER=openai-compatible",
+    "# MINDORY_LLM_TEXT_EMBEDDING_MODEL=text-embedding-3-small",
+    "# MINDORY_LLM_TEXT_EMBEDDING_DIMENSIONS=1536",
+    "# MINDORY_LLM_OPENAI_COMPATIBLE_BASE_URL=https://api.openai.com/v1",
+    "# MINDORY_LLM_OPENAI_COMPATIBLE_AUTH_MODE=api-key",
+    "# MINDORY_LLM_OPENAI_COMPATIBLE_API_KEY=sk-...",
     "",
     "# OpenAI-compatible OAuth bearer example:",
-    "# MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_ENABLED=true",
-    "# MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_PROVIDER=openai-compatible",
-    "# MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_MODEL=text-embedding-3-small",
-    "# MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_DIMENSIONS=1536",
-    "# MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_BASE_URL=https://api.openai.com/v1",
-    "# MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_AUTH_MODE=oauth-bearer",
-    "# MINDORY_MODEL_RUNTIME_OPENAI_OAUTH_ACCESS_TOKEN=<host-supplied-access-token>",
+    "# MINDORY_LLM_TEXT_EMBEDDING_ENABLED=true",
+    "# MINDORY_LLM_TEXT_EMBEDDING_PROVIDER=openai-compatible",
+    "# MINDORY_LLM_TEXT_EMBEDDING_MODEL=text-embedding-3-small",
+    "# MINDORY_LLM_TEXT_EMBEDDING_DIMENSIONS=1536",
+    "# MINDORY_LLM_OPENAI_COMPATIBLE_BASE_URL=https://api.openai.com/v1",
+    "# MINDORY_LLM_OPENAI_COMPATIBLE_AUTH_MODE=oauth-bearer",
+    "# MINDORY_LLM_OPENAI_OAUTH_ACCESS_TOKEN=<host-supplied-access-token>",
     "",
     "# Ollama example:",
-    "# MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_ENABLED=true",
-    "# MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_PROVIDER=ollama",
-    "# MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_MODEL=<1536-dimensional-local-embedding-model>",
-    "# MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_DIMENSIONS=1536",
-    "# MINDORY_MODEL_RUNTIME_OLLAMA_BASE_URL=http://ollama:11434"
+    "# MINDORY_LLM_TEXT_EMBEDDING_ENABLED=true",
+    "# MINDORY_LLM_TEXT_EMBEDDING_PROVIDER=ollama",
+    "# MINDORY_LLM_TEXT_EMBEDDING_MODEL=<1536-dimensional-local-embedding-model>",
+    "# MINDORY_LLM_TEXT_EMBEDDING_DIMENSIONS=1536",
+    "# MINDORY_LLM_OLLAMA_BASE_URL=http://ollama:11434"
   ];
 }

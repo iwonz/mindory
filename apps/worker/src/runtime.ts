@@ -59,7 +59,7 @@ export function buildWorkerRuntime(config: MindoryConfig = loadMindoryConfig()):
     processorOptions.embeddings = embeddings;
     processorOptions.vectorIndex = new PgVectorChunkIndex({
       db: database.db,
-      dimensions: config.modelRuntime.textEmbedding.dimensions ?? PGVECTOR_EMBEDDING_DIMENSIONS
+      dimensions: config.llm.textEmbedding.dimensions ?? PGVECTOR_EMBEDDING_DIMENSIONS
     });
   }
   const documentProcessors = buildDocumentPipelineProcessors(processorOptions);

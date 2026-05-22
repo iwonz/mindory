@@ -170,8 +170,8 @@ artifact-backed spans. It writes:
 - chunk metadata and source refs that point back to semantic image artifacts.
 
 The current extractor is deterministic and does not call cloud or local vision
-models. It records configured OCR, image-captioning and image-embedding
-capability state from `@mindory/model-runtime` so a later concrete adapter can
+models. It records configured OCR, vision-captioning and image-embedding
+capability state from `@mindory/llm` so a later concrete adapter can
 replace derived outputs without changing RAW originals.
 
 When face detection is enabled, the same fallback extractor can create
@@ -194,7 +194,7 @@ without mutating the RAW object. It writes:
 - chunk metadata and source refs that point back to transcript artifacts and
   time ranges.
 
-The default runtime records ASR capability state from `@mindory/model-runtime`.
+The default runtime records ASR capability state from `@mindory/llm`.
 Real cloud/local ASR execution is deferred to a later adapter; current local
 tests use deterministic embedded transcript fallback text.
 
@@ -252,7 +252,7 @@ ids when applicable, semantic artifact ids when applicable and artifact source
 refs.
 
 Text embedding providers are selected through the shared
-`@mindory/model-runtime` module. Low-level adapters exist for
+`@mindory/llm` module. Low-level adapters exist for
 OpenAI-compatible `/embeddings` APIs and Ollama `/api/embed`. `TASK-20` makes
 pgvector the default MVP vector runtime: worker indexing upserts chunk
 embeddings into `chunk_vector_embeddings`, and API document search uses query
@@ -275,7 +275,7 @@ extraction for text/Markdown/PDF/image/audio/video documents when the modality i
 extraction writes derived text objects, chunking replaces durable chunk rows,
 and embedding/index processors write pgvector rows when text embeddings are
 configured. With
-`MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_ENABLED=false`, the pipeline
+`MINDORY_LLM_TEXT_EMBEDDING_ENABLED=false`, the pipeline
 intentionally stops at `chunked` and API document search falls back to text
 chunk search.
 

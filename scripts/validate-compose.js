@@ -52,8 +52,8 @@ assert(compose.includes("/ready"), "API healthcheck must call /ready.");
 assert(compose.includes("'http://127.0.0.1:'+port+'/ready'"), "API healthcheck must avoid Compose interpolation inside JavaScript.");
 assert(compose.includes("objects-data:/data/mindory/objects"), "API/worker services must mount local object storage volume.");
 assert(compose.includes("MINDORY_CLAMAV_PLATFORM"), "Compose must allow ClamAV platform override for local Docker Desktop compatibility.");
-assert(compose.includes("\n  model-runtime:"), "Compose must define an optional local model runtime service.");
-assert(compose.includes("service:'model-runtime'"), "Local model runtime profile must be a lightweight placeholder by default.");
+assert(compose.includes("\n  llm:"), "Compose must define an optional local LLM SDK service.");
+assert(compose.includes("service:'llm'"), "Local LLM SDK profile must be a lightweight placeholder by default.");
 for (const envName of [
   "MINDORY_DOCUMENT_PROCESSING_PDF_ENABLED: ${MINDORY_DOCUMENT_PROCESSING_PDF_ENABLED:-true}",
   "MINDORY_DOCUMENT_PROCESSING_IMAGE_ENABLED: ${MINDORY_DOCUMENT_PROCESSING_IMAGE_ENABLED:-true}",
