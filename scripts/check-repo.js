@@ -6,6 +6,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const checks = [
   ["lint", "scripts/lint-repo.js"],
   ["typecheck", "scripts/typecheck-workspaces.js"],
+  ["config:validate", "scripts/validate-config-catalog.js"],
   ["compose:validate", "scripts/validate-compose.js"],
   ["production:validate", "scripts/validate-production-hardening.js"],
   ["model-runtime:validate", "scripts/validate-model-runtime.js"],

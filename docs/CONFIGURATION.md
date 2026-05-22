@@ -1,8 +1,18 @@
 # Configuration
 
-All runtime configuration must be represented in `.env.example`. When an
-environment variable is added, renamed or removed, update this document and
-`.env.example` in the same task.
+`packages/config/src/catalog.ts` is the source of truth for Mindory
+configuration. Every `MINDORY_*` setting must be represented in the catalog with
+its env name, type, default, support status, installer visibility, secret flag
+and prompt/resource metadata when applicable.
+
+`.env.example` is generated from the catalog. When an environment variable is
+added, renamed or removed, update the catalog and this document, then run
+`pnpm config:generate`. `pnpm config:validate` fails if `.env.example` is stale
+or if runtime, Compose or script code uses a `MINDORY_*` variable that is not in
+the catalog.
+
+`loadMindoryConfig` must read defaults from the catalog rather than duplicating
+literal fallback values.
 
 ## Sections
 
@@ -18,6 +28,17 @@ environment variable is added, renamed or removed, update this document and
 - MCP settings.
 - Hermes adapter defaults.
 - Integration test ports and optional external test service URLs.
+
+## Installer Foundation
+
+`TASK-52` introduces installer configuration metadata before the installer
+runtime exists. The cataloged installer settings include `MINDORY_HOME`,
+install profile, release channel, experimental-mode flag, dependency policy,
+rollback-on-failure behavior and dev-mode flag.
+
+The default installation root is `~/.mindory`. Future installer tasks must use
+the catalog for prompts, defaults, validation and redacted summaries rather than
+hardcoding wizard choices in installer code.
 
 ## Docker Compose Defaults
 

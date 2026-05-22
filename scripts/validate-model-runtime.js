@@ -34,6 +34,7 @@ const rootTsconfig = read("tsconfig.json");
 const workspaceValidator = read("scripts/validate-workspace.js");
 const modelRuntime = read("packages/model-runtime/src/index.ts");
 const config = read("packages/config/src/index.ts");
+const configCatalog = read("packages/config/src/catalog.ts");
 const envExample = read(".env.example");
 const compose = read("docker-compose.yml");
 const apiRuntime = read("apps/api/src/runtime.ts");
@@ -85,6 +86,17 @@ for (const token of [
   "readModelCapabilityConfig(env, \"ASR\")",
   "readModelCapabilityConfig(env, \"FACE_DETECTION\"",
   "readModelCapabilityConfig(env, \"FACE_RECOGNITION\"",
+  "MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_BASE_URL",
+  "MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_AUTH_MODE",
+  "MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_API_KEY",
+  "MINDORY_MODEL_RUNTIME_OPENAI_OAUTH_ACCESS_TOKEN",
+  "MINDORY_MODEL_RUNTIME_OLLAMA_BASE_URL",
+  "MINDORY_MODEL_RUNTIME_LOCAL_BASE_URL"
+]) {
+  assertIncludes(config, token, "packages/config/src/index.ts");
+}
+
+for (const token of [
   "CLIP ViT-L-16-SigLIP2-256__webli",
   "ESLAV__PP-OCRv5_mobile",
   "buffalo_l",
@@ -95,7 +107,7 @@ for (const token of [
   "MINDORY_MODEL_RUNTIME_OLLAMA_BASE_URL",
   "MINDORY_MODEL_RUNTIME_LOCAL_BASE_URL"
 ]) {
-  assertIncludes(config, token, "packages/config/src/index.ts");
+  assertIncludes(configCatalog, token, "packages/config/src/catalog.ts");
 }
 
 assertIncludes(compose, "profiles: [\"local-models\"]", "docker-compose.yml");

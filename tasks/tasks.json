@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-51",
+  "current_task_id": "TASK-52",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -393,6 +393,13 @@
       "status": "done",
       "branch": "task/TASK-51-docker-model-profiles-e2e-acceptance",
       "file": "tasks/TASK-51.json"
+    },
+    {
+      "id": "TASK-52",
+      "title": "Add config catalog",
+      "status": "done",
+      "branch": "task/TASK-52-config-catalog",
+      "file": "tasks/TASK-52.json"
     }
   ]
 }

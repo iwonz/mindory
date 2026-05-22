@@ -1,0 +1,434 @@
+export type ConfigValueType = "string" | "number" | "boolean" | "enum";
+export type ConfigSupportStatus = "supported" | "experimental" | "future" | "internal";
+export type ConfigVisibility = "runtime" | "installer" | "both" | "test";
+
+export interface ConfigCatalogSection {
+  id: string;
+  title: string;
+  description: string;
+}
+
+export interface ConfigPromptMetadata {
+  label: string;
+  help: string;
+}
+
+export interface ConfigResourceHint {
+  cpu?: string;
+  memory?: string;
+  disk?: string;
+  gpu?: string;
+}
+
+export interface ConfigCatalogEntry {
+  name: string;
+  section: string;
+  type: ConfigValueType;
+  defaultValue: string;
+  description: string;
+  visibility: ConfigVisibility;
+  supportStatus: ConfigSupportStatus;
+  secret: boolean;
+  required: boolean;
+  allowedValues?: readonly string[];
+  prompt?: ConfigPromptMetadata;
+  resourceHint?: ConfigResourceHint;
+}
+
+export const CONFIG_CATALOG_SECTIONS = [
+  {
+    id: "installer",
+    title: "Mindory Installer",
+    description: "Installer-owned state and one-folder deployment controls."
+  },
+  {
+    id: "api",
+    title: "Mindory API",
+    description: "HTTP API listener, public URL and request guard settings."
+  },
+  {
+    id: "database",
+    title: "Database",
+    description: "PostgreSQL connection settings."
+  },
+  {
+    id: "redis",
+    title: "Redis / BullMQ",
+    description: "Redis queue and cache settings."
+  },
+  {
+    id: "storage",
+    title: "Object Storage",
+    description: "Original object storage provider and backend settings."
+  },
+  {
+    id: "vector",
+    title: "Vector Index",
+    description: "Document chunk vector search backend settings."
+  },
+  {
+    id: "antivirus",
+    title: "Antivirus",
+    description: "Upload scanning policy and ClamAV connection settings."
+  },
+  {
+    id: "workers",
+    title: "Workers",
+    description: "Background worker routing and concurrency settings."
+  },
+  {
+    id: "document-processing",
+    title: "Document Processing Router",
+    description: "File-type routing and modality switches."
+  },
+  {
+    id: "model-runtime",
+    title: "Model Runtime",
+    description: "Central model-backed capability settings before the @mindory/llm migration."
+  },
+  {
+    id: "mcp",
+    title: "MCP",
+    description: "MCP stdio interface settings."
+  },
+  {
+    id: "cli",
+    title: "CLI",
+    description: "CLI HTTP API defaults."
+  },
+  {
+    id: "hermes",
+    title: "Hermes Adapter",
+    description: "Hermes runtime adapter defaults."
+  },
+  {
+    id: "integration-tests",
+    title: "Integration Tests",
+    description: "Local integration test harness settings."
+  },
+  {
+    id: "mvp-acceptance",
+    title: "MVP Acceptance",
+    description: "Demo and acceptance script settings."
+  }
+] as const satisfies readonly ConfigCatalogSection[];
+
+export const CONFIG_CATALOG = [
+  entry("MINDORY_HOME", "installer", "string", "~/.mindory", "Single Mindory-owned install root.", "installer", "supported", {
+    prompt: {
+      label: "Mindory home directory",
+      help: "All generated config, compose files, data, logs, backups and install state live below this directory."
+    }
+  }),
+  entry("MINDORY_INSTALL_PROFILE", "installer", "enum", "local-quickstart", "Installer profile selected by the wizard.", "installer", "supported", {
+    allowedValues: ["local-quickstart", "persistent-local", "server-domain", "dev-test"],
+    prompt: {
+      label: "Install profile",
+      help: "Controls the defaults used by the one-command installer."
+    }
+  }),
+  entry("MINDORY_INSTALL_RELEASE_CHANNEL", "installer", "string", "stable", "Release channel used by the bootstrap installer.", "installer", "supported"),
+  entry("MINDORY_INSTALL_ALLOW_EXPERIMENTAL", "installer", "boolean", "false", "Allow experimental choices in the installer wizard.", "installer", "supported"),
+  entry("MINDORY_INSTALL_DEPENDENCY_POLICY", "installer", "enum", "ask", "How the installer handles missing host dependencies.", "installer", "supported", {
+    allowedValues: ["ask", "manual", "auto"]
+  }),
+  entry("MINDORY_INSTALL_ROLLBACK_ON_FAILURE", "installer", "boolean", "true", "Rollback Mindory-created state when install fails.", "installer", "supported"),
+  entry("MINDORY_INSTALL_DEV_MODE", "installer", "boolean", "false", "Enable installer dev/test matrix behavior.", "installer", "supported"),
+
+  entry("MINDORY_LOG_LEVEL", "api", "string", "info", "Structured log level.", "runtime", "supported"),
+  entry("MINDORY_API_HOST", "api", "string", "0.0.0.0", "API listen host.", "runtime", "supported"),
+  entry("MINDORY_API_PORT", "api", "number", "3000", "API listen port.", "runtime", "supported"),
+  entry("MINDORY_PUBLIC_URL", "api", "string", "http://localhost:3000", "Public API URL used by clients and adapters.", "both", "supported", {
+    prompt: {
+      label: "Public URL",
+      help: "Use localhost for local installs or a full https:// domain URL for server installs."
+    }
+  }),
+  entry("MINDORY_API_RATE_LIMIT_ENABLED", "api", "boolean", "true", "Enable the in-process API rate limit guard.", "runtime", "supported"),
+  entry("MINDORY_API_RATE_LIMIT_WINDOW_MS", "api", "number", "60000", "Rate limit window length in milliseconds.", "runtime", "supported"),
+  entry("MINDORY_API_RATE_LIMIT_MAX", "api", "number", "600", "Maximum requests allowed per rate limit window.", "runtime", "supported"),
+
+  entry("MINDORY_DATABASE_URL", "database", "string", "postgresql://mindory:mindory@postgres:5432/mindory", "PostgreSQL database URL.", "both", "supported", {
+    secret: true
+  }),
+
+  entry("MINDORY_REDIS_URL", "redis", "string", "redis://redis:6379", "Redis URL used by BullMQ and cache namespaces.", "both", "supported", {
+    secret: true
+  }),
+  entry("MINDORY_QUEUE_PREFIX", "redis", "string", "mindory:queue", "BullMQ key prefix.", "runtime", "supported"),
+  entry("MINDORY_CACHE_PREFIX", "redis", "string", "mindory:cache", "Cache key prefix.", "runtime", "supported"),
+
+  entry("MINDORY_STORAGE_PROVIDER", "storage", "enum", "local-fs", "Object storage provider.", "both", "supported", {
+    allowedValues: ["local-fs", "s3"],
+    prompt: {
+      label: "Object storage",
+      help: "Use local-fs for current local installs. S3-compatible storage is cataloged for the installer but remains adapter-gated."
+    }
+  }),
+  entry("MINDORY_STORAGE_LOCAL_PATH", "storage", "string", "/data/mindory/objects", "Local filesystem object root inside the runtime container.", "both", "supported"),
+  entry("MINDORY_S3_ENDPOINT", "storage", "string", "http://minio:9000", "S3-compatible endpoint URL.", "both", "experimental"),
+  entry("MINDORY_S3_REGION", "storage", "string", "us-east-1", "S3-compatible region.", "both", "experimental"),
+  entry("MINDORY_S3_BUCKET", "storage", "string", "mindory", "S3-compatible bucket name.", "both", "experimental"),
+  entry("MINDORY_S3_ACCESS_KEY_ID", "storage", "string", "mindory", "S3-compatible access key id.", "both", "experimental", {
+    secret: true
+  }),
+  entry("MINDORY_S3_SECRET_ACCESS_KEY", "storage", "string", "mindory-secret", "S3-compatible secret access key.", "both", "experimental", {
+    secret: true
+  }),
+  entry("MINDORY_S3_FORCE_PATH_STYLE", "storage", "boolean", "true", "Use path-style S3-compatible addressing.", "both", "experimental"),
+
+  entry("MINDORY_VECTOR_PROVIDER", "vector", "enum", "pgvector", "Vector index provider.", "both", "supported", {
+    allowedValues: ["pgvector", "qdrant"]
+  }),
+  entry("MINDORY_QDRANT_URL", "vector", "string", "http://qdrant:6333", "Qdrant URL for the optional future adapter.", "both", "future"),
+  entry("MINDORY_QDRANT_COLLECTION_PREFIX", "vector", "string", "mindory", "Qdrant collection prefix.", "both", "future"),
+
+  entry("MINDORY_AV_ENABLED", "antivirus", "boolean", "true", "Enable antivirus processing.", "both", "supported"),
+  entry("MINDORY_AV_PROVIDER", "antivirus", "string", "clamav", "Antivirus provider name.", "both", "supported"),
+  entry("MINDORY_AV_MODE", "antivirus", "enum", "async_quarantine", "Antivirus mode.", "both", "supported", {
+    allowedValues: ["disabled", "async_quarantine", "sync_scan"],
+    prompt: {
+      label: "Antivirus mode",
+      help: "Choose disabled, asynchronous quarantine or synchronous scan."
+    }
+  }),
+  entry("MINDORY_AV_REQUIRED_BEFORE_READ", "antivirus", "boolean", "true", "Require scan before document read.", "runtime", "supported"),
+  entry("MINDORY_AV_REQUIRED_BEFORE_EXTRACTION", "antivirus", "boolean", "true", "Require scan before extraction.", "runtime", "supported"),
+  entry("MINDORY_AV_REQUIRED_BEFORE_INDEXING", "antivirus", "boolean", "true", "Require scan before indexing.", "runtime", "supported"),
+  entry("MINDORY_AV_ON_SCAN_FAILURE", "antivirus", "enum", "block", "Policy for antivirus scan failures.", "runtime", "supported", {
+    allowedValues: ["block", "allow_with_warning"]
+  }),
+  entry("MINDORY_AV_ON_INFECTED", "antivirus", "enum", "quarantine", "Policy for infected uploads.", "runtime", "supported", {
+    allowedValues: ["quarantine", "delete"]
+  }),
+  entry("MINDORY_CLAMAV_HOST", "antivirus", "string", "clamav", "ClamAV host.", "runtime", "supported"),
+  entry("MINDORY_CLAMAV_PORT", "antivirus", "number", "3310", "ClamAV port.", "runtime", "supported"),
+  entry("MINDORY_CLAMAV_PLATFORM", "antivirus", "string", "linux/amd64", "Compose platform override for the ClamAV image.", "installer", "supported"),
+
+  entry("MINDORY_WORKER_TYPE", "workers", "string", "all", "Worker type filter.", "runtime", "supported"),
+  entry("MINDORY_WORKER_CONCURRENCY", "workers", "number", "2", "Worker concurrency.", "runtime", "supported"),
+
+  entry("MINDORY_DOCUMENT_PROCESSING_ROUTING_ENABLED", "document-processing", "boolean", "true", "Enable post-upload file-type routing.", "both", "supported"),
+  entry("MINDORY_DOCUMENT_PROCESSING_TEXT_ENABLED", "document-processing", "boolean", "true", "Enable text document processing.", "both", "supported"),
+  entry("MINDORY_DOCUMENT_PROCESSING_TEXT_REQUIRED", "document-processing", "boolean", "false", "Treat text processing as required.", "runtime", "supported"),
+  entry("MINDORY_DOCUMENT_PROCESSING_PDF_ENABLED", "document-processing", "boolean", "true", "Enable PDF document processing.", "both", "supported"),
+  entry("MINDORY_DOCUMENT_PROCESSING_PDF_REQUIRED", "document-processing", "boolean", "false", "Treat PDF processing as required.", "runtime", "supported"),
+  entry("MINDORY_DOCUMENT_PROCESSING_IMAGE_ENABLED", "document-processing", "boolean", "true", "Enable image document processing.", "both", "supported"),
+  entry("MINDORY_DOCUMENT_PROCESSING_IMAGE_REQUIRED", "document-processing", "boolean", "false", "Treat image processing as required.", "runtime", "supported"),
+  entry("MINDORY_DOCUMENT_PROCESSING_AUDIO_ENABLED", "document-processing", "boolean", "true", "Enable audio document processing.", "both", "supported"),
+  entry("MINDORY_DOCUMENT_PROCESSING_AUDIO_REQUIRED", "document-processing", "boolean", "false", "Treat audio processing as required.", "runtime", "supported"),
+  entry("MINDORY_DOCUMENT_PROCESSING_VIDEO_ENABLED", "document-processing", "boolean", "true", "Enable video document processing.", "both", "supported"),
+  entry("MINDORY_DOCUMENT_PROCESSING_VIDEO_REQUIRED", "document-processing", "boolean", "false", "Treat video processing as required.", "runtime", "supported"),
+  entry("MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES", "document-processing", "number", "10", "Maximum derived video keyframes.", "both", "supported"),
+
+  modelCapabilityEntries("TEXT_EMBEDDING", "Text embeddings for semantic document search.", "supported", { dimensions: true }),
+  modelCapabilityEntries("IMAGE_EMBEDDING", "CLIP/image embeddings for visual search.", "future", {
+    dimensions: true,
+    provider: "local",
+    model: "CLIP ViT-L-16-SigLIP2-256__webli",
+    resourceHint: { memory: "8GB+", disk: "3GB+", gpu: "recommended" }
+  }),
+  modelCapabilityEntries("IMAGE_CAPTIONING", "Vision captioning for image/video frames.", "future"),
+  modelCapabilityEntries("OCR", "OCR for images and scanned PDFs.", "future", {
+    provider: "local",
+    model: "ESLAV__PP-OCRv5_mobile",
+    resourceHint: { memory: "4GB+", disk: "1GB+" }
+  }),
+  modelCapabilityEntries("ASR", "ASR for audio and video transcripts.", "future"),
+  modelCapabilityEntries("FACE_DETECTION", "Face detection for workspace-scoped face observations.", "future", {
+    provider: "local",
+    model: "buffalo_l",
+    resourceHint: { memory: "4GB+", disk: "1GB+" }
+  }),
+  modelCapabilityEntries("FACE_RECOGNITION", "Face recognition for workspace-scoped face identity matching.", "future", {
+    provider: "local",
+    model: "buffalo_l",
+    resourceHint: { memory: "4GB+", disk: "1GB+" }
+  }),
+  entry("MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_BASE_URL", "model-runtime", "string", "", "OpenAI-compatible base URL.", "both", "supported"),
+  entry("MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_AUTH_MODE", "model-runtime", "enum", "none", "OpenAI-compatible auth mode.", "both", "supported", {
+    allowedValues: ["none", "api-key", "oauth-bearer"]
+  }),
+  entry("MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_API_KEY", "model-runtime", "string", "", "OpenAI-compatible API key.", "both", "supported", {
+    secret: true
+  }),
+  entry("MINDORY_MODEL_RUNTIME_OPENAI_OAUTH_ACCESS_TOKEN", "model-runtime", "string", "", "OpenAI-compatible OAuth bearer token.", "both", "supported", {
+    secret: true
+  }),
+  entry("MINDORY_MODEL_RUNTIME_OLLAMA_BASE_URL", "model-runtime", "string", "http://ollama:11434", "Ollama base URL.", "both", "supported"),
+  entry("MINDORY_MODEL_RUNTIME_LOCAL_BASE_URL", "model-runtime", "string", "http://model-runtime:8080", "Local model runtime base URL.", "both", "future"),
+
+  entry("MINDORY_MCP_ENABLED", "mcp", "boolean", "true", "Enable the MCP stdio server.", "runtime", "supported"),
+  entry("MINDORY_MCP_TRANSPORT", "mcp", "enum", "stdio", "MCP transport.", "runtime", "supported", {
+    allowedValues: ["stdio"]
+  }),
+  entry("MINDORY_MCP_API_URL", "mcp", "string", "http://localhost:3000", "MCP HTTP API URL.", "both", "supported"),
+  entry("MINDORY_MCP_API_TOKEN", "mcp", "string", "", "MCP bearer token.", "both", "supported", {
+    secret: true
+  }),
+
+  entry("MINDORY_CLI_API_URL", "cli", "string", "http://localhost:3000", "CLI HTTP API URL.", "both", "supported"),
+  entry("MINDORY_CLI_API_TOKEN", "cli", "string", "", "CLI bearer token.", "both", "supported", {
+    secret: true
+  }),
+
+  entry("MINDORY_HERMES_ADAPTER_ENABLED", "hermes", "boolean", "false", "Enable Hermes adapter defaults.", "both", "supported"),
+  entry("MINDORY_HERMES_API_URL", "hermes", "string", "http://localhost:3000", "Hermes adapter HTTP API URL.", "both", "supported"),
+  entry("MINDORY_HERMES_API_TOKEN", "hermes", "string", "", "Hermes adapter bearer token.", "both", "supported", {
+    secret: true
+  }),
+  entry("MINDORY_HERMES_DEFAULT_PROJECT", "hermes", "string", "default", "Default Hermes project id.", "both", "supported"),
+  entry("MINDORY_HERMES_DEFAULT_USER_PEER", "hermes", "string", "default-user", "Default Hermes user peer id.", "both", "supported"),
+  entry("MINDORY_HERMES_DEFAULT_AGENT_PEER", "hermes", "string", "hermes", "Default Hermes agent peer id.", "both", "supported"),
+  entry("MINDORY_HERMES_CONTEXT_TOKEN_BUDGET", "hermes", "number", "3000", "Default Hermes context token budget.", "both", "supported"),
+
+  entry("MINDORY_TEST_POSTGRES_PORT", "integration-tests", "number", "55432", "Integration test PostgreSQL host port.", "test", "supported"),
+  entry("MINDORY_TEST_REDIS_PORT", "integration-tests", "number", "56379", "Integration test Redis host port.", "test", "supported"),
+  entry("MINDORY_TEST_DATABASE_URL", "integration-tests", "string", "", "External integration test database URL.", "test", "supported", {
+    secret: true
+  }),
+  entry("MINDORY_TEST_REDIS_URL", "integration-tests", "string", "", "External integration test Redis URL.", "test", "supported", {
+    secret: true
+  }),
+  entry("MINDORY_TEST_SKIP_DOCKER", "integration-tests", "boolean", "false", "Skip Docker-managed integration test dependencies.", "test", "supported"),
+  entry("MINDORY_TEST_SKIP_BUILD", "integration-tests", "boolean", "false", "Skip pre-test TypeScript build.", "test", "supported"),
+  entry("MINDORY_TEST_DOCKER_BIN", "integration-tests", "string", "/usr/local/bin/docker", "Docker binary path for integration tests.", "test", "supported"),
+
+  entry("MINDORY_E2E_LIVE", "mvp-acceptance", "boolean", "false", "Run MVP acceptance against a live API.", "test", "supported"),
+  entry("MINDORY_E2E_API_URL", "mvp-acceptance", "string", "http://localhost:3000", "MVP acceptance API URL.", "test", "supported"),
+  entry("MINDORY_E2E_REQUIRE_INDEXED", "mvp-acceptance", "boolean", "false", "Require indexed document status in MVP acceptance.", "test", "supported"),
+  entry("MINDORY_E2E_MODEL_PROFILE", "mvp-acceptance", "enum", "disabled", "MVP demo model profile.", "test", "supported", {
+    allowedValues: ["disabled", "local", "ollama"]
+  }),
+  entry("MINDORY_DEMO_PROJECT_ID", "mvp-acceptance", "string", "mindory-demo", "Deterministic demo project id.", "test", "supported"),
+  entry("MINDORY_DEMO_TOKEN", "mvp-acceptance", "string", "mindory-demo-token", "Deterministic demo bearer token.", "test", "supported", {
+    secret: true
+  }),
+  entry("MINDORY_DEMO_TOKEN_ID", "mvp-acceptance", "string", "tok_mindory_demo", "Deterministic demo token id.", "test", "supported")
+] as const satisfies readonly (ConfigCatalogEntry | readonly ConfigCatalogEntry[])[];
+
+export const FLAT_CONFIG_CATALOG = CONFIG_CATALOG.flat();
+
+const catalogByName = new Map(FLAT_CONFIG_CATALOG.map((item) => [item.name, item]));
+
+export function getConfigCatalogEntry(name: string): ConfigCatalogEntry | undefined {
+  return catalogByName.get(name);
+}
+
+export function requireConfigCatalogEntry(name: string): ConfigCatalogEntry {
+  const entry = getConfigCatalogEntry(name);
+  if (entry === undefined) {
+    throw new Error(`${name} is not defined in the Mindory config catalog.`);
+  }
+  return entry;
+}
+
+export function configDefaultValue(name: string): string {
+  return requireConfigCatalogEntry(name).defaultValue;
+}
+
+export function configDefaultBoolean(name: string): boolean {
+  const value = configDefaultValue(name);
+  if (value === "true") {
+    return true;
+  }
+  if (value === "false") {
+    return false;
+  }
+  throw new Error(`${name} catalog default must be true or false.`);
+}
+
+export function configDefaultNumber(name: string): number {
+  const value = Number.parseInt(configDefaultValue(name), 10);
+  if (Number.isNaN(value)) {
+    throw new Error(`${name} catalog default must be a number.`);
+  }
+  return value;
+}
+
+export function configAllowedValues(name: string): readonly string[] {
+  const entry = requireConfigCatalogEntry(name);
+  if (entry.type !== "enum" || entry.allowedValues === undefined) {
+    throw new Error(`${name} is not an enum catalog entry.`);
+  }
+  return entry.allowedValues;
+}
+
+function modelCapabilityEntries(
+  key: string,
+  description: string,
+  supportStatus: ConfigSupportStatus,
+  options: {
+    dimensions?: boolean;
+    provider?: string;
+    model?: string;
+    resourceHint?: ConfigResourceHint;
+  } = {}
+): ConfigCatalogEntry[] {
+  const prefix = `MINDORY_MODEL_RUNTIME_${key}`;
+  const role = key.toLowerCase().replace(/_/g, " ");
+  const enabledOptions: Parameters<typeof entry>[7] = {
+    prompt: {
+      label: `Enable ${role}`,
+      help: description
+    }
+  };
+
+  if (options.resourceHint !== undefined) {
+    enabledOptions.resourceHint = options.resourceHint;
+  }
+
+  const entries = [
+    entry(`${prefix}_ENABLED`, "model-runtime", "boolean", "false", `Enable ${description}`, "both", supportStatus, enabledOptions),
+    entry(`${prefix}_PROVIDER`, "model-runtime", "enum", options.provider ?? "disabled", `${description} provider.`, "both", supportStatus, {
+      allowedValues: ["disabled", "openai-compatible", "ollama", "local"]
+    }),
+    entry(`${prefix}_MODEL`, "model-runtime", "string", options.model ?? "", `${description} model name.`, "both", supportStatus),
+    entry(`${prefix}_REQUIRED`, "model-runtime", "boolean", "false", `Require ${description}`, "both", supportStatus)
+  ];
+
+  if (options.dimensions === true) {
+    entries.splice(3, 0, entry(`${prefix}_DIMENSIONS`, "model-runtime", "string", "", `${description} embedding dimensions.`, "both", supportStatus));
+  }
+
+  return entries;
+}
+
+function entry(
+  name: string,
+  section: string,
+  type: ConfigValueType,
+  defaultValue: string,
+  description: string,
+  visibility: ConfigVisibility,
+  supportStatus: ConfigSupportStatus,
+  options: {
+    allowedValues?: readonly string[];
+    secret?: boolean;
+    required?: boolean;
+    prompt?: ConfigPromptMetadata;
+    resourceHint?: ConfigResourceHint;
+  } = {}
+): ConfigCatalogEntry {
+  const catalogEntry: ConfigCatalogEntry = {
+    name,
+    section,
+    type,
+    defaultValue,
+    description,
+    visibility,
+    supportStatus,
+    secret: options.secret ?? false,
+    required: options.required ?? false
+  };
+  if (options.allowedValues !== undefined) {
+    catalogEntry.allowedValues = options.allowedValues;
+  }
+  if (options.prompt !== undefined) {
+    catalogEntry.prompt = options.prompt;
+  }
+  if (options.resourceHint !== undefined) {
+    catalogEntry.resourceHint = options.resourceHint;
+  }
+  return catalogEntry;
+}
