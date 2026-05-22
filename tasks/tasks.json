@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-58",
+  "current_task_id": "TASK-59",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -442,6 +442,13 @@
       "status": "done",
       "branch": "task/TASK-58-installer-core",
       "file": "tasks/TASK-58.json"
+    },
+    {
+      "id": "TASK-59",
+      "title": "Add interactive installer wizard",
+      "status": "done",
+      "branch": "task/TASK-59-interactive-wizard",
+      "file": "tasks/TASK-59.json"
     }
   ]
 }

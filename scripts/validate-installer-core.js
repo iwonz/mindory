@@ -36,7 +36,10 @@ for (const symbol of [
   "detectHostDependencies",
   "renderEnvFile",
   "renderMindoryConfigJson",
-  "buildRedactedInstallSummary"
+  "buildRedactedInstallSummary",
+  "buildWizardPromptPlan",
+  "runInstallWizard",
+  "createReadlineWizardIo"
 ]) {
   assert(installerSource.includes(symbol), `Installer core must expose ${symbol}.`);
 }
@@ -45,6 +48,23 @@ for (const token of ["CONFIG_CATALOG", "MINDORY_HOME_DIRECTORIES", "composeProfi
 }
 
 const installer = await import("../packages/installer/dist/index.js");
+
+const wizardPromptIds = installer.buildWizardPromptPlan().map((prompt) => prompt.id);
+for (const promptId of [
+  "install.profile",
+  "install.home",
+  "install.public_url",
+  "av.mode",
+  "storage.choice",
+  "modalities.video_max_keyframes",
+  "interfaces.api_port",
+  "tokens.cli_api_token",
+  "llm.TEXT_EMBEDDING.enabled",
+  "llm.TEXT_EMBEDDING.provider",
+  "llm.OCR.enabled"
+]) {
+  assert(wizardPromptIds.includes(promptId), `Wizard prompt plan must include ${promptId}.`);
+}
 
 const answers = installer.createDefaultInstallAnswers({
   mindoryHome: "/tmp/mindory-installer-test",
@@ -155,4 +175,80 @@ assert(dependencyChecks.some((check) => check.id === "pnpm" && check.status === 
 assert(dependencyChecks.some((check) => check.id === "api-port" && check.status === "failed"), "Dependency detector must report unavailable API port.");
 assert(dependencyChecks.some((check) => check.id === "disk-space" && check.status === "failed"), "Dependency detector must report insufficient disk space.");
 
-console.log("Installer core validated.");
+const scriptedResponses = new Map([
+  ["install.profile", "persistent-local"],
+  ["install.home", "/tmp/mindory-wizard"],
+  ["install.public_url", "http://mindory.localhost:3000"],
+  ["install.allow_experimental", "false"],
+  ["install.dependency_policy", "manual"],
+  ["av.mode", "disabled"],
+  ["storage.choice", "librefs-s3"],
+  ["storage.s3.endpoint", "http://librefs:9000"],
+  ["storage.s3.bucket", "mindory-wizard"],
+  ["storage.s3.access_key_id", "wizard-access"],
+  ["storage.s3.secret_access_key", "wizard-secret"],
+  ["modalities.text", "true"],
+  ["modalities.pdf", "true"],
+  ["modalities.image", "false"],
+  ["modalities.audio", "false"],
+  ["modalities.video", "false"],
+  ["modalities.video_max_keyframes", "10"],
+  ["llm.TEXT_EMBEDDING.enabled", "true"],
+  ["llm.TEXT_EMBEDDING.provider", "ollama"],
+  ["llm.TEXT_EMBEDDING.model", "wizard-embedding"],
+  ["llm.TEXT_EMBEDDING.required", "false"],
+  ["llm.TEXT_EMBEDDING.timeout_ms", "60000"],
+  ["llm.TEXT_EMBEDDING.concurrency", "1"],
+  ["llm.TEXT_EMBEDDING.dimensions", "1536"],
+  ["interfaces.api_port", "3001"],
+  ["interfaces.mcp_enabled", "true"],
+  ["interfaces.hermes_enabled", "true"],
+  ["tokens.mcp_api_token", "wizard-mcp-secret"],
+  ["tokens.cli_api_token", "wizard-cli-secret"],
+  ["tokens.hermes_api_token", "wizard-hermes-secret"]
+]);
+let capturedSummary = null;
+const scriptedAnswers = await installer.runInstallWizard({
+  async prompt(prompt) {
+    if (prompt.id.startsWith("llm.") && !prompt.id.startsWith("llm.TEXT_EMBEDDING.")) {
+      return "false";
+    }
+    return scriptedResponses.get(prompt.id) ?? "";
+  },
+  async confirm(summary) {
+    capturedSummary = summary;
+    return true;
+  }
+});
+assert(scriptedAnswers.profile === "persistent-local", "Wizard must apply scripted profile.");
+assert(scriptedAnswers.storage.provider === "s3", "Wizard librefs choice must map to s3 storage.");
+assert(scriptedAnswers.storage.s3.bucket === "mindory-wizard", "Wizard must apply S3 bucket.");
+assert(scriptedAnswers.antivirus.mode === "disabled", "Wizard must apply AV mode.");
+assert(scriptedAnswers.interfaces.apiPort === 3001, "Wizard must apply API port.");
+assert(scriptedAnswers.llmRoles.TEXT_EMBEDDING.provider === "ollama", "Wizard must apply text embedding provider.");
+assert(capturedSummary !== null, "Wizard must produce a confirmation summary.");
+assert(!JSON.stringify(capturedSummary).includes("wizard-secret"), "Wizard confirmation summary must redact secrets.");
+assert(!JSON.stringify(capturedSummary).includes("wizard-cli-secret"), "Wizard confirmation summary must redact tokens.");
+
+let experimentalBlocked = false;
+try {
+  await installer.runInstallWizard({
+    async prompt(prompt) {
+      if (prompt.id === "llm.OCR.enabled") {
+        return "true";
+      }
+      if (prompt.id.startsWith("llm.")) {
+        return "false";
+      }
+      return scriptedResponses.get(prompt.id) ?? "";
+    },
+    async confirm() {
+      return true;
+    }
+  });
+} catch (error) {
+  experimentalBlocked = String(error).includes("requires experimental mode");
+}
+assert(experimentalBlocked, "Wizard must block future LLM roles unless experimental mode is enabled.");
+
+console.log("Installer core and wizard validated.");

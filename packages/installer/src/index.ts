@@ -1,6 +1,8 @@
 import { spawnSync } from "node:child_process";
 import { constants, existsSync, accessSync, statSync } from "node:fs";
 import path from "node:path";
+import { stdin as defaultInput, stdout as defaultOutput } from "node:process";
+import { createInterface, type Interface as ReadlineInterface } from "node:readline/promises";
 import {
   CONFIG_CATALOG,
   type AntivirusMode,
@@ -209,6 +211,42 @@ export interface DependencyCheck {
 }
 
 export type RollbackExecutor = (rollback: InstallRollbackStep, step: InstallPlanStep) => Promise<void> | void;
+export type WizardPromptKind = "text" | "secret" | "boolean" | "number" | "choice";
+export type WizardStorageChoice = "local-fs" | "librefs-s3" | "external-s3";
+
+export interface WizardChoice {
+  value: string;
+  label: string;
+  description: string;
+  experimental?: boolean;
+}
+
+export interface WizardPrompt {
+  id: string;
+  kind: WizardPromptKind;
+  label: string;
+  help: string;
+  defaultValue: string;
+  secret: boolean;
+  choices?: WizardChoice[];
+  resourceHint?: {
+    cpu?: string;
+    memory?: string;
+    disk?: string;
+    gpu?: string;
+  };
+  supportStatus?: string;
+}
+
+export interface WizardIo {
+  prompt(prompt: WizardPrompt): Promise<string>;
+  confirm(summary: Record<string, unknown>): Promise<boolean>;
+}
+
+export interface WizardOptions {
+  initialAnswers?: Partial<MindoryInstallAnswers>;
+  allowExperimental?: boolean;
+}
 
 export function createDefaultInstallAnswers(overrides: Partial<MindoryInstallAnswers> = {}): MindoryInstallAnswers {
   const defaults: MindoryInstallAnswers = {
@@ -617,6 +655,315 @@ export function composeProfilesForAnswers(answers: MindoryInstallAnswers): strin
     }
   }
   return Array.from(profiles).sort();
+}
+
+export function buildWizardPromptPlan(options: WizardOptions = {}): WizardPrompt[] {
+  const answers = createDefaultInstallAnswers(options.initialAnswers);
+  const prompts: WizardPrompt[] = [
+    promptFromCatalog("install.profile", "MINDORY_INSTALL_PROFILE", "choice"),
+    promptFromCatalog("install.home", "MINDORY_HOME", "text"),
+    promptFromCatalog("install.public_url", "MINDORY_PUBLIC_URL", "text"),
+    promptFromCatalog("install.allow_experimental", "MINDORY_INSTALL_ALLOW_EXPERIMENTAL", "boolean"),
+    promptFromCatalog("install.dependency_policy", "MINDORY_INSTALL_DEPENDENCY_POLICY", "choice"),
+    promptFromCatalog("av.mode", "MINDORY_AV_MODE", "choice"),
+    promptFromCatalog("storage.choice", "MINDORY_STORAGE_PROVIDER", "choice", {
+      defaultValue: storageChoiceFromAnswers(answers),
+      choices: [
+        { value: "local-fs", label: "Local filesystem", description: "Store RAW originals under MINDORY_HOME/data/objects." },
+        { value: "librefs-s3", label: "LibreFS local S3", description: "Run the local LibreFS S3-compatible profile." },
+        { value: "external-s3", label: "External S3-compatible", description: "Use an existing S3-compatible endpoint." }
+      ]
+    }),
+    promptFromCatalog("storage.s3.endpoint", "MINDORY_S3_ENDPOINT", "text"),
+    promptFromCatalog("storage.s3.bucket", "MINDORY_S3_BUCKET", "text"),
+    promptFromCatalog("storage.s3.access_key_id", "MINDORY_S3_ACCESS_KEY_ID", "secret"),
+    promptFromCatalog("storage.s3.secret_access_key", "MINDORY_S3_SECRET_ACCESS_KEY", "secret"),
+    promptFromCatalog("modalities.text", "MINDORY_DOCUMENT_PROCESSING_TEXT_ENABLED", "boolean"),
+    promptFromCatalog("modalities.pdf", "MINDORY_DOCUMENT_PROCESSING_PDF_ENABLED", "boolean"),
+    promptFromCatalog("modalities.image", "MINDORY_DOCUMENT_PROCESSING_IMAGE_ENABLED", "boolean"),
+    promptFromCatalog("modalities.audio", "MINDORY_DOCUMENT_PROCESSING_AUDIO_ENABLED", "boolean"),
+    promptFromCatalog("modalities.video", "MINDORY_DOCUMENT_PROCESSING_VIDEO_ENABLED", "boolean"),
+    promptFromCatalog("modalities.video_max_keyframes", "MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES", "number"),
+    promptFromCatalog("interfaces.api_port", "MINDORY_API_PORT", "number"),
+    promptFromCatalog("interfaces.mcp_enabled", "MINDORY_MCP_ENABLED", "boolean"),
+    promptFromCatalog("interfaces.hermes_enabled", "MINDORY_HERMES_ADAPTER_ENABLED", "boolean"),
+    promptFromCatalog("tokens.mcp_api_token", "MINDORY_MCP_API_TOKEN", "secret"),
+    promptFromCatalog("tokens.cli_api_token", "MINDORY_CLI_API_TOKEN", "secret"),
+    promptFromCatalog("tokens.hermes_api_token", "MINDORY_HERMES_API_TOKEN", "secret")
+  ];
+
+  for (const role of LLM_ROLE_KEYS) {
+    const enabledEntry = catalogEntry(`MINDORY_LLM_${role}_ENABLED`);
+    prompts.push(promptFromEntry(`llm.${role}.enabled`, enabledEntry, "boolean"));
+    prompts.push(promptFromCatalog(`llm.${role}.provider`, `MINDORY_LLM_${role}_PROVIDER`, "choice"));
+    prompts.push(promptFromCatalog(`llm.${role}.model`, `MINDORY_LLM_${role}_MODEL`, "text"));
+    prompts.push(promptFromCatalog(`llm.${role}.required`, `MINDORY_LLM_${role}_REQUIRED`, "boolean"));
+    prompts.push(promptFromCatalog(`llm.${role}.timeout_ms`, `MINDORY_LLM_${role}_TIMEOUT_MS`, "number"));
+    prompts.push(promptFromCatalog(`llm.${role}.concurrency`, `MINDORY_LLM_${role}_CONCURRENCY`, "number"));
+    const dimensionsEntry = maybeCatalogEntry(`MINDORY_LLM_${role}_DIMENSIONS`);
+    if (dimensionsEntry !== undefined) {
+      prompts.push(promptFromEntry(`llm.${role}.dimensions`, dimensionsEntry, "number"));
+    }
+  }
+
+  return prompts.map((promptItem) => {
+    if (promptItem.defaultValue !== "") {
+      return promptItem;
+    }
+    const env = answersToEnvMap(answers);
+    const catalogName = promptIdToEnvName(promptItem.id);
+    const defaultValue = catalogName === undefined ? promptItem.defaultValue : env[catalogName] ?? promptItem.defaultValue;
+    return { ...promptItem, defaultValue };
+  });
+}
+
+export async function runInstallWizard(io: WizardIo, options: WizardOptions = {}): Promise<MindoryInstallAnswers> {
+  const answers = createDefaultInstallAnswers(options.initialAnswers);
+  answers.profile = await askChoice(io, promptFromCatalog("install.profile", "MINDORY_INSTALL_PROFILE", "choice")) as InstallProfile;
+  answers.mindoryHome = await askString(io, promptFromCatalog("install.home", "MINDORY_HOME", "text"));
+  answers.publicUrl = await askString(io, promptFromCatalog("install.public_url", "MINDORY_PUBLIC_URL", "text"));
+  answers.allowExperimental = await askBoolean(io, promptFromCatalog("install.allow_experimental", "MINDORY_INSTALL_ALLOW_EXPERIMENTAL", "boolean"));
+  answers.dependencyPolicy = await askChoice(io, promptFromCatalog("install.dependency_policy", "MINDORY_INSTALL_DEPENDENCY_POLICY", "choice")) as InstallDependencyPolicy;
+
+  answers.antivirus.mode = await askChoice(io, promptFromCatalog("av.mode", "MINDORY_AV_MODE", "choice")) as AntivirusMode;
+  const storageChoice = await askChoice(io, promptFromCatalog("storage.choice", "MINDORY_STORAGE_PROVIDER", "choice", {
+    defaultValue: storageChoiceFromAnswers(answers),
+    choices: [
+      { value: "local-fs", label: "Local filesystem", description: "Store RAW originals under MINDORY_HOME/data/objects." },
+      { value: "librefs-s3", label: "LibreFS local S3", description: "Run the local LibreFS S3-compatible profile." },
+      { value: "external-s3", label: "External S3-compatible", description: "Use an existing S3-compatible endpoint." }
+    ]
+  })) as WizardStorageChoice;
+  applyStorageChoice(answers, storageChoice);
+  if (storageChoice !== "local-fs") {
+    answers.storage.s3.endpoint = await askString(io, promptFromCatalog("storage.s3.endpoint", "MINDORY_S3_ENDPOINT", "text", { defaultValue: answers.storage.s3.endpoint }));
+    answers.storage.s3.bucket = await askString(io, promptFromCatalog("storage.s3.bucket", "MINDORY_S3_BUCKET", "text", { defaultValue: answers.storage.s3.bucket }));
+    answers.storage.s3.accessKeyId = await askString(io, promptFromCatalog("storage.s3.access_key_id", "MINDORY_S3_ACCESS_KEY_ID", "secret", { defaultValue: answers.storage.s3.accessKeyId }));
+    answers.storage.s3.secretAccessKey = await askString(io, promptFromCatalog("storage.s3.secret_access_key", "MINDORY_S3_SECRET_ACCESS_KEY", "secret", { defaultValue: answers.storage.s3.secretAccessKey }));
+  }
+
+  answers.modalities.text = await askBoolean(io, promptFromCatalog("modalities.text", "MINDORY_DOCUMENT_PROCESSING_TEXT_ENABLED", "boolean"));
+  answers.modalities.pdf = await askBoolean(io, promptFromCatalog("modalities.pdf", "MINDORY_DOCUMENT_PROCESSING_PDF_ENABLED", "boolean"));
+  answers.modalities.image = await askBoolean(io, promptFromCatalog("modalities.image", "MINDORY_DOCUMENT_PROCESSING_IMAGE_ENABLED", "boolean"));
+  answers.modalities.audio = await askBoolean(io, promptFromCatalog("modalities.audio", "MINDORY_DOCUMENT_PROCESSING_AUDIO_ENABLED", "boolean"));
+  answers.modalities.video = await askBoolean(io, promptFromCatalog("modalities.video", "MINDORY_DOCUMENT_PROCESSING_VIDEO_ENABLED", "boolean"));
+  answers.modalities.videoMaxKeyframes = await askNumber(io, promptFromCatalog("modalities.video_max_keyframes", "MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES", "number"));
+
+  for (const role of LLM_ROLE_KEYS) {
+    const roleAllowed = roleSupportStatus(role) === "supported" || answers.allowExperimental || options.allowExperimental === true;
+    const enabled = await askBoolean(io, promptFromCatalog(`llm.${role}.enabled`, `MINDORY_LLM_${role}_ENABLED`, "boolean"));
+    if (enabled && !roleAllowed) {
+      throw new Error(`MINDORY_LLM_${role} is ${roleSupportStatus(role)} and requires experimental mode.`);
+    }
+    if (!enabled) {
+      answers.llmRoles[role] = {
+        enabled: false,
+        provider: catalogDefault(`MINDORY_LLM_${role}_PROVIDER`) as LlmProvider,
+        model: catalogDefault(`MINDORY_LLM_${role}_MODEL`),
+        required: false,
+        timeoutMs: Number.parseInt(catalogDefault(`MINDORY_LLM_${role}_TIMEOUT_MS`), 10),
+        concurrency: Number.parseInt(catalogDefault(`MINDORY_LLM_${role}_CONCURRENCY`), 10)
+      };
+      continue;
+    }
+    const roleAnswers: LlmRoleAnswers = {
+      enabled: true,
+      provider: await askChoice(io, promptFromCatalog(`llm.${role}.provider`, `MINDORY_LLM_${role}_PROVIDER`, "choice")) as LlmProvider,
+      model: await askString(io, promptFromCatalog(`llm.${role}.model`, `MINDORY_LLM_${role}_MODEL`, "text")),
+      required: await askBoolean(io, promptFromCatalog(`llm.${role}.required`, `MINDORY_LLM_${role}_REQUIRED`, "boolean")),
+      timeoutMs: await askNumber(io, promptFromCatalog(`llm.${role}.timeout_ms`, `MINDORY_LLM_${role}_TIMEOUT_MS`, "number")),
+      concurrency: await askNumber(io, promptFromCatalog(`llm.${role}.concurrency`, `MINDORY_LLM_${role}_CONCURRENCY`, "number"))
+    };
+    const dimensionsEntry = maybeCatalogEntry(`MINDORY_LLM_${role}_DIMENSIONS`);
+    if (dimensionsEntry !== undefined) {
+      const dimensions = await askString(io, promptFromEntry(`llm.${role}.dimensions`, dimensionsEntry, "number"));
+      roleAnswers.dimensions = dimensions.trim() === "" ? null : Number.parseInt(dimensions, 10);
+    }
+    answers.llmRoles[role] = roleAnswers;
+  }
+
+  answers.interfaces.apiPort = await askNumber(io, promptFromCatalog("interfaces.api_port", "MINDORY_API_PORT", "number"));
+  answers.interfaces.mcpEnabled = await askBoolean(io, promptFromCatalog("interfaces.mcp_enabled", "MINDORY_MCP_ENABLED", "boolean"));
+  answers.interfaces.hermesEnabled = await askBoolean(io, promptFromCatalog("interfaces.hermes_enabled", "MINDORY_HERMES_ADAPTER_ENABLED", "boolean"));
+  answers.tokens.mcpApiToken = await askString(io, promptFromCatalog("tokens.mcp_api_token", "MINDORY_MCP_API_TOKEN", "secret"));
+  answers.tokens.cliApiToken = await askString(io, promptFromCatalog("tokens.cli_api_token", "MINDORY_CLI_API_TOKEN", "secret"));
+  answers.tokens.hermesApiToken = await askString(io, promptFromCatalog("tokens.hermes_api_token", "MINDORY_HERMES_API_TOKEN", "secret"));
+
+  const errors = validateInstallAnswers(answers);
+  if (errors.length > 0) {
+    throw new Error(`Wizard produced invalid answers: ${errors.join(" ")}`);
+  }
+  const summary = buildRedactedInstallSummary(answers);
+  if (!(await io.confirm(summary))) {
+    throw new Error("Install wizard cancelled before execution.");
+  }
+  return answers;
+}
+
+export function createReadlineWizardIo(): WizardIo & { close(): void } {
+  const rl: ReadlineInterface = createInterface({ input: defaultInput, output: defaultOutput });
+  return {
+    async prompt(promptItem) {
+      return rl.question(formatWizardQuestion(promptItem));
+    },
+    async confirm(summary) {
+      defaultOutput.write("\nInstall summary:\n");
+      defaultOutput.write(`${JSON.stringify(summary, null, 2)}\n`);
+      const answer = await rl.question("Continue with this installation? [y/N] ");
+      return /^y(?:es)?$/i.test(answer.trim());
+    },
+    close() {
+      rl.close();
+    }
+  };
+}
+
+function promptFromCatalog(id: string, envName: string, kind: WizardPromptKind, overrides: Partial<WizardPrompt> = {}): WizardPrompt {
+  return promptFromEntry(id, catalogEntry(envName), kind, overrides);
+}
+
+function promptFromEntry(id: string, entry: ConfigCatalogEntry, kind: WizardPromptKind, overrides: Partial<WizardPrompt> = {}): WizardPrompt {
+  const promptMetadata = entry.prompt;
+  const promptItem: WizardPrompt = {
+    id,
+    kind,
+    label: overrides.label ?? promptMetadata?.label ?? entry.description,
+    help: overrides.help ?? promptMetadata?.help ?? entry.description,
+    defaultValue: overrides.defaultValue ?? entry.defaultValue,
+    secret: overrides.secret ?? entry.secret,
+    supportStatus: overrides.supportStatus ?? entry.supportStatus
+  };
+  const choices = overrides.choices ?? choicesFromEntry(entry);
+  if (choices !== undefined) {
+    promptItem.choices = choices;
+  }
+  const resourceHint = overrides.resourceHint ?? entry.resourceHint;
+  if (resourceHint !== undefined) {
+    promptItem.resourceHint = resourceHint;
+  }
+  return promptItem;
+}
+
+function choicesFromEntry(entry: ConfigCatalogEntry): WizardChoice[] | undefined {
+  if (entry.allowedValues === undefined) {
+    return undefined;
+  }
+  return entry.allowedValues.map((value) => ({
+    value,
+    label: value,
+    description: `${entry.description} ${value}.`,
+    experimental: entry.supportStatus !== "supported"
+  }));
+}
+
+async function askString(io: WizardIo, promptItem: WizardPrompt): Promise<string> {
+  const answer = await io.prompt(promptItem);
+  return answer.trim() === "" ? promptItem.defaultValue : answer.trim();
+}
+
+async function askNumber(io: WizardIo, promptItem: WizardPrompt): Promise<number> {
+  const value = await askString(io, promptItem);
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed)) {
+    throw new Error(`${promptItem.id} must be a number.`);
+  }
+  return parsed;
+}
+
+async function askBoolean(io: WizardIo, promptItem: WizardPrompt): Promise<boolean> {
+  const value = (await askString(io, promptItem)).toLowerCase();
+  if (["true", "yes", "y", "1", "on"].includes(value)) {
+    return true;
+  }
+  if (["false", "no", "n", "0", "off"].includes(value)) {
+    return false;
+  }
+  throw new Error(`${promptItem.id} must be yes or no.`);
+}
+
+async function askChoice(io: WizardIo, promptItem: WizardPrompt): Promise<string> {
+  const value = await askString(io, promptItem);
+  const choices = promptItem.choices?.map((choice) => choice.value);
+  if (choices !== undefined && !choices.includes(value)) {
+    throw new Error(`${promptItem.id} must be one of ${choices.join(", ")}.`);
+  }
+  return value;
+}
+
+function applyStorageChoice(answers: MindoryInstallAnswers, choice: WizardStorageChoice): void {
+  if (choice === "local-fs") {
+    answers.storage.provider = "local-fs";
+    return;
+  }
+  answers.storage.provider = "s3";
+  if (choice === "librefs-s3") {
+    answers.storage.s3.endpoint = "http://librefs:9000";
+  }
+}
+
+function storageChoiceFromAnswers(answers: MindoryInstallAnswers): WizardStorageChoice {
+  if (answers.storage.provider === "local-fs") {
+    return "local-fs";
+  }
+  return answers.storage.s3.endpoint.includes("librefs") ? "librefs-s3" : "external-s3";
+}
+
+function formatWizardQuestion(promptItem: WizardPrompt): string {
+  const choices = promptItem.choices === undefined ? "" : ` (${promptItem.choices.map((choice) => choice.value).join("/")})`;
+  const resource = promptItem.resourceHint === undefined ? "" : ` [resources: ${Object.entries(promptItem.resourceHint).map(([key, value]) => `${key} ${value}`).join(", ")}]`;
+  const secret = promptItem.secret ? " [secret]" : "";
+  return `${promptItem.label}${choices}${secret}${resource}\n${promptItem.help}\nDefault: ${promptItem.defaultValue}\n> `;
+}
+
+function promptIdToEnvName(promptId: string): string | undefined {
+  const direct: Record<string, string> = {
+    "install.profile": "MINDORY_INSTALL_PROFILE",
+    "install.home": "MINDORY_HOME",
+    "install.public_url": "MINDORY_PUBLIC_URL",
+    "install.allow_experimental": "MINDORY_INSTALL_ALLOW_EXPERIMENTAL",
+    "install.dependency_policy": "MINDORY_INSTALL_DEPENDENCY_POLICY",
+    "av.mode": "MINDORY_AV_MODE",
+    "storage.s3.endpoint": "MINDORY_S3_ENDPOINT",
+    "storage.s3.bucket": "MINDORY_S3_BUCKET",
+    "storage.s3.access_key_id": "MINDORY_S3_ACCESS_KEY_ID",
+    "storage.s3.secret_access_key": "MINDORY_S3_SECRET_ACCESS_KEY",
+    "modalities.text": "MINDORY_DOCUMENT_PROCESSING_TEXT_ENABLED",
+    "modalities.pdf": "MINDORY_DOCUMENT_PROCESSING_PDF_ENABLED",
+    "modalities.image": "MINDORY_DOCUMENT_PROCESSING_IMAGE_ENABLED",
+    "modalities.audio": "MINDORY_DOCUMENT_PROCESSING_AUDIO_ENABLED",
+    "modalities.video": "MINDORY_DOCUMENT_PROCESSING_VIDEO_ENABLED",
+    "modalities.video_max_keyframes": "MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES",
+    "interfaces.api_port": "MINDORY_API_PORT",
+    "interfaces.mcp_enabled": "MINDORY_MCP_ENABLED",
+    "interfaces.hermes_enabled": "MINDORY_HERMES_ADAPTER_ENABLED",
+    "tokens.mcp_api_token": "MINDORY_MCP_API_TOKEN",
+    "tokens.cli_api_token": "MINDORY_CLI_API_TOKEN",
+    "tokens.hermes_api_token": "MINDORY_HERMES_API_TOKEN"
+  };
+  if (direct[promptId] !== undefined) {
+    return direct[promptId];
+  }
+  const match = promptId.match(/^llm\.([A-Z_]+)\.(enabled|provider|model|required|timeout_ms|concurrency|dimensions)$/);
+  if (match?.[1] === undefined || match[2] === undefined) {
+    return undefined;
+  }
+  return `MINDORY_LLM_${match[1]}_${match[2].toUpperCase()}`;
+}
+
+function roleSupportStatus(role: InstallerLlmRoleKey): string {
+  return catalogEntry(`MINDORY_LLM_${role}_ENABLED`).supportStatus;
+}
+
+function catalogEntry(name: string): ConfigCatalogEntry {
+  const entry = maybeCatalogEntry(name);
+  if (entry === undefined) {
+    throw new Error(`Missing config catalog entry ${name}.`);
+  }
+  return entry;
+}
+
+function maybeCatalogEntry(name: string): ConfigCatalogEntry | undefined {
+  return FLAT_CONFIG_CATALOG.find((item) => item.name === name);
 }
 
 function mergeAnswers(defaults: MindoryInstallAnswers, overrides: Partial<MindoryInstallAnswers>): MindoryInstallAnswers {

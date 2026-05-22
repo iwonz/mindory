@@ -122,6 +122,11 @@ builds answer-file install plans, dependency check results, generated config and
 env files, transaction journal entries, rollback ordering and redacted summaries
 without running interactive prompts or mutating host dependencies.
 
+`TASK-59` adds the wizard layer over that core. The wizard uses stable prompt
+IDs and injectable IO for testability, derives prompt metadata from the config
+catalog, shows a redacted confirmation preview and returns a validated answer
+file without executing the install plan.
+
 ## Object Storage
 
 `TASK-6` adds the shared `ObjectStorage` contract in `@mindory/core` and adapter
