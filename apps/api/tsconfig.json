@@ -12,7 +12,7 @@
     { "path": "../../packages/config" },
     { "path": "../../packages/auth" },
     { "path": "../../packages/db" },
-    { "path": "../../packages/model-runtime" },
+    { "path": "../../packages/llm" },
     { "path": "../../packages/queue/bullmq" },
     { "path": "../../packages/storage/local-fs" },
     { "path": "../../packages/vector/pgvector" }

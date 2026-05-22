@@ -19,7 +19,7 @@
     { "path": "../../packages/processors/extractors/docling" },
     { "path": "../../packages/processors/extractors/image-semantic" },
     { "path": "../../packages/processors/extractors/video-keyframe" },
-    { "path": "../../packages/model-runtime" },
+    { "path": "../../packages/llm" },
     { "path": "../../packages/vector/pgvector" }
   ]
 }

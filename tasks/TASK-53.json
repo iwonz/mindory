@@ -1,0 +1,70 @@
+{
+  "id": "TASK-53",
+  "title": "Add unified @mindory/llm SDK",
+  "status": "done",
+  "type": "chore",
+  "priority": "high",
+  "branch": "task/TASK-53-llm-sdk",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Replace the narrow @mindory/model-runtime package with @mindory/llm as the single SDK boundary for model operations.",
+    "background": "Installer and multimodal processing requirements need one component for chat, embeddings, OCR, ASR, vision, face, image generation and audio generation roles. Backward compatibility with MINDORY_MODEL_RUNTIME_* names is not required."
+  },
+  "scope": {
+    "in": [
+      "Rename the model runtime package boundary to @mindory/llm.",
+      "Rename canonical model configuration namespace to MINDORY_LLM_*.",
+      "Define typed LLM roles for chat, text embeddings, image embeddings, OCR, ASR, vision captioning, face detection, face recognition, image generation and audio generation.",
+      "Define provider contracts, disabled provider behavior and operation result/audit metadata shape in the SDK.",
+      "Update current API/worker consumers and validators to import @mindory/llm instead of @mindory/model-runtime.",
+      "Update docs and generated .env.example for the new SDK boundary."
+    ],
+    "out": [
+      "Persisting model operation audit rows.",
+      "Implementing new OCR/ASR/vision/face providers beyond existing placeholders.",
+      "Installer wizard implementation.",
+      "S3-compatible storage implementation.",
+      "Database schema changes."
+    ]
+  },
+  "acceptance_criteria": [
+    "packages/llm defines @mindory/llm and packages/model-runtime is removed from workspace validation.",
+    "Current model calls route through @mindory/llm imports and no runtime package depends on @mindory/model-runtime.",
+    "Config catalog and .env.example use MINDORY_LLM_* names instead of MINDORY_MODEL_RUNTIME_* names.",
+    "@mindory/llm exposes roles, provider contracts, disabled behavior and operation result/audit metadata types for the required model operation classes.",
+    "Validators fail if @mindory/model-runtime references or MINDORY_MODEL_RUNTIME_* env names remain in runtime code/docs.",
+    "No database schema changes are included."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "pnpm config:generate",
+      "pnpm config:validate",
+      "pnpm llm:validate",
+      "pnpm typecheck",
+      "pnpm lint",
+      "pnpm tasks:validate",
+      "pnpm test",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-53.",
+      "Confirm no @mindory/model-runtime imports remain outside historical task docs.",
+      "Confirm no MINDORY_MODEL_RUNTIME_* env names remain in runtime code, docs, Compose or .env.example.",
+      "Confirm packages/db/drizzle/0000_initial_schema.sql is unchanged."
+    ]
+  },
+  "dependencies": [
+    "TASK-52"
+  ],
+  "risks": [
+    "Renaming package and env namespace touches many validators and docs; generated config validation must guard drift.",
+    "Existing text embedding behavior must remain functionally equivalent while moving under the broader LLM SDK name."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch is committed and merged back into master."
+  ]
+}

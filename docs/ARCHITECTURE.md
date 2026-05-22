@@ -44,7 +44,7 @@ image, a `migrate` service running `pnpm db:migrate`, real dist entrypoints and
 local object storage volumes for API/worker.
 
 Optional profiles define MinIO, ClamAV, Qdrant, Docling, Ollama and a
-lightweight local model-runtime placeholder without making those services
+lightweight local LLM placeholder without making those services
 mandatory for the base stack.
 
 ## Database Schema
@@ -169,7 +169,7 @@ returns explicit `not_implemented` responses when dependencies are omitted.
   normalization for `.txt`, `.md` and `.markdown` inputs.
 - `@mindory/core/document-routing` classifies uploads by MIME, extension and
   magic bytes, then plans only enabled downstream jobs.
-- `@mindory/model-runtime` is the runtime adapter entrypoint for text
+- `@mindory/llm` is the runtime adapter entrypoint for text
   embeddings and future OCR, ASR, vision and face capabilities, including
   OpenAI-compatible API key or OAuth bearer auth.
 - `@mindory/vector-pgvector` implements the default PostgreSQL vector index.

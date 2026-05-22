@@ -9,7 +9,7 @@ const checks = [
   ["config:validate", "scripts/validate-config-catalog.js"],
   ["compose:validate", "scripts/validate-compose.js"],
   ["production:validate", "scripts/validate-production-hardening.js"],
-  ["model-runtime:validate", "scripts/validate-model-runtime.js"],
+  ["llm:validate", "scripts/validate-llm.js"],
   ["db:validate", "scripts/validate-db-schema.js"],
   ["db:repositories:validate", "scripts/validate-db-repositories.js"],
   ["api:validate", "scripts/validate-api-skeleton.js"],

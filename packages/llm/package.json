@@ -1,5 +1,5 @@
 {
-  "name": "@mindory/model-runtime",
+  "name": "@mindory/llm",
   "version": "0.0.0",
   "private": true,
   "type": "module",

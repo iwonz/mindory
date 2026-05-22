@@ -24,7 +24,7 @@ literal fallback values.
 - Antivirus policy and ClamAV connection settings.
 - Worker type and concurrency.
 - Document processing router and modality switches.
-- Model runtime capability and provider settings.
+- LLM SDK role and provider settings.
 - MCP settings.
 - Hermes adapter defaults.
 - Integration test ports and optional external test service URLs.
@@ -107,18 +107,18 @@ model services.
 `MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES` sets the future video
 keyframe cap and defaults to `10`.
 
-## Model Runtime And Vector Indexes
+## LLM SDK And Vector Indexes
 
-`@mindory/model-runtime` owns model-backed capabilities. Each capability has an
-independent `MINDORY_MODEL_RUNTIME_*_ENABLED`, `*_PROVIDER`, `*_MODEL` and
-`*_REQUIRED` setting. Providers are `disabled`, `openai-compatible`, `ollama` or
-`local`.
+`@mindory/llm` owns model-backed roles. Each role has an independent
+`MINDORY_LLM_*_ENABLED`, `*_PROVIDER`, `*_MODEL`, `*_REQUIRED`,
+`*_TIMEOUT_MS` and `*_CONCURRENCY` setting. Providers are `disabled`,
+`openai-compatible`, `ollama`, `local-http` or `local-command`.
 
 Text embeddings are currently the only capability that performs live model
-calls. The image pipeline records OCR, image-captioning and image-embedding
+calls. The image pipeline records OCR, vision-captioning and image-embedding
 capability state in derived artifacts, but the current MVP extractor uses a
 deterministic metadata and embedded PNG text fallback until concrete vision/OCR
-adapters are added. When `MINDORY_MODEL_RUNTIME_FACE_DETECTION_ENABLED=true`,
+adapters are added. When `MINDORY_LLM_FACE_DETECTION_ENABLED=true`,
 the fallback image extractor can also derive face observations from explicit
 people-count signals and match them through the workspace-scoped face subsystem.
 Audio extraction records ASR capability state and can derive transcript segments
@@ -127,10 +127,10 @@ Video extraction uses `MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES` to cap
 manifest-derived keyframes; the default remains `10`.
 
 Text embeddings are the only capability used for pgvector indexing today.
-When `MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_ENABLED=true`,
-`MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_MODEL` is required. The current MVP
+When `MINDORY_LLM_TEXT_EMBEDDING_ENABLED=true`,
+`MINDORY_LLM_TEXT_EMBEDDING_MODEL` is required. The current MVP
 pgvector schema stores `vector(1536)`, so
-`MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_DIMENSIONS` must be empty or `1536` while
+`MINDORY_LLM_TEXT_EMBEDDING_DIMENSIONS` must be empty or `1536` while
 `MINDORY_VECTOR_PROVIDER=pgvector`.
 
 The default local/free model names are examples for future processors:
@@ -138,50 +138,54 @@ The default local/free model names are examples for future processors:
 `ESLAV__PP-OCRv5_mobile` for OCR and `buffalo_l` for face detection and
 recognition. They remain disabled until the corresponding handlers are enabled.
 
-`MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_BASE_URL` configures the
-OpenAI-compatible adapter. `MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_AUTH_MODE`
+`MINDORY_LLM_OPENAI_COMPATIBLE_BASE_URL` configures the
+OpenAI-compatible adapter. `MINDORY_LLM_OPENAI_COMPATIBLE_AUTH_MODE`
 accepts `none`, `api-key` or `oauth-bearer`.
 
 OpenAI-compatible example:
 
 ```env
-MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_ENABLED=true
-MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_PROVIDER=openai-compatible
-MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_MODEL=text-embedding-3-small
-MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_DIMENSIONS=1536
-MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_BASE_URL=https://api.openai.com/v1
-MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_AUTH_MODE=api-key
-MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_API_KEY=sk-...
+MINDORY_LLM_TEXT_EMBEDDING_ENABLED=true
+MINDORY_LLM_TEXT_EMBEDDING_PROVIDER=openai-compatible
+MINDORY_LLM_TEXT_EMBEDDING_MODEL=text-embedding-3-small
+MINDORY_LLM_TEXT_EMBEDDING_DIMENSIONS=1536
+MINDORY_LLM_OPENAI_COMPATIBLE_BASE_URL=https://api.openai.com/v1
+MINDORY_LLM_OPENAI_COMPATIBLE_AUTH_MODE=api-key
+MINDORY_LLM_OPENAI_COMPATIBLE_API_KEY=sk-...
 ```
 
 OpenAI-compatible OAuth bearer example:
 
 ```env
-MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_ENABLED=true
-MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_PROVIDER=openai-compatible
-MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_MODEL=text-embedding-3-small
-MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_DIMENSIONS=1536
-MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_BASE_URL=https://api.openai.com/v1
-MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_AUTH_MODE=oauth-bearer
-MINDORY_MODEL_RUNTIME_OPENAI_OAUTH_ACCESS_TOKEN=<host-supplied-access-token>
+MINDORY_LLM_TEXT_EMBEDDING_ENABLED=true
+MINDORY_LLM_TEXT_EMBEDDING_PROVIDER=openai-compatible
+MINDORY_LLM_TEXT_EMBEDDING_MODEL=text-embedding-3-small
+MINDORY_LLM_TEXT_EMBEDDING_DIMENSIONS=1536
+MINDORY_LLM_OPENAI_COMPATIBLE_BASE_URL=https://api.openai.com/v1
+MINDORY_LLM_OPENAI_COMPATIBLE_AUTH_MODE=oauth-bearer
+MINDORY_LLM_OPENAI_OAUTH_ACCESS_TOKEN=<host-supplied-access-token>
 ```
 
 The OAuth bearer mode consumes a token supplied by a host runtime such as Codex
 or Hermes. Mindory does not perform an interactive OAuth login flow in the MVP.
 
-`MINDORY_MODEL_RUNTIME_OLLAMA_BASE_URL` configures the Ollama adapter and
+`MINDORY_LLM_OLLAMA_BASE_URL` configures the Ollama adapter and
 defaults to the Compose Ollama service URL. For the current pgvector MVP schema,
 the selected Ollama model must also return 1536-dimensional vectors:
 
 Ollama example:
 
 ```env
-MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_ENABLED=true
-MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_PROVIDER=ollama
-MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_MODEL=<1536-dimensional-local-embedding-model>
-MINDORY_MODEL_RUNTIME_TEXT_EMBEDDING_DIMENSIONS=1536
-MINDORY_MODEL_RUNTIME_OLLAMA_BASE_URL=http://ollama:11434
+MINDORY_LLM_TEXT_EMBEDDING_ENABLED=true
+MINDORY_LLM_TEXT_EMBEDDING_PROVIDER=ollama
+MINDORY_LLM_TEXT_EMBEDDING_MODEL=<1536-dimensional-local-embedding-model>
+MINDORY_LLM_TEXT_EMBEDDING_DIMENSIONS=1536
+MINDORY_LLM_OLLAMA_BASE_URL=http://ollama:11434
 ```
+
+`MINDORY_LLM_LOCAL_HTTP_BASE_URL` configures the optional local HTTP model
+service used by `local-http` roles. `MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS`
+controls the default guardrail for future `local-command` adapters.
 
 `MINDORY_VECTOR_PROVIDER` accepts `pgvector` or `qdrant`. `pgvector` is the
 default MVP runtime after `TASK-20`; Qdrant remains optional and profile-gated
