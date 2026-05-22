@@ -21,7 +21,8 @@ project/token.
 | Uninstall | Supported with explicit `--yes`; optional backup is written next to the removed home. |
 | Dependency detection | Supported through injectable probes and diagnostics. |
 | Lock, journal and recovery diagnostics | Supported. `repair` and `resume` inspect current state. |
-| Bootstrap staging and checksum verification | Supported for source/release-style bundles. |
+| Release bundle generation | Supported baseline through `pnpm release:bundle`. |
+| Bootstrap staging and checksum verification | Supported for source/release-style bundles, including local file paths and `file://` URLs. |
 | Real resume execution | Future work. Current resume output is diagnostic and tells the user what to rerun. |
 
 ## Core Package
@@ -101,9 +102,33 @@ MINDORY_RELEASE_BUNDLE_URL=https://example.com/mindory-1.2.3.tar.gz
 MINDORY_RELEASE_BUNDLE_SHA256=<sha256>
 ```
 
-The bootstrap verifies the bundle checksum before extraction. Signature
+`MINDORY_RELEASE_BUNDLE_URL` can be an HTTPS URL, an absolute or relative local
+path, or a `file://` URL. The bootstrap verifies the bundle checksum before
+extraction, extracts into a temporary staging directory and promotes the
+staged release only after extraction succeeds. If extraction or promotion fails,
+the previous release directory is left in place when present. Signature
 verification and release publication automation are future release hardening
 work.
+
+Create a local release-style bundle and matching manifest with:
+
+```bash
+pnpm release:bundle -- --version 0.1.0
+```
+
+By default this writes:
+
+```text
+dist/releases/mindory-0.1.0.tar.gz
+dist/releases/mindory-0.1.0.manifest.env
+```
+
+When `--url-base` is omitted, the generated manifest points at the bundle with a
+local `file://` URL for dev/test installs. For hosted releases, pass a base URL:
+
+```bash
+pnpm release:bundle -- --version 0.1.0 --url-base https://downloads.example.com/mindory
+```
 
 The bootstrap launches `bin/mindory-installer` when a packaged binary exists, or
 falls back to `node packages/installer/dist/cli.js wizard` for source-style

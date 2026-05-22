@@ -32,6 +32,7 @@ Environment:
 Manifest format:
   MINDORY_RELEASE_VERSION=1.2.3
   MINDORY_RELEASE_BUNDLE_URL=https://example/mindory.tar.gz
+  # Local paths and file:// URLs are also supported for dev/test releases.
   MINDORY_RELEASE_BUNDLE_SHA256=<hex>
 USAGE
 }
@@ -82,6 +83,35 @@ fetch_file() {
   fi
 }
 
+copy_or_fetch_file() {
+  source="$1"
+  output="$2"
+  case "$source" in
+    file://*)
+      local_path="$(printf '%s' "${source#file://}" | sed 's/%20/ /g')"
+      if [ ! -f "$local_path" ]; then
+        echo "Release bundle file does not exist: $local_path" >&2
+        exit 1
+      fi
+      cp "$local_path" "$output"
+      ;;
+    /*|./*|../*)
+      if [ ! -f "$source" ]; then
+        echo "Release bundle file does not exist: $source" >&2
+        exit 1
+      fi
+      cp "$source" "$output"
+      ;;
+    *)
+      if [ -f "$source" ]; then
+        cp "$source" "$output"
+      else
+        fetch_file "$source" "$output"
+      fi
+      ;;
+  esac
+}
+
 sha256_file() {
   target="$1"
   if command -v sha256sum >/dev/null 2>&1; then
@@ -98,6 +128,44 @@ manifest_value() {
   key="$1"
   file="$2"
   grep "^$key=" "$file" | tail -n 1 | cut -d '=' -f 2-
+}
+
+stage_release() {
+  bundle_path="$1"
+  release_version="$2"
+  release_dir="$3"
+  staging_dir="$MINDORY_HOME/install/releases/$release_version.staging.$$"
+  previous_dir="$MINDORY_HOME/install/releases/$release_version.previous.$$"
+
+  rm -rf "$staging_dir" "$previous_dir"
+  mkdir -p "$staging_dir"
+
+  echo "Extracting Mindory release $release_version into a staging directory..."
+  if ! tar -xzf "$bundle_path" -C "$staging_dir"; then
+    rm -rf "$staging_dir"
+    echo "Failed to extract release bundle. The installed release directory was not changed." >&2
+    exit 1
+  fi
+
+  extracted_root="$staging_dir/mindory-$release_version"
+  if [ ! -d "$extracted_root" ]; then
+    extracted_root="$staging_dir"
+  fi
+
+  if [ -d "$release_dir" ]; then
+    mv "$release_dir" "$previous_dir"
+  fi
+
+  if ! mv "$extracted_root" "$release_dir"; then
+    if [ -d "$previous_dir" ]; then
+      mv "$previous_dir" "$release_dir"
+    fi
+    rm -rf "$staging_dir"
+    echo "Failed to promote staged release. Previous release directory was restored when present." >&2
+    exit 1
+  fi
+
+  rm -rf "$staging_dir" "$previous_dir"
 }
 
 launch_installer() {
@@ -148,7 +216,7 @@ fi
 bundle_path="$MINDORY_HOME/install/downloads/mindory-$release_version.tar.gz"
 release_dir="$MINDORY_HOME/install/releases/$release_version"
 
-fetch_file "$bundle_url" "$bundle_path"
+copy_or_fetch_file "$bundle_url" "$bundle_path"
 actual_sha256="$(sha256_file "$bundle_path")"
 if [ "$actual_sha256" != "$bundle_sha256" ]; then
   echo "Checksum mismatch for $bundle_path." >&2
@@ -157,7 +225,7 @@ if [ "$actual_sha256" != "$bundle_sha256" ]; then
   exit 1
 fi
 
-mkdir -p "$release_dir"
-tar -xzf "$bundle_path" -C "$release_dir"
+echo "Verified Mindory release bundle checksum for $release_version."
+stage_release "$bundle_path" "$release_version" "$release_dir"
 
 launch_installer "$release_dir"

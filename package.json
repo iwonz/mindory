@@ -45,6 +45,7 @@
     "processing:validate": "node scripts/validate-processing-pipeline.js",
     "production:validate": "node scripts/validate-production-hardening.js",
     "queue:validate": "node scripts/validate-queue.js",
+    "release:bundle": "node scripts/build-release-bundle.js",
     "storage:validate": "pnpm --filter @mindory/storage-s3 typecheck && node scripts/validate-storage-adapters.js",
     "typecheck": "node scripts/typecheck-workspaces.js",
     "test": "node scripts/test-integration.js",
