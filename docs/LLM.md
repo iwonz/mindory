@@ -103,6 +103,15 @@ Workers that need OCR, ASR, vision, face or future generation state use
 read `config.llm.<role>` directly except for non-operation plumbing such as the
 current pgvector dimension guard.
 
+## Operation Audit
+
+`buildMindoryLlm` accepts an optional `auditSink` callback. The SDK calls it for
+disabled role attempts through `disabledResult` and for current text embedding
+provider calls with `success` or `failed` status, role, provider, model,
+duration, usage details when available and optional project/document/job/session
+refs. TASK-55 keeps this as an in-process hook; durable audit persistence is
+future work.
+
 ## Docker Profiles
 
 ```bash

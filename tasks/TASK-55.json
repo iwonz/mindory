@@ -1,0 +1,64 @@
+{
+  "id": "TASK-55",
+  "title": "Add LLM operation audit hooks",
+  "status": "done",
+  "type": "chore",
+  "priority": "high",
+  "branch": "task/TASK-55-llm-operation-audit",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Add structured audit logging for LLM disabled attempts and executed model calls.",
+    "background": "TASK-53 introduced audit result shapes and TASK-54 moved consumers through @mindory/llm. The runtime still needs an audit hook that records role, provider, model, duration, usage, status and operation refs when model operations are skipped or executed."
+  },
+  "scope": {
+    "in": [
+      "Add an @mindory/llm audit sink option.",
+      "Emit audit records for disabled role attempts.",
+      "Wrap current text embedding provider calls to emit success/failure audit records.",
+      "Include role, provider, model, duration, usage, status and optional project/document/job/session refs in the audit shape.",
+      "Update validators and docs for LLM audit behavior."
+    ],
+    "out": [
+      "Database-backed audit persistence.",
+      "Enterprise audit log schema.",
+      "Concrete OCR/ASR/vision/face provider implementation.",
+      "Installer implementation."
+    ]
+  },
+  "acceptance_criteria": [
+    "@mindory/llm exposes an audit sink option for operation audit records.",
+    "Disabled role attempts emit audit records with status disabled.",
+    "Text embedding calls emit success and failure audit records with duration and usage where available.",
+    "Consumers can pass operation refs without importing provider packages directly.",
+    "Docs describe current in-process audit sink behavior and that persistence is future work.",
+    "No database schema changes are included."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "pnpm llm:validate",
+      "pnpm typecheck",
+      "pnpm lint",
+      "pnpm tasks:validate",
+      "pnpm test",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-55.",
+      "Confirm packages/db/drizzle/0000_initial_schema.sql is unchanged."
+    ]
+  },
+  "dependencies": [
+    "TASK-54"
+  ],
+  "risks": [
+    "Audit wrapper must preserve the existing EmbeddingsProvider interface.",
+    "Failures must be audited and rethrown so existing retry semantics are unchanged."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch is committed and merged back into master."
+  ]
+}

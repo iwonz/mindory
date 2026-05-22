@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-54",
+  "current_task_id": "TASK-55",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -414,6 +414,13 @@
       "status": "done",
       "branch": "task/TASK-54-llm-consumer-migration",
       "file": "tasks/TASK-54.json"
+    },
+    {
+      "id": "TASK-55",
+      "title": "Add LLM operation audit hooks",
+      "status": "done",
+      "branch": "task/TASK-55-llm-operation-audit",
+      "file": "tasks/TASK-55.json"
     }
   ]
 }
