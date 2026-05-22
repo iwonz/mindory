@@ -84,10 +84,12 @@ for (const token of [
   "LocalHttpOcrProvider",
   "LocalHttpVisionProvider",
   "LocalHttpAsrProvider",
+  "LocalHttpFaceProvider",
   "buildMindoryChatProvider",
   "buildMindoryOcrProvider",
   "buildMindoryVisionProvider",
   "buildMindoryAsrProvider",
+  "buildMindoryFaceProvider",
   "checkMindoryLlmProviderHealth",
   "healthCheck",
   "/chat/completions",
@@ -95,6 +97,8 @@ for (const token of [
   "/ocr",
   "/vision/caption",
   "/asr",
+  "/faces/detect",
+  "/faces/recognize",
   "inputTokens",
   "outputTokens",
   "LlmTextEmbeddingProvider",
@@ -103,6 +107,8 @@ for (const token of [
   "LlmAsrOutput",
   "LlmVisionProvider",
   "LlmFaceProvider",
+  "LlmFaceDetectionOutput",
+  "LlmFaceRecognitionOutput",
   "LlmGenerationProvider",
   "openAiCompatibleBearerToken",
   "oauth-bearer",
@@ -340,6 +346,12 @@ const localConfig = loadMindoryConfig({
   MINDORY_LLM_ASR_ENABLED: "true",
   MINDORY_LLM_ASR_PROVIDER: "local-http",
   MINDORY_LLM_ASR_MODEL: "local-asr",
+  MINDORY_LLM_FACE_DETECTION_ENABLED: "true",
+  MINDORY_LLM_FACE_DETECTION_PROVIDER: "local-http",
+  MINDORY_LLM_FACE_DETECTION_MODEL: "local-face-detect",
+  MINDORY_LLM_FACE_RECOGNITION_ENABLED: "true",
+  MINDORY_LLM_FACE_RECOGNITION_PROVIDER: "local-http",
+  MINDORY_LLM_FACE_RECOGNITION_MODEL: "local-face-recognize",
   MINDORY_LLM_VISION_CAPTIONING_ENABLED: "true",
   MINDORY_LLM_VISION_CAPTIONING_PROVIDER: "local-http",
   MINDORY_LLM_VISION_CAPTIONING_MODEL: "local-vision",
@@ -386,6 +398,16 @@ const localRuntime = buildMindoryLlm(localConfig, {
         segments: [{ segment_index: 0, text: "local http asr transcript", start_ms: 0, end_ms: 1000, confidence: 0.98 }]
       }), { status: 200 });
     }
+    if (href.endsWith("/faces/detect") || href.endsWith("/faces/recognize")) {
+      return new Response(JSON.stringify({
+        faces: [{
+          bounding_box: { x: 0.1, y: 0.2, width: 0.3, height: 0.4, unit: "ratio" },
+          embedding: [0.1, 0.2, 0.3],
+          confidence: 0.99,
+          label: "test-face"
+        }]
+      }), { status: 200 });
+    }
     if (href.endsWith("/health") || href.endsWith("/api/tags")) {
       return new Response(JSON.stringify({ status: "ok" }), { status: 200 });
     }
@@ -397,6 +419,7 @@ assert(localRuntime.textEmbeddings !== undefined, "Local HTTP text embeddings pr
 assert(localRuntime.ocr !== undefined, "Local HTTP OCR provider must be built when OCR is enabled.");
 assert(localRuntime.asr !== undefined, "Local HTTP ASR provider must be built when ASR is enabled.");
 assert(localRuntime.vision !== undefined, "Local HTTP vision provider must be built when vision captioning is enabled.");
+assert(localRuntime.faces !== undefined, "Local HTTP face provider must be built when face roles are enabled.");
 const localChatResult = await localRuntime.chat.generateChat({
   messages: [{ role: "user", content: "hello" }]
 }, {
@@ -434,11 +457,30 @@ const localVisionResult = await localRuntime.vision.captionImage({
 });
 assert(localVisionResult.status === "success", "Local HTTP vision provider must return success.");
 assert(localVisionResult.value?.caption === "local http vision caption", "Local HTTP vision provider must parse caption text.");
+const localFaceDetectResult = await localRuntime.faces.detectFaces({
+  bytes: new TextEncoder().encode("fake image bytes"),
+  mimeType: "image/png"
+}, {
+  role: localRuntime.registry.require("face-detection"),
+  refs: { documentId: "doc-local" }
+});
+assert(localFaceDetectResult.status === "success", "Local HTTP face detection provider must return success.");
+assert(localFaceDetectResult.value?.faces?.[0]?.embedding?.length === 3, "Local HTTP face detection provider must parse face embeddings.");
+const localFaceRecognitionResult = await localRuntime.faces.recognizeFaces({
+  bytes: new TextEncoder().encode("fake image bytes"),
+  mimeType: "image/png"
+}, {
+  role: localRuntime.registry.require("face-recognition"),
+  refs: { documentId: "doc-local" }
+});
+assert(localFaceRecognitionResult.status === "success", "Local HTTP face recognition provider must return success.");
 assert(localRequests.some((request) => request.url === "http://llm.local:8080/chat/completions"), "Local HTTP chat provider must call /chat/completions.");
 assert(localRequests.some((request) => request.url === "http://llm.local:8080/embeddings"), "Local HTTP embeddings provider must call /embeddings.");
 assert(localRequests.some((request) => request.url === "http://llm.local:8080/ocr"), "Local HTTP OCR provider must call /ocr.");
 assert(localRequests.some((request) => request.url === "http://llm.local:8080/asr"), "Local HTTP ASR provider must call /asr.");
 assert(localRequests.some((request) => request.url === "http://llm.local:8080/vision/caption"), "Local HTTP vision provider must call /vision/caption.");
+assert(localRequests.some((request) => request.url === "http://llm.local:8080/faces/detect"), "Local HTTP face detection provider must call /faces/detect.");
+assert(localRequests.some((request) => request.url === "http://llm.local:8080/faces/recognize"), "Local HTTP face recognition provider must call /faces/recognize.");
 const localHealth = await localRuntime.healthCheck("local-http");
 assert(localHealth.status === "ok", "Local HTTP health check must succeed against /health.");
 const ollamaHealth = await localRuntime.healthCheck("ollama");
@@ -450,6 +492,8 @@ assert(localAudits.some((audit) => audit.role === "text-embedding" && audit.prov
 assert(localAudits.some((audit) => audit.role === "ocr" && audit.provider === "local-http" && audit.status === "success"), "Local HTTP OCR must emit success audit.");
 assert(localAudits.some((audit) => audit.role === "asr" && audit.provider === "local-http" && audit.status === "success"), "Local HTTP ASR must emit success audit.");
 assert(localAudits.some((audit) => audit.role === "vision-captioning" && audit.provider === "local-http" && audit.status === "success"), "Local HTTP vision must emit success audit.");
+assert(localAudits.some((audit) => audit.role === "face-detection" && audit.provider === "local-http" && audit.status === "success"), "Local HTTP face detection must emit success audit.");
+assert(localAudits.some((audit) => audit.role === "face-recognition" && audit.provider === "local-http" && audit.status === "success"), "Local HTTP face recognition must emit success audit.");
 
 console.log("LLM SDK adapter validated.");
 

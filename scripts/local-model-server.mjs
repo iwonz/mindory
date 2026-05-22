@@ -98,6 +98,16 @@ const server = http.createServer(async (request, response) => {
       return;
     }
 
+    if (request.method === "POST" && (url.pathname === "/faces/detect" || url.pathname === "/faces/recognize")) {
+      const body = await readJson(request);
+      const model = stringOrDefault(body.model, "mindory-local-face");
+      writeJson(response, 200, {
+        model,
+        faces: deterministicFaces(model)
+      });
+      return;
+    }
+
     if (request.method === "POST" && url.pathname === "/chat/completions") {
       const body = await readJson(request);
       const model = stringOrDefault(body.model, "mindory-local-chat");
@@ -186,4 +196,19 @@ function positiveInteger(value, fallback) {
 
 function tokenEstimate(text) {
   return Math.max(1, Math.ceil(String(text).trim().split(/\s+/).filter(Boolean).length * 1.3));
+}
+
+function deterministicFaces(model) {
+  return [0, 1, 2].map((index) => ({
+    bounding_box: {
+      x: 0.1 + index * 0.22,
+      y: 0.2,
+      width: 0.16,
+      height: 0.32,
+      unit: "ratio"
+    },
+    embedding: deterministicEmbedding(`face:${model}:${index}`, model, 512),
+    confidence: 0.97,
+    label: `local-face-${index + 1}`
+  }));
 }

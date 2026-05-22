@@ -595,6 +595,8 @@ async function uploadAndProcessImageDocument(apiUrl) {
   assert.equal(document.metadata.extraction.image_semantic, true);
   assert.equal(document.metadata.extraction.capabilities.ocr.status, "provider_ocr");
   assert.equal(document.metadata.extraction.capabilities.image_captioning.status, "provider_caption");
+  assert.equal(document.metadata.extraction.capabilities.face_detection.status, "provider_detected");
+  assert.equal(document.metadata.extraction.capabilities.face_recognition.status, "provider_recognized");
 
   const search = await requestJson(apiUrl, "POST", "/v1/documents/search", {
     projectIds: [projectId],
@@ -1263,7 +1265,7 @@ function startOpenAiCompatibleEmbeddingServer(options) {
 function startLocalHttpOcrServer(options) {
   const calls = [];
   const server = http.createServer(async (request, response) => {
-    if (request.method !== "POST" || !["/ocr", "/vision/caption", "/asr"].includes(request.url ?? "")) {
+    if (request.method !== "POST" || !["/ocr", "/vision/caption", "/asr", "/faces/detect", "/faces/recognize"].includes(request.url ?? "")) {
       response.writeHead(404, { "content-type": "application/json" });
       response.end(JSON.stringify({ error: "not_found" }));
       return;
@@ -1296,6 +1298,25 @@ function startLocalHttpOcrServer(options) {
             confidence: segment.confidence
           })),
           duration_seconds: 1
+        }));
+        return;
+      }
+      if (request.url === "/faces/detect" || request.url === "/faces/recognize") {
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(JSON.stringify({
+          model: body.model ?? "mindory-test-face",
+          faces: [0, 1, 2].map((index) => ({
+            bounding_box: {
+              x: 0.1 + index * 0.22,
+              y: 0.2,
+              width: 0.16,
+              height: 0.32,
+              unit: "ratio"
+            },
+            embedding: oneHotEmbedding(index, 512),
+            confidence: 0.97,
+            label: `person-${index + 1}`
+          }))
         }));
         return;
       }
@@ -1380,6 +1401,10 @@ function videoFrameOcrText(text) {
     return `Frame OCR provider text ${text.replace(/^video-frame\s+/, "")}.`;
   }
   return null;
+}
+
+function oneHotEmbedding(index, dimensions) {
+  return Array.from({ length: dimensions }, (_, valueIndex) => valueIndex === index ? 1 : 0);
 }
 
 function readRequestBody(request) {

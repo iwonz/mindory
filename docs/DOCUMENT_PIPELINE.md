@@ -208,12 +208,19 @@ metadata/embedded text extraction. If a role is marked required and its
 provider fails or returns no usable output, extraction fails with a readable
 processing error.
 
-When face detection is enabled, the same fallback extractor can create
-workspace-scoped face observations from explicit people-count signals in the
-filename or embedded image text. The worker records deterministic
-512-dimensional face embeddings, auto-matches them against existing project
-observations through `FaceService`, creates candidate identities when no match
-reaches the threshold and keeps the RAW image unchanged.
+When `MINDORY_LLM_FACE_DETECTION_ENABLED=true` and
+`MINDORY_LLM_FACE_DETECTION_PROVIDER=local-http`, the image extractor calls
+`@mindory/llm` over `POST /faces/detect`. When face recognition is enabled with
+the same provider, it also calls `POST /faces/recognize` for provider
+embeddings. Provider boxes, embeddings, confidence and labels become derived
+`face_observation` artifacts and workspace-scoped face observation rows. The
+worker auto-matches them against existing project observations through
+`FaceService`, creates candidate identities when no match reaches the threshold
+and keeps the RAW image unchanged.
+
+If face providers are disabled, the same extractor can still create fallback
+face observations from explicit people-count signals in the filename or
+embedded image text.
 
 ## Audio Processing
 

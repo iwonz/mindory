@@ -65,7 +65,7 @@ All model operations must go through `@mindory/llm`.
 | OCR | Experimental role, supported PDF/image paths | Scanned-PDF and image OCR run through `@mindory/llm` local HTTP OCR when enabled. |
 | Vision captioning and image embeddings | Experimental | Image vision captioning runs through `@mindory/llm` local HTTP when enabled; image embeddings remain future hardening. |
 | ASR | Experimental | Audio ASR runs through `@mindory/llm` local HTTP when enabled; embedded WAV transcript fallback remains supported. |
-| Face detection and recognition | Experimental | Workspace data model exists; real adapters are future hardening. |
+| Face detection and recognition | Experimental | Local HTTP face detection/recognition runs through `@mindory/llm` when enabled; observations remain workspace-scoped and auto-matched by threshold. |
 | Image/audio generation | Future | Role placeholders exist for configuration planning only. |
 
 Installer and config validation require

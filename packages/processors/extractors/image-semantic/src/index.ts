@@ -7,7 +7,7 @@ import {
   type ExtractTextInput,
   type TextExtractor
 } from "@mindory/core/processing";
-import type { LlmOcrProvider, LlmRoleDescriptor, LlmVisionProvider } from "@mindory/llm";
+import type { LlmFaceObservationOutput, LlmFaceProvider, LlmOcrProvider, LlmRoleDescriptor, LlmVisionProvider } from "@mindory/llm";
 
 export interface ImageSemanticExtractorOptions {
   faceDetection?: ModelCapabilityState;
@@ -19,6 +19,9 @@ export interface ImageSemanticExtractorOptions {
   ocrRole?: LlmRoleDescriptor;
   visionProvider?: LlmVisionProvider;
   visionRole?: LlmRoleDescriptor;
+  faceProvider?: LlmFaceProvider;
+  faceDetectionRole?: LlmRoleDescriptor;
+  faceRecognitionRole?: LlmRoleDescriptor;
 }
 
 export interface ModelCapabilityState {
@@ -53,6 +56,9 @@ export class ImageSemanticExtractor implements TextExtractor {
   private readonly ocrRole: LlmRoleDescriptor | undefined;
   private readonly visionProvider: LlmVisionProvider | undefined;
   private readonly visionRole: LlmRoleDescriptor | undefined;
+  private readonly faceProvider: LlmFaceProvider | undefined;
+  private readonly faceDetectionRole: LlmRoleDescriptor | undefined;
+  private readonly faceRecognitionRole: LlmRoleDescriptor | undefined;
 
   constructor(options: ImageSemanticExtractorOptions = {}) {
     this.faceDetection = options.faceDetection ?? disabledCapability();
@@ -64,6 +70,9 @@ export class ImageSemanticExtractor implements TextExtractor {
     this.ocrRole = options.ocrRole;
     this.visionProvider = options.visionProvider;
     this.visionRole = options.visionRole;
+    this.faceProvider = options.faceProvider;
+    this.faceDetectionRole = options.faceDetectionRole;
+    this.faceRecognitionRole = options.faceRecognitionRole;
   }
 
   supports(document: { originalFilename: string; mimeType: string }): boolean {
@@ -85,7 +94,8 @@ export class ImageSemanticExtractor implements TextExtractor {
     const ocrText = modelResult.ocrText;
 
     const labels = buildImageLabels(metadata, modelResult.labels);
-    const faceCount = this.faceDetection.enabled ? readPeopleCount(labels, ocrText) : 0;
+    const faceResult = await this.runFaceOperations({ bytes, input, labels, ocrText });
+    const faceCount = faceResult.observations.length;
     const caption = modelResult.caption ?? buildCaption(metadata, labels);
     const analysis = buildAnalysis(metadata, labels, ocrText);
     const semanticText = [
@@ -112,12 +122,7 @@ export class ImageSemanticExtractor implements TextExtractor {
         imageCaptioningStatus: modelResult.visionStatus,
         ocrStatus: modelResult.ocrStatus
       }),
-      faceObservations: buildFaceObservations({
-        count: faceCount,
-        metadata,
-        faceDetection: this.faceDetection,
-        faceRecognition: this.faceRecognition
-      }),
+      faceObservations: faceResult.observations,
       metadata: {
         extractor: this.name,
         extractor_version: this.version,
@@ -130,8 +135,8 @@ export class ImageSemanticExtractor implements TextExtractor {
         face_count: faceCount,
         embedded_text_count: metadata.embeddedText.length,
         capabilities: {
-          face_detection: capabilitySnapshot(this.faceDetection, faceCount > 0 ? "fallback_people_count_detected" : this.faceDetection.enabled ? "no_people_count_detected" : "disabled"),
-          face_recognition: capabilitySnapshot(this.faceRecognition, faceCount > 0 ? "fallback_deterministic_embeddings" : this.faceRecognition.enabled ? "no_faces_to_embed" : "disabled"),
+          face_detection: capabilitySnapshot(this.faceDetection, faceResult.detectionStatus),
+          face_recognition: capabilitySnapshot(this.faceRecognition, faceResult.recognitionStatus),
           image_captioning: capabilitySnapshot(this.imageCaptioning, modelResult.visionStatus),
           image_embedding: capabilitySnapshot(this.imageEmbedding, this.imageEmbedding.enabled ? "skipped_no_adapter" : "disabled"),
           ocr: capabilitySnapshot(this.ocr, modelResult.ocrStatus)
@@ -212,6 +217,115 @@ export class ImageSemanticExtractor implements TextExtractor {
       visionStatus
     };
   }
+
+  private async runFaceOperations(input: {
+    bytes: Buffer;
+    input: ExtractTextInput;
+    labels: string[];
+    ocrText: string;
+  }): Promise<{
+    observations: ExtractedFaceObservation[];
+    detectionStatus: string;
+    recognitionStatus: string;
+  }> {
+    if (this.faceDetection.enabled && this.faceProvider !== undefined && this.faceDetectionRole !== undefined) {
+      const detected = await this.faceProvider.detectFaces({
+        bytes: input.bytes,
+        mimeType: input.input.document.mimeType
+      }, {
+        role: this.faceDetectionRole,
+        refs: {
+          projectId: input.input.document.projectId,
+          documentId: input.input.document.id
+        }
+      });
+      if (detected.status === "success" && detected.value !== undefined && detected.value.faces.length > 0) {
+        const recognizedFaces = await this.recognizeFaces(input, detected.value.faces);
+        return {
+          observations: buildProviderFaceObservations({
+            faces: recognizedFaces.faces.length > 0 ? recognizedFaces.faces : detected.value.faces,
+            faceDetection: this.faceDetection,
+            faceRecognition: this.faceRecognition,
+            recognitionStatus: recognizedFaces.status
+          }),
+          detectionStatus: "provider_detected",
+          recognitionStatus: recognizedFaces.status
+        };
+      }
+      if (this.faceDetection.required) {
+        throw new ProcessingError("text_extraction_failed", detected.audit.errorMessage ?? "Face detection provider returned no faces.");
+      }
+      if (detected.status === "failed") {
+        return {
+          observations: fallbackFaceObservations(input.labels, input.ocrText, this.faceDetection, this.faceRecognition),
+          detectionStatus: "provider_failed",
+          recognitionStatus: this.faceRecognition.enabled ? "skipped_detection_failed" : "disabled"
+        };
+      }
+    } else if (this.faceDetection.enabled && this.faceDetection.required) {
+      throw new ProcessingError("text_extraction_failed", "Face detection is required, but no concrete face adapter is configured.");
+    }
+
+    const observations = fallbackFaceObservations(input.labels, input.ocrText, this.faceDetection, this.faceRecognition);
+    const detectionStatus = observations.length > 0
+      ? "fallback_people_count_detected"
+      : this.faceDetection.enabled ? "no_people_count_detected" : "disabled";
+    const recognitionStatus = observations.length > 0
+      ? "fallback_deterministic_embeddings"
+      : this.faceRecognition.enabled ? "no_faces_to_embed" : "disabled";
+    return {
+      observations,
+      detectionStatus,
+      recognitionStatus
+    };
+  }
+
+  private async recognizeFaces(input: {
+    bytes: Buffer;
+    input: ExtractTextInput;
+  }, detectedFaces: LlmFaceObservationOutput[]): Promise<{
+    faces: LlmFaceObservationOutput[];
+    status: string;
+  }> {
+    if (!this.faceRecognition.enabled) {
+      return {
+        faces: detectedFaces,
+        status: "disabled"
+      };
+    }
+    if (this.faceProvider === undefined || this.faceRecognitionRole === undefined) {
+      if (this.faceRecognition.required) {
+        throw new ProcessingError("text_extraction_failed", "Face recognition is required, but no concrete face adapter is configured.");
+      }
+      return {
+        faces: detectedFaces,
+        status: detectedFaces.some((face) => Array.isArray(face.embedding) && face.embedding.length > 0) ? "provider_embeddings_from_detection" : "skipped_no_adapter"
+      };
+    }
+    const recognized = await this.faceProvider.recognizeFaces({
+      bytes: input.bytes,
+      mimeType: input.input.document.mimeType
+    }, {
+      role: this.faceRecognitionRole,
+      refs: {
+        projectId: input.input.document.projectId,
+        documentId: input.input.document.id
+      }
+    });
+    if (recognized.status === "success" && recognized.value !== undefined && recognized.value.faces.length > 0) {
+      return {
+        faces: mergeRecognizedFaces(detectedFaces, recognized.value.faces),
+        status: "provider_recognized"
+      };
+    }
+    if (this.faceRecognition.required) {
+      throw new ProcessingError("text_extraction_failed", recognized.audit.errorMessage ?? "Face recognition provider returned no embeddings.");
+    }
+    return {
+      faces: detectedFaces,
+      status: recognized.status === "failed" ? "provider_failed" : "provider_no_embeddings"
+    };
+  }
 }
 
 function buildSemanticArtifacts(input: {
@@ -286,9 +400,51 @@ function buildSemanticArtifacts(input: {
   return artifacts;
 }
 
-function buildFaceObservations(input: {
+function fallbackFaceObservations(
+  labels: string[],
+  ocrText: string,
+  faceDetection: ModelCapabilityState,
+  faceRecognition: ModelCapabilityState
+): ExtractedFaceObservation[] {
+  const count = faceDetection.enabled ? readPeopleCount(labels, ocrText) : 0;
+  return buildFallbackFaceObservations({
+    count,
+    faceDetection,
+    faceRecognition
+  });
+}
+
+function buildProviderFaceObservations(input: {
+  faces: LlmFaceObservationOutput[];
+  faceDetection: ModelCapabilityState;
+  faceRecognition: ModelCapabilityState;
+  recognitionStatus: string;
+}): ExtractedFaceObservation[] {
+  return input.faces.map((face, index) => ({
+    observationIndex: index,
+    content: `Face observation ${index + 1} detected by provider.`,
+    boundingBox: face.boundingBox,
+    embedding: Array.isArray(face.embedding) ? face.embedding : null,
+    model: input.faceRecognition.model || input.faceDetection.model || null,
+    confidence: face.confidence ?? null,
+    metadata: {
+      source: "llm_face_provider",
+      label: face.label ?? null,
+      detection_capability: capabilitySnapshot(input.faceDetection, "provider_detected"),
+      recognition_capability: capabilitySnapshot(input.faceRecognition, input.recognitionStatus)
+    }
+  }));
+}
+
+function mergeRecognizedFaces(detected: LlmFaceObservationOutput[], recognized: LlmFaceObservationOutput[]): LlmFaceObservationOutput[] {
+  return detected.map((face, index) => ({
+    ...face,
+    ...(recognized[index] ?? {})
+  }));
+}
+
+function buildFallbackFaceObservations(input: {
   count: number;
-  metadata: ImageMetadata;
   faceDetection: ModelCapabilityState;
   faceRecognition: ModelCapabilityState;
 }): ExtractedFaceObservation[] {
@@ -305,8 +461,6 @@ function buildFaceObservations(input: {
     confidence: 0.5,
     metadata: {
       source: "fallback_people_count",
-      image_width: input.metadata.width,
-      image_height: input.metadata.height,
       detection_capability: capabilitySnapshot(input.faceDetection, "fallback_people_count_detected"),
       recognition_capability: capabilitySnapshot(input.faceRecognition, "fallback_deterministic_embeddings")
     }

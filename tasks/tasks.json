@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-79",
+  "current_task_id": "TASK-80",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -589,6 +589,13 @@
       "status": "done",
       "branch": "task/TASK-79-video-keyframe-extraction-pipeline",
       "file": "tasks/TASK-79.json"
+    },
+    {
+      "id": "TASK-80",
+      "title": "Add face detection and recognition pipeline",
+      "status": "done",
+      "branch": "task/TASK-80-face-detection-recognition-pipeline",
+      "file": "tasks/TASK-80.json"
     }
   ]
 }
