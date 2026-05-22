@@ -1,0 +1,68 @@
+{
+  "id": "TASK-72",
+  "title": "Clean up LLM provider support matrix",
+  "status": "done",
+  "type": "chore",
+  "priority": "high",
+  "branch": "task/TASK-72-llm-provider-support-matrix-cleanup",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Centralize LLM role/provider support levels and enforce unsupported model choices through config and installer validation.",
+    "background": "TASK-71 added release automation. Before real provider adapters expand, public users need accurate supported/experimental/future model-role gating."
+  },
+  "scope": {
+    "in": [
+      "Add an LLM role/provider support matrix to the config catalog.",
+      "Expose the support matrix from @mindory/llm.",
+      "Classify supported, experimental and future roles/providers based on current implementation.",
+      "Require experimental mode before enabling experimental/future roles or selecting non-supported providers.",
+      "Keep disabled roles valid without experimental mode.",
+      "Update installer validation and wizard behavior.",
+      "Update LLM/config/support docs and generated .env.example comments.",
+      "Add validation coverage for the support matrix and installer gating."
+    ],
+    "out": [
+      "Implementing new provider adapters.",
+      "Changing runtime behavior for disabled roles.",
+      "Adding model downloads or local model runners.",
+      "Changing vector dimensions beyond the current pgvector schema."
+    ]
+  },
+  "acceptance_criteria": [
+    "The config catalog defines role/provider support statuses.",
+    "@mindory/llm exports the role/provider support matrix.",
+    "Text embeddings are marked supported for OpenAI-compatible and Ollama providers.",
+    "Non-text roles are marked experimental or future according to current implementation.",
+    "Installer validation blocks experimental/future enabled roles and providers unless experimental mode is enabled.",
+    "Runtime config validation blocks experimental/future enabled roles and providers unless experimental mode is enabled.",
+    "Docs describe the support matrix and experimental flag behavior.",
+    "pnpm check passes."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm config:generate",
+      "pnpm llm:validate",
+      "pnpm installer:validate",
+      "pnpm config:validate",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-72.",
+      "Confirm no new provider adapter implementation was added."
+    ]
+  },
+  "dependencies": [
+    "TASK-71"
+  ],
+  "risks": [
+    "Changing support statuses can break tests that intentionally enable experimental roles.",
+    "Docs and generated env comments must not overstate unsupported model operations."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch is committed and merged back into master."
+  ]
+}

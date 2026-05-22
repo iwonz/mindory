@@ -64,6 +64,10 @@ for (const token of [
   "LlmRoleRegistry",
   "LlmRoleDescriptor",
   "LlmProviderDescriptor",
+  "LlmRoleSupportDescriptor",
+  "LLM_ROLE_PROVIDER_SUPPORT_MATRIX",
+  "llmRoleSupportStatus",
+  "llmRoleProviderSupportStatus",
   "LlmOperationResult",
   "LlmOperationAudit",
   "LlmAuditSink",
@@ -123,6 +127,10 @@ for (const token of [
 }
 
 for (const token of [
+  "LLM_ROLE_SUPPORT_CATALOG",
+  "LLM_PROVIDER_VALUES",
+  "llmRoleSupportStatus",
+  "llmRoleProviderSupportStatus",
   "llmRoleEntries(\"CHAT\"",
   "llmRoleEntries(\"TEXT_EMBEDDING\"",
   "llmRoleEntries(\"VISION_CAPTIONING\"",
@@ -196,6 +204,7 @@ for (const source of [apiRuntime, workerPipeline]) {
 assertIncludes(apiRuntime, "config.llm.textEmbedding.dimensions", "apps/api/src/runtime.ts");
 assertIncludes(workerRuntime, "config.llm.textEmbedding.dimensions", "apps/worker/src/runtime.ts");
 assertIncludes(integration, "MINDORY_LLM_TEXT_EMBEDDING_ENABLED", "scripts/test-integration.js");
+assertIncludes(integration, "MINDORY_INSTALL_ALLOW_EXPERIMENTAL", "scripts/test-integration.js");
 assertIncludes(workerPipeline, "llmRoleState(llm, \"asr\")", "apps/worker/src/document-pipeline.ts");
 assertIncludes(workerPipeline, "llmRoleState(llm, \"ocr\")", "apps/worker/src/document-pipeline.ts");
 assertIncludes(workerPipeline, "llmRoleState(llm, \"vision-captioning\")", "apps/worker/src/document-pipeline.ts");
@@ -236,6 +245,16 @@ for (const [label, content] of [
   assertNotIncludes(content, "@mindory/model-runtime", label);
   assertNotIncludes(content, "packages/model-runtime", label);
   assertNotIncludes(content, "MINDORY_MODEL_RUNTIME", label);
+}
+
+for (const token of [
+  "Support Matrix",
+  "`text-embedding` | supported",
+  "`chat` | experimental",
+  "`image-generation` | future",
+  "MINDORY_INSTALL_ALLOW_EXPERIMENTAL=true"
+]) {
+  assertIncludes(docs, token, "LLM SDK docs");
 }
 
 console.log("LLM SDK adapter validated.");

@@ -19,7 +19,10 @@ import { cwd as processCwd, env as processEnv, pid as processPid, stdin as defau
 import { createInterface, type Interface as ReadlineInterface } from "node:readline/promises";
 import {
   CONFIG_CATALOG,
+  llmRoleProviderSupportStatus,
+  llmRoleSupportStatus,
   type AntivirusMode,
+  type ConfigSupportStatus,
   type ConfigCatalogEntry,
   type InstallDependencyPolicy,
   type InstallProfile,
@@ -452,6 +455,21 @@ export function validateInstallAnswers(answers: MindoryInstallAnswers): string[]
       continue;
     }
     validateCatalogValue(errors, `MINDORY_LLM_${role}_PROVIDER`, roleAnswers.provider);
+    const roleKey = role as InstallerLlmRoleKey;
+    if (roleAnswers.enabled && roleSupportRequiresExperimental(llmRoleSupportStatus(roleKey)) && !answers.allowExperimental) {
+      errors.push(`llmRoles.${role}.enabled requires experimental mode because the role is ${llmRoleSupportStatus(roleKey)}.`);
+    }
+    if (roleAnswers.enabled && roleAnswers.provider === "disabled") {
+      errors.push(`llmRoles.${role}.provider cannot be disabled when the role is enabled.`);
+    }
+    if (
+      roleAnswers.enabled &&
+      roleAnswers.provider !== "disabled" &&
+      roleSupportRequiresExperimental(llmRoleProviderSupportStatus(roleKey, roleAnswers.provider)) &&
+      !answers.allowExperimental
+    ) {
+      errors.push(`llmRoles.${role}.provider ${roleAnswers.provider} requires experimental mode because it is ${llmRoleProviderSupportStatus(roleKey, roleAnswers.provider)} for this role.`);
+    }
     if (roleAnswers.timeoutMs <= 0) {
       errors.push(`llmRoles.${role}.timeoutMs must be greater than zero.`);
     }
@@ -1085,7 +1103,8 @@ export async function runInstallWizard(io: WizardIo, options: WizardOptions = {}
   answers.modalities.videoMaxKeyframes = await askNumber(io, promptFromCatalog("modalities.video_max_keyframes", "MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES", "number"));
 
   for (const role of LLM_ROLE_KEYS) {
-    const roleAllowed = roleSupportStatus(role) === "supported" || answers.allowExperimental || options.allowExperimental === true;
+    const experimentalAllowed = answers.allowExperimental || options.allowExperimental === true;
+    const roleAllowed = roleSupportStatus(role) === "supported" || experimentalAllowed;
     const enabled = await askBoolean(io, promptFromCatalog(`llm.${role}.enabled`, `MINDORY_LLM_${role}_ENABLED`, "boolean"));
     if (enabled && !roleAllowed) {
       throw new Error(`MINDORY_LLM_${role} is ${roleSupportStatus(role)} and requires experimental mode.`);
@@ -1109,6 +1128,13 @@ export async function runInstallWizard(io: WizardIo, options: WizardOptions = {}
       timeoutMs: await askNumber(io, promptFromCatalog(`llm.${role}.timeout_ms`, `MINDORY_LLM_${role}_TIMEOUT_MS`, "number")),
       concurrency: await askNumber(io, promptFromCatalog(`llm.${role}.concurrency`, `MINDORY_LLM_${role}_CONCURRENCY`, "number"))
     };
+    if (
+      roleAnswers.provider !== "disabled" &&
+      roleSupportRequiresExperimental(llmRoleProviderSupportStatus(role, roleAnswers.provider)) &&
+      !experimentalAllowed
+    ) {
+      throw new Error(`MINDORY_LLM_${role}_PROVIDER=${roleAnswers.provider} is ${llmRoleProviderSupportStatus(role, roleAnswers.provider)} and requires experimental mode.`);
+    }
     const dimensionsEntry = maybeCatalogEntry(`MINDORY_LLM_${role}_DIMENSIONS`);
     if (dimensionsEntry !== undefined) {
       const dimensions = await askString(io, promptFromEntry(`llm.${role}.dimensions`, dimensionsEntry, "number"));
@@ -1782,7 +1808,11 @@ function promptIdToEnvName(promptId: string): string | undefined {
 }
 
 function roleSupportStatus(role: InstallerLlmRoleKey): string {
-  return catalogEntry(`MINDORY_LLM_${role}_ENABLED`).supportStatus;
+  return llmRoleSupportStatus(role);
+}
+
+function roleSupportRequiresExperimental(status: ConfigSupportStatus): boolean {
+  return status !== "supported";
 }
 
 function catalogEntry(name: string): ConfigCatalogEntry {

@@ -62,6 +62,10 @@ All model operations must go through `@mindory/llm`.
 | Face detection and recognition | Experimental | Workspace data model exists; real adapters are future hardening. |
 | Image/audio generation | Future | Role placeholders exist for configuration planning only. |
 
+Installer and config validation require
+`MINDORY_INSTALL_ALLOW_EXPERIMENTAL=true` before enabling experimental or future
+model roles, or before selecting a non-supported provider for a supported role.
+
 ## Security And Operations
 
 | Area | Status | Notes |

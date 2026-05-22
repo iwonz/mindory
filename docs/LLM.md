@@ -32,6 +32,29 @@ disabled/non-blocking model capabilities and deterministic embedded fixtures.
 Use the `local-models` profile for a lightweight local LLM placeholder
 or the `ollama` profile for a real Ollama service.
 
+## Support Matrix
+
+`@mindory/llm` exports the role/provider support matrix, and the config catalog
+uses the same matrix for defaults, env metadata and installer gating.
+
+| Role | Role status | Supported providers | Experimental providers | Future providers |
+| --- | --- | --- | --- | --- |
+| `text-embedding` | supported | `disabled`, `openai-compatible`, `ollama` | `local-http` | `local-command` |
+| `chat` | experimental | `disabled` | `openai-compatible`, `ollama` | `local-http`, `local-command` |
+| `image-embedding` | experimental | `disabled` | `local-http` | `openai-compatible`, `ollama`, `local-command` |
+| `vision-captioning` | experimental | `disabled` | `openai-compatible`, `local-http` | `ollama`, `local-command` |
+| `ocr` | experimental | `disabled` | `openai-compatible`, `local-http` | `ollama`, `local-command` |
+| `asr` | experimental | `disabled` | `openai-compatible`, `local-http` | `ollama`, `local-command` |
+| `face-detection` | experimental | `disabled` | `local-http` | `openai-compatible`, `ollama`, `local-command` |
+| `face-recognition` | experimental | `disabled` | `local-http` | `openai-compatible`, `ollama`, `local-command` |
+| `image-generation` | future | `disabled` | none | `openai-compatible`, `ollama`, `local-http`, `local-command` |
+| `audio-generation` | future | `disabled` | none | `openai-compatible`, `ollama`, `local-http`, `local-command` |
+
+When a role or selected provider is not `supported`, the installer and config
+validation require `MINDORY_INSTALL_ALLOW_EXPERIMENTAL=true`. A disabled role
+may keep an experimental or future default provider value because no model call
+is made until the role is enabled.
+
 ## Configuration
 
 ```env

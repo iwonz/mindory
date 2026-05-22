@@ -6,7 +6,7 @@ The repository should be described with the support levels in
 
 ## Current Baseline
 
-The repository is complete through `TASK-71`.
+The repository is complete through `TASK-72`.
 
 Supported local MVP path:
 
@@ -17,6 +17,8 @@ Supported local MVP path:
   first project/token, update local assets and uninstall with confirmation.
 - Release-style bundles can be generated with `pnpm release:bundle`.
 - Release validation can be run locally with `pnpm release:validate`.
+- LLM role/provider support levels are centralized and enforced by config and
+  installer validation.
 
 Public GitHub hygiene baseline:
 
