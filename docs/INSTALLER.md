@@ -91,6 +91,12 @@ node packages/installer/dist/cli.js start --home ~/.mindory --source /path/to/mi
 ```
 
 This command runs through health checks and first project/token provisioning.
+If any enabled LLM role uses `local-command`, the installer also executes the
+configured `MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND` once per role before
+API readiness is accepted. The command must return the JSON contract documented
+in [LLM.md](LLM.md), otherwise installation stops with the failing role/model
+and healthcheck diagnostic.
+
 The generated raw bearer token is written once to:
 
 ```text

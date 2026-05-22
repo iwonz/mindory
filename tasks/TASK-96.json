@@ -1,7 +1,7 @@
 {
   "id": "TASK-96",
   "title": "Implement local-command LLM provider healthchecks",
-  "status": "draft",
+  "status": "done",
   "type": "feature",
   "priority": "high",
   "branch": "task/TASK-96-local-command-llm-provider-healthchecks",

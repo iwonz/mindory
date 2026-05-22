@@ -100,6 +100,8 @@ MINDORY_LLM_OPENAI_OAUTH_ACCESS_TOKEN=
 MINDORY_LLM_OLLAMA_BASE_URL=http://ollama:11434
 MINDORY_LLM_LOCAL_HTTP_BASE_URL=http://llm:8080
 MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS=120000
+MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND=
+MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS=["healthcheck","--role","{role}","--model","{model}"]
 ```
 
 ## OpenAI-Compatible Auth
@@ -149,6 +151,41 @@ The local HTTP contract is intentionally small:
 `buildMindoryLlm(config).healthCheck("local-http")` checks `/health`.
 `healthCheck("ollama")` checks Ollama `/api/tags`; this verifies that the
 service is reachable without performing a model operation.
+
+## Local Command Healthcheck
+
+`local-command` roles use a command healthcheck before installer startup can
+accept the configuration. Set:
+
+```env
+MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND=/usr/local/bin/mindory-model
+MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS=["healthcheck","--role","{role}","--model","{model}"]
+MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS=120000
+```
+
+The executable is launched directly without a shell. Path-like commands are
+checked for executable permissions before launch; PATH-resolved command names
+must still start successfully. `{role}` and `{model}` are rendered once for
+each enabled `local-command` role.
+
+The command must print one JSON object to stdout:
+
+```json
+{
+  "status": "ok",
+  "provider": "local-command",
+  "role": "text-embedding",
+  "model": "local-command-embedding",
+  "diagnostics": {
+    "ready": true
+  }
+}
+```
+
+Failure responses use the same role and model fields with `status: "failed"`,
+`error_code` and `error_message`. Mindory validates the returned role/model,
+timeout, exit status and JSON shape, then emits a model audit event with
+duration and structured diagnostics.
 
 OCR, vision captioning, ASR and face roles remain experimental and require
 `MINDORY_INSTALL_ALLOW_EXPERIMENTAL=true` when enabled. The scanned-PDF

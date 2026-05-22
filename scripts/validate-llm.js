@@ -71,6 +71,11 @@ for (const token of [
   "LlmOperationResult",
   "LlmOperationAudit",
   "LlmAuditSink",
+  "LlmLocalCommandRunner",
+  "localCommandProviderHealth",
+  "local_command_healthcheck_malformed_json",
+  "local_command_healthcheck_timeout",
+  "local_command_healthcheck_unsupported_role",
   "disabledLlmOperationResult",
   "AuditedTextEmbeddingsProvider",
   "auditSink?.(audit)",
@@ -148,7 +153,9 @@ for (const token of [
   "MINDORY_LLM_OPENAI_OAUTH_ACCESS_TOKEN",
   "MINDORY_LLM_OLLAMA_BASE_URL",
   "MINDORY_LLM_LOCAL_HTTP_BASE_URL",
-  "MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS"
+  "MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS",
+  "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND",
+  "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS"
 ]) {
   assertIncludes(config, token, "packages/config/src/index.ts");
 }
@@ -172,7 +179,9 @@ for (const token of [
   "MINDORY_LLM_OPENAI_OAUTH_ACCESS_TOKEN",
   "MINDORY_LLM_OLLAMA_BASE_URL",
   "MINDORY_LLM_LOCAL_HTTP_BASE_URL",
-  "MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS"
+  "MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS",
+  "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND",
+  "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS"
 ]) {
   assertIncludes(configCatalog, token, "packages/config/src/catalog.ts");
 }
@@ -191,7 +200,9 @@ for (const token of [
   "MINDORY_LLM_OPENAI_OAUTH_ACCESS_TOKEN",
   "MINDORY_LLM_OLLAMA_BASE_URL",
   "MINDORY_LLM_LOCAL_HTTP_BASE_URL",
-  "MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS"
+  "MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS",
+  "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND",
+  "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS"
 ]) {
   assertIncludes(envExample, token, ".env.example");
   assertIncludes(compose, token, "docker-compose.yml");
@@ -288,7 +299,7 @@ for (const token of [
   assertIncludes(docs, token, "LLM SDK docs");
 }
 
-const { buildMindoryLlm } = await import("../packages/llm/dist/index.js");
+const { buildMindoryLlm, checkMindoryLlmProviderHealth } = await import("../packages/llm/dist/index.js");
 const { loadMindoryConfig } = await import("../packages/config/dist/index.js");
 const chatAudits = [];
 const chatRequests = [];
@@ -494,6 +505,59 @@ assert(localAudits.some((audit) => audit.role === "asr" && audit.provider === "l
 assert(localAudits.some((audit) => audit.role === "vision-captioning" && audit.provider === "local-http" && audit.status === "success"), "Local HTTP vision must emit success audit.");
 assert(localAudits.some((audit) => audit.role === "face-detection" && audit.provider === "local-http" && audit.status === "success"), "Local HTTP face detection must emit success audit.");
 assert(localAudits.some((audit) => audit.role === "face-recognition" && audit.provider === "local-http" && audit.status === "success"), "Local HTTP face recognition must emit success audit.");
+
+function localCommandConfig(script, extra = {}) {
+  return loadMindoryConfig({
+    MINDORY_INSTALL_ALLOW_EXPERIMENTAL: "true",
+    MINDORY_LLM_TEXT_EMBEDDING_ENABLED: "true",
+    MINDORY_LLM_TEXT_EMBEDDING_PROVIDER: "local-command",
+    MINDORY_LLM_TEXT_EMBEDDING_MODEL: "local-command-embedding",
+    MINDORY_LLM_TEXT_EMBEDDING_DIMENSIONS: "1536",
+    MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS: "1000",
+    MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND: process.execPath,
+    MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS: JSON.stringify(["-e", script, "{role}", "{model}"]),
+    ...extra
+  });
+}
+
+const localCommandAudits = [];
+const localCommandHealth = await checkMindoryLlmProviderHealth(localCommandConfig([
+  "const role = process.argv[1];",
+  "const model = process.argv[2];",
+  "console.log(JSON.stringify({ status: 'ok', provider: 'local-command', role, model, diagnostics: { ready: true } }));"
+].join("")), "local-command", {
+  auditSink: (audit) => localCommandAudits.push(audit)
+});
+assert(localCommandHealth.status === "ok", "Local-command healthcheck must execute a real command and return ok.");
+assert(localCommandHealth.checks?.[0]?.role === "text-embedding", "Local-command healthcheck must validate the role returned by the command.");
+assert(localCommandHealth.checks?.[0]?.model === "local-command-embedding", "Local-command healthcheck must validate the model returned by the command.");
+assert(localCommandAudits.some((audit) => audit.role === "text-embedding" && audit.provider === "local-command" && audit.status === "success"), "Local-command healthcheck must emit success audit.");
+
+const malformedLocalCommandHealth = await checkMindoryLlmProviderHealth(localCommandConfig("console.log('not-json');"), "local-command", {
+  auditSink: (audit) => localCommandAudits.push(audit)
+});
+assert(malformedLocalCommandHealth.status === "failed", "Malformed local-command healthcheck stdout must fail.");
+assert(malformedLocalCommandHealth.errorCode === "local_command_healthcheck_malformed_json", "Malformed local-command healthcheck must report malformed JSON.");
+
+const unsupportedLocalCommandHealth = await checkMindoryLlmProviderHealth(localCommandConfig([
+  "const role = process.argv[1];",
+  "const model = process.argv[2];",
+  "console.log(JSON.stringify({ status: 'failed', provider: 'local-command', role, model, error_code: 'local_command_healthcheck_unsupported_role', error_message: 'role unsupported' }));"
+].join("")), "local-command", {
+  auditSink: (audit) => localCommandAudits.push(audit)
+});
+assert(unsupportedLocalCommandHealth.status === "failed", "Unsupported local-command role response must fail.");
+assert(unsupportedLocalCommandHealth.errorCode === "local_command_healthcheck_unsupported_role", "Unsupported local-command role response must preserve structured error code.");
+
+const timeoutLocalCommandHealth = await checkMindoryLlmProviderHealth(localCommandConfig("setTimeout(() => {}, 10000);", {
+  MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS: "50"
+}), "local-command", {
+  auditSink: (audit) => localCommandAudits.push(audit)
+});
+assert(timeoutLocalCommandHealth.status === "failed", "Timed-out local-command healthcheck must fail.");
+assert(timeoutLocalCommandHealth.errorCode === "local_command_healthcheck_timeout", "Timed-out local-command healthcheck must report timeout.");
+assert(localCommandAudits.some((audit) => audit.provider === "local-command" && audit.status === "failed" && audit.errorCode === "local_command_healthcheck_malformed_json"), "Local-command malformed healthcheck must emit failed audit.");
+assert(localCommandAudits.some((audit) => audit.provider === "local-command" && audit.status === "failed" && audit.errorCode === "local_command_healthcheck_timeout"), "Local-command timeout healthcheck must emit failed audit.");
 
 console.log("LLM SDK adapter validated.");
 

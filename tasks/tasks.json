@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-95",
+  "current_task_id": "TASK-96",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -705,7 +705,7 @@
     {
       "id": "TASK-96",
       "title": "Implement local-command LLM provider healthchecks",
-      "status": "draft",
+      "status": "done",
       "branch": "task/TASK-96-local-command-llm-provider-healthchecks",
       "file": "tasks/TASK-96.json"
     },

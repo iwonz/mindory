@@ -1,3 +1,7 @@
+import { spawn } from "node:child_process";
+import { constants } from "node:fs";
+import { access } from "node:fs/promises";
+import path from "node:path";
 import {
   LLM_ROLE_SUPPORT_CATALOG,
   llmRoleProviderSupportStatus as catalogLlmRoleProviderSupportStatus,
@@ -54,6 +58,8 @@ export interface LlmProviderDescriptor {
   baseUrl?: string;
   authMode?: "none" | "api-key" | "oauth-bearer";
   commandTimeoutMs?: number;
+  healthcheckCommand?: string;
+  healthcheckArgs?: readonly string[];
 }
 
 export interface LlmRoleSupportDescriptor {
@@ -94,6 +100,7 @@ export interface LlmOperationAudit {
   refs: LlmOperationRefs;
   errorCode?: string;
   errorMessage?: string;
+  diagnostics?: Record<string, unknown>;
 }
 
 export type LlmAuditSink = (audit: LlmOperationAudit) => void;
@@ -199,10 +206,42 @@ export interface LlmProviderHealth {
   baseUrl?: string;
   errorCode?: string;
   errorMessage?: string;
+  checks?: LlmProviderHealthCheckResult[];
+}
+
+export interface LlmProviderHealthCheckResult {
+  role: LlmRole;
+  model: string;
+  status: LlmProviderHealthStatus;
+  durationMs: number;
+  errorCode?: string;
+  errorMessage?: string;
+  diagnostics?: Record<string, unknown>;
+}
+
+export interface LlmLocalCommandRunOptions {
+  timeoutMs: number;
+  signal?: AbortSignal;
+}
+
+export interface LlmLocalCommandRunResult {
+  status: number | null;
+  stdout: string;
+  stderr: string;
+  timedOut?: boolean;
+  errorCode?: string;
+  errorMessage?: string;
+}
+
+export interface LlmLocalCommandRunner {
+  run(command: string, args: readonly string[], options: LlmLocalCommandRunOptions): Promise<LlmLocalCommandRunResult> | LlmLocalCommandRunResult;
 }
 
 export interface LlmProviderHealthCheckOptions {
   fetchImpl?: typeof fetch;
+  commandRunner?: LlmLocalCommandRunner;
+  auditSink?: LlmAuditSink;
+  refs?: LlmOperationRefs;
   signal?: AbortSignal;
 }
 
@@ -238,6 +277,7 @@ export interface LlmGenerationProvider {
 
 export interface MindoryLlmOptions {
   fetchImpl?: typeof fetch;
+  commandRunner?: LlmLocalCommandRunner;
   auditSink?: LlmAuditSink;
   operationRefs?: LlmOperationRefs;
 }
@@ -252,7 +292,7 @@ export interface MindoryLlm {
   asr?: LlmAsrProvider;
   vision?: LlmVisionProvider;
   faces?: LlmFaceProvider;
-  healthCheck(provider: Exclude<LlmProvider, "disabled">, options?: Omit<LlmProviderHealthCheckOptions, "fetchImpl">): Promise<LlmProviderHealth>;
+  healthCheck(provider: Exclude<LlmProvider, "disabled">, options?: Omit<LlmProviderHealthCheckOptions, "fetchImpl" | "commandRunner" | "auditSink" | "refs">): Promise<LlmProviderHealth>;
   disabledResult<TValue>(role: LlmRole, refs?: LlmOperationRefs): LlmOperationResult<TValue>;
 }
 
@@ -309,6 +349,15 @@ export function buildMindoryLlm(
       }
       if (healthOptions.signal !== undefined) {
         checkOptions.signal = healthOptions.signal;
+      }
+      if (options.commandRunner !== undefined) {
+        checkOptions.commandRunner = options.commandRunner;
+      }
+      if (options.auditSink !== undefined) {
+        checkOptions.auditSink = options.auditSink;
+      }
+      if (options.operationRefs !== undefined) {
+        checkOptions.refs = options.operationRefs;
       }
       return checkMindoryLlmProviderHealth(config, provider, checkOptions);
     },
@@ -610,7 +659,7 @@ export async function checkMindoryLlmProviderHealth(
   if (provider === "local-http") {
     return httpProviderHealth(provider, config.llm.localHttp.baseUrl, "/health", fetchImpl, options.signal);
   }
-  return failedProviderHealth(provider, Date.now(), "unsupported_provider_healthcheck", "local-command provider health checks are not implemented.");
+  return localCommandProviderHealth(config, options);
 }
 
 export function disabledLlmOperationResult<TValue>(
@@ -1435,7 +1484,9 @@ function llmProviders(config: MindoryConfig): LlmProviderDescriptor[] {
     },
     {
       provider: "local-command",
-      commandTimeoutMs: config.llm.localCommand.timeoutMs
+      commandTimeoutMs: config.llm.localCommand.timeoutMs,
+      healthcheckCommand: config.llm.localCommand.healthcheckCommand,
+      healthcheckArgs: config.llm.localCommand.healthcheckArgs
     }
   ];
 }
@@ -1570,6 +1621,356 @@ function failedProviderHealth(
     health.baseUrl = baseUrl;
   }
   return health;
+}
+
+async function localCommandProviderHealth(
+  config: MindoryConfig,
+  options: LlmProviderHealthCheckOptions
+): Promise<LlmProviderHealth> {
+  const startedAt = Date.now();
+  const roles = llmRoleDescriptors(config).filter((role) => role.enabled && role.provider === "local-command");
+  if (roles.length === 0) {
+    return failedProviderHealth("local-command", startedAt, "local_command_no_configured_roles", "No enabled LLM roles use the local-command provider.");
+  }
+
+  const command = config.llm.localCommand.healthcheckCommand.trim();
+  const executableFailure = await localCommandExecutableFailure(command);
+  if (executableFailure !== null) {
+    const checks = roles.map((role) => localCommandFailedCheck(role, startedAt, executableFailure.code, executableFailure.message));
+    for (const check of checks) {
+      emitLocalCommandHealthAudit(check, options.auditSink, options.refs);
+    }
+    return {
+      provider: "local-command",
+      status: "failed",
+      durationMs: Date.now() - startedAt,
+      errorCode: executableFailure.code,
+      errorMessage: executableFailure.message,
+      checks
+    };
+  }
+
+  const runner = options.commandRunner ?? createNodeLocalCommandRunner();
+  const checks: LlmProviderHealthCheckResult[] = [];
+  for (const role of roles) {
+    const check = await runLocalCommandRoleHealth(command, config.llm.localCommand.healthcheckArgs, role, config.llm.localCommand.timeoutMs, runner, options.signal);
+    checks.push(check);
+    emitLocalCommandHealthAudit(check, options.auditSink, options.refs);
+  }
+
+  const failedCheck = checks.find((check) => check.status === "failed");
+  const health: LlmProviderHealth = {
+    provider: "local-command",
+    status: failedCheck === undefined ? "ok" : "failed",
+    durationMs: Date.now() - startedAt,
+    checks
+  };
+  if (failedCheck !== undefined) {
+    health.errorCode = failedCheck.errorCode ?? "local_command_healthcheck_failed";
+    health.errorMessage = failedCheck.errorMessage ?? `local-command healthcheck failed for ${failedCheck.role}.`;
+  }
+  return health;
+}
+
+async function localCommandExecutableFailure(command: string): Promise<{ code: string; message: string } | null> {
+  if (command.length === 0) {
+    return {
+      code: "local_command_healthcheck_command_required",
+      message: "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND is required for local-command healthchecks."
+    };
+  }
+  if (!isPathLikeCommand(command)) {
+    return null;
+  }
+  try {
+    await access(command, constants.X_OK);
+    return null;
+  } catch {
+    return {
+      code: "local_command_healthcheck_executable_invalid",
+      message: `Local-command healthcheck executable is missing or not executable: ${command}.`
+    };
+  }
+}
+
+function isPathLikeCommand(command: string): boolean {
+  return path.isAbsolute(command) || command.includes("/") || command.includes("\\");
+}
+
+async function runLocalCommandRoleHealth(
+  command: string,
+  argsTemplate: readonly string[],
+  role: LlmRoleDescriptor,
+  timeoutMs: number,
+  runner: LlmLocalCommandRunner,
+  signal: AbortSignal | undefined
+): Promise<LlmProviderHealthCheckResult> {
+  const startedAt = Date.now();
+  try {
+    const args = argsTemplate.map((arg) => renderLocalCommandArg(arg, role));
+    const result = await runner.run(command, args, signal === undefined ? { timeoutMs } : { timeoutMs, signal });
+    const durationMs = Date.now() - startedAt;
+    const diagnostics = localCommandRunDiagnostics(result);
+    if (result.timedOut === true) {
+      return localCommandFailedCheck(role, startedAt, "local_command_healthcheck_timeout", `local-command healthcheck exceeded ${timeoutMs}ms.`, diagnostics);
+    }
+    if (result.stdout.trim() === "") {
+      return localCommandFailedCheck(role, startedAt, "local_command_healthcheck_no_output", "local-command healthcheck did not print JSON to stdout.", diagnostics);
+    }
+
+    const parsed = parseLocalCommandHealthcheckJson(result.stdout);
+    if (parsed.ok === false) {
+      return localCommandFailedCheck(role, startedAt, parsed.code, parsed.message, diagnostics);
+    }
+
+    const validation = validateLocalCommandHealthPayload(parsed.value, role);
+    const mergedDiagnostics = {
+      ...diagnostics,
+      ...validation.diagnostics
+    };
+    if (validation.status === "failed") {
+      return localCommandFailedCheck(role, startedAt, validation.errorCode, validation.errorMessage, mergedDiagnostics);
+    }
+    if ((result.status ?? 1) !== 0) {
+      return localCommandFailedCheck(role, startedAt, "local_command_healthcheck_command_failed", `local-command healthcheck exited with status ${result.status ?? 1}.`, mergedDiagnostics);
+    }
+    return {
+      role: role.role,
+      model: role.model,
+      status: "ok",
+      durationMs,
+      diagnostics: mergedDiagnostics
+    };
+  } catch (error) {
+    return localCommandFailedCheck(role, startedAt, errorCode(error), errorMessage(error));
+  }
+}
+
+function renderLocalCommandArg(arg: string, role: LlmRoleDescriptor): string {
+  return arg.replaceAll("{role}", role.role).replaceAll("{model}", role.model);
+}
+
+function localCommandFailedCheck(
+  role: LlmRoleDescriptor,
+  startedAt: number,
+  errorCode: string,
+  errorMessage: string,
+  diagnostics?: Record<string, unknown>
+): LlmProviderHealthCheckResult {
+  const check: LlmProviderHealthCheckResult = {
+    role: role.role,
+    model: role.model,
+    status: "failed",
+    durationMs: Date.now() - startedAt,
+    errorCode,
+    errorMessage
+  };
+  if (diagnostics !== undefined) {
+    check.diagnostics = diagnostics;
+  }
+  return check;
+}
+
+function emitLocalCommandHealthAudit(
+  check: LlmProviderHealthCheckResult,
+  auditSink: LlmAuditSink | undefined,
+  refs: LlmOperationRefs | undefined
+): void {
+  if (auditSink === undefined) {
+    return;
+  }
+  const audit: LlmOperationAudit = {
+    role: check.role,
+    provider: "local-command",
+    model: check.model,
+    status: check.status === "ok" ? "success" : "failed",
+    durationMs: check.durationMs,
+    usage: { durationMs: check.durationMs },
+    refs: refs ?? {}
+  };
+  if (check.errorCode !== undefined) {
+    audit.errorCode = check.errorCode;
+  }
+  if (check.errorMessage !== undefined) {
+    audit.errorMessage = check.errorMessage;
+  }
+  if (check.diagnostics !== undefined) {
+    audit.diagnostics = check.diagnostics;
+  }
+  auditSink(audit);
+}
+
+function createNodeLocalCommandRunner(): LlmLocalCommandRunner {
+  return {
+    run(command, args, options) {
+      return new Promise<LlmLocalCommandRunResult>((resolve) => {
+        let stdout = "";
+        let stderr = "";
+        let settled = false;
+        const child = spawn(command, [...args], {
+          shell: false,
+          stdio: ["ignore", "pipe", "pipe"]
+        });
+        const finish = (result: Omit<LlmLocalCommandRunResult, "stdout" | "stderr">): void => {
+          if (settled) {
+            return;
+          }
+          settled = true;
+          clearTimeout(timeout);
+          options.signal?.removeEventListener("abort", abortHandler);
+          resolve({
+            ...result,
+            stdout,
+            stderr
+          });
+        };
+        const abortHandler = (): void => {
+          child.kill("SIGTERM");
+          finish({
+            status: null,
+            errorCode: "local_command_healthcheck_aborted",
+            errorMessage: "local-command healthcheck was aborted."
+          });
+        };
+        const timeout = setTimeout(() => {
+          child.kill("SIGTERM");
+          finish({
+            status: null,
+            timedOut: true,
+            errorCode: "local_command_healthcheck_timeout",
+            errorMessage: `local-command healthcheck exceeded ${options.timeoutMs}ms.`
+          });
+        }, options.timeoutMs);
+        child.stdout.on("data", (chunk) => {
+          stdout += String(chunk);
+        });
+        child.stderr.on("data", (chunk) => {
+          stderr += String(chunk);
+        });
+        child.on("error", (error) => {
+          finish({
+            status: null,
+            errorCode: errorCode(error),
+            errorMessage: errorMessage(error)
+          });
+        });
+        child.on("close", (status) => {
+          finish({
+            status
+          });
+        });
+        if (options.signal !== undefined) {
+          if (options.signal.aborted) {
+            abortHandler();
+          } else {
+            options.signal.addEventListener("abort", abortHandler, { once: true });
+          }
+        }
+      });
+    }
+  };
+}
+
+function localCommandRunDiagnostics(result: LlmLocalCommandRunResult): Record<string, unknown> {
+  const diagnostics: Record<string, unknown> = {
+    exitStatus: result.status,
+    stdoutBytes: result.stdout.length,
+    stderrBytes: result.stderr.length
+  };
+  if (result.timedOut !== undefined) {
+    diagnostics.timedOut = result.timedOut;
+  }
+  if (result.errorCode !== undefined) {
+    diagnostics.commandErrorCode = result.errorCode;
+  }
+  if (result.errorMessage !== undefined) {
+    diagnostics.commandErrorMessage = result.errorMessage;
+  }
+  return diagnostics;
+}
+
+function parseLocalCommandHealthcheckJson(stdout: string): { ok: true; value: unknown } | { ok: false; code: string; message: string } {
+  try {
+    return {
+      ok: true,
+      value: JSON.parse(stdout.trim()) as unknown
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      code: "local_command_healthcheck_malformed_json",
+      message: `local-command healthcheck stdout must be JSON: ${errorMessage(error)}`
+    };
+  }
+}
+
+function validateLocalCommandHealthPayload(
+  payload: unknown,
+  role: LlmRoleDescriptor
+): { status: "ok"; diagnostics: Record<string, unknown> } | { status: "failed"; errorCode: string; errorMessage: string; diagnostics: Record<string, unknown> } {
+  if (!isRecord(payload)) {
+    return localCommandPayloadFailure("local_command_healthcheck_invalid_response", "local-command healthcheck JSON must be an object.");
+  }
+  const diagnostics = isRecord(payload.diagnostics) ? { payloadDiagnostics: payload.diagnostics } : {};
+  const status = stringField(payload, "status");
+  const provider = stringField(payload, "provider");
+  const payloadRole = stringField(payload, "role");
+  const payloadModel = stringField(payload, "model");
+
+  if (status !== "ok" && status !== "failed") {
+    return localCommandPayloadFailure("local_command_healthcheck_invalid_status", "local-command healthcheck status must be ok or failed.", diagnostics);
+  }
+  if (provider !== undefined && provider !== "local-command") {
+    return localCommandPayloadFailure("local_command_healthcheck_provider_mismatch", `local-command healthcheck returned provider ${provider}.`, diagnostics);
+  }
+  if (payloadRole !== role.role) {
+    const supportedRoles = arrayStringField(payload, "supported_roles") ?? arrayStringField(payload, "supportedRoles");
+    if (supportedRoles !== undefined && !supportedRoles.includes(role.role)) {
+      return localCommandPayloadFailure("local_command_healthcheck_unsupported_role", `local-command healthcheck does not support role ${role.role}.`, diagnostics);
+    }
+    return localCommandPayloadFailure("local_command_healthcheck_role_mismatch", `local-command healthcheck returned role ${payloadRole ?? "<missing>"} for expected role ${role.role}.`, diagnostics);
+  }
+  if (payloadModel !== role.model) {
+    return localCommandPayloadFailure("local_command_healthcheck_model_mismatch", `local-command healthcheck returned model ${payloadModel ?? "<missing>"} for expected model ${role.model}.`, diagnostics);
+  }
+  if (status === "failed") {
+    return localCommandPayloadFailure(
+      stringField(payload, "error_code") ?? stringField(payload, "errorCode") ?? "local_command_healthcheck_failed",
+      stringField(payload, "error_message") ?? stringField(payload, "errorMessage") ?? `local-command healthcheck failed for role ${role.role}.`,
+      diagnostics
+    );
+  }
+  return {
+    status: "ok",
+    diagnostics
+  };
+}
+
+function localCommandPayloadFailure(
+  errorCode: string,
+  errorMessage: string,
+  diagnostics: Record<string, unknown> = {}
+): { status: "failed"; errorCode: string; errorMessage: string; diagnostics: Record<string, unknown> } {
+  return {
+    status: "failed",
+    errorCode,
+    errorMessage,
+    diagnostics
+  };
+}
+
+function stringField(record: Record<string, unknown>, key: string): string | undefined {
+  const value = record[key];
+  return typeof value === "string" ? value : undefined;
+}
+
+function arrayStringField(record: Record<string, unknown>, key: string): string[] | undefined {
+  const value = record[key];
+  return Array.isArray(value) && value.every((entry) => typeof entry === "string") ? value : undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function localHttpEmbeddings(body: LocalHttpEmbeddingsResponse): number[][] {
