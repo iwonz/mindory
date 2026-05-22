@@ -1,0 +1,70 @@
+{
+  "id": "TASK-71",
+  "title": "Add CI and release publishing baseline",
+  "status": "done",
+  "type": "chore",
+  "priority": "high",
+  "branch": "task/TASK-71-ci-release-publishing",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Add the public release workflow baseline for checks, Docker image build, release bundle artifacts, checksums and packaged installer smoke validation.",
+    "background": "TASK-70 added public repository hygiene files. The next public-readiness step is a GitHub Actions release path that can produce and validate release artifacts without committing secrets."
+  },
+  "scope": {
+    "in": [
+      "Add a GitHub Actions release workflow for manual dispatch and v* tags.",
+      "Run pnpm check in the release workflow.",
+      "Build the Docker image in the release workflow.",
+      "Generate release bundle and manifest artifacts.",
+      "Generate and upload checksum artifacts.",
+      "Run a packaged installer smoke/dry-run against the generated release manifest.",
+      "Upload release artifacts to the workflow run and draft GitHub Release for tag builds.",
+      "Add local validation for release workflow and release smoke.",
+      "Update docs and repository status to describe the release baseline."
+    ],
+    "out": [
+      "Signing release manifests.",
+      "Mandatory Docker registry push policy.",
+      "Multi-platform Docker builds.",
+      "Automated changelog generation.",
+      "Release promotion environments."
+    ]
+  },
+  "acceptance_criteria": [
+    "A release workflow exists under .github/workflows.",
+    "The workflow runs pnpm check.",
+    "The workflow builds a Docker image.",
+    "The workflow generates release bundle, manifest and checksum artifacts.",
+    "The workflow runs release install smoke without starting Docker.",
+    "Tag builds publish release artifacts without repository-stored secrets.",
+    "`pnpm release:validate` validates the workflow contract and local release smoke.",
+    "Docs describe the release workflow and validation path.",
+    "pnpm check passes."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm release:validate",
+      "pnpm public:validate",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-71.",
+      "Confirm no real secrets or release signing keys were added."
+    ]
+  },
+  "dependencies": [
+    "TASK-70"
+  ],
+  "risks": [
+    "Release workflow must not depend on private provider credentials.",
+    "Release validation must not publish artifacts or mutate a real MINDORY_HOME.",
+    "Public docs must not imply signed releases or registry push policy are already complete."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch is committed and merged back into master."
+  ]
+}

@@ -20,6 +20,8 @@ documentation.
 
 ### Added
 
+- `TASK-71`: release workflow baseline with `pnpm check`, Docker image build,
+  release bundle/checksum artifacts and packaged installer smoke validation.
 - `TASK-70`: public repository hygiene baseline, including license,
   contribution guide, security policy, issue and pull request templates, support
   matrix and repository status documentation.

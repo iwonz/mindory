@@ -8,7 +8,7 @@ The canonical product and engineering specification is `docs/PRD.md`.
 
 ## Repository Status
 
-This repository is complete through `TASK-70`. Mindory can run a local
+This repository is complete through `TASK-71`. Mindory can run a local
 demo-MVP through Docker Compose, seed demo credentials, process uploaded
 documents through the worker pipeline and run live acceptance. `pnpm check`
 passes through the repo validation, typecheck, lint, tests and dry-run
@@ -106,6 +106,9 @@ standard scripts are available through `pnpm check`, `pnpm lint`,
 
 Production hardening guidance for CI, release images, backups, rollback,
 secrets, rate limits and structured logs is in `docs/PRODUCTION_HARDENING.md`.
+The release workflow and local release validation path are documented in
+`docs/DEPLOYMENT.md`; run `pnpm release:validate` to verify bundle, checksum and
+packaged installer smoke locally without publishing.
 
 `pnpm test` runs the real MVP integration suite. It starts the separate
 `mindory-test` Docker Compose project for PostgreSQL and Redis, applies

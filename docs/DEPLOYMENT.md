@@ -134,6 +134,25 @@ Postgres uses a pgvector-capable image and the initial migration enables the
 
 ## Release Images And Migrations
 
+### Release Workflow
+
+`.github/workflows/release.yml` is the public release baseline. It runs
+`pnpm check`, builds the Docker image, generates the release bundle with
+`pnpm release:bundle`, writes a `.sha256` checksum file, runs
+`scripts/smoke-release-install.js` against the generated manifest and uploads
+the release artifacts to the workflow run. For tag builds, it also creates or
+updates a draft GitHub Release with the bundle, manifest and checksum.
+
+Validate this path locally without publishing:
+
+```bash
+pnpm release:validate
+```
+
+The local validation builds a temporary release bundle, verifies the manifest
+checksum and runs the packaged installer `plan` command from the extracted
+bundle. It does not start Docker or publish artifacts.
+
 The reproducible release image path is:
 
 ```bash

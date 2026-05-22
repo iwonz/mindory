@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-70",
+  "current_task_id": "TASK-71",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -526,6 +526,13 @@
       "status": "done",
       "branch": "task/TASK-70-public-github-hygiene",
       "file": "tasks/TASK-70.json"
+    },
+    {
+      "id": "TASK-71",
+      "title": "Add CI and release publishing baseline",
+      "status": "done",
+      "branch": "task/TASK-71-ci-release-publishing",
+      "file": "tasks/TASK-71.json"
     }
   ]
 }

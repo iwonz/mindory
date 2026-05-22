@@ -47,6 +47,7 @@
     "public:validate": "node scripts/validate-public-github-hygiene.js",
     "queue:validate": "node scripts/validate-queue.js",
     "release:bundle": "node scripts/build-release-bundle.js",
+    "release:validate": "node scripts/validate-release-workflow.js",
     "storage:validate": "pnpm --filter @mindory/storage-s3 typecheck && node scripts/validate-storage-adapters.js",
     "typecheck": "node scripts/typecheck-workspaces.js",
     "test": "node scripts/test-integration.js",

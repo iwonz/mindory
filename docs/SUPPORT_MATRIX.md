@@ -23,7 +23,7 @@ writing README, issues, release notes and docs.
 | Docker Compose local demo | Supported | `pnpm mvp:demo` is the local MVP demo path. |
 | One-home installer layout | Supported baseline | `$MINDORY_HOME` config, logs, data, install and backups layout is implemented. |
 | Remote release update | Future | Local asset update exists; remote release orchestration is later work. |
-| Release artifact publishing | Future | Bundle generation exists; GitHub publishing automation is later work. |
+| Release artifact publishing | Supported baseline | Release workflow generates bundle, manifest and checksum artifacts; tag builds upload them to a draft GitHub Release. |
 
 ## Product Surfaces
 

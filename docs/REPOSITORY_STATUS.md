@@ -6,7 +6,7 @@ The repository should be described with the support levels in
 
 ## Current Baseline
 
-The repository is complete through `TASK-70`.
+The repository is complete through `TASK-71`.
 
 Supported local MVP path:
 
@@ -16,6 +16,7 @@ Supported local MVP path:
 - The installer can plan, prepare, start through health checks, provision the
   first project/token, update local assets and uninstall with confirmation.
 - Release-style bundles can be generated with `pnpm release:bundle`.
+- Release validation can be run locally with `pnpm release:validate`.
 
 Public GitHub hygiene baseline:
 
@@ -25,10 +26,13 @@ Public GitHub hygiene baseline:
 - Issue and pull request templates.
 - Changelog and release notes policy.
 - Support matrix.
+- Release workflow for checks, Docker image build, bundle artifacts, checksum
+  publication and packaged installer smoke.
 
 ## Known Limits
 
-- Remote release publishing and signed release manifests are future work.
+- Signed release manifests are future work.
+- Registry push policy for Docker images is future hardening.
 - Full automated installer resume is future work.
 - Scripted backup/restore is future work.
 - Real Hermes SDK/runtime verification is future work.
