@@ -55,7 +55,7 @@ All model operations must go through `@mindory/llm`.
 | --- | --- | --- |
 | Disabled model roles | Supported | Disabled attempts are handled and audited. |
 | Text embeddings | Supported | OpenAI-compatible and local provider flows are the current target for indexed acceptance. |
-| Chat | Experimental | SDK boundary exists; product flows do not require chat by default. |
+| Chat | Supported SDK adapter | OpenAI-compatible API key and OAuth bearer modes are implemented in `@mindory/llm`; product flows do not require chat by default. |
 | OCR | Experimental | Role and artifact flows exist; real scanned-PDF/image OCR support is still being hardened. |
 | Vision captioning and image embeddings | Experimental | Deterministic fallbacks exist; real adapters are future hardening. |
 | ASR | Experimental | Transcript artifact shape exists; real adapters are future hardening. |

@@ -6,7 +6,7 @@ The repository should be described with the support levels in
 
 ## Current Baseline
 
-The repository is complete through `TASK-72`.
+The repository is complete through `TASK-73`.
 
 Supported local MVP path:
 
@@ -19,6 +19,8 @@ Supported local MVP path:
 - Release validation can be run locally with `pnpm release:validate`.
 - LLM role/provider support levels are centralized and enforced by config and
   installer validation.
+- OpenAI-compatible chat and text embedding operations support API-key and
+  OAuth bearer auth through `@mindory/llm`.
 
 Public GitHub hygiene baseline:
 

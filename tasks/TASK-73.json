@@ -1,0 +1,65 @@
+{
+  "id": "TASK-73",
+  "title": "Add OpenAI-compatible and OAuth LLM adapters",
+  "status": "done",
+  "type": "feature",
+  "priority": "high",
+  "branch": "task/TASK-73-openai-compatible-oauth-llm-adapters",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Implement OpenAI-compatible chat support in @mindory/llm and verify API-key/OAuth bearer auth and audit behavior alongside existing text embeddings.",
+    "background": "TASK-72 centralized role/provider support levels. The next step is making the supported OpenAI-compatible SDK path real for chat as well as embeddings."
+  },
+  "scope": {
+    "in": [
+      "Add an OpenAI-compatible chat provider in @mindory/llm.",
+      "Use the existing OpenAI-compatible API-key/OAuth bearer auth settings.",
+      "Expose the chat provider through buildMindoryLlm when chat is enabled.",
+      "Record operation audit fields for success and failure: role, provider, model, duration, usage, status and refs.",
+      "Keep provider-specific calls inside @mindory/llm.",
+      "Validate the chat adapter with a fake OpenAI-compatible fetch implementation.",
+      "Update LLM docs, support matrix and repository status."
+    ],
+    "out": [
+      "Adding new runtime product flows that call chat.",
+      "Implementing Ollama chat.",
+      "Implementing OCR, ASR, vision, face or generation adapters.",
+      "Persisting model audit records to the database."
+    ]
+  },
+  "acceptance_criteria": [
+    "@mindory/llm can build an OpenAI-compatible chat provider.",
+    "The chat provider calls /chat/completions.",
+    "The chat provider uses API-key or OAuth bearer auth from the centralized config.",
+    "The chat provider returns operation result and audit metadata.",
+    "Existing OpenAI-compatible text embeddings continue to use the same auth path.",
+    "Validation covers fake OpenAI-compatible chat success and audit usage.",
+    "Docs describe the OpenAI-compatible chat and embeddings adapter surface.",
+    "pnpm check passes."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm llm:validate",
+      "pnpm public:validate",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-73.",
+      "Confirm no provider-specific imports were added outside @mindory/llm."
+    ]
+  },
+  "dependencies": [
+    "TASK-72"
+  ],
+  "risks": [
+    "Chat adapter must not leak raw bearer tokens through errors or audit records.",
+    "Changing the chat support level must not imply product flows require chat by default."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch is committed and merged back into master."
+  ]
+}

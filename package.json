@@ -31,7 +31,7 @@
     "installer:acceptance": "pnpm --filter @mindory/installer typecheck && node scripts/installer-acceptance.js",
     "jobs:validate": "node scripts/validate-job-semantics.js",
     "lint": "node scripts/lint-repo.js",
-    "llm:validate": "node scripts/validate-llm.js",
+    "llm:validate": "pnpm --filter @mindory/llm typecheck && node scripts/validate-llm.js",
     "memory:validate": "node scripts/validate-memory-context.js",
     "mcp:smoke": "node apps/mcp/scripts/smoke-stdio.js",
     "mcp:validate": "node scripts/validate-mcp-server.js",

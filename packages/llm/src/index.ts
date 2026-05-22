@@ -121,6 +121,13 @@ export interface LlmChatOutput {
   usage?: LlmOperationUsage;
 }
 
+export interface OpenAICompatibleChatOptions {
+  baseUrl: string;
+  model: string;
+  bearerToken?: string;
+  fetchImpl?: typeof fetch;
+}
+
 export interface LlmTextEmbeddingProvider {
   embedTexts(input: { texts: string[] }, context: LlmProviderCallContext): Promise<LlmOperationResult<number[][]>>;
 }
@@ -161,6 +168,7 @@ export interface MindoryLlm {
   registry: LlmRoleRegistry;
   roleSupport: readonly LlmRoleSupportDescriptor[];
   providers: LlmProviderDescriptor[];
+  chat?: LlmChatProvider;
   textEmbeddings?: EmbeddingsProvider;
   disabledResult<TValue>(role: LlmRole, refs?: LlmOperationRefs): LlmOperationResult<TValue>;
 }
@@ -213,6 +221,10 @@ export function buildMindoryLlm(
     providers: llmProviders(config),
     disabledResult: (role, refs) => disabledLlmOperationResult(registry.require(role), refs, options.auditSink)
   };
+  const chat = buildMindoryChatProvider(config, options);
+  if (chat !== undefined) {
+    runtime.chat = chat;
+  }
   const textEmbeddings = buildMindoryTextEmbeddingsProvider(config, options);
   if (textEmbeddings !== undefined) {
     runtime.textEmbeddings = textEmbeddings;
@@ -289,6 +301,38 @@ export function buildMindoryTextEmbeddingsProvider(
   }
 
   throw new Error(`${textEmbedding.provider} text embeddings are configured but no text embedding adapter is installed.`);
+}
+
+export function buildMindoryChatProvider(
+  config: MindoryConfig,
+  options: MindoryLlmOptions = {}
+): LlmChatProvider | undefined {
+  const chat = config.llm.chat;
+  if (!chat.enabled || chat.provider === "disabled") {
+    return undefined;
+  }
+
+  if (chat.provider === "openai-compatible") {
+    const providerOptions: OpenAICompatibleChatOptions = {
+      baseUrl: config.llm.openaiCompatible.baseUrl,
+      model: chat.model
+    };
+    const bearerToken = openAiCompatibleBearerToken(config);
+    if (bearerToken !== undefined) {
+      providerOptions.bearerToken = bearerToken;
+    }
+    if (options.fetchImpl !== undefined) {
+      providerOptions.fetchImpl = options.fetchImpl;
+    }
+    return new OpenAICompatibleChatProvider(
+      providerOptions,
+      descriptor("chat", chat),
+      options.auditSink,
+      options.operationRefs ?? {}
+    );
+  }
+
+  throw new Error(`${chat.provider} chat is configured but no chat adapter is installed.`);
 }
 
 export function disabledLlmOperationResult<TValue>(
@@ -377,6 +421,113 @@ class AuditedTextEmbeddingsProvider implements EmbeddingsProvider {
   }
 }
 
+export class OpenAICompatibleChatProvider implements LlmChatProvider {
+  private readonly fetchImpl: typeof fetch;
+
+  constructor(
+    private readonly options: OpenAICompatibleChatOptions,
+    private readonly role: LlmRoleDescriptor,
+    private readonly auditSink: LlmAuditSink | undefined,
+    private readonly refs: LlmOperationRefs
+  ) {
+    this.fetchImpl = options.fetchImpl ?? fetch;
+  }
+
+  async generateChat(input: LlmChatInput, context: LlmProviderCallContext): Promise<LlmOperationResult<LlmChatOutput>> {
+    const startedAt = Date.now();
+    const model = context.role.model || this.options.model;
+    try {
+      const requestInit: RequestInit = {
+        method: "POST",
+        headers: this.headers(),
+        body: JSON.stringify({
+          model,
+          messages: input.messages,
+          temperature: input.temperature,
+          max_tokens: input.maxOutputTokens
+        })
+      };
+      if (context.signal !== undefined) {
+        requestInit.signal = context.signal;
+      }
+      const response = await this.fetchImpl(`${trimTrailingSlash(this.options.baseUrl)}/chat/completions`, {
+        ...requestInit
+      });
+      const responseText = await response.text();
+      if (!response.ok) {
+        throw new Error(`OpenAI-compatible chat request failed with ${response.status}: ${responseText}`);
+      }
+      const payload = JSON.parse(responseText) as OpenAICompatibleChatResponse;
+      const output: LlmChatOutput = {
+        text: payload.choices?.[0]?.message?.content ?? "",
+        usage: usageFromOpenAI(payload.usage)
+      };
+      return this.result("success", startedAt, model, output, context.refs);
+    } catch (error) {
+      return this.result("failed", startedAt, model, undefined, context.refs, error);
+    }
+  }
+
+  private headers(): Record<string, string> {
+    const headers: Record<string, string> = {
+      "content-type": "application/json"
+    };
+    if (this.options.bearerToken !== undefined) {
+      headers.authorization = `Bearer ${this.options.bearerToken}`;
+    }
+    return headers;
+  }
+
+  private result(
+    status: LlmOperationStatus,
+    startedAt: number,
+    model: string,
+    value?: LlmChatOutput,
+    refs: LlmOperationRefs = {},
+    error?: unknown
+  ): LlmOperationResult<LlmChatOutput> {
+    const durationMs = Date.now() - startedAt;
+    const audit: LlmOperationAudit = {
+      role: this.role.role,
+      provider: this.role.provider,
+      model,
+      status,
+      durationMs,
+      usage: {
+        ...value?.usage,
+        durationMs
+      },
+      refs: {
+        ...this.refs,
+        ...refs
+      }
+    };
+    if (error !== undefined) {
+      audit.errorCode = errorCode(error);
+      audit.errorMessage = errorMessage(error);
+    }
+    this.auditSink?.(audit);
+    return {
+      status,
+      ...(value === undefined ? {} : { value }),
+      audit
+    };
+  }
+}
+
+interface OpenAICompatibleChatResponse {
+  choices?: Array<{
+    message?: {
+      content?: string;
+    };
+  }>;
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    total_tokens?: number;
+  };
+}
+
 export function openAiCompatibleBearerToken(config: MindoryConfig): string | undefined {
   if (config.llm.openaiCompatible.authMode === "api-key") {
     return nonEmpty(config.llm.openaiCompatible.apiKey);
@@ -457,6 +608,27 @@ function llmRoleToCatalogKey(role: LlmRole): LlmRoleCatalogKey {
 
 function catalogKeyToLlmRole(key: LlmRoleCatalogKey): LlmRole {
   return key.toLowerCase().replace(/_/g, "-") as LlmRole;
+}
+
+function usageFromOpenAI(usage: OpenAICompatibleChatResponse["usage"]): LlmOperationUsage {
+  if (usage === undefined) {
+    return {};
+  }
+  const result: LlmOperationUsage = {};
+  if (usage.prompt_tokens !== undefined) {
+    result.inputTokens = usage.prompt_tokens;
+  }
+  if (usage.completion_tokens !== undefined) {
+    result.outputTokens = usage.completion_tokens;
+  }
+  if (usage.total_tokens !== undefined) {
+    result.totalTokens = usage.total_tokens;
+  }
+  return result;
+}
+
+function trimTrailingSlash(value: string): string {
+  return value.replace(/\/+$/, "");
 }
 
 function nonEmpty(value: string): string | undefined {

@@ -47,7 +47,7 @@ const docs = [
   read("docs/LLM.md")
 ].join("\n");
 
-assert(rootPackage.scripts?.["llm:validate"] === "node scripts/validate-llm.js", "Root package must expose llm:validate.");
+assert(rootPackage.scripts?.["llm:validate"] === "pnpm --filter @mindory/llm typecheck && node scripts/validate-llm.js", "Root package must expose llm:validate.");
 assert(rootPackage.scripts?.["model-runtime:validate"] === undefined, "Root package must not expose model-runtime:validate.");
 assert(llmPackage.name === "@mindory/llm", "packages/llm must define @mindory/llm.");
 assert(llmPackage.dependencies?.["@mindory/config"] === "workspace:*", "@mindory/llm must depend on @mindory/config.");
@@ -78,6 +78,11 @@ for (const token of [
   "status: \"failed\"",
   "status: \"disabled\"",
   "LlmChatProvider",
+  "OpenAICompatibleChatProvider",
+  "buildMindoryChatProvider",
+  "/chat/completions",
+  "inputTokens",
+  "outputTokens",
   "LlmTextEmbeddingProvider",
   "LlmOcrProvider",
   "LlmAsrProvider",
@@ -250,12 +255,55 @@ for (const [label, content] of [
 for (const token of [
   "Support Matrix",
   "`text-embedding` | supported",
-  "`chat` | experimental",
+  "`chat` | supported",
   "`image-generation` | future",
-  "MINDORY_INSTALL_ALLOW_EXPERIMENTAL=true"
+  "MINDORY_INSTALL_ALLOW_EXPERIMENTAL=true",
+  "/chat/completions",
+  "`/embeddings`"
 ]) {
   assertIncludes(docs, token, "LLM SDK docs");
 }
+
+const { buildMindoryLlm } = await import("../packages/llm/dist/index.js");
+const { loadMindoryConfig } = await import("../packages/config/dist/index.js");
+const chatAudits = [];
+const chatRequests = [];
+const chatConfig = loadMindoryConfig({
+  MINDORY_LLM_CHAT_ENABLED: "true",
+  MINDORY_LLM_CHAT_PROVIDER: "openai-compatible",
+  MINDORY_LLM_CHAT_MODEL: "gpt-test",
+  MINDORY_LLM_OPENAI_COMPATIBLE_BASE_URL: "https://llm.example/v1",
+  MINDORY_LLM_OPENAI_COMPATIBLE_AUTH_MODE: "oauth-bearer",
+  MINDORY_LLM_OPENAI_OAUTH_ACCESS_TOKEN: "oauth-test-token"
+});
+const chatRuntime = buildMindoryLlm(chatConfig, {
+  auditSink: (audit) => chatAudits.push(audit),
+  fetchImpl: async (url, init) => {
+    chatRequests.push({ url: String(url), init });
+    return new Response(JSON.stringify({
+      choices: [{ message: { content: "hello from chat" } }],
+      usage: {
+        prompt_tokens: 3,
+        completion_tokens: 4,
+        total_tokens: 7
+      }
+    }), { status: 200 });
+  }
+});
+assert(chatRuntime.chat !== undefined, "OpenAI-compatible chat provider must be built when chat is enabled.");
+const chatResult = await chatRuntime.chat.generateChat({
+  messages: [{ role: "user", content: "hello" }]
+}, {
+  role: chatRuntime.registry.require("chat"),
+  refs: { projectId: "project-test" }
+});
+assert(chatResult.status === "success", "OpenAI-compatible chat provider must return success.");
+assert(chatResult.value?.text === "hello from chat", "OpenAI-compatible chat provider must return the first message content.");
+assert(chatResult.audit.usage.inputTokens === 3, "OpenAI-compatible chat audit must include prompt token usage.");
+assert(chatResult.audit.usage.outputTokens === 4, "OpenAI-compatible chat audit must include completion token usage.");
+assert(chatRequests[0]?.url === "https://llm.example/v1/chat/completions", "OpenAI-compatible chat provider must call /chat/completions.");
+assert(chatRequests[0]?.init?.headers?.authorization === "Bearer oauth-test-token", "OpenAI-compatible chat provider must use OAuth bearer auth.");
+assert(chatAudits[0]?.status === "success", "OpenAI-compatible chat provider must emit success audit.");
 
 console.log("LLM SDK adapter validated.");
 

@@ -65,9 +65,9 @@ export const LLM_PROVIDER_VALUES = [
 ] as const satisfies readonly LlmProviderCatalogValue[];
 
 export const LLM_ROLE_SUPPORT_CATALOG = [
-  llmRoleSupport("CHAT", "experimental", "disabled", "", {
-    "openai-compatible": "experimental",
-    "ollama": "experimental",
+  llmRoleSupport("CHAT", "supported", "disabled", "", {
+    "openai-compatible": "supported",
+    "ollama": "future",
     "local-http": "future",
     "local-command": "future"
   }),

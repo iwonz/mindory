@@ -149,9 +149,10 @@ Video extraction uses `MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES` to cap
 manifest-derived keyframes; the default remains `10`.
 
 The role/provider support matrix is centralized in `@mindory/llm` and the
-config catalog. `text-embedding` is the only supported live model operation
-today. Chat, OCR, ASR, vision, image embeddings and face roles are experimental;
-generation roles are future. Any enabled role or selected provider that is not
+config catalog. `chat` and `text-embedding` have supported OpenAI-compatible
+adapters today; text embeddings also support Ollama. OCR, ASR, vision, image
+embeddings and face roles are experimental; generation roles are future. Any
+enabled role or selected provider that is not
 `supported` requires `MINDORY_INSTALL_ALLOW_EXPERIMENTAL=true`, including
 answer-file and non-interactive installer runs.
 
