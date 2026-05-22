@@ -38,7 +38,6 @@ const debtOwners = new Map(Object.entries({
   "docs/DOCUMENT_PIPELINE.md": { owner: "TASK-100", max: 3 },
   "docs/HERMES_ADAPTER.md": { owner: "TASK-111", max: 1 },
   "docs/INSTALLER.md": { owner: "TASK-110", max: 3 },
-  "docs/LLM.md": { owner: "TASK-99", max: 1 },
   "docs/OBSERVABILITY.md": { owner: "TASK-102", max: 1 },
   "docs/PRD.md": { owner: "TASK-113", max: 14 },
   "docs/PRODUCTION_HARDENING.md": { owner: "TASK-110", max: 2 },

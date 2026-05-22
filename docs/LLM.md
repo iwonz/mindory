@@ -49,8 +49,8 @@ uses the same matrix for defaults, env metadata and installer gating.
 | `asr` | experimental | `disabled` | `openai-compatible`, `local-http`, `local-command` | `ollama` |
 | `face-detection` | experimental | `disabled` | `local-http`, `local-command` | `openai-compatible`, `ollama` |
 | `face-recognition` | experimental | `disabled` | `local-http`, `local-command` | `openai-compatible`, `ollama` |
-| `image-generation` | experimental | `disabled` | `local-command` | `openai-compatible`, `ollama`, `local-http` |
-| `audio-generation` | experimental | `disabled` | `local-command` | `openai-compatible`, `ollama`, `local-http` |
+| `image-generation` | experimental | `disabled` | `openai-compatible`, `local-http`, `local-command` | `ollama` |
+| `audio-generation` | experimental | `disabled` | `openai-compatible`, `local-http`, `local-command` | `ollama` |
 
 When a role or selected provider is not `supported`, the installer and config
 validation require `MINDORY_INSTALL_ALLOW_EXPERIMENTAL=true`. A disabled role
@@ -122,9 +122,11 @@ access token, for example from a Codex or Hermes integration. Mindory does not
 run an interactive OAuth login flow; it consumes the supplied token and sends it
 as `Authorization: Bearer ...`.
 
-The OpenAI-compatible adapter currently implements chat completions and text
-embeddings. Chat calls use `/chat/completions`; text embeddings use
-`/embeddings`. Both API-key and OAuth bearer modes share the same centralized
+The OpenAI-compatible adapter implements chat completions, text embeddings,
+image generation and audio generation. Chat calls use `/chat/completions`, text
+embeddings use `/embeddings`, image generation uses `/images/generations` with
+base64 output, and audio generation uses `/audio/speech` with binary or
+base64-JSON output. API-key and OAuth bearer modes share the same centralized
 auth configuration and audit path.
 
 ## Local HTTP Adapter
@@ -152,6 +154,11 @@ The local HTTP contract is intentionally small:
 - `POST /faces/detect` and `POST /faces/recognize` accept
   `{ model, mime_type, data_base64 }` and return `{ faces }`, where each face
   includes a `bounding_box`, optional `embedding`, `confidence` and `label`.
+- `POST /generation/image` accepts `{ model, prompt, response_format }` and
+  returns base64 media bytes plus `mime_type`, optional `metadata` and `usage`.
+- `POST /generation/audio` accepts `{ model, prompt, response_format }` and
+  returns base64 media bytes plus `mime_type`, optional duration metadata and
+  `usage`.
 
 `buildMindoryLlm(config).healthCheck("local-http")` checks `/health`.
 `healthCheck("ollama")` checks Ollama `/api/tags`; this verifies that the
@@ -248,7 +255,7 @@ API and worker code call `buildMindoryLlm` or
 Provider-specific packages remain low-level adapters; runtime packages must not
 instantiate them directly.
 
-Workers that need OCR, ASR, vision, face or future generation state use
+Workers and diagnostics that need OCR, ASR, vision, face or generation state use
 `llmRoleState(runtime, role)` snapshots from the SDK registry. They should not
 read `config.llm.<role>` directly except for non-operation plumbing such as the
 current pgvector dimension guard.
@@ -257,10 +264,10 @@ current pgvector dimension guard.
 
 `buildMindoryLlm` accepts an optional `auditSink` callback. The SDK calls it for
 disabled role attempts through `disabledResult` and for current chat/text
-embedding/OCR/vision/ASR/face provider calls with `success` or `failed` status,
-role, provider, model, duration, usage details when available and optional
-project/document/job/session refs. TASK-55 keeps this as an in-process hook;
-durable audit persistence is future work.
+embedding/OCR/vision/ASR/face/generation provider calls with `success` or
+`failed` status, role, provider, model, duration, usage details when available
+and optional project/document/job/session refs. Durable audit persistence is
+handled outside the SDK boundary by the audit storage/query layer.
 
 ## Docker Profiles
 

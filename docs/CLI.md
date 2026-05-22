@@ -1,17 +1,20 @@
 # CLI
 
-The CLI is a separate app/package and must call the Mindory HTTP API. It must not
-access PostgreSQL directly.
+The CLI is a separate app/package. Product data commands call the Mindory HTTP
+API and must not access PostgreSQL directly. Model diagnostic commands use the
+central `@mindory/llm` SDK so operators can smoke-test configured providers
+without creating product records.
 
 ## Current Boundary
 
-`TASK-12` adds a bootstrap CLI in `apps/cli`. `TASK-24` hardens it for MVP
-acceptance. It exposes the `mindory` binary and calls the HTTP API. It does not
-access PostgreSQL, Redis, object storage, vector indexes or worker internals
-directly.
+`apps/cli` exposes the `mindory` binary. HTTP-backed commands do not access
+PostgreSQL, Redis, object storage, vector indexes or worker internals directly.
+The parser is dependency-free and intentionally small.
 
-The current parser is dependency-free and intentionally minimal until a later
-task installs a CLI framework.
+`mindory llm generate-image` and `mindory llm generate-audio` are local
+diagnostic commands. They call only `@mindory/llm`, return status, MIME type,
+byte length, SHA-256 and audit details, and print base64 media only when
+`--include-bytes` is set.
 
 ## Commands
 
@@ -59,17 +62,19 @@ mindory context build --project <id> [--session <id>] [--token-budget 3000] <que
 mindory jobs list --project <id> [--status <status>] [--limit 20]
 mindory jobs get <id> --project <id>
 mindory jobs retry <id> --project <id>
+
+mindory llm generate-image <prompt> [--include-bytes]
+mindory llm generate-audio <prompt> [--include-bytes]
 ```
 
 Manual memory creation requires at least one `--source-ref <type:id>` argument
 to keep memories evidence-backed.
 
-`TASK-50` extends the CLI surface to the multimodal derived-state runtime:
-document reprocess/runs, metadata-filtered document search, unified artifact
-search and face identity operations. `TASK-81` adds `mindory search query` for
-combined document chunk, artifact span and face observation search through
-`POST /v1/search`. `--metadata-filter` accepts one JSON object per flag,
-matching the HTTP API filter shape.
+The multimodal derived-state surface includes document reprocess/runs,
+metadata-filtered document search, unified artifact search and face identity
+operations. `mindory search query` combines document chunk, artifact span and
+face observation search through `POST /v1/search`. `--metadata-filter` accepts
+one JSON object per flag, matching the HTTP API filter shape.
 
 ## Configuration
 
@@ -78,6 +83,7 @@ The CLI reads:
 ```text
 MINDORY_CLI_API_URL
 MINDORY_CLI_API_TOKEN
+MINDORY_LLM_* for local diagnostic model commands
 ```
 
 Per-command overrides:
@@ -99,4 +105,4 @@ Exit codes:
 - `4`: CLI could not reach the configured API.
 
 `pnpm cli:smoke` runs a route-mapping smoke scenario with the injectable API
-client. Live API acceptance remains part of the end-to-end MVP hardening task.
+client and fake-compatible LLM generation providers.

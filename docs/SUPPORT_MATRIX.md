@@ -70,7 +70,7 @@ All model operations must go through `@mindory/llm`.
 | Vision captioning, object detection and image embeddings | Experimental | Image vision captioning, object detection and image embeddings run through `@mindory/llm` local HTTP or local-command when enabled; image vectors are indexed through the selected vector backend. |
 | ASR | Experimental | Audio ASR runs through `@mindory/llm` local HTTP or local-command when enabled; embedded WAV transcript fallback remains supported. |
 | Face detection and recognition | Experimental | Local HTTP and local-command face detection/recognition run through `@mindory/llm` when enabled; observations remain workspace-scoped and auto-matched by threshold. |
-| Image/audio generation | Experimental SDK role | Local-command image/audio generation returns typed bytes and MIME metadata through `@mindory/llm`. |
+| Image/audio generation | Experimental SDK role | OpenAI-compatible, local HTTP and local-command image/audio generation return typed bytes, MIME metadata and model-operation audit records through `@mindory/llm`; CLI `llm generate-image` and `llm generate-audio` provide smoke diagnostics. |
 
 Installer and config validation require
 `MINDORY_INSTALL_ALLOW_EXPERIMENTAL=true` before enabling experimental or future

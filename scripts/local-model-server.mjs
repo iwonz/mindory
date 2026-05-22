@@ -15,6 +15,7 @@ const server = http.createServer(async (request, response) => {
         status: "ok",
         service: "mindory-local-model",
         embeddings: true,
+        generation: true,
         dimensions: defaultDimensions
       });
       return;
@@ -174,6 +175,51 @@ const server = http.createServer(async (request, response) => {
       return;
     }
 
+    if (request.method === "POST" && url.pathname === "/generation/image") {
+      const body = await readJson(request);
+      const model = stringOrDefault(body.model, "mindory-local-image-generation");
+      const prompt = stringOrDefault(body.prompt, "mindory image");
+      const media = deterministicMedia(`image:${model}:${prompt}`);
+      writeJson(response, 200, {
+        model,
+        data_base64: media,
+        mime_type: "image/png",
+        metadata: {
+          prompt,
+          generator: "mindory-local-model"
+        },
+        usage: {
+          image_count: 1,
+          prompt_tokens: tokenEstimate(prompt),
+          total_tokens: tokenEstimate(prompt)
+        }
+      });
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/generation/audio") {
+      const body = await readJson(request);
+      const model = stringOrDefault(body.model, "mindory-local-audio-generation");
+      const prompt = stringOrDefault(body.prompt, "mindory audio");
+      const media = deterministicMedia(`audio:${model}:${prompt}`);
+      writeJson(response, 200, {
+        model,
+        data_base64: media,
+        mime_type: "audio/wav",
+        duration_seconds: 1,
+        metadata: {
+          prompt,
+          generator: "mindory-local-model"
+        },
+        usage: {
+          audio_seconds: 1,
+          prompt_tokens: tokenEstimate(prompt),
+          total_tokens: tokenEstimate(prompt)
+        }
+      });
+      return;
+    }
+
     writeJson(response, 404, {
       error: "not_found"
     });
@@ -200,6 +246,10 @@ function deterministicEmbedding(text, model, dimensions) {
     counter += 1;
   }
   return embedding;
+}
+
+function deterministicMedia(text) {
+  return createHash("sha256").update(text).digest("base64");
 }
 
 function readJson(request) {

@@ -77,6 +77,9 @@ for (const token of [
   "LocalCommandImageEmbeddingsProvider",
   "LocalCommandGenerationProvider",
   "LocalHttpImageEmbeddingsProvider",
+  "MindoryGenerationProvider",
+  "OpenAICompatibleGenerationProvider",
+  "LocalHttpGenerationProvider",
   "local_command_input_limit_exceeded",
   "local_command_output_limit_exceeded",
   "local_command_healthcheck_malformed_json",
@@ -112,6 +115,10 @@ for (const token of [
   "/asr",
   "/faces/detect",
   "/faces/recognize",
+  "/images/generations",
+  "/audio/speech",
+  "/generation/image",
+  "/generation/audio",
   "inputTokens",
   "outputTokens",
   "LlmTextEmbeddingProvider",
@@ -125,6 +132,7 @@ for (const token of [
   "LlmFaceDetectionOutput",
   "LlmFaceRecognitionOutput",
   "LlmGenerationProvider",
+  "LlmGeneratedMediaOutput",
   "openAiCompatibleBearerToken",
   "oauth-bearer",
   "local-http",
@@ -204,6 +212,9 @@ for (const token of [
 ]) {
   assertIncludes(configCatalog, token, "packages/config/src/catalog.ts");
 }
+assertIncludes(configCatalog, "llmRoleSupport(\"IMAGE_GENERATION\", \"experimental\", \"disabled\", \"\", {\n    \"openai-compatible\": \"experimental\"", "packages/config/src/catalog.ts");
+assertIncludes(configCatalog, "llmRoleSupport(\"AUDIO_GENERATION\", \"experimental\", \"disabled\", \"\", {\n    \"openai-compatible\": \"experimental\"", "packages/config/src/catalog.ts");
+assertIncludes(configCatalog, "\"local-http\": \"experimental\",\n    \"local-command\": \"experimental\"", "packages/config/src/catalog.ts");
 
 for (const token of [
   "MINDORY_LLM_CHAT_ENABLED",
@@ -363,6 +374,70 @@ assert(chatRequests[0]?.url === "https://llm.example/v1/chat/completions", "Open
 assert(chatRequests[0]?.init?.headers?.authorization === "Bearer oauth-test-token", "OpenAI-compatible chat provider must use OAuth bearer auth.");
 assert(chatAudits[0]?.status === "success", "OpenAI-compatible chat provider must emit success audit.");
 
+const openAiGenerationAudits = [];
+const openAiGenerationRequests = [];
+const openAiGenerationConfig = loadMindoryConfig({
+  MINDORY_INSTALL_ALLOW_EXPERIMENTAL: "true",
+  MINDORY_LLM_IMAGE_GENERATION_ENABLED: "true",
+  MINDORY_LLM_IMAGE_GENERATION_PROVIDER: "openai-compatible",
+  MINDORY_LLM_IMAGE_GENERATION_MODEL: "gpt-image-test",
+  MINDORY_LLM_AUDIO_GENERATION_ENABLED: "true",
+  MINDORY_LLM_AUDIO_GENERATION_PROVIDER: "openai-compatible",
+  MINDORY_LLM_AUDIO_GENERATION_MODEL: "gpt-audio-test",
+  MINDORY_LLM_OPENAI_COMPATIBLE_BASE_URL: "https://llm.example/v1",
+  MINDORY_LLM_OPENAI_COMPATIBLE_AUTH_MODE: "api-key",
+  MINDORY_LLM_OPENAI_COMPATIBLE_API_KEY: "api-key-test"
+});
+const openAiGenerationRuntime = buildMindoryLlm(openAiGenerationConfig, {
+  auditSink: (audit) => openAiGenerationAudits.push(audit),
+  fetchImpl: async (url, init) => {
+    openAiGenerationRequests.push({ url: String(url), init });
+    const href = String(url);
+    if (href.endsWith("/images/generations")) {
+      return new Response(JSON.stringify({
+        data: [{ b64_json: Buffer.from("openai image").toString("base64"), revised_prompt: "revised image prompt" }],
+        usage: { prompt_tokens: 3, total_tokens: 3 }
+      }), { status: 200 });
+    }
+    if (href.endsWith("/audio/speech")) {
+      return new Response(Buffer.from("openai audio"), {
+        status: 200,
+        headers: { "content-type": "audio/wav" }
+      });
+    }
+    return new Response("not found", { status: 404 });
+  }
+});
+assert(openAiGenerationRuntime.generation !== undefined, "OpenAI-compatible generation provider must be built.");
+const openAiImageGeneration = await openAiGenerationRuntime.generation.generateImage({
+  prompt: "draw"
+}, {
+  role: openAiGenerationRuntime.registry.require("image-generation")
+});
+assert(openAiImageGeneration.status === "success", "OpenAI-compatible image generation must return success.");
+assert(openAiImageGeneration.value?.mimeType === "image/png", "OpenAI-compatible image generation must return image/png.");
+assert(openAiImageGeneration.value?.metadata?.revisedPrompt === "revised image prompt", "OpenAI-compatible image generation must preserve response metadata.");
+const openAiAudioGeneration = await openAiGenerationRuntime.generation.generateAudio({
+  prompt: "speak"
+}, {
+  role: openAiGenerationRuntime.registry.require("audio-generation")
+});
+assert(openAiAudioGeneration.status === "success", "OpenAI-compatible audio generation must return success.");
+assert(openAiAudioGeneration.value?.mimeType === "audio/wav", "OpenAI-compatible audio generation must parse binary audio response.");
+assert(openAiGenerationRequests.some((request) => request.url === "https://llm.example/v1/images/generations"), "OpenAI-compatible image generation must call /images/generations.");
+assert(openAiGenerationRequests.some((request) => request.url === "https://llm.example/v1/audio/speech"), "OpenAI-compatible audio generation must call /audio/speech.");
+assert(openAiGenerationRequests.every((request) => request.init?.headers?.authorization === "Bearer api-key-test"), "OpenAI-compatible generation must use configured bearer auth.");
+assert(openAiGenerationAudits.some((audit) => audit.role === "image-generation" && audit.provider === "openai-compatible" && audit.status === "success" && audit.usage.imageCount === 1), "OpenAI-compatible image generation must emit image audit.");
+assert(openAiGenerationAudits.some((audit) => audit.role === "audio-generation" && audit.provider === "openai-compatible" && audit.status === "success"), "OpenAI-compatible audio generation must emit audio audit.");
+
+const disabledGenerationAudits = [];
+const disabledGenerationRuntime = buildMindoryLlm(loadMindoryConfig({}), {
+  auditSink: (audit) => disabledGenerationAudits.push(audit)
+});
+const disabledImageGeneration = disabledGenerationRuntime.disabledResult("image-generation");
+assert(disabledImageGeneration.status === "disabled", "Disabled image generation role must return standard disabled result.");
+assert(disabledGenerationAudits.some((audit) => audit.role === "image-generation" && audit.status === "disabled"), "Disabled image generation role must emit disabled audit.");
+
 const localAudits = [];
 const localRequests = [];
 const localEmbedding = Array.from({ length: 1536 }, (_, index) => index / 1536);
@@ -393,6 +468,12 @@ const localConfig = loadMindoryConfig({
   MINDORY_LLM_VISION_CAPTIONING_ENABLED: "true",
   MINDORY_LLM_VISION_CAPTIONING_PROVIDER: "local-http",
   MINDORY_LLM_VISION_CAPTIONING_MODEL: "local-vision",
+  MINDORY_LLM_IMAGE_GENERATION_ENABLED: "true",
+  MINDORY_LLM_IMAGE_GENERATION_PROVIDER: "local-http",
+  MINDORY_LLM_IMAGE_GENERATION_MODEL: "local-image-generation",
+  MINDORY_LLM_AUDIO_GENERATION_ENABLED: "true",
+  MINDORY_LLM_AUDIO_GENERATION_PROVIDER: "local-http",
+  MINDORY_LLM_AUDIO_GENERATION_MODEL: "local-audio-generation",
   MINDORY_INSTALL_ALLOW_EXPERIMENTAL: "true",
   MINDORY_LLM_LOCAL_HTTP_BASE_URL: "http://llm.local:8080",
   MINDORY_LLM_OLLAMA_BASE_URL: "http://ollama.local:11434"
@@ -462,6 +543,22 @@ const localRuntime = buildMindoryLlm(localConfig, {
         }]
       }), { status: 200 });
     }
+    if (href.endsWith("/generation/image")) {
+      return new Response(JSON.stringify({
+        data_base64: Buffer.from("local http image").toString("base64"),
+        mime_type: "image/png",
+        metadata: { prompt: "local image" },
+        usage: { image_count: 1, prompt_tokens: 2, total_tokens: 2 }
+      }), { status: 200 });
+    }
+    if (href.endsWith("/generation/audio")) {
+      return new Response(JSON.stringify({
+        data_base64: Buffer.from("local http audio").toString("base64"),
+        mime_type: "audio/wav",
+        duration_seconds: 1.5,
+        usage: { audio_seconds: 1.5, prompt_tokens: 2, total_tokens: 2 }
+      }), { status: 200 });
+    }
     if (href.endsWith("/health") || href.endsWith("/api/tags")) {
       return new Response(JSON.stringify({ status: "ok" }), { status: 200 });
     }
@@ -475,6 +572,7 @@ assert(localRuntime.ocr !== undefined, "Local HTTP OCR provider must be built wh
 assert(localRuntime.asr !== undefined, "Local HTTP ASR provider must be built when ASR is enabled.");
 assert(localRuntime.vision !== undefined, "Local HTTP vision provider must be built when vision captioning is enabled.");
 assert(localRuntime.faces !== undefined, "Local HTTP face provider must be built when face roles are enabled.");
+assert(localRuntime.generation !== undefined, "Local HTTP generation provider must be built when generation roles are enabled.");
 const localChatResult = await localRuntime.chat.generateChat({
   messages: [{ role: "user", content: "hello" }]
 }, {
@@ -547,6 +645,24 @@ const localFaceRecognitionResult = await localRuntime.faces.recognizeFaces({
   refs: { documentId: "doc-local" }
 });
 assert(localFaceRecognitionResult.status === "success", "Local HTTP face recognition provider must return success.");
+const localImageGenerationResult = await localRuntime.generation.generateImage({
+  prompt: "draw local image"
+}, {
+  role: localRuntime.registry.require("image-generation"),
+  refs: { projectId: "project-local" }
+});
+assert(localImageGenerationResult.status === "success", "Local HTTP image generation provider must return success.");
+assert(localImageGenerationResult.value?.mimeType === "image/png", "Local HTTP image generation provider must parse image MIME type.");
+assert(localImageGenerationResult.value?.bytes.length > 0, "Local HTTP image generation provider must parse image bytes.");
+const localAudioGenerationResult = await localRuntime.generation.generateAudio({
+  prompt: "speak local audio"
+}, {
+  role: localRuntime.registry.require("audio-generation"),
+  refs: { projectId: "project-local" }
+});
+assert(localAudioGenerationResult.status === "success", "Local HTTP audio generation provider must return success.");
+assert(localAudioGenerationResult.value?.mimeType === "audio/wav", "Local HTTP audio generation provider must parse audio MIME type.");
+assert(localAudioGenerationResult.audit.usage.audioSeconds === 1.5, "Local HTTP audio generation audit must include audio duration.");
 assert(localRequests.some((request) => request.url === "http://llm.local:8080/chat/completions"), "Local HTTP chat provider must call /chat/completions.");
 assert(localRequests.some((request) => request.url === "http://llm.local:8080/embeddings"), "Local HTTP embeddings provider must call /embeddings.");
 assert(localRequests.some((request) => request.url === "http://llm.local:8080/embeddings/images"), "Local HTTP image embeddings provider must call /embeddings/images.");
@@ -556,6 +672,8 @@ assert(localRequests.some((request) => request.url === "http://llm.local:8080/vi
 assert(localRequests.some((request) => request.url === "http://llm.local:8080/vision/objects"), "Local HTTP object detection provider must call /vision/objects.");
 assert(localRequests.some((request) => request.url === "http://llm.local:8080/faces/detect"), "Local HTTP face detection provider must call /faces/detect.");
 assert(localRequests.some((request) => request.url === "http://llm.local:8080/faces/recognize"), "Local HTTP face recognition provider must call /faces/recognize.");
+assert(localRequests.some((request) => request.url === "http://llm.local:8080/generation/image"), "Local HTTP image generation provider must call /generation/image.");
+assert(localRequests.some((request) => request.url === "http://llm.local:8080/generation/audio"), "Local HTTP audio generation provider must call /generation/audio.");
 const localHealth = await localRuntime.healthCheck("local-http");
 assert(localHealth.status === "ok", "Local HTTP health check must succeed against /health.");
 const ollamaHealth = await localRuntime.healthCheck("ollama");
@@ -570,6 +688,8 @@ assert(localAudits.some((audit) => audit.role === "asr" && audit.provider === "l
 assert(localAudits.some((audit) => audit.role === "vision-captioning" && audit.provider === "local-http" && audit.status === "success"), "Local HTTP vision must emit success audit.");
 assert(localAudits.some((audit) => audit.role === "face-detection" && audit.provider === "local-http" && audit.status === "success"), "Local HTTP face detection must emit success audit.");
 assert(localAudits.some((audit) => audit.role === "face-recognition" && audit.provider === "local-http" && audit.status === "success"), "Local HTTP face recognition must emit success audit.");
+assert(localAudits.some((audit) => audit.role === "image-generation" && audit.provider === "local-http" && audit.status === "success"), "Local HTTP image generation must emit success audit.");
+assert(localAudits.some((audit) => audit.role === "audio-generation" && audit.provider === "local-http" && audit.status === "success"), "Local HTTP audio generation must emit success audit.");
 
 function localCommandConfig(script, extra = {}) {
   return loadMindoryConfig({
