@@ -272,7 +272,7 @@ Local filesystem is acceptable for development and simple single-node self-hoste
 Adapter-based:
 
 - pgvector as the default MVP implementation;
-- Qdrant support as optional/future adapter or optional docker-compose profile.
+- Qdrant as an optional adapter and docker-compose profile.
 
 Important rule:
 

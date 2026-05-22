@@ -276,7 +276,6 @@ export type ProcessingErrorCode =
   | "invalid_chunker_config"
   | "text_extraction_failed"
   | "unsupported_document_type"
-  | "vector_index_not_implemented"
   | "vector_index_error";
 
 export class ProcessingError extends Error {

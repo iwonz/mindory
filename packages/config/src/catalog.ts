@@ -314,8 +314,10 @@ export const CONFIG_CATALOG = [
   entry("MINDORY_VECTOR_PROVIDER", "vector", "enum", "pgvector", "Vector index provider.", "both", "supported", {
     allowedValues: ["pgvector", "qdrant"]
   }),
-  entry("MINDORY_QDRANT_URL", "vector", "string", "http://qdrant:6333", "Qdrant URL for the optional future adapter.", "both", "future"),
-  entry("MINDORY_QDRANT_COLLECTION_PREFIX", "vector", "string", "mindory", "Qdrant collection prefix.", "both", "future"),
+  entry("MINDORY_QDRANT_URL", "vector", "string", "http://qdrant:6333", "Qdrant HTTP API URL.", "both", "supported"),
+  entry("MINDORY_QDRANT_COLLECTION_PREFIX", "vector", "string", "mindory", "Qdrant collection prefix.", "both", "supported"),
+  entry("MINDORY_QDRANT_HTTP_PORT", "vector", "number", "6333", "Host port published by the Qdrant Compose profile.", "installer", "supported"),
+  entry("MINDORY_QDRANT_GRPC_PORT", "vector", "number", "6334", "Host gRPC port published by the Qdrant Compose profile.", "installer", "supported"),
 
   entry("MINDORY_AV_ENABLED", "antivirus", "boolean", "true", "Enable antivirus processing.", "both", "supported"),
   entry("MINDORY_AV_PROVIDER", "antivirus", "string", "clamav", "Antivirus provider name.", "both", "supported"),
@@ -420,12 +422,14 @@ export const CONFIG_CATALOG = [
 
   entry("MINDORY_TEST_POSTGRES_PORT", "integration-tests", "number", "55432", "Integration test PostgreSQL host port.", "test", "supported"),
   entry("MINDORY_TEST_REDIS_PORT", "integration-tests", "number", "56379", "Integration test Redis host port.", "test", "supported"),
+  entry("MINDORY_TEST_QDRANT_PORT", "integration-tests", "number", "56333", "Integration test Qdrant HTTP host port.", "test", "supported"),
   entry("MINDORY_TEST_DATABASE_URL", "integration-tests", "string", "", "External integration test database URL.", "test", "supported", {
     secret: true
   }),
   entry("MINDORY_TEST_REDIS_URL", "integration-tests", "string", "", "External integration test Redis URL.", "test", "supported", {
     secret: true
   }),
+  entry("MINDORY_TEST_QDRANT_URL", "integration-tests", "string", "", "External integration test Qdrant HTTP URL.", "test", "supported"),
   entry("MINDORY_TEST_SKIP_DOCKER", "integration-tests", "boolean", "false", "Skip Docker-managed integration test dependencies.", "test", "supported"),
   entry("MINDORY_TEST_SKIP_BUILD", "integration-tests", "boolean", "false", "Skip pre-test TypeScript build.", "test", "supported"),
   entry("MINDORY_TEST_DOCKER_BIN", "integration-tests", "string", "/usr/local/bin/docker", "Docker binary path for integration tests.", "test", "supported"),

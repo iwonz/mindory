@@ -274,8 +274,10 @@ and Ollama services. Database-backed audit persistence is not part of this
 task.
 
 `MINDORY_VECTOR_PROVIDER` accepts `pgvector` or `qdrant`. `pgvector` is the
-default MVP runtime after `TASK-20`; Qdrant remains optional and profile-gated
-in Compose.
+default runtime backend. The `@mindory/vector-qdrant` package supports Qdrant
+collection bootstrap, healthcheck, chunk upsert, delete and vector search with
+the same project/document/chunk source refs. Run the Compose `qdrant` profile
+when selecting Qdrant.
 
 `MINDORY_E2E_MODEL_PROFILE` controls `pnpm mvp:demo` model profile selection
 when `--model-profile` is not passed. Supported values are `disabled`, `local`

@@ -19,8 +19,10 @@ const projectId = `project_${testRunId}`;
 const bootstrapToken = `token_${testRunId}`;
 const postgresPort = process.env.MINDORY_TEST_POSTGRES_PORT ?? "55432";
 const redisPort = process.env.MINDORY_TEST_REDIS_PORT ?? "56379";
+const qdrantPort = process.env.MINDORY_TEST_QDRANT_PORT ?? "56333";
 const databaseUrl = process.env.MINDORY_TEST_DATABASE_URL ?? `postgresql://mindory:mindory@127.0.0.1:${postgresPort}/mindory`;
 const redisUrl = process.env.MINDORY_TEST_REDIS_URL ?? `redis://127.0.0.1:${redisPort}`;
+const qdrantUrl = process.env.MINDORY_TEST_QDRANT_URL ?? `http://127.0.0.1:${qdrantPort}`;
 const storagePath = path.join(os.tmpdir(), `mindory-integration-${testRunId}`);
 const queuePrefix = `mindory:test:${testRunId}`;
 const testEnv = {
@@ -55,7 +57,9 @@ await buildWorkspaces();
 await startIntegrationInfrastructure();
 await waitForTcp("127.0.0.1", Number(postgresPort), "PostgreSQL");
 await waitForTcp("127.0.0.1", Number(redisPort), "Redis");
+await waitForTcp("127.0.0.1", Number(qdrantPort), "Qdrant");
 await waitForPostgres();
+await waitForQdrant();
 await runMigration();
 await mkdir(storagePath, { recursive: true });
 
@@ -300,6 +304,102 @@ test("MVP runtime integration indexes document chunks with configured embeddings
     await fakeEmbeddings.close();
     await cleanupProjectInDatabase(indexedProjectId, databaseUrl);
     await rm(indexedStoragePath, { recursive: true, force: true });
+  }
+});
+
+test("Qdrant vector adapter bootstraps collection and searches chunks", { timeout: 60_000 }, async () => {
+  const collectionPrefix = `mindory_${testRunId}`;
+  const collectionName = `${collectionPrefix}_document_chunks`;
+  const index = new modules.QdrantVectorIndex({
+    url: qdrantUrl,
+    collectionPrefix,
+    dimensions: 4
+  });
+  const documentId = `doc_qdrant_${testRunId}`;
+
+  try {
+    const health = await index.healthcheck();
+    assert.equal(health.ok, true);
+    assert.equal(health.collectionName, collectionName);
+
+    const upserted = await index.upsertDocumentChunks({
+      chunks: [
+        {
+          projectId,
+          documentId,
+          chunkId: "chunk_qdrant_1",
+          content: "Qdrant vector adapter keeps source refs for the first chunk.",
+          embedding: [1, 0, 0, 0],
+          model: "mindory-test-vector",
+          dimensions: 4,
+          metadata: {
+            source_refs: [{ type: "chunk", id: "chunk_qdrant_1" }],
+            category: "alpha",
+            size_bytes: 64
+          }
+        },
+        {
+          projectId,
+          documentId,
+          chunkId: "chunk_qdrant_2",
+          content: "Second Qdrant chunk is intentionally less similar.",
+          embedding: [0, 1, 0, 0],
+          model: "mindory-test-vector",
+          dimensions: 4,
+          metadata: {
+            source_refs: [{ type: "chunk", id: "chunk_qdrant_2" }],
+            category: "beta",
+            size_bytes: 256
+          }
+        },
+        {
+          projectId: `other_${projectId}`,
+          documentId,
+          chunkId: "chunk_qdrant_other_project",
+          content: "Other project chunk must not leak into project-scoped search.",
+          embedding: [1, 0, 0, 0],
+          model: "mindory-test-vector",
+          dimensions: 4,
+          metadata: {
+            source_refs: [{ type: "chunk", id: "chunk_qdrant_other_project" }],
+            category: "alpha",
+            size_bytes: 32
+          }
+        }
+      ]
+    });
+    assert.equal(upserted.length, 3);
+    assert.match(upserted[0].embeddingId, /^[0-9a-f-]{36}$/);
+
+    const hits = await index.searchDocumentChunks({
+      projectIds: [projectId],
+      embedding: [1, 0, 0, 0],
+      limit: 5
+    });
+    assert.equal(hits[0]?.chunkId, "chunk_qdrant_1");
+    assert.deepEqual(hits[0]?.metadata.source_refs, [{ type: "chunk", id: "chunk_qdrant_1" }]);
+    assert(!hits.some((hit) => hit.projectId !== projectId), "Qdrant search must stay project scoped.");
+
+    const filteredHits = await index.searchDocumentChunks({
+      projectIds: [projectId],
+      embedding: [1, 0, 0, 0],
+      limit: 5,
+      metadataFilters: [
+        { key: "category", operator: "eq", valueText: "alpha" },
+        { key: "size_bytes", operator: "lt", valueNumber: 100 }
+      ]
+    });
+    assert.deepEqual(filteredHits.map((hit) => hit.chunkId), ["chunk_qdrant_1"]);
+
+    await index.deleteDocumentChunks(projectId, documentId);
+    const afterDelete = await index.searchDocumentChunks({
+      projectIds: [projectId],
+      embedding: [1, 0, 0, 0],
+      limit: 5
+    });
+    assert.equal(afterDelete.length, 0);
+  } finally {
+    await deleteQdrantCollection(qdrantUrl, collectionName);
   }
 });
 
@@ -1601,7 +1701,7 @@ async function startIntegrationInfrastructure() {
     return;
   }
   const docker = resolveDockerBinary();
-  runCommand(docker, ["compose", ...dockerComposeFiles, "up", "-d", "postgres", "redis"], {
+  runCommand(docker, ["compose", ...dockerComposeFiles, "--profile", "qdrant", "up", "-d", "postgres", "redis", "qdrant"], {
     env: dockerEnv()
   });
 }
@@ -1654,6 +1754,21 @@ async function waitForPostgres() {
   throw new Error("PostgreSQL did not become query-ready.");
 }
 
+async function waitForQdrant() {
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    try {
+      const response = await fetch(`${qdrantUrl}/healthz`);
+      if (response.ok) {
+        return;
+      }
+    } catch {
+      // Retry while Qdrant finishes booting.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  throw new Error(`Qdrant did not become healthy at ${qdrantUrl}.`);
+}
+
 function canConnect(host, port) {
   return new Promise((resolve) => {
     const socket = net.createConnection({ host, port });
@@ -1681,7 +1796,8 @@ async function loadRuntimeModules() {
     auth,
     db,
     queue,
-    coreQueue
+    coreQueue,
+    qdrant
   ] = await Promise.all([
     import("../apps/api/dist/app.js"),
     import("../apps/api/dist/runtime.js"),
@@ -1690,7 +1806,8 @@ async function loadRuntimeModules() {
     import("../packages/auth/dist/index.js"),
     import("../packages/db/dist/index.js"),
     import("../packages/queue/bullmq/dist/index.js"),
-    import("../packages/core/dist/queue.js")
+    import("../packages/core/dist/queue.js"),
+    import("../packages/vector/qdrant/dist/index.js")
   ]);
 
   return {
@@ -1701,8 +1818,19 @@ async function loadRuntimeModules() {
     ...auth,
     ...db,
     ...queue,
-    ...coreQueue
+    ...coreQueue,
+    ...qdrant
   };
+}
+
+async function deleteQdrantCollection(baseUrl, collectionName) {
+  try {
+    await fetch(`${baseUrl}/collections/${encodeURIComponent(collectionName)}`, {
+      method: "DELETE"
+    });
+  } catch {
+    // Collection cleanup is best-effort; the test collection name is unique.
+  }
 }
 
 function addressToUrl(address) {
@@ -1723,6 +1851,9 @@ function dockerEnv() {
       process.env.PATH ?? ""
     ].join(":"),
     MINDORY_TEST_POSTGRES_PORT: postgresPort,
-    MINDORY_TEST_REDIS_PORT: redisPort
+    MINDORY_TEST_REDIS_PORT: redisPort,
+    MINDORY_TEST_QDRANT_PORT: qdrantPort,
+    MINDORY_QDRANT_HTTP_PORT: qdrantPort,
+    MINDORY_QDRANT_GRPC_PORT: String(Number(qdrantPort) + 1)
   };
 }

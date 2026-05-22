@@ -1,7 +1,7 @@
 {
   "id": "TASK-90",
   "title": "Implement real Qdrant vector adapter",
-  "status": "draft",
+  "status": "done",
   "type": "feature",
   "priority": "high",
   "branch": "task/TASK-90-real-qdrant-vector-adapter",

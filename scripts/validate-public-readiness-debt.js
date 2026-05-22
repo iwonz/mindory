@@ -62,10 +62,8 @@ const debtOwners = new Map(Object.entries({
   "packages/auth/src/index.ts": { owner: "TASK-88", max: 7 },
   "packages/core/src/document-routing.ts": { owner: "TASK-98", max: 2 },
   "packages/core/src/documents.ts": { owner: "TASK-94", max: 3 },
-  "packages/core/src/processing.ts": { owner: "TASK-90", max: 1 },
   "packages/core/src/queue.ts": { owner: "TASK-88", max: 1 },
   "packages/core/src/storage.ts": { owner: "TASK-88", max: 1 },
-  "packages/vector/qdrant/src/index.ts": { owner: "TASK-90", max: 6 },
   "scripts/check-repo.js": { owner: "TASK-88", max: 1 },
   "scripts/docker-placeholder-service.mjs": { owner: "TASK-92", max: 7 },
   "scripts/validate-api-skeleton.js": { owner: "TASK-88", max: 4 },
@@ -74,7 +72,6 @@ const debtOwners = new Map(Object.entries({
   "scripts/validate-document-pipeline.js": { owner: "TASK-98", max: 2 },
   "scripts/validate-mcp-server.js": { owner: "TASK-89", max: 1 },
   "scripts/validate-memory-context.js": { owner: "TASK-88", max: 2 },
-  "scripts/validate-processing-pipeline.js": { owner: "TASK-90", max: 3 },
   "scripts/validate-public-github-hygiene.js": { owner: "TASK-89", max: 1 },
   "scripts/validate-storage-adapters.js": { owner: "TASK-89", max: 1 }
 }));

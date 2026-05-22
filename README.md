@@ -22,7 +22,7 @@ experimental profile surfaces and planned hardening:
 | API | Supported local MVP: Fastify server runtime wires PostgreSQL repositories, bearer-token access control, projects, tokens, peers, sessions, messages, memories, context, documents, jobs, document/artifact search and unified multimodal search routes. Product startup requires runtime dependencies before serving traffic; dependency-free app construction is explicit test mode. |
 | Worker pipeline | Supported local MVP: scan, route, extract, chunk, embed and index processors are registered. Text and metadata fallback search work without external model credentials. |
 | Document modalities | Supported fallback: text/Markdown, native-text PDF, scanned-PDF OCR through local HTTP when enabled, image OCR/vision/face detection and recognition through local HTTP when enabled plus deterministic image metadata fallback, audio ASR through local HTTP when enabled plus embedded WAV transcript fallback, and video keyframes through manifest fallback or opt-in local-command extraction. Future: bundled ffmpeg profiles, image embeddings and object detection. |
-| Vectors | Supported local MVP: pgvector for 1536-dimensional text embeddings when a compatible provider is configured. Supported fallback: PostgreSQL full-text search when embeddings are disabled. Future: Qdrant adapter. |
+| Vectors | Supported local MVP: pgvector for 1536-dimensional text embeddings when a compatible provider is configured. Supported fallback: PostgreSQL full-text search when embeddings are disabled. Supported adapter package: Qdrant collection bootstrap, upsert/delete and search. |
 | LLM/model runtime | Supported boundary: all model operations route through `@mindory/llm`, with disabled behavior, audit hooks, OpenAI-compatible chat/embeddings, Ollama text embeddings, local HTTP chat/embeddings/OCR/vision captioning/ASR/face roles, local provider health checks and deterministic local acceptance profiles. Unsupported roles remain disabled or experimental until concrete adapters land. |
 | Interfaces | Supported local MVP: HTTP API, CLI and MCP stdio tools call the API, including unified multimodal search. Hermes adapter exposes lifecycle helpers, hook registration for Hermes-like runtimes and a fake-compatible runtime harness; an official Hermes SDK is not vendored. |
 | Installer | Supported today: wizard, plan/dry-run, prepare execution for `$MINDORY_HOME` directories/config/compose assets, Docker Compose startup through health checks, S3 bucket bootstrap/access checks, first project/token provisioning, local asset update, runtime backup/restore, guarded uninstall, dependency detection, lock/journal diagnostics, bootstrap staging, installer acceptance and public self-host acceptance. Future: remote release update, scheduled backups and full automated resume execution. |
@@ -159,8 +159,8 @@ dependency-free behavior is limited to explicit tests.
 The processing packages expose built-in text/Markdown extraction, native-text
 PDF extraction, scanned-PDF OCR, image OCR/vision captioning, audio ASR,
 deterministic video fallback extractors, chunking, the `@mindory/llm` provider
-entrypoint, document routing and pgvector search. Qdrant is documented as a
-future optional adapter. Text extraction/chunking writes derived artifact rows
+entrypoint, document routing, pgvector search and the Qdrant adapter package.
+Text extraction/chunking writes derived artifact rows
 and text spans; fallback document search uses PostgreSQL full-text search over
 those spans.
 

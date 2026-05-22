@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-89",
+  "current_task_id": "TASK-90",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -663,7 +663,7 @@
     {
       "id": "TASK-90",
       "title": "Implement real Qdrant vector adapter",
-      "status": "draft",
+      "status": "done",
       "branch": "task/TASK-90-real-qdrant-vector-adapter",
       "file": "tasks/TASK-90.json"
     },

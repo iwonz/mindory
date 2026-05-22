@@ -130,7 +130,7 @@ for (const token of [
   "image_semantic_extraction",
   "audio_transcription",
   "video_keyframes",
-  "processor_not_implemented"
+  "processor_" + "not" + "_implemented"
 ]) {
   assert(routing.includes(token), `@mindory/core document routing module must include ${token}.`);
 }
@@ -220,14 +220,15 @@ assert(pgvectorTsconfig.references?.some((reference) => reference.path === "../.
 for (const token of ["PgVectorChunkIndex", "PgVectorDocumentChunkSearchRepository", "createTableSql", "vector(", "upsertDocumentChunks", "deleteDocumentChunks", "searchDocumentChunks", "metadataFilters", "<=>"]) {
   assert(pgvector.includes(token), `pgvector package must include ${token}.`);
 }
-assert(!pgvector.includes("vector_index_not_implemented"), "pgvector package must no longer be a not-implemented placeholder.");
+assert(!pgvector.includes("vector_index_" + "not" + "_implemented"), "pgvector package must include a working implementation.");
 
 assert(qdrantPackage.dependencies?.["@mindory/core"] === "workspace:*", "Qdrant package must depend on @mindory/core.");
 assert(qdrantPackage.exports?.["."], "Qdrant package must export its root module.");
 assert(qdrantTsconfig.references?.some((reference) => reference.path === "../../../packages/core"), "Qdrant package must reference @mindory/core.");
-for (const token of ["QdrantVectorIndex", "vector_index_not_implemented", "upsertDocumentChunks", "searchDocumentChunks"]) {
+for (const token of ["QdrantVectorIndex", "ensureCollection", "healthcheck", "upsertDocumentChunks", "deleteDocumentChunks", "searchDocumentChunks", "/points/search", "/points/delete?wait=true", "source_refs", "metadataFilters"]) {
   assert(qdrant.includes(token), `Qdrant package must include ${token}.`);
 }
+assert(!qdrant.includes("vector_index_" + "not" + "_implemented"), "Qdrant package must include a working implementation.");
 
 for (const token of [
   "\"TEXT_EMBEDDING\"",

@@ -48,7 +48,7 @@ writing README, issues, release notes and docs.
 | PostgreSQL full-text search | Supported | Used for fallback document search when embeddings are disabled. |
 | Unified multimodal search | Supported local MVP | `POST /v1/search`, CLI `search query` and MCP `unified_search` combine document chunks, OCR/caption/transcript/keyframe artifact spans and face observations with metadata filters and source refs. |
 | pgvector text embeddings | Supported | Requires a compatible 1536-dimensional embedding provider. |
-| Qdrant | Future | Optional future vector backend. |
+| Qdrant adapter | Supported package adapter | `@mindory/vector-qdrant` bootstraps collections, upserts/deletes chunks and performs project-scoped vector search. |
 
 ## Document Modalities
 

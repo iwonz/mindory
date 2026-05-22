@@ -199,7 +199,8 @@ returns explicit `not_implemented` responses when dependencies are omitted.
   scanned-PDF OCR and future ASR, vision and face capabilities, including
   OpenAI-compatible API key or OAuth bearer auth.
 - `@mindory/vector-pgvector` implements the default PostgreSQL vector index.
-- `@mindory/vector-qdrant` remains an optional future vector adapter.
+- `@mindory/vector-qdrant` implements the optional Qdrant vector backend with
+  collection bootstrap, point upsert/delete and project-scoped vector search.
 - `@mindory/core/artifacts` and `DbDerivedArtifactRepository` define the
   derived artifact boundary for processing runs, artifact records, media
   metadata and workspace-scoped face observations.
@@ -219,7 +220,8 @@ returns explicit `not_implemented` responses when dependencies are omitted.
   Recompute jobs create a new `processing_run`, supersede older runs by stage
   and enqueue routing while preserving the original document storage key.
 
-Qdrant runtime remains an optional future adapter.
+Qdrant support is implemented in `@mindory/vector-qdrant`; full API/worker
+backend selection is handled by the vector runtime wiring layer.
 
 ## Memory And Context Builder
 
