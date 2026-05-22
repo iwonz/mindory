@@ -126,8 +126,13 @@ enable all five modality routers for the local MVP so text, PDF, image, audio
 and video fixtures can flow through derived-artifact processing without large
 model services.
 
-`MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES` sets the future video
-keyframe cap and defaults to `10`.
+`MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES` sets the video keyframe cap
+and defaults to `10`. `MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_PROVIDER`
+defaults to `manifest`; set it to `local-command` with
+`MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_COMMAND`,
+`MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_ARGS` and
+`MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_TIMEOUT_MS` to run an external
+keyframe extractor.
 
 ## LLM SDK And Vector Indexes
 
@@ -149,7 +154,9 @@ Audio extraction can call the local HTTP ASR provider for transcript segments,
 or derive transcript segments from embedded WAV `INFO/ICMT` text when ASR is
 disabled.
 Video extraction uses `MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES` to cap
-manifest-derived keyframes; the default remains `10`.
+manifest-derived or local-command keyframes; the default remains `10`.
+Local-command keyframe extraction is opt-in and parses a JSON manifest from
+stdout without mutating the RAW video object.
 
 The role/provider support matrix is centralized in `@mindory/llm` and the
 config catalog. `chat` and `text-embedding` have supported OpenAI-compatible
@@ -228,6 +235,20 @@ SDK accepts OpenAI-compatible response shapes plus simple `{ text }`,
 and ASR `{ text, segments }` bodies.
 `MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS` controls the default guardrail for
 future `local-command` adapters.
+
+Local-command video keyframe extraction uses its own command settings:
+
+```env
+MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_PROVIDER=local-command
+MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_COMMAND=/usr/local/bin/mindory-keyframes
+MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_ARGS=["--input","{input}","--max","{maxKeyframes}"]
+MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_TIMEOUT_MS=120000
+```
+
+The command must print a JSON object with `durationMs`, `codec` and `frames`.
+Each frame must include `timestampMs` and `description`; optional `labels`,
+`mime_type` and `data_base64` let Mindory run configured OCR/vision providers
+on extracted frame bytes.
 
 Runtime consumers must obtain operation providers and role snapshots from
 `@mindory/llm`. Worker processors may receive simple capability snapshots, but

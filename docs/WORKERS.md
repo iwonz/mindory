@@ -61,7 +61,8 @@ The document pipeline processors now include:
 
 The current concrete pieces are the built-in text/Markdown extractor, the
 Docling PDF native text/OCR extractor, image semantic OCR/vision extractor,
-audio ASR/transcript extractor, video keyframe fallback extractor, face
+audio ASR/transcript extractor, video keyframe manifest/local-command
+extractor, face
 observation auto-matching through `FaceService`, fixed-size chunker,
 OpenAI-compatible embeddings provider, Ollama embeddings provider, local HTTP
 OCR/vision/ASR provider, and explicit pgvector/Qdrant vector index scaffolds.

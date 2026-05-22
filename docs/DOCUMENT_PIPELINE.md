@@ -19,7 +19,8 @@ adds model-backed scanned-PDF OCR through `@mindory/llm`.
 model-backed image OCR and vision captioning through `@mindory/llm`.
 `TASK-46` adds the first audio transcript extraction path. `TASK-78` adds
 model-backed audio ASR through `@mindory/llm`.
-`TASK-47` adds the first video keyframe extraction path.
+`TASK-47` adds the first video keyframe extraction path. `TASK-79` adds
+opt-in local-command keyframe extraction and frame OCR/vision enrichment.
 
 ## MVP Pipeline
 
@@ -50,7 +51,7 @@ Processing status must be durable in PostgreSQL, not only in BullMQ.
 | Image | Supported deterministic fallback plus experimental local HTTP OCR and vision captioning through `@mindory/llm` when enabled. Stores derived caption, analysis, labels and OCR text. Future work adds image embeddings and object detection. |
 | Face observations | Supported deterministic fallback only when explicit people-count signals are present. Future work adds real face detection and recognition adapters. |
 | Audio | Supported WAV metadata and embedded `INFO/ICMT` transcript fallback plus experimental local HTTP ASR through `@mindory/llm` when enabled. |
-| Video | Supported deterministic fallback through embedded `MINDORY_VIDEO_MANIFEST`. Future work adds real ffmpeg keyframe extraction and frame bitmap artifacts. |
+| Video | Supported embedded `MINDORY_VIDEO_MANIFEST` fallback plus experimental local-command keyframe extraction. Extracted frame bytes can run through OCR/vision roles. Future work adds bundled ffmpeg profiles and frame bitmap object storage. |
 | Embeddings and vector search | Supported for text chunks through `@mindory/llm` and pgvector when a compatible 1536-dimensional provider is configured. Full-text fallback is supported when embeddings are disabled. |
 
 ## Derived Artifact State
@@ -123,7 +124,9 @@ The bare runtime default route configuration is conservative:
 - image: disabled by default, creates `document.extract` when enabled;
 - audio: disabled by default, creates `document.extract` when enabled;
 - video: disabled by default, creates `document.extract` when enabled;
-- video keyframe limit: `10`.
+- video keyframe limit: `10`;
+- video keyframe provider: `manifest` by default, `local-command` when
+  explicitly configured.
 
 Disabling a modality means no job is created for that file type. If a future
 modality is added to configuration before its processor exists, routing records
@@ -236,8 +239,13 @@ fails with a readable processing error.
 ## Video Processing
 
 When `MINDORY_DOCUMENT_PROCESSING_VIDEO_ENABLED=true`, routing sends video
-uploads to `document.extract`. The `@mindory/extractor-video-keyframe` MVP
-extractor reads an embedded `MINDORY_VIDEO_MANIFEST` fallback and respects
+uploads to `document.extract`. The `@mindory/extractor-video-keyframe`
+extractor reads an embedded `MINDORY_VIDEO_MANIFEST` fallback or, when
+`MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_PROVIDER=local-command`, runs the
+configured command without a shell. The extractor writes the RAW video bytes to
+a temporary file, passes configured args with `{input}`, `{filename}`,
+`{mimeType}` and `{maxKeyframes}` replacements, parses a JSON keyframe manifest
+from stdout and removes the temp file. It respects
 `MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES`, default `10`. It writes:
 
 - a top-level extracted text artifact containing keyframe descriptions;
@@ -246,10 +254,16 @@ extractor reads an embedded `MINDORY_VIDEO_MANIFEST` fallback and respects
   `timestamp_ms` metadata;
 - chunk metadata and source refs that point back to keyframe artifacts.
 
+If extracted frames include `data_base64` and `mime_type`, the extractor can
+call configured `@mindory/llm` OCR and vision-captioning providers for each
+selected frame. Provider OCR text, captions and labels are stored in derived
+`video_keyframe` artifacts and searchable frame description spans. Required
+OCR/vision failures fail extraction; disabled roles remain non-blocking.
+
 The route stage can index fallback video `duration_ms`, `codec` and
-`frame_count` metadata from the manifest. Real ffmpeg keyframe extraction and
-bitmap storage are future adapter work; current tests use deterministic
-manifest-derived frame descriptions.
+`frame_count` metadata from the embedded manifest. Bundled ffmpeg profiles and
+frame bitmap object-storage persistence are future hardening; current tests use
+a deterministic local-command fixture.
 
 ## Recompute Flow
 
@@ -271,8 +285,8 @@ extractor supports plain text and Markdown inputs, `@mindory/extractor-docling`
 supports native-text PDF inputs, `@mindory/extractor-image-semantic` supports
 image semantic fallback extraction, `@mindory/extractor-audio-transcript`
 supports local HTTP ASR plus embedded-transcript audio fallback extraction,
-`@mindory/extractor-video-keyframe` supports manifest-derived keyframe
-fallback extraction, and `FixedSizeTextChunker` creates
+`@mindory/extractor-video-keyframe` supports manifest-derived and
+local-command keyframe extraction, and `FixedSizeTextChunker` creates
 deterministic token windows with offset metadata. Text/PDF/image extraction
 writes a `text` artifact plus an `extracted_text` span; PDF extraction also
 writes `pdf_page` artifacts and page-level spans; image extraction also writes

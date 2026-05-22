@@ -210,7 +210,7 @@ The wizard prompts for:
 - install profile, home directory, dependency policy and public URL;
 - antivirus mode;
 - storage choice: local filesystem, LibreFS local S3 or external S3-compatible;
-- document modality switches and video keyframe limit;
+- document modality switches, video keyframe limit and keyframe provider;
 - independent LLM role enablement, provider, model, required mode, timeout,
   concurrency and embedding dimensions where applicable;
 - API/MCP/Hermes interface switches and tokens.

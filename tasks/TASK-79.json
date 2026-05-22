@@ -1,0 +1,66 @@
+{
+  "id": "TASK-79",
+  "title": "Add video keyframe extraction pipeline",
+  "status": "done",
+  "type": "feature",
+  "priority": "high",
+  "branch": "task/TASK-79-video-keyframe-extraction-pipeline",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Add configurable local video keyframe extraction and process extracted frame artifacts through OCR/vision roles where frame image bytes are available.",
+    "background": "The video extractor currently reads an embedded MINDORY_VIDEO_MANIFEST fallback. TASK-79 adds a configurable local-command extractor path while keeping manifest fallback and max keyframe limits."
+  },
+  "scope": {
+    "in": [
+      "Add config catalog settings for video keyframe provider, command, args and timeout.",
+      "Implement a local-command video keyframe provider that writes RAW input to a temporary file and parses JSON keyframe output.",
+      "Preserve the embedded manifest fallback when local-command is disabled.",
+      "Cap extracted frames by MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES.",
+      "Run extracted frame image bytes through configured OCR/vision providers and persist searchable frame artifacts.",
+      "Add integration coverage with a fake local keyframe command.",
+      "Update docs and validators for video keyframe extraction support."
+    ],
+    "out": [
+      "Bundling ffmpeg or heavy local video tooling.",
+      "Video audio-track ASR.",
+      "Object-storage persistence of frame bitmap files.",
+      "Face detection/recognition on video frames."
+    ]
+  },
+  "acceptance_criteria": [
+    "Video keyframe extraction supports manifest fallback and configurable local-command provider.",
+    "Local-command extraction reads RAW bytes without mutating the original object and returns capped frame artifacts.",
+    "Frame image bytes can be processed by @mindory/llm OCR and vision captioning when those roles are enabled.",
+    "Video keyframe descriptions, OCR text and labels are searchable with frame source refs.",
+    "Disabled local-command mode remains non-blocking and existing manifest fixtures still work.",
+    "pnpm check passes."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm config:generate",
+      "pnpm config:validate",
+      "pnpm processing:validate",
+      "pnpm test",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-79.",
+      "Confirm RAW video objects remain immutable and keyframes are derived state."
+    ]
+  },
+  "dependencies": [
+    "TASK-78"
+  ],
+  "risks": [
+    "Command execution must not use a shell or mutate RAW objects.",
+    "Local-command provider should remain opt-in and validated.",
+    "Frame model calls must go through @mindory/llm providers."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to done.",
+    "Branch is committed and merged back into master."
+  ]
+}
