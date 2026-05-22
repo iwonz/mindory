@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-78",
+  "current_task_id": "TASK-79",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -582,6 +582,13 @@
       "status": "done",
       "branch": "task/TASK-78-audio-asr-pipeline",
       "file": "tasks/TASK-78.json"
+    },
+    {
+      "id": "TASK-79",
+      "title": "Add video keyframe extraction pipeline",
+      "status": "done",
+      "branch": "task/TASK-79-video-keyframe-extraction-pipeline",
+      "file": "tasks/TASK-79.json"
     }
   ]
 }

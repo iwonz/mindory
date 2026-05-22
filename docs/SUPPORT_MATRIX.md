@@ -47,6 +47,12 @@ writing README, issues, release notes and docs.
 | pgvector text embeddings | Supported | Requires a compatible 1536-dimensional embedding provider. |
 | Qdrant | Future | Optional future vector backend. |
 
+## Document Modalities
+
+| Area | Status | Notes |
+| --- | --- | --- |
+| Video keyframes | Supported manifest fallback; experimental local-command provider | Local-command extraction is opt-in, validates a command path, respects the configured max frame count and can run extracted frame bytes through OCR/vision roles. Bundled ffmpeg profiles remain future work. |
+
 ## Model Roles
 
 All model operations must go through `@mindory/llm`.

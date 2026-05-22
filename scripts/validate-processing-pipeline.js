@@ -182,9 +182,11 @@ for (const token of ["ImageSemanticExtractor", "image_caption", "image_analysis"
 }
 
 assert(videoKeyframePackage.dependencies?.["@mindory/core"] === "workspace:*", "Video keyframe extractor must depend on @mindory/core.");
+assert(videoKeyframePackage.dependencies?.["@mindory/llm"] === "workspace:*", "Video keyframe extractor must route frame OCR and vision through @mindory/llm.");
 assert(videoKeyframePackage.exports?.["."], "Video keyframe extractor must export its root module.");
 assert(videoKeyframeTsconfig.references?.some((reference) => reference.path === "../../../../packages/core"), "Video keyframe extractor must reference @mindory/core.");
-for (const token of ["VideoKeyframeExtractor", "video_keyframe", "video_keyframe_description", "maxKeyframes", "MINDORY_VIDEO_MANIFEST", "readVideoManifest"]) {
+assert(videoKeyframeTsconfig.references?.some((reference) => reference.path === "../../../../packages/llm"), "Video keyframe extractor must reference @mindory/llm.");
+for (const token of ["VideoKeyframeExtractor", "video_keyframe", "video_keyframe_description", "maxKeyframes", "MINDORY_VIDEO_MANIFEST", "readVideoManifest", "LocalCommandVideoKeyframeProvider", "keyframeProvider", "local-command", "recognizeText", "captionImage", "provider_ocr", "provider_caption"]) {
   assert(videoKeyframe.includes(token), `Video keyframe extractor must include ${token}.`);
 }
 

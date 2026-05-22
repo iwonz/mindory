@@ -46,7 +46,7 @@ import { AudioTranscriptExtractor, type AudioTranscriptExtractorOptions } from "
 import { BuiltinTextExtractor } from "@mindory/extractor-builtin-text";
 import { DoclingPdfExtractor, type DoclingPdfExtractorOptions } from "@mindory/extractor-docling";
 import { ImageSemanticExtractor, type ImageSemanticExtractorOptions } from "@mindory/extractor-image-semantic";
-import { readVideoManifest, VideoKeyframeExtractor } from "@mindory/extractor-video-keyframe";
+import { readVideoManifest, VideoKeyframeExtractor, type VideoKeyframeExtractorOptions } from "@mindory/extractor-video-keyframe";
 import { buildMindoryLlm, llmRoleState, type MindoryLlm } from "@mindory/llm";
 import { ClamAvDocumentScanProcessor, ClamAvScanner } from "@mindory/processor-antivirus-clamav";
 
@@ -82,9 +82,7 @@ export function buildDocumentPipelineProcessors(options: DocumentPipelineProcess
   const extractors = options.extractors ?? [
     new BuiltinTextExtractor(),
     new AudioTranscriptExtractor(audioTranscriptExtractorOptions(llm)),
-    new VideoKeyframeExtractor({
-      maxKeyframes: options.config.documentProcessing.video.maxKeyframes
-    }),
+    new VideoKeyframeExtractor(videoKeyframeExtractorOptions(options.config, llm)),
     new DoclingPdfExtractor(doclingPdfExtractorOptions(llm)),
     new ImageSemanticExtractor(imageSemanticExtractorOptions(llm))
   ];
@@ -209,6 +207,27 @@ function imageSemanticExtractorOptions(llm: MindoryLlm): ImageSemanticExtractorO
     imageCaptioning: llmRoleState(llm, "vision-captioning"),
     imageEmbedding: llmRoleState(llm, "image-embedding"),
     ocr: llmRoleState(llm, "ocr"),
+    ocrRole: llm.registry.require("ocr"),
+    visionRole: llm.registry.require("vision-captioning")
+  };
+  if (llm.ocr !== undefined) {
+    options.ocrProvider = llm.ocr;
+  }
+  if (llm.vision !== undefined) {
+    options.visionProvider = llm.vision;
+  }
+  return options;
+}
+
+function videoKeyframeExtractorOptions(config: MindoryConfig, llm: MindoryLlm): VideoKeyframeExtractorOptions {
+  const options: VideoKeyframeExtractorOptions = {
+    maxKeyframes: config.documentProcessing.video.maxKeyframes,
+    keyframeProvider: config.documentProcessing.video.keyframeProvider,
+    keyframeCommand: config.documentProcessing.video.keyframeCommand,
+    keyframeCommandArgs: config.documentProcessing.video.keyframeCommandArgs,
+    keyframeTimeoutMs: config.documentProcessing.video.keyframeTimeoutMs,
+    ocr: llmRoleState(llm, "ocr"),
+    visionCaptioning: llmRoleState(llm, "vision-captioning"),
     ocrRole: llm.registry.require("ocr"),
     visionRole: llm.registry.require("vision-captioning")
   };

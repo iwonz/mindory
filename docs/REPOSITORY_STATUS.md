@@ -6,7 +6,7 @@ The repository should be described with the support levels in
 
 ## Current Baseline
 
-The repository is complete through `TASK-78`.
+The repository is complete through `TASK-79`.
 
 Supported local MVP path:
 
@@ -32,6 +32,9 @@ Supported local MVP path:
   their derived captions, labels and OCR text are searchable.
 - Audio ASR can run through `@mindory/llm` local HTTP when the experimental ASR
   role is enabled; derived transcript segments keep time refs for search.
+- Video keyframe extraction supports the manifest fallback and an opt-in
+  local-command provider. Extracted frame bytes can run through configured OCR
+  and vision providers before searchable frame artifacts are written.
 
 Public GitHub hygiene baseline:
 

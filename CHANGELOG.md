@@ -20,6 +20,8 @@ documentation.
 
 ### Added
 
+- `TASK-79`: opt-in local-command video keyframe extraction, with capped frame
+  artifacts and OCR/vision enrichment for extracted frame bytes.
 - `TASK-78`: audio ASR through `@mindory/llm` local HTTP, with searchable
   derived transcript segments and time refs.
 - `TASK-77`: image OCR and vision captioning through `@mindory/llm` local HTTP,

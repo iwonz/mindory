@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, rm } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import http from "node:http";
 import net from "node:net";
 import os from "node:os";
@@ -121,8 +121,13 @@ test("MVP runtime integration covers auth, upload, worker jobs and context", { t
       confidence: 0.98
     }]
   });
+  const fakeKeyframeCommand = await writeFakeKeyframeExtractorScript(storagePath);
   const config = modules.loadMindoryConfig({
     ...testEnv,
+    MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_PROVIDER: "local-command",
+    MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_COMMAND: process.execPath,
+    MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_ARGS: JSON.stringify([fakeKeyframeCommand, "{input}", "{maxKeyframes}"]),
+    MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_TIMEOUT_MS: "30000",
     MINDORY_LLM_OCR_ENABLED: "true",
     MINDORY_LLM_OCR_PROVIDER: "local-http",
     MINDORY_LLM_OCR_MODEL: "mindory-test-ocr",
@@ -765,6 +770,9 @@ async function uploadAndProcessVideoDocument(apiUrl) {
   assert.equal(document.metadata.extraction.frame_count, 3);
   assert.equal(document.metadata.extraction.manifest_frame_count, 5);
   assert.equal(document.metadata.extraction.max_keyframes, 3);
+  assert.equal(document.metadata.extraction.keyframe_provider, "local-command");
+  assert.equal(document.metadata.extraction.capabilities.vision_captioning.status, "provider_caption");
+  assert.equal(document.metadata.extraction.capabilities.ocr.status, "provider_ocr");
 
   const search = await requestJson(apiUrl, "POST", "/v1/documents/search", {
     projectIds: [projectId],
@@ -1265,11 +1273,13 @@ function startLocalHttpOcrServer(options) {
       const body = JSON.parse(await readRequestBody(request));
       calls.push({ model: body.model, mimeType: body.mime_type });
       if (request.url === "/vision/caption") {
+        const frameText = decodeBase64Text(body.data_base64);
+        const frameCaption = videoFrameCaption(frameText);
         response.writeHead(200, { "content-type": "application/json" });
         response.end(JSON.stringify({
           model: body.model ?? "mindory-test-vision",
-          caption: options.visionCaption,
-          labels: options.labels
+          caption: frameCaption.caption ?? options.visionCaption,
+          labels: frameCaption.labels ?? options.labels
         }));
         return;
       }
@@ -1290,11 +1300,13 @@ function startLocalHttpOcrServer(options) {
         return;
       }
       const isImage = String(body.mime_type ?? "").startsWith("image/");
+      const frameText = decodeBase64Text(body.data_base64);
+      const videoOcrText = videoFrameOcrText(frameText);
       response.writeHead(200, { "content-type": "application/json" });
       response.end(JSON.stringify({
         model: body.model ?? "mindory-test-ocr",
-        text: isImage ? options.imageText : options.pages.map((page) => page.text).join("\n\n"),
-        pages: (isImage ? [{ pageNumber: 1, text: options.imageText, confidence: 0.97 }] : options.pages).map((page) => ({
+        text: isImage ? videoOcrText ?? options.imageText : options.pages.map((page) => page.text).join("\n\n"),
+        pages: (isImage ? [{ pageNumber: 1, text: videoOcrText ?? options.imageText, confidence: 0.97 }] : options.pages).map((page) => ({
           page_number: page.pageNumber,
           text: page.text,
           confidence: page.confidence
@@ -1325,6 +1337,49 @@ function startLocalHttpOcrServer(options) {
       });
     });
   });
+}
+
+async function writeFakeKeyframeExtractorScript(directory) {
+  const scriptPath = path.join(directory, "fake-video-keyframes.mjs");
+  await writeFile(scriptPath, `
+const frame = text => Buffer.from(text, "utf8").toString("base64");
+console.log(JSON.stringify({
+  durationMs: 12000,
+  codec: "manifest-h264",
+  frames: [
+    { timestampMs: 0, description: "opening frame shows a passport in hand at an airport", labels: ["passport", "airport"], mime_type: "image/png", data_base64: frame("video-frame passport airport") },
+    { timestampMs: 3000, description: "second frame shows two dogs near luggage", labels: ["dogs", "luggage"], mime_type: "image/png", data_base64: frame("video-frame dogs luggage") },
+    { timestampMs: 6000, description: "third frame shows nature through a window", labels: ["nature", "window"], mime_type: "image/png", data_base64: frame("video-frame nature window") },
+    { timestampMs: 9000, description: "fourth frame should be skipped by max keyframes", labels: ["skipped"], mime_type: "image/png", data_base64: frame("video-frame skipped fourth") },
+    { timestampMs: 11000, description: "fifth frame should also be skipped", labels: ["skipped"], mime_type: "image/png", data_base64: frame("video-frame skipped fifth") }
+  ]
+}));
+`, "utf8");
+  return scriptPath;
+}
+
+function decodeBase64Text(value) {
+  return typeof value === "string" ? Buffer.from(value, "base64").toString("utf8") : "";
+}
+
+function videoFrameCaption(text) {
+  if (text.includes("dogs")) {
+    return { caption: "Vision provider frame caption sees two dogs near luggage.", labels: ["dogs", "luggage"] };
+  }
+  if (text.includes("nature")) {
+    return { caption: "Vision provider frame caption sees nature through a window.", labels: ["nature", "window"] };
+  }
+  if (text.includes("passport")) {
+    return { caption: "Vision provider frame caption sees passport in hand at airport.", labels: ["passport", "airport"] };
+  }
+  return {};
+}
+
+function videoFrameOcrText(text) {
+  if (text.startsWith("video-frame ")) {
+    return `Frame OCR provider text ${text.replace(/^video-frame\s+/, "")}.`;
+  }
+  return null;
 }
 
 function readRequestBody(request) {

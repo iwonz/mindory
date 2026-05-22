@@ -354,6 +354,12 @@ export const CONFIG_CATALOG = [
   entry("MINDORY_DOCUMENT_PROCESSING_VIDEO_ENABLED", "document-processing", "boolean", "true", "Enable video document processing.", "both", "supported"),
   entry("MINDORY_DOCUMENT_PROCESSING_VIDEO_REQUIRED", "document-processing", "boolean", "false", "Treat video processing as required.", "runtime", "supported"),
   entry("MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES", "document-processing", "number", "10", "Maximum derived video keyframes.", "both", "supported"),
+  entry("MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_PROVIDER", "document-processing", "enum", "manifest", "Video keyframe extraction provider.", "runtime", "supported", {
+    allowedValues: ["manifest", "local-command"]
+  }),
+  entry("MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_COMMAND", "document-processing", "string", "", "Executable for local-command video keyframe extraction.", "runtime", "experimental"),
+  entry("MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_ARGS", "document-processing", "string", "", "JSON string array of local-command keyframe extraction arguments.", "runtime", "experimental"),
+  entry("MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_TIMEOUT_MS", "document-processing", "number", "120000", "Timeout for local-command video keyframe extraction.", "runtime", "experimental"),
 
   llmRoleEntries("CHAT", "Chat/completion calls for agent-facing LLM features."),
   llmRoleEntries("TEXT_EMBEDDING", "Text embeddings for semantic document search.", { dimensions: true }),

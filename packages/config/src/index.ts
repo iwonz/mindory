@@ -17,6 +17,7 @@ export type LlmOpenAiAuthMode = "none" | "api-key" | "oauth-bearer";
 export type McpTransport = "stdio";
 export type InstallProfile = "local-quickstart" | "persistent-local" | "server-domain" | "dev-test";
 export type InstallDependencyPolicy = "ask" | "manual" | "auto";
+export type VideoKeyframeProvider = "manifest" | "local-command";
 
 export const PGVECTOR_EMBEDDING_DIMENSIONS = 1536;
 
@@ -40,6 +41,10 @@ export interface DocumentProcessingModalityConfig {
 
 export interface DocumentProcessingVideoConfig extends DocumentProcessingModalityConfig {
   maxKeyframes: number;
+  keyframeProvider: VideoKeyframeProvider;
+  keyframeCommand: string;
+  keyframeCommandArgs: string[];
+  keyframeTimeoutMs: number;
 }
 
 export interface MindoryConfig {
@@ -176,6 +181,22 @@ function readNumber(env: EnvSource, name: string, defaultValue: number): number 
     throw new Error(`${name} must be a number.`);
   }
   return value;
+}
+
+function readStringArray(env: EnvSource, name: string, defaultValue: string): string[] {
+  const value = readString(env, name, defaultValue);
+  if (value.trim() === "") {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!Array.isArray(parsed) || !parsed.every((entry) => typeof entry === "string")) {
+      throw new Error("expected a JSON array of strings");
+    }
+    return parsed;
+  } catch (error) {
+    throw new Error(`${name} must be a JSON array of strings: ${error instanceof Error ? error.message : "invalid JSON"}.`);
+  }
 }
 
 function readNullableNumber(env: EnvSource, name: string, defaultValue: string): number | null {
@@ -343,7 +364,11 @@ export function loadMindoryConfig(env: EnvSource = process.env): MindoryConfig {
       audio: readDocumentProcessingModalityConfig(env, "AUDIO"),
       video: {
         ...readDocumentProcessingModalityConfig(env, "VIDEO"),
-        maxKeyframes: readNumber(env, "MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES", catalogNumber("MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES"))
+        maxKeyframes: readNumber(env, "MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES", catalogNumber("MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES")),
+        keyframeProvider: readEnum(env, "MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_PROVIDER", catalogEnum<VideoKeyframeProvider>("MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_PROVIDER"), catalogEnumValues<VideoKeyframeProvider>("MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_PROVIDER")),
+        keyframeCommand: readString(env, "MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_COMMAND", catalogString("MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_COMMAND")),
+        keyframeCommandArgs: readStringArray(env, "MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_ARGS", catalogString("MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_ARGS")),
+        keyframeTimeoutMs: readNumber(env, "MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_TIMEOUT_MS", catalogNumber("MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_TIMEOUT_MS"))
       }
     },
     llm: {
@@ -421,6 +446,12 @@ function validateApiConfig(config: MindoryConfig): void {
 function validateDocumentProcessingConfig(config: MindoryConfig): void {
   if (config.documentProcessing.video.maxKeyframes <= 0) {
     throw new Error("MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES must be greater than zero.");
+  }
+  if (config.documentProcessing.video.keyframeTimeoutMs <= 0) {
+    throw new Error("MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_TIMEOUT_MS must be greater than zero.");
+  }
+  if (config.documentProcessing.video.keyframeProvider === "local-command" && config.documentProcessing.video.keyframeCommand.trim() === "") {
+    throw new Error("MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_COMMAND is required when local-command video keyframe extraction is enabled.");
   }
 }
 

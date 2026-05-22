@@ -15,6 +15,7 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
-    "@mindory/core": "workspace:*"
+    "@mindory/core": "workspace:*",
+    "@mindory/llm": "workspace:*"
   }
 }
