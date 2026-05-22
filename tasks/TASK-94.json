@@ -1,7 +1,7 @@
 {
   "id": "TASK-94",
   "title": "Implement synchronous antivirus scan mode",
-  "status": "draft",
+  "status": "done",
   "type": "feature",
   "priority": "high",
   "branch": "task/TASK-94-synchronous-antivirus-scan-mode",

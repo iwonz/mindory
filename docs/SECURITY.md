@@ -79,10 +79,12 @@ ClamAV support is required by the PRD. The recommended default mode is
 `async_quarantine`, where uploads return quickly but read, extraction and
 indexing are blocked until scanning is clean.
 
-`TASK-8` adds the ClamAV adapter and document scan processor wrapper. The scanner
-uses clamd `INSTREAM` so the daemon receives file contents over the socket
-instead of requiring access to the local upload path. Live clamd execution is not
-part of the scaffold validation.
+Mindory supports both asynchronous quarantine scanning and synchronous upload
+scanning. Both paths use the same clamd `INSTREAM` protocol, so the daemon
+receives file contents over the socket instead of requiring access to the local
+upload path. In `sync_scan`, the API waits for the ClamAV verdict and applies
+infected or scan-failure policy before returning a successful upload response or
+creating downstream document processing jobs.
 
 Fine-grained document ACLs, enterprise audit logs and policy engines are not MVP
 requirements.

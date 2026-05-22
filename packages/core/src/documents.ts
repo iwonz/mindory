@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import path from "node:path";
+import type { AntivirusScanner } from "./antivirus.js";
 import type { ProcessingJobDispatcher, EnqueuedProcessingJob } from "./queue.js";
 import type { ObjectBody, ObjectStorage, StoredObject } from "./storage.js";
 
@@ -120,6 +121,7 @@ export interface DocumentUploadServiceOptions {
   documents: DocumentRepository;
   jobs: ProcessingJobDispatcher;
   antivirusPolicy: DocumentAntivirusPolicy;
+  scanner?: AntivirusScanner;
   idFactory?: () => string;
   scannerVersion?: string;
   routeAfterUpload?: boolean;
@@ -131,6 +133,7 @@ export class DocumentUploadService {
   readonly documents: DocumentRepository;
   readonly jobs: ProcessingJobDispatcher;
   readonly antivirusPolicy: DocumentAntivirusPolicy;
+  private readonly scanner: AntivirusScanner | undefined;
   private readonly idFactory: () => string;
   private readonly scannerVersion: string;
   private readonly routeAfterUpload: boolean;
@@ -141,6 +144,7 @@ export class DocumentUploadService {
     this.documents = options.documents;
     this.jobs = options.jobs;
     this.antivirusPolicy = options.antivirusPolicy;
+    this.scanner = options.scanner;
     this.idFactory = options.idFactory ?? (() => `doc_${randomUUID()}`);
     this.scannerVersion = options.scannerVersion ?? "clamav-v1";
     this.routeAfterUpload = options.routeAfterUpload ?? true;
@@ -148,13 +152,6 @@ export class DocumentUploadService {
   }
 
   async upload(input: UploadDocumentInput): Promise<UploadDocumentResult> {
-    if (this.antivirusPolicy.enabled && this.antivirusPolicy.mode === "sync_scan") {
-      throw new DocumentUploadError(
-        "sync_scan_not_implemented",
-        "Synchronous scanning requires runtime scanner wiring from a later task."
-      );
-    }
-
     const documentId = this.idFactory();
     const storageKey = buildDocumentStorageKey(input.projectId, documentId, input.originalFilename);
     const storedObject = await this.storage.putObject({
@@ -167,8 +164,16 @@ export class DocumentUploadService {
         original_filename: input.originalFilename
       }
     });
+    const syncScan = await this.runSynchronousScan(storageKey, input.originalFilename);
+    if (syncScan.deleteStoredObject) {
+      await this.storage.deleteObject(storageKey);
+    }
 
-    const initialStatus = this.requiresAsyncScan() ? "scan_pending" : "scan_clean";
+    const initialStatus = this.requiresAsyncScan() ? "scan_pending" : syncScan.status;
+    const metadata = {
+      ...(input.metadata ?? {}),
+      ...syncScan.metadata
+    };
     const createDocumentInput: CreateDocumentInput = {
       id: documentId,
       projectId: input.projectId,
@@ -182,8 +187,8 @@ export class DocumentUploadService {
     if (input.title !== undefined) {
       createDocumentInput.title = input.title;
     }
-    if (input.metadata !== undefined) {
-      createDocumentInput.metadata = input.metadata;
+    if (Object.keys(metadata).length > 0) {
+      createDocumentInput.metadata = metadata;
     }
 
     const document = await this.documents.createDocument(createDocumentInput);
@@ -202,7 +207,7 @@ export class DocumentUploadService {
         }
       })
       : null;
-    const routeJob = !this.requiresAsyncScan() && this.routeAfterUpload
+    const routeJob = !this.requiresAsyncScan() && this.routeAfterUpload && this.canRouteAfterUpload(document.status)
       ? await this.enqueueRouteJob(document)
       : null;
 
@@ -216,6 +221,59 @@ export class DocumentUploadService {
 
   private requiresAsyncScan(): boolean {
     return this.antivirusPolicy.enabled && this.antivirusPolicy.mode === "async_quarantine";
+  }
+
+  private async runSynchronousScan(storageKey: string, filename: string): Promise<{
+    status: DocumentStatus;
+    metadata: Record<string, unknown>;
+    deleteStoredObject: boolean;
+  }> {
+    if (!this.antivirusPolicy.enabled || this.antivirusPolicy.mode !== "sync_scan") {
+      return {
+        status: "scan_clean",
+        metadata: {},
+        deleteStoredObject: false
+      };
+    }
+    if (this.scanner === undefined) {
+      throw new DocumentUploadError("sync_scanner_missing", "Synchronous antivirus scanning requires a configured scanner.");
+    }
+
+    try {
+      const object = await this.storage.getObject(storageKey);
+      const result = await this.scanner.scan({
+        body: object.body,
+        filename
+      });
+      if (result.verdict === "clean") {
+        return {
+          status: "scan_clean",
+          metadata: {
+            antivirus: result
+          },
+          deleteStoredObject: false
+        };
+      }
+      return {
+        status: this.antivirusPolicy.onInfected === "quarantine" ? "quarantined" : "scan_infected",
+        metadata: {
+          antivirus: result
+        },
+        deleteStoredObject: this.antivirusPolicy.onInfected === "delete"
+      };
+    } catch (error) {
+      return {
+        status: this.antivirusPolicy.onScanFailure === "allow_with_warning" ? "scan_failed" : "quarantined",
+        metadata: {
+          antivirus_error: error instanceof Error ? error.message : String(error)
+        },
+        deleteStoredObject: false
+      };
+    }
+  }
+
+  private canRouteAfterUpload(status: DocumentStatus): boolean {
+    return status === "scan_clean" || status === "scan_failed";
   }
 
   private async enqueueRouteJob(document: DocumentRecord): Promise<EnqueuedProcessingJob> {
@@ -235,7 +293,7 @@ export class DocumentUploadService {
 
 export type DocumentUploadErrorCode =
   | "invalid_document_key"
-  | "sync_scan_not_implemented";
+  | "sync_scanner_missing";
 
 export class DocumentUploadError extends Error {
   readonly code: DocumentUploadErrorCode;

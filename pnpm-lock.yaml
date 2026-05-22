@@ -50,6 +50,9 @@ importers:
       '@mindory/observability':
         specifier: workspace:*
         version: link:../../packages/observability
+      '@mindory/processor-antivirus-clamav':
+        specifier: workspace:*
+        version: link:../../packages/processors/antivirus-clamav
       '@mindory/queue-bullmq':
         specifier: workspace:*
         version: link:../../packages/queue/bullmq

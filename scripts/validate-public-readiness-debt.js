@@ -60,7 +60,6 @@ const debtOwners = new Map(Object.entries({
   "apps/api/src/routes/tokens.ts": { owner: "TASK-88", max: 1 },
   "packages/auth/src/index.ts": { owner: "TASK-88", max: 7 },
   "packages/core/src/document-routing.ts": { owner: "TASK-98", max: 2 },
-  "packages/core/src/documents.ts": { owner: "TASK-94", max: 3 },
   "packages/core/src/queue.ts": { owner: "TASK-88", max: 1 },
   "packages/core/src/storage.ts": { owner: "TASK-88", max: 1 },
   "scripts/check-repo.js": { owner: "TASK-88", max: 1 },

@@ -109,6 +109,23 @@ requests through `@mindory/storage-s3` to verify credentials and create the
 bucket when the endpoint permits it. Rollback and uninstall do not delete
 external buckets.
 
+## Antivirus
+
+`MINDORY_AV_MODE` selects `disabled`, `async_quarantine` or `sync_scan`.
+`async_quarantine` stores the upload, creates the document with
+`scan_pending`, enqueues `document.scan` and only routes the document after a
+clean worker verdict.
+
+`sync_scan` is handled in the API upload path. The API stores the RAW object,
+streams that object through the configured ClamAV daemon, applies
+`MINDORY_AV_ON_INFECTED` and `MINDORY_AV_ON_SCAN_FAILURE`, then creates the
+document with `scan_clean`, `quarantined`, `scan_infected` or `scan_failed`.
+Only `scan_clean` and `scan_failed` with `allow_with_warning` enqueue
+`document.route`.
+
+`MINDORY_CLAMAV_HOST` and `MINDORY_CLAMAV_PORT` must point to a reachable clamd
+socket when `sync_scan` or `async_quarantine` with the ClamAV worker is used.
+
 ## Queue And Workers
 
 `MINDORY_REDIS_URL` points BullMQ at Redis. `MINDORY_QUEUE_PREFIX` namespaces

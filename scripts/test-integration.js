@@ -108,6 +108,114 @@ test("API request guard rate-limits non-health requests", async () => {
   }
 });
 
+test("sync_scan upload waits for antivirus verdict and applies policies", { timeout: 120_000 }, async () => {
+  const scanRunId = `task94_${Date.now()}_${randomUUID().slice(0, 8)}`;
+  const scanStoragePath = path.join(os.tmpdir(), `mindory-sync-scan-${scanRunId}`);
+  const clamd = await startClamdProtocolServer();
+
+  try {
+    await mkdir(scanStoragePath, { recursive: true });
+    await withSyncScanApi({
+      runId: scanRunId,
+      storagePath: scanStoragePath,
+      clamavPort: clamd.port,
+      onInfected: "quarantine",
+      onScanFailure: "block"
+    }, async ({ apiUrl, projectId: syncProjectId, token: syncToken }) => {
+      const cleanUpload = await uploadRawDocument({
+        apiUrl,
+        projectId: syncProjectId,
+        token: syncToken,
+        filename: "clean-sync-scan.txt",
+        text: "clean document should wait for a ClamAV verdict before routing."
+      });
+      assert.equal(cleanUpload.document.status, "scan_clean");
+      assert.equal(cleanUpload.scan_job, null);
+      assert.equal(typeof cleanUpload.route_job?.id, "string", "clean sync_scan upload should enqueue routing after the verdict.");
+      const cleanDocument = await requestJson(apiUrl, "GET", `/v1/documents/${encodeURIComponent(cleanUpload.document.id)}?projectId=${encodeURIComponent(syncProjectId)}`, undefined, syncToken);
+      assert.equal(cleanDocument.metadata.antivirus.verdict, "clean");
+      assert.equal(cleanDocument.metadata.antivirus.rawReply, "stream: OK");
+
+      const infectedUpload = await uploadRawDocument({
+        apiUrl,
+        projectId: syncProjectId,
+        token: syncToken,
+        filename: "infected-sync-scan.txt",
+        text: "EICAR-STANDARD-ANTIVIRUS-TEST-FILE"
+      });
+      assert.equal(infectedUpload.document.status, "quarantined");
+      assert.equal(infectedUpload.scan_job, null);
+      assert.equal(infectedUpload.route_job, null);
+      const infectedDocument = await requestJson(apiUrl, "GET", `/v1/documents/${encodeURIComponent(infectedUpload.document.id)}?projectId=${encodeURIComponent(syncProjectId)}`, undefined, syncToken);
+      assert.equal(infectedDocument.metadata.antivirus.verdict, "infected");
+      assert.equal(infectedDocument.metadata.antivirus.signature, "Eicar-Test-Signature");
+    });
+
+    await withSyncScanApi({
+      runId: `${scanRunId}_delete`,
+      storagePath: path.join(scanStoragePath, "delete-policy"),
+      clamavPort: clamd.port,
+      onInfected: "delete",
+      onScanFailure: "block"
+    }, async ({ apiUrl, projectId: syncProjectId, token: syncToken, runtime }) => {
+      const infectedUpload = await uploadRawDocument({
+        apiUrl,
+        projectId: syncProjectId,
+        token: syncToken,
+        filename: "infected-delete-sync-scan.txt",
+        text: "EICAR-STANDARD-ANTIVIRUS-TEST-FILE"
+      });
+      assert.equal(infectedUpload.document.status, "scan_infected");
+      assert.equal(infectedUpload.route_job, null);
+      assert.equal(await runtime.documents.uploadService.storage.objectExists(infectedUpload.document.storage_key), false, "delete policy must remove the stored RAW object before returning.");
+    });
+
+    const unavailablePort = await getFreePort();
+    await withSyncScanApi({
+      runId: `${scanRunId}_block_failure`,
+      storagePath: path.join(scanStoragePath, "block-failure"),
+      clamavPort: unavailablePort,
+      onInfected: "quarantine",
+      onScanFailure: "block"
+    }, async ({ apiUrl, projectId: syncProjectId, token: syncToken }) => {
+      const failedUpload = await uploadRawDocument({
+        apiUrl,
+        projectId: syncProjectId,
+        token: syncToken,
+        filename: "scanner-down-block.txt",
+        text: "scanner down should block when policy is block."
+      });
+      assert.equal(failedUpload.document.status, "quarantined");
+      assert.equal(failedUpload.route_job, null);
+      const failedDocument = await requestJson(apiUrl, "GET", `/v1/documents/${encodeURIComponent(failedUpload.document.id)}?projectId=${encodeURIComponent(syncProjectId)}`, undefined, syncToken);
+      assert.match(failedDocument.metadata.antivirus_error, /ClamAV scan failed before a verdict/i);
+    });
+
+    await withSyncScanApi({
+      runId: `${scanRunId}_warn_failure`,
+      storagePath: path.join(scanStoragePath, "warn-failure"),
+      clamavPort: unavailablePort,
+      onInfected: "quarantine",
+      onScanFailure: "allow_with_warning"
+    }, async ({ apiUrl, projectId: syncProjectId, token: syncToken }) => {
+      const warningUpload = await uploadRawDocument({
+        apiUrl,
+        projectId: syncProjectId,
+        token: syncToken,
+        filename: "scanner-down-warning.txt",
+        text: "scanner down should continue when policy allows warnings."
+      });
+      assert.equal(warningUpload.document.status, "scan_failed");
+      assert.equal(typeof warningUpload.route_job?.id, "string", "allow-with-warning sync_scan upload should still route.");
+      const warningDocument = await requestJson(apiUrl, "GET", `/v1/documents/${encodeURIComponent(warningUpload.document.id)}?projectId=${encodeURIComponent(syncProjectId)}`, undefined, syncToken);
+      assert.match(warningDocument.metadata.antivirus_error, /ClamAV scan failed before a verdict/i);
+    });
+  } finally {
+    await clamd.close();
+    await rm(scanStoragePath, { recursive: true, force: true });
+  }
+});
+
 test("MVP runtime integration covers auth, upload, worker jobs and context", { timeout: 120_000 }, async () => {
   const fakeOcr = await startLocalHttpOcrServer({
     pages: scannedPdfFixture.ocr_pages,
@@ -1333,6 +1441,151 @@ async function assertRevokedTokenIsRejected(apiUrl, tokenId, rawToken) {
     }
   });
   assert.equal(response.status, 401, "revoked token should no longer authenticate");
+}
+
+async function withSyncScanApi(options, callback) {
+  const syncProjectId = `project_${options.runId}`;
+  const syncToken = `token_${options.runId}`;
+  const syncEnv = {
+    ...testEnv,
+    MINDORY_QUEUE_PREFIX: `mindory:sync-scan:${options.runId}`,
+    MINDORY_CACHE_PREFIX: `mindory:sync-scan-cache:${options.runId}`,
+    MINDORY_STORAGE_LOCAL_PATH: options.storagePath,
+    MINDORY_AV_ENABLED: "true",
+    MINDORY_AV_PROVIDER: "clamav",
+    MINDORY_AV_MODE: "sync_scan",
+    MINDORY_AV_ON_INFECTED: options.onInfected,
+    MINDORY_AV_ON_SCAN_FAILURE: options.onScanFailure,
+    MINDORY_CLAMAV_HOST: "127.0.0.1",
+    MINDORY_CLAMAV_PORT: String(options.clamavPort)
+  };
+  const config = modules.loadMindoryConfig(syncEnv);
+  let apiApp = null;
+  let runtime = null;
+
+  try {
+    await mkdir(options.storagePath, { recursive: true });
+    await cleanupProjectInDatabase(syncProjectId, databaseUrl);
+    await seedProjectTokenInDatabase({
+      projectId: syncProjectId,
+      token: syncToken,
+      tokenId: `tok_${options.runId}`,
+      permissions: [...modules.MINDORY_PERMISSIONS]
+    }, databaseUrl);
+
+    runtime = modules.buildApiRuntimeDependencies(config);
+    apiApp = await modules.buildApiApp({ config, ...runtime, logger: false });
+    await apiApp.listen({ host: "127.0.0.1", port: 0 });
+    await callback({
+      apiUrl: addressToUrl(apiApp.server.address()),
+      projectId: syncProjectId,
+      token: syncToken,
+      runtime
+    });
+  } finally {
+    if (apiApp) {
+      await apiApp.close();
+    } else if (runtime) {
+      await runtime.close();
+    }
+    await cleanupProjectInDatabase(syncProjectId, databaseUrl);
+  }
+}
+
+async function uploadRawDocument(input) {
+  const form = new FormData();
+  form.append("projectId", input.projectId);
+  form.append("title", input.filename);
+  form.append("file", new Blob([input.text], { type: "text/plain" }), input.filename);
+
+  const uploadResponse = await fetch(`${input.apiUrl}/v1/documents`, {
+    method: "POST",
+    headers: {
+      accept: "application/json",
+      authorization: `Bearer ${input.token}`
+    },
+    body: form
+  });
+  if (uploadResponse.status !== 202) {
+    throw new Error(`sync_scan document upload failed ${uploadResponse.status}: ${await uploadResponse.text()}`);
+  }
+  return uploadResponse.json();
+}
+
+function startClamdProtocolServer() {
+  const command = Buffer.from("zINSTREAM\0", "utf8");
+  const server = net.createServer((socket) => {
+    let buffer = Buffer.alloc(0);
+    let replied = false;
+
+    socket.on("data", (chunk) => {
+      if (replied) {
+        return;
+      }
+      buffer = Buffer.concat([buffer, Buffer.from(chunk)]);
+      if (buffer.length < command.length) {
+        return;
+      }
+      if (!buffer.subarray(0, command.length).equals(command)) {
+        replied = true;
+        socket.end("stream: ClamAV protocol error FOUND\0");
+        return;
+      }
+      const parsed = parseClamdInstreamBody(buffer.subarray(command.length));
+      if (!parsed.complete) {
+        return;
+      }
+      replied = true;
+      const body = parsed.body.toString("utf8");
+      socket.end(body.includes("EICAR") ? "stream: Eicar-Test-Signature FOUND\0" : "stream: OK\0");
+    });
+  });
+
+  return new Promise((resolve) => {
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      assert.ok(address && typeof address !== "string", "clamd protocol server must listen on a TCP address.");
+      resolve({
+        port: address.port,
+        close: () => new Promise((closeResolve, closeReject) => {
+          server.close((error) => {
+            if (error) {
+              closeReject(error);
+              return;
+            }
+            closeResolve();
+          });
+        })
+      });
+    });
+  });
+}
+
+function parseClamdInstreamBody(buffer) {
+  let offset = 0;
+  const chunks = [];
+  while (offset + 4 <= buffer.length) {
+    const chunkLength = buffer.readUInt32BE(offset);
+    offset += 4;
+    if (chunkLength === 0) {
+      return {
+        complete: true,
+        body: Buffer.concat(chunks)
+      };
+    }
+    if (offset + chunkLength > buffer.length) {
+      return {
+        complete: false,
+        body: Buffer.alloc(0)
+      };
+    }
+    chunks.push(buffer.subarray(offset, offset + chunkLength));
+    offset += chunkLength;
+  }
+  return {
+    complete: false,
+    body: Buffer.alloc(0)
+  };
 }
 
 async function requestJson(apiUrl, method, pathname, body = undefined, token = bootstrapToken) {

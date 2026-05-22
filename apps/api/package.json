@@ -26,6 +26,7 @@
     "@mindory/db": "workspace:*",
     "@mindory/llm": "workspace:*",
     "@mindory/observability": "workspace:*",
+    "@mindory/processor-antivirus-clamav": "workspace:*",
     "@mindory/queue-bullmq": "workspace:*",
     "@mindory/storage-local-fs": "workspace:*",
     "@mindory/storage-s3": "workspace:*",
