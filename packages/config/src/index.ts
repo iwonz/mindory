@@ -1,9 +1,20 @@
+import {
+  configAllowedValues,
+  configDefaultBoolean,
+  configDefaultNumber,
+  configDefaultValue
+} from "./catalog.js";
+
+export * from "./catalog.js";
+
 export type StorageProvider = "local-fs" | "s3";
 export type VectorProvider = "pgvector" | "qdrant";
 export type AntivirusMode = "disabled" | "async_quarantine" | "sync_scan";
 export type ModelRuntimeProvider = "disabled" | "openai-compatible" | "ollama" | "local";
 export type ModelRuntimeOpenAiAuthMode = "none" | "api-key" | "oauth-bearer";
 export type McpTransport = "stdio";
+export type InstallProfile = "local-quickstart" | "persistent-local" | "server-domain" | "dev-test";
+export type InstallDependencyPolicy = "ask" | "manual" | "auto";
 
 export const PGVECTOR_EMBEDDING_DIMENSIONS = 1536;
 
@@ -28,6 +39,15 @@ export interface DocumentProcessingVideoConfig extends DocumentProcessingModalit
 }
 
 export interface MindoryConfig {
+  install: {
+    home: string;
+    profile: InstallProfile;
+    releaseChannel: string;
+    allowExperimental: boolean;
+    dependencyPolicy: InstallDependencyPolicy;
+    rollbackOnFailure: boolean;
+    devMode: boolean;
+  };
   log: {
     level: string;
   };
@@ -148,9 +168,9 @@ function readNumber(env: EnvSource, name: string, defaultValue: number): number 
   return value;
 }
 
-function readNullableNumber(env: EnvSource, name: string): number | null {
-  const value = env[name];
-  if (value === undefined || value === "") {
+function readNullableNumber(env: EnvSource, name: string, defaultValue: string): number | null {
+  const value = readString(env, name, defaultValue);
+  if (value === "") {
     return null;
   }
 
@@ -183,178 +203,176 @@ function readEnum<T extends string>(env: EnvSource, name: string, defaultValue: 
   throw new Error(`${name} must be one of: ${values.join(", ")}.`);
 }
 
+function catalogString(name: string): string {
+  return configDefaultValue(name);
+}
+
+function catalogNumber(name: string): number {
+  return configDefaultNumber(name);
+}
+
+function catalogBoolean(name: string): boolean {
+  return configDefaultBoolean(name);
+}
+
+function catalogEnum<T extends string>(name: string): T {
+  return configDefaultValue(name) as T;
+}
+
+function catalogEnumValues<T extends string>(name: string): readonly T[] {
+  return configAllowedValues(name) as readonly T[];
+}
+
 function readModelCapabilityConfig(
   env: EnvSource,
-  key: string,
-  defaults: {
-    enabled?: boolean;
-    provider?: ModelRuntimeProvider;
-    model?: string;
-    required?: boolean;
-  } = {}
+  key: string
 ): ModelRuntimeCapabilityConfig {
   const prefix = `MINDORY_MODEL_RUNTIME_${key}`;
   return {
-    enabled: readBoolean(env, `${prefix}_ENABLED`, defaults.enabled ?? false),
-    provider: readEnum(env, `${prefix}_PROVIDER`, defaults.provider ?? "disabled", ["disabled", "openai-compatible", "ollama", "local"]),
-    model: readString(env, `${prefix}_MODEL`, defaults.model ?? ""),
-    required: readBoolean(env, `${prefix}_REQUIRED`, defaults.required ?? false)
+    enabled: readBoolean(env, `${prefix}_ENABLED`, catalogBoolean(`${prefix}_ENABLED`)),
+    provider: readEnum(env, `${prefix}_PROVIDER`, catalogEnum<ModelRuntimeProvider>(`${prefix}_PROVIDER`), catalogEnumValues<ModelRuntimeProvider>(`${prefix}_PROVIDER`)),
+    model: readString(env, `${prefix}_MODEL`, catalogString(`${prefix}_MODEL`)),
+    required: readBoolean(env, `${prefix}_REQUIRED`, catalogBoolean(`${prefix}_REQUIRED`))
   };
 }
 
 function readModelEmbeddingCapabilityConfig(
   env: EnvSource,
-  key: string,
-  defaults: {
-    enabled?: boolean;
-    provider?: ModelRuntimeProvider;
-    model?: string;
-    dimensions?: number | null;
-    required?: boolean;
-  } = {}
+  key: string
 ): ModelRuntimeEmbeddingCapabilityConfig {
-  const capability = readModelCapabilityConfig(env, key, defaults);
+  const capability = readModelCapabilityConfig(env, key);
   return {
     ...capability,
-    dimensions: readNullableNumber(env, `MINDORY_MODEL_RUNTIME_${key}_DIMENSIONS`) ?? defaults.dimensions ?? null
+    dimensions: readNullableNumber(env, `MINDORY_MODEL_RUNTIME_${key}_DIMENSIONS`, catalogString(`MINDORY_MODEL_RUNTIME_${key}_DIMENSIONS`))
   };
 }
 
 function readDocumentProcessingModalityConfig(
   env: EnvSource,
-  key: string,
-  defaults: {
-    enabled?: boolean;
-    required?: boolean;
-  } = {}
+  key: string
 ): DocumentProcessingModalityConfig {
   const prefix = `MINDORY_DOCUMENT_PROCESSING_${key}`;
   return {
-    enabled: readBoolean(env, `${prefix}_ENABLED`, defaults.enabled ?? false),
-    required: readBoolean(env, `${prefix}_REQUIRED`, defaults.required ?? false)
+    enabled: readBoolean(env, `${prefix}_ENABLED`, catalogBoolean(`${prefix}_ENABLED`)),
+    required: readBoolean(env, `${prefix}_REQUIRED`, catalogBoolean(`${prefix}_REQUIRED`))
   };
 }
 
 export function loadMindoryConfig(env: EnvSource = process.env): MindoryConfig {
   const config: MindoryConfig = {
+    install: {
+      home: readString(env, "MINDORY_HOME", catalogString("MINDORY_HOME")),
+      profile: readEnum(env, "MINDORY_INSTALL_PROFILE", catalogEnum<InstallProfile>("MINDORY_INSTALL_PROFILE"), catalogEnumValues<InstallProfile>("MINDORY_INSTALL_PROFILE")),
+      releaseChannel: readString(env, "MINDORY_INSTALL_RELEASE_CHANNEL", catalogString("MINDORY_INSTALL_RELEASE_CHANNEL")),
+      allowExperimental: readBoolean(env, "MINDORY_INSTALL_ALLOW_EXPERIMENTAL", catalogBoolean("MINDORY_INSTALL_ALLOW_EXPERIMENTAL")),
+      dependencyPolicy: readEnum(env, "MINDORY_INSTALL_DEPENDENCY_POLICY", catalogEnum<InstallDependencyPolicy>("MINDORY_INSTALL_DEPENDENCY_POLICY"), catalogEnumValues<InstallDependencyPolicy>("MINDORY_INSTALL_DEPENDENCY_POLICY")),
+      rollbackOnFailure: readBoolean(env, "MINDORY_INSTALL_ROLLBACK_ON_FAILURE", catalogBoolean("MINDORY_INSTALL_ROLLBACK_ON_FAILURE")),
+      devMode: readBoolean(env, "MINDORY_INSTALL_DEV_MODE", catalogBoolean("MINDORY_INSTALL_DEV_MODE"))
+    },
     log: {
-      level: readString(env, "MINDORY_LOG_LEVEL", "info")
+      level: readString(env, "MINDORY_LOG_LEVEL", catalogString("MINDORY_LOG_LEVEL"))
     },
     api: {
-      host: readString(env, "MINDORY_API_HOST", "0.0.0.0"),
-      port: readNumber(env, "MINDORY_API_PORT", 3000),
-      publicUrl: readString(env, "MINDORY_PUBLIC_URL", "http://localhost:3000"),
+      host: readString(env, "MINDORY_API_HOST", catalogString("MINDORY_API_HOST")),
+      port: readNumber(env, "MINDORY_API_PORT", catalogNumber("MINDORY_API_PORT")),
+      publicUrl: readString(env, "MINDORY_PUBLIC_URL", catalogString("MINDORY_PUBLIC_URL")),
       rateLimit: {
-        enabled: readBoolean(env, "MINDORY_API_RATE_LIMIT_ENABLED", true),
-        windowMs: readNumber(env, "MINDORY_API_RATE_LIMIT_WINDOW_MS", 60000),
-        maxRequests: readNumber(env, "MINDORY_API_RATE_LIMIT_MAX", 600)
+        enabled: readBoolean(env, "MINDORY_API_RATE_LIMIT_ENABLED", catalogBoolean("MINDORY_API_RATE_LIMIT_ENABLED")),
+        windowMs: readNumber(env, "MINDORY_API_RATE_LIMIT_WINDOW_MS", catalogNumber("MINDORY_API_RATE_LIMIT_WINDOW_MS")),
+        maxRequests: readNumber(env, "MINDORY_API_RATE_LIMIT_MAX", catalogNumber("MINDORY_API_RATE_LIMIT_MAX"))
       }
     },
     database: {
-      url: readString(env, "MINDORY_DATABASE_URL", "postgresql://mindory:mindory@postgres:5432/mindory")
+      url: readString(env, "MINDORY_DATABASE_URL", catalogString("MINDORY_DATABASE_URL"))
     },
     redis: {
-      url: readString(env, "MINDORY_REDIS_URL", "redis://redis:6379"),
-      queuePrefix: readString(env, "MINDORY_QUEUE_PREFIX", "mindory:queue"),
-      cachePrefix: readString(env, "MINDORY_CACHE_PREFIX", "mindory:cache")
+      url: readString(env, "MINDORY_REDIS_URL", catalogString("MINDORY_REDIS_URL")),
+      queuePrefix: readString(env, "MINDORY_QUEUE_PREFIX", catalogString("MINDORY_QUEUE_PREFIX")),
+      cachePrefix: readString(env, "MINDORY_CACHE_PREFIX", catalogString("MINDORY_CACHE_PREFIX"))
     },
     storage: {
-      provider: readEnum(env, "MINDORY_STORAGE_PROVIDER", "local-fs", ["local-fs", "s3"]),
-      localPath: readString(env, "MINDORY_STORAGE_LOCAL_PATH", "/data/mindory/objects"),
+      provider: readEnum(env, "MINDORY_STORAGE_PROVIDER", catalogEnum<StorageProvider>("MINDORY_STORAGE_PROVIDER"), catalogEnumValues<StorageProvider>("MINDORY_STORAGE_PROVIDER")),
+      localPath: readString(env, "MINDORY_STORAGE_LOCAL_PATH", catalogString("MINDORY_STORAGE_LOCAL_PATH")),
       s3: {
-        endpoint: readString(env, "MINDORY_S3_ENDPOINT", "http://minio:9000"),
-        region: readString(env, "MINDORY_S3_REGION", "us-east-1"),
-        bucket: readString(env, "MINDORY_S3_BUCKET", "mindory"),
-        accessKeyId: readString(env, "MINDORY_S3_ACCESS_KEY_ID", "mindory"),
-        secretAccessKey: readString(env, "MINDORY_S3_SECRET_ACCESS_KEY", "mindory-secret"),
-        forcePathStyle: readBoolean(env, "MINDORY_S3_FORCE_PATH_STYLE", true)
+        endpoint: readString(env, "MINDORY_S3_ENDPOINT", catalogString("MINDORY_S3_ENDPOINT")),
+        region: readString(env, "MINDORY_S3_REGION", catalogString("MINDORY_S3_REGION")),
+        bucket: readString(env, "MINDORY_S3_BUCKET", catalogString("MINDORY_S3_BUCKET")),
+        accessKeyId: readString(env, "MINDORY_S3_ACCESS_KEY_ID", catalogString("MINDORY_S3_ACCESS_KEY_ID")),
+        secretAccessKey: readString(env, "MINDORY_S3_SECRET_ACCESS_KEY", catalogString("MINDORY_S3_SECRET_ACCESS_KEY")),
+        forcePathStyle: readBoolean(env, "MINDORY_S3_FORCE_PATH_STYLE", catalogBoolean("MINDORY_S3_FORCE_PATH_STYLE"))
       }
     },
     vector: {
-      provider: readEnum(env, "MINDORY_VECTOR_PROVIDER", "pgvector", ["pgvector", "qdrant"]),
-      qdrantUrl: readString(env, "MINDORY_QDRANT_URL", "http://qdrant:6333"),
-      qdrantCollectionPrefix: readString(env, "MINDORY_QDRANT_COLLECTION_PREFIX", "mindory")
+      provider: readEnum(env, "MINDORY_VECTOR_PROVIDER", catalogEnum<VectorProvider>("MINDORY_VECTOR_PROVIDER"), catalogEnumValues<VectorProvider>("MINDORY_VECTOR_PROVIDER")),
+      qdrantUrl: readString(env, "MINDORY_QDRANT_URL", catalogString("MINDORY_QDRANT_URL")),
+      qdrantCollectionPrefix: readString(env, "MINDORY_QDRANT_COLLECTION_PREFIX", catalogString("MINDORY_QDRANT_COLLECTION_PREFIX"))
     },
     antivirus: {
-      enabled: readBoolean(env, "MINDORY_AV_ENABLED", true),
-      provider: readString(env, "MINDORY_AV_PROVIDER", "clamav"),
-      mode: readEnum(env, "MINDORY_AV_MODE", "async_quarantine", ["disabled", "async_quarantine", "sync_scan"]),
-      requiredBeforeRead: readBoolean(env, "MINDORY_AV_REQUIRED_BEFORE_READ", true),
-      requiredBeforeExtraction: readBoolean(env, "MINDORY_AV_REQUIRED_BEFORE_EXTRACTION", true),
-      requiredBeforeIndexing: readBoolean(env, "MINDORY_AV_REQUIRED_BEFORE_INDEXING", true),
-      onScanFailure: readEnum(env, "MINDORY_AV_ON_SCAN_FAILURE", "block", ["block", "allow_with_warning"]),
-      onInfected: readEnum(env, "MINDORY_AV_ON_INFECTED", "quarantine", ["quarantine", "delete"]),
-      clamavHost: readString(env, "MINDORY_CLAMAV_HOST", "clamav"),
-      clamavPort: readNumber(env, "MINDORY_CLAMAV_PORT", 3310)
+      enabled: readBoolean(env, "MINDORY_AV_ENABLED", catalogBoolean("MINDORY_AV_ENABLED")),
+      provider: readString(env, "MINDORY_AV_PROVIDER", catalogString("MINDORY_AV_PROVIDER")),
+      mode: readEnum(env, "MINDORY_AV_MODE", catalogEnum<AntivirusMode>("MINDORY_AV_MODE"), catalogEnumValues<AntivirusMode>("MINDORY_AV_MODE")),
+      requiredBeforeRead: readBoolean(env, "MINDORY_AV_REQUIRED_BEFORE_READ", catalogBoolean("MINDORY_AV_REQUIRED_BEFORE_READ")),
+      requiredBeforeExtraction: readBoolean(env, "MINDORY_AV_REQUIRED_BEFORE_EXTRACTION", catalogBoolean("MINDORY_AV_REQUIRED_BEFORE_EXTRACTION")),
+      requiredBeforeIndexing: readBoolean(env, "MINDORY_AV_REQUIRED_BEFORE_INDEXING", catalogBoolean("MINDORY_AV_REQUIRED_BEFORE_INDEXING")),
+      onScanFailure: readEnum(env, "MINDORY_AV_ON_SCAN_FAILURE", catalogEnum<"block" | "allow_with_warning">("MINDORY_AV_ON_SCAN_FAILURE"), catalogEnumValues<"block" | "allow_with_warning">("MINDORY_AV_ON_SCAN_FAILURE")),
+      onInfected: readEnum(env, "MINDORY_AV_ON_INFECTED", catalogEnum<"quarantine" | "delete">("MINDORY_AV_ON_INFECTED"), catalogEnumValues<"quarantine" | "delete">("MINDORY_AV_ON_INFECTED")),
+      clamavHost: readString(env, "MINDORY_CLAMAV_HOST", catalogString("MINDORY_CLAMAV_HOST")),
+      clamavPort: readNumber(env, "MINDORY_CLAMAV_PORT", catalogNumber("MINDORY_CLAMAV_PORT"))
     },
     workers: {
-      type: readString(env, "MINDORY_WORKER_TYPE", "all"),
-      concurrency: readNumber(env, "MINDORY_WORKER_CONCURRENCY", 2)
+      type: readString(env, "MINDORY_WORKER_TYPE", catalogString("MINDORY_WORKER_TYPE")),
+      concurrency: readNumber(env, "MINDORY_WORKER_CONCURRENCY", catalogNumber("MINDORY_WORKER_CONCURRENCY"))
     },
     documentProcessing: {
-      routingEnabled: readBoolean(env, "MINDORY_DOCUMENT_PROCESSING_ROUTING_ENABLED", true),
-      text: readDocumentProcessingModalityConfig(env, "TEXT", {
-        enabled: true
-      }),
+      routingEnabled: readBoolean(env, "MINDORY_DOCUMENT_PROCESSING_ROUTING_ENABLED", catalogBoolean("MINDORY_DOCUMENT_PROCESSING_ROUTING_ENABLED")),
+      text: readDocumentProcessingModalityConfig(env, "TEXT"),
       pdf: readDocumentProcessingModalityConfig(env, "PDF"),
       image: readDocumentProcessingModalityConfig(env, "IMAGE"),
       audio: readDocumentProcessingModalityConfig(env, "AUDIO"),
       video: {
         ...readDocumentProcessingModalityConfig(env, "VIDEO"),
-        maxKeyframes: readNumber(env, "MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES", 10)
+        maxKeyframes: readNumber(env, "MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES", catalogNumber("MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES"))
       }
     },
     modelRuntime: {
       textEmbedding: readModelEmbeddingCapabilityConfig(env, "TEXT_EMBEDDING"),
-      imageEmbedding: readModelEmbeddingCapabilityConfig(env, "IMAGE_EMBEDDING", {
-        provider: "local",
-        model: "CLIP ViT-L-16-SigLIP2-256__webli"
-      }),
+      imageEmbedding: readModelEmbeddingCapabilityConfig(env, "IMAGE_EMBEDDING"),
       imageCaptioning: readModelCapabilityConfig(env, "IMAGE_CAPTIONING"),
-      ocr: readModelCapabilityConfig(env, "OCR", {
-        provider: "local",
-        model: "ESLAV__PP-OCRv5_mobile"
-      }),
+      ocr: readModelCapabilityConfig(env, "OCR"),
       asr: readModelCapabilityConfig(env, "ASR"),
-      faceDetection: readModelCapabilityConfig(env, "FACE_DETECTION", {
-        provider: "local",
-        model: "buffalo_l"
-      }),
-      faceRecognition: readModelCapabilityConfig(env, "FACE_RECOGNITION", {
-        provider: "local",
-        model: "buffalo_l"
-      }),
+      faceDetection: readModelCapabilityConfig(env, "FACE_DETECTION"),
+      faceRecognition: readModelCapabilityConfig(env, "FACE_RECOGNITION"),
       openaiCompatible: {
-        baseUrl: readString(env, "MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_BASE_URL", ""),
-        authMode: readEnum(env, "MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_AUTH_MODE", "none", ["none", "api-key", "oauth-bearer"]),
-        apiKey: readString(env, "MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_API_KEY", ""),
-        oauthAccessToken: readString(env, "MINDORY_MODEL_RUNTIME_OPENAI_OAUTH_ACCESS_TOKEN", "")
+        baseUrl: readString(env, "MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_BASE_URL", catalogString("MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_BASE_URL")),
+        authMode: readEnum(env, "MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_AUTH_MODE", catalogEnum<ModelRuntimeOpenAiAuthMode>("MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_AUTH_MODE"), catalogEnumValues<ModelRuntimeOpenAiAuthMode>("MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_AUTH_MODE")),
+        apiKey: readString(env, "MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_API_KEY", catalogString("MINDORY_MODEL_RUNTIME_OPENAI_COMPATIBLE_API_KEY")),
+        oauthAccessToken: readString(env, "MINDORY_MODEL_RUNTIME_OPENAI_OAUTH_ACCESS_TOKEN", catalogString("MINDORY_MODEL_RUNTIME_OPENAI_OAUTH_ACCESS_TOKEN"))
       },
       ollama: {
-        baseUrl: readString(env, "MINDORY_MODEL_RUNTIME_OLLAMA_BASE_URL", "http://ollama:11434")
+        baseUrl: readString(env, "MINDORY_MODEL_RUNTIME_OLLAMA_BASE_URL", catalogString("MINDORY_MODEL_RUNTIME_OLLAMA_BASE_URL"))
       },
       local: {
-        baseUrl: readString(env, "MINDORY_MODEL_RUNTIME_LOCAL_BASE_URL", "http://model-runtime:8080")
+        baseUrl: readString(env, "MINDORY_MODEL_RUNTIME_LOCAL_BASE_URL", catalogString("MINDORY_MODEL_RUNTIME_LOCAL_BASE_URL"))
       }
     },
     mcp: {
-      enabled: readBoolean(env, "MINDORY_MCP_ENABLED", true),
-      transport: readEnum(env, "MINDORY_MCP_TRANSPORT", "stdio", ["stdio"]),
-      apiUrl: readString(env, "MINDORY_MCP_API_URL", "http://localhost:3000"),
-      apiToken: readString(env, "MINDORY_MCP_API_TOKEN", "")
+      enabled: readBoolean(env, "MINDORY_MCP_ENABLED", catalogBoolean("MINDORY_MCP_ENABLED")),
+      transport: readEnum(env, "MINDORY_MCP_TRANSPORT", catalogEnum<McpTransport>("MINDORY_MCP_TRANSPORT"), catalogEnumValues<McpTransport>("MINDORY_MCP_TRANSPORT")),
+      apiUrl: readString(env, "MINDORY_MCP_API_URL", catalogString("MINDORY_MCP_API_URL")),
+      apiToken: readString(env, "MINDORY_MCP_API_TOKEN", catalogString("MINDORY_MCP_API_TOKEN"))
     },
     cli: {
-      apiUrl: readString(env, "MINDORY_CLI_API_URL", "http://localhost:3000"),
-      apiToken: readString(env, "MINDORY_CLI_API_TOKEN", "")
+      apiUrl: readString(env, "MINDORY_CLI_API_URL", catalogString("MINDORY_CLI_API_URL")),
+      apiToken: readString(env, "MINDORY_CLI_API_TOKEN", catalogString("MINDORY_CLI_API_TOKEN"))
     },
     hermes: {
-      adapterEnabled: readBoolean(env, "MINDORY_HERMES_ADAPTER_ENABLED", false),
-      apiUrl: readString(env, "MINDORY_HERMES_API_URL", "http://localhost:3000"),
-      apiToken: readString(env, "MINDORY_HERMES_API_TOKEN", ""),
-      defaultProject: readString(env, "MINDORY_HERMES_DEFAULT_PROJECT", "default"),
-      defaultUserPeer: readString(env, "MINDORY_HERMES_DEFAULT_USER_PEER", "default-user"),
-      defaultAgentPeer: readString(env, "MINDORY_HERMES_DEFAULT_AGENT_PEER", "hermes"),
-      contextTokenBudget: readNumber(env, "MINDORY_HERMES_CONTEXT_TOKEN_BUDGET", 3000)
+      adapterEnabled: readBoolean(env, "MINDORY_HERMES_ADAPTER_ENABLED", catalogBoolean("MINDORY_HERMES_ADAPTER_ENABLED")),
+      apiUrl: readString(env, "MINDORY_HERMES_API_URL", catalogString("MINDORY_HERMES_API_URL")),
+      apiToken: readString(env, "MINDORY_HERMES_API_TOKEN", catalogString("MINDORY_HERMES_API_TOKEN")),
+      defaultProject: readString(env, "MINDORY_HERMES_DEFAULT_PROJECT", catalogString("MINDORY_HERMES_DEFAULT_PROJECT")),
+      defaultUserPeer: readString(env, "MINDORY_HERMES_DEFAULT_USER_PEER", catalogString("MINDORY_HERMES_DEFAULT_USER_PEER")),
+      defaultAgentPeer: readString(env, "MINDORY_HERMES_DEFAULT_AGENT_PEER", catalogString("MINDORY_HERMES_DEFAULT_AGENT_PEER")),
+      contextTokenBudget: readNumber(env, "MINDORY_HERMES_CONTEXT_TOKEN_BUDGET", catalogNumber("MINDORY_HERMES_CONTEXT_TOKEN_BUDGET"))
     }
   };
 

@@ -8,7 +8,7 @@ The canonical product and engineering specification is `docs/PRD.md`.
 
 ## Repository Status
 
-This repository is currently bootstrapped through `TASK-51`. The repo has the
+This repository is currently bootstrapped through `TASK-52`. The repo has the
 operating model, documentation skeleton, configuration contract, pnpm monorepo
 layout, Docker Compose base scaffold, MVP database schema, Fastify API skeleton
 object storage abstraction, Redis/BullMQ queue scaffold and document upload/scan
@@ -30,7 +30,9 @@ MCP client packaging, Hermes runtime contract validation and the production
 hardening baseline are now present. The API includes a configurable in-process
 rate-limit guard, and CI runs `pnpm check` for pushes and pull requests to
 `master`. A one-command local MVP demo workflow now starts Compose, waits for
-readiness, seeds demo credentials and can run live acceptance.
+readiness, seeds demo credentials and can run live acceptance. Runtime and first
+installer settings are now described in a typed config catalog that generates
+`.env.example` and validates `MINDORY_*` usage across code, scripts and Compose.
 
 ## Development Process
 
@@ -57,6 +59,7 @@ ls AGENTS.md README.md PRD.md .env.example
 ls tasks/tasks.json tasks/TASK-1.json tasks/TASK-2.json tasks/TASK-3.json
 ls docs/
 node scripts/check-repo.js
+pnpm config:validate
 node scripts/validate-db-schema.js
 node scripts/validate-db-repositories.js
 node scripts/validate-api-skeleton.js

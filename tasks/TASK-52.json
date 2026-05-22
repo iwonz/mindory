@@ -1,0 +1,67 @@
+{
+  "id": "TASK-52",
+  "title": "Add config catalog",
+  "status": "done",
+  "type": "chore",
+  "priority": "high",
+  "branch": "task/TASK-52-config-catalog",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Introduce a central typed configuration catalog as the source of runtime and installer env metadata.",
+    "background": "Mindory currently loads runtime configuration from scattered MINDORY_* defaults in code, .env.example and Compose. The installer plan requires one catalog for defaults, prompts, validation, secret flags and support status."
+  },
+  "scope": {
+    "in": [
+      "Add a typed config catalog for current runtime env variables and first installer env variables.",
+      "Move config loader defaults to the catalog instead of inline literals.",
+      "Generate or validate .env.example from the catalog.",
+      "Add validation that MINDORY_* variables in config, Compose and scripts are represented in the catalog.",
+      "Document the catalog as the required source for future installer/config work."
+    ],
+    "out": [
+      "Renaming MINDORY_MODEL_RUNTIME_* to MINDORY_LLM_*.",
+      "Replacing @mindory/model-runtime with @mindory/llm.",
+      "Implementing the installer wizard or rollback engine.",
+      "Implementing S3-compatible object storage.",
+      "Changing database schema."
+    ]
+  },
+  "acceptance_criteria": [
+    "@mindory/config exposes a typed catalog with env name, default, type, prompt metadata, secret flag, support status and installer visibility.",
+    "loadMindoryConfig reads defaults from the catalog instead of duplicating default literals.",
+    ".env.example is generated from or validated against the catalog.",
+    "A validator fails when a MINDORY_* env variable used by runtime/Compose/scripts is missing from the catalog.",
+    "Docs explain that new configuration must be added through the catalog.",
+    "No database schema changes are included."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "pnpm config:validate",
+      "pnpm model-runtime:validate",
+      "pnpm typecheck",
+      "pnpm lint",
+      "pnpm tasks:validate",
+      "pnpm test",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-52.",
+      "Confirm .env.example matches the generated catalog output.",
+      "Confirm packages/db/drizzle/0000_initial_schema.sql is unchanged."
+    ]
+  },
+  "dependencies": [
+    "TASK-51"
+  ],
+  "risks": [
+    "Catalog validation must not block existing planned env names before TASK-53 renames the model runtime namespace.",
+    "Installer-only settings should be cataloged without changing runtime behavior beyond adding an install config section."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch is committed and merged back into master."
+  ]
+}

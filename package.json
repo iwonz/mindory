@@ -14,6 +14,8 @@
     "check": "node scripts/check-repo.js",
     "cli:smoke": "node scripts/smoke-cli.js",
     "cli:validate": "node scripts/validate-cli.js",
+    "config:generate": "pnpm --filter @mindory/config typecheck && node scripts/generate-env-example.js",
+    "config:validate": "pnpm --filter @mindory/config typecheck && node scripts/validate-config-catalog.js",
     "compose:validate": "node scripts/validate-compose.js",
     "db:generate": "pnpm --filter @mindory/db db:generate",
     "db:migrate": "pnpm --filter @mindory/db db:migrate",

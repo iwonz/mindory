@@ -12,7 +12,7 @@ code, documentation, configuration, schema or behavior is changed.
 5. Start from a clean, green `master`.
 6. Create a dedicated task branch from `master`.
 7. Make only task-scoped changes.
-8. Update docs and `.env.example` when relevant.
+8. Update docs and configuration catalog entries when relevant.
 9. Run applicable verification.
 10. Commit the task as a single honest task commit when practical.
 11. Update task status after acceptance.
@@ -42,6 +42,13 @@ Each task should be represented by one clear task commit when practical. If a
 task requires multiple commits during development, squash or otherwise present a
 clean task-level commit before merge unless preserving the intermediate commits
 has explicit review value.
+
+## Configuration Changes
+
+All `MINDORY_*` settings must be added through
+`packages/config/src/catalog.ts`. Do not hand-edit `.env.example`; generate it
+with `pnpm config:generate` after catalog changes and validate with
+`pnpm config:validate`.
 
 Examples:
 

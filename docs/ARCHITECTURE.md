@@ -100,6 +100,17 @@ is used without dependencies, routes still return explicit `501 not_implemented`
 placeholders. Docker Compose still uses the explicit TASK-3 placeholders until a
 later task adds runnable images or installed dependencies.
 
+## Configuration Catalog
+
+`TASK-52` makes `packages/config/src/catalog.ts` the central catalog for
+Mindory configuration metadata. Runtime loaders, generated `.env.example`,
+future installer prompts and Compose/env validation all derive their defaults
+and supported values from this catalog.
+
+This keeps installer work, Docker profiles and runtime packages aligned: new
+`MINDORY_*` settings are invalid until the catalog describes their type,
+default, support status, visibility and secret handling.
+
 ## Object Storage
 
 `TASK-6` adds the shared `ObjectStorage` contract in `@mindory/core` and adapter
