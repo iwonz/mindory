@@ -24,10 +24,6 @@ export class ApiError extends Error {
   }
 }
 
-export function notImplemented(message: string): ApiError {
-  return new ApiError(501, "not_implemented", message);
-}
-
 export function sendError(reply: FastifyReply, request: FastifyRequest, error: ApiError): void {
   const body: ErrorResponse = {
     error: {

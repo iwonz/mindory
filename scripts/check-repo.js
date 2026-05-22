@@ -21,7 +21,7 @@ const checks = [
   ["llm:validate", "scripts/validate-llm.js"],
   ["db:validate", "scripts/validate-db-schema.js"],
   ["db:repositories:validate", "scripts/validate-db-repositories.js"],
-  ["api:validate", "scripts/validate-api-skeleton.js"],
+  ["api:validate", "scripts/validate-api-contract.js"],
   ["api:runtime:validate", "scripts/validate-api-runtime-wiring.js"],
   ["storage:validate", "scripts/validate-storage-adapters.js"],
   ["queue:validate", "scripts/validate-queue.js"],

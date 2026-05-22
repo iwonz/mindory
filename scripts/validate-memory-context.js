@@ -124,14 +124,16 @@ for (const route of [
 }
 assert(memoryRoutes.includes("app.delete"), "Memory routes must include DELETE /v1/memories/:id.");
 assert(memoryRoutes.includes("MemoryService"), "Memory routes must accept MemoryService dependency.");
-assert(memoryRoutes.includes("notImplemented"), "Memory routes must return explicit placeholder behavior when dependency is missing.");
+assert(memoryRoutes.includes("assertRouteDependencies"), "Memory routes must validate runtime dependencies during registration.");
+assert(memoryRoutes.includes("requireRouteDependency"), "Memory route handlers must guard dependency-free tests.");
 assert(memoryRoutes.includes("sourceRefs"), "Memory remember route must accept sourceRefs.");
 
 assert(contextRoutes.includes("\"/v1/context/build\""), "Context routes must include POST /v1/context/build.");
 assert(contextRoutes.includes("ContextBuilder"), "Context route must accept ContextBuilder dependency.");
 assert(contextRoutes.includes("projectIds"), "Context build route must accept projectIds.");
 assert(contextRoutes.includes("tokenBudget"), "Context build route must accept tokenBudget.");
-assert(contextRoutes.includes("notImplemented"), "Context route must return explicit placeholder behavior when dependency is missing.");
+assert(contextRoutes.includes("assertRouteDependencies"), "Context route must validate runtime dependencies during registration.");
+assert(contextRoutes.includes("requireRouteDependency"), "Context route handler must guard dependency-free tests.");
 
 for (const token of ["jobDispatcher", "session.summarize", "memory.derive", "processing_jobs"]) {
   assert(sessionRoutes.includes(token), `Session routes must enqueue memory/context runtime jobs with ${token}.`);

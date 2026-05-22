@@ -1,9 +1,9 @@
 import type { FastifyInstance } from "fastify";
 import type { PeerRecord, PeerRepository, UpsertPeerInput } from "@mindory/core/projects";
 import { requireProjectPermission } from "../auth.js";
-import { notImplemented } from "../errors.js";
+import { assertRouteDependencies, requireRouteDependency, type RouteDependencyOptions } from "./dependencies.js";
 
-export interface PeerRouteDependencies {
+export interface PeerRouteDependencies extends RouteDependencyOptions {
   peerRepository?: PeerRepository;
 }
 
@@ -23,28 +23,26 @@ const peerBodySchema = {
 } as const;
 
 export async function registerPeerRoutes(app: FastifyInstance, dependencies: PeerRouteDependencies = {}): Promise<void> {
+  assertRouteDependencies("Peer routes", dependencies, [["peerRepository", dependencies.peerRepository]]);
+
   app.post<{ Body: UpsertPeerInput }>("/v1/peers", {
     schema: {
       body: peerBodySchema
     }
   }, async (request, reply) => {
-    if (!dependencies.peerRepository) {
-      throw notImplemented("Peer upsert requires persistence repositories from a later task.");
-    }
+    const peerRepository = requireRouteDependency(dependencies.peerRepository, "peerRepository");
     requireProjectPermission(request, request.body.projectId, "project:read");
 
-    const peer = await dependencies.peerRepository.upsertPeer(request.body);
+    const peer = await peerRepository.upsertPeer(request.body);
     reply.status(201).send(toPeerResponse(peer));
   });
 
   app.get<{ Querystring: { projectId: string; limit?: number } }>("/v1/peers", async (request) => {
-    if (!dependencies.peerRepository) {
-      throw notImplemented("Peer listing requires persistence repositories from a later task.");
-    }
+    const peerRepository = requireRouteDependency(dependencies.peerRepository, "peerRepository");
     requireProjectPermission(request, request.query.projectId, "project:read");
 
     return {
-      peers: (await dependencies.peerRepository.listPeers(request.query.projectId, request.query.limit ?? 100)).map(toPeerResponse)
+      peers: (await peerRepository.listPeers(request.query.projectId, request.query.limit ?? 100)).map(toPeerResponse)
     };
   });
 
@@ -59,12 +57,10 @@ export async function registerPeerRoutes(app: FastifyInstance, dependencies: Pee
       }
     }
   }, async (request) => {
-    if (!dependencies.peerRepository) {
-      throw notImplemented("Peer lookup requires persistence repositories from a later task.");
-    }
+    const peerRepository = requireRouteDependency(dependencies.peerRepository, "peerRepository");
     requireProjectPermission(request, request.query.projectId, "project:read");
 
-    return toPeerResponse(await dependencies.peerRepository.getPeer(request.query.projectId, request.params.id));
+    return toPeerResponse(await peerRepository.getPeer(request.query.projectId, request.params.id));
   });
 }
 

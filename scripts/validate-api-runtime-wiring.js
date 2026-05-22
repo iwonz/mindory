@@ -93,7 +93,7 @@ for (const symbol of [
 }
 
 assert(server.includes("buildApiRuntimeDependencies"), "API server must build runtime dependencies.");
-assert(server.includes("buildApiApp({ config, ...runtime })"), "API server must pass runtime dependencies to app builder.");
+assert(server.includes("buildApiApp({ config, ...runtime, allowDependencyFreeRoutes: false })"), "API server must pass runtime dependencies to app builder and require them.");
 assert(app.includes("registerPeerRoutes"), "API app must register peer routes.");
 assert(app.includes("registerArtifactRoutes"), "API app must register artifact routes.");
 assert(app.includes("registerTokenRoutes"), "API app must register token routes.");

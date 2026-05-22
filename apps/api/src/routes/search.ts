@@ -2,9 +2,10 @@ import type { FastifyInstance } from "fastify";
 import type { UnifiedSearchHit, UnifiedSearchInput, UnifiedSearchService } from "@mindory/core/search";
 import { SearchError } from "@mindory/core/search";
 import { requireProjectPermissionForEach } from "../auth.js";
-import { ApiError, notImplemented } from "../errors.js";
+import { ApiError } from "../errors.js";
+import { assertRouteDependencies, requireRouteDependency, type RouteDependencyOptions } from "./dependencies.js";
 
-export interface SearchRouteDependencies {
+export interface SearchRouteDependencies extends RouteDependencyOptions {
   unifiedSearchService?: UnifiedSearchService;
 }
 
@@ -28,6 +29,8 @@ const metadataFilterSchema = {
 } as const;
 
 export async function registerSearchRoutes(app: FastifyInstance, dependencies: SearchRouteDependencies = {}): Promise<void> {
+  assertRouteDependencies("Search routes", dependencies, [["unifiedSearchService", dependencies.unifiedSearchService]]);
+
   app.post<{ Body: SearchBody }>("/v1/search", {
     schema: {
       body: {
@@ -81,13 +84,11 @@ export async function registerSearchRoutes(app: FastifyInstance, dependencies: S
       }
     }
   }, async (request) => {
-    if (!dependencies.unifiedSearchService) {
-      throw notImplemented("Unified search requires runtime search dependencies.");
-    }
+    const unifiedSearchService = requireRouteDependency(dependencies.unifiedSearchService, "unifiedSearchService");
     requireProjectPermissionForEach(request, request.body.projectIds, "document:search");
 
     try {
-      const hits = await dependencies.unifiedSearchService.search(request.body);
+      const hits = await unifiedSearchService.search(request.body);
       return {
         hits: hits.map(toUnifiedSearchHitResponse)
       };

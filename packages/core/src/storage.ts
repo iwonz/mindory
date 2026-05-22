@@ -35,7 +35,7 @@ export interface ObjectStorage {
 export type StorageErrorCode =
   | "invalid_storage_key"
   | "object_not_found"
-  | "storage_not_implemented"
+  | "storage_adapter_missing"
   | "storage_operation_failed";
 
 export class StorageError extends Error {

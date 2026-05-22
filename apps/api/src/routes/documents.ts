@@ -5,9 +5,10 @@ import { DocumentUploadService, type DocumentRecord, type DocumentRepository, ty
 import type { DocumentChunkSearchRepository } from "@mindory/core/memory";
 import { DocumentRecomputeError, DocumentRecomputeService } from "@mindory/core/recompute";
 import { requireProjectPermission, requireProjectPermissionForEach } from "../auth.js";
-import { ApiError, notImplemented } from "../errors.js";
+import { ApiError } from "../errors.js";
+import { assertRouteDependencies, requireRouteDependency, type RouteDependencyOptions } from "./dependencies.js";
 
-export interface DocumentRouteDependencies {
+export interface DocumentRouteDependencies extends RouteDependencyOptions {
   uploadService?: DocumentUploadService;
   documentRepository?: DocumentRepository;
   chunkSearchRepository?: DocumentChunkSearchRepository;
@@ -34,6 +35,14 @@ interface SearchDocumentsBody {
 }
 
 export async function registerDocumentRoutes(app: FastifyInstance, dependencies: DocumentRouteDependencies = {}): Promise<void> {
+  assertRouteDependencies("Document routes", dependencies, [
+    ["uploadService", dependencies.uploadService],
+    ["documentRepository", dependencies.documentRepository],
+    ["chunkSearchRepository", dependencies.chunkSearchRepository],
+    ["artifactRepository", dependencies.artifactRepository],
+    ["recomputeService", dependencies.recomputeService]
+  ]);
+
   await app.register(fastifyMultipart, {
     limits: {
       files: 1
@@ -41,9 +50,7 @@ export async function registerDocumentRoutes(app: FastifyInstance, dependencies:
   });
 
   app.post("/v1/documents", async (request, reply) => {
-    if (!dependencies.uploadService) {
-      throw notImplemented("Document upload requires storage, repository and queue runtime dependencies from a later task.");
-    }
+    const uploadService = requireRouteDependency(dependencies.uploadService, "uploadService");
 
     const file = await request.file();
     if (!file) {
@@ -74,15 +81,13 @@ export async function registerDocumentRoutes(app: FastifyInstance, dependencies:
       uploadInput.title = title;
     }
 
-    const result = await dependencies.uploadService.upload(uploadInput);
+    const result = await uploadService.upload(uploadInput);
 
     reply.status(202).send(toUploadResponse(result, request.id));
   });
 
   app.get<{ Querystring: { projectId: string; status?: DocumentStatus; limit?: number } }>("/v1/documents", async (request) => {
-    if (!dependencies.documentRepository) {
-      throw notImplemented("Document listing requires persistence repositories from a later task.");
-    }
+    const documentRepository = requireRouteDependency(dependencies.documentRepository, "documentRepository");
     requireProjectPermission(request, request.query.projectId, "document:read");
 
     const listInput: ListDocumentsInput = {
@@ -94,7 +99,7 @@ export async function registerDocumentRoutes(app: FastifyInstance, dependencies:
     }
 
     return {
-      documents: (await dependencies.documentRepository.listDocuments(listInput)).map(toDocumentResponse)
+      documents: (await documentRepository.listDocuments(listInput)).map(toDocumentResponse)
     };
   });
 
@@ -109,12 +114,10 @@ export async function registerDocumentRoutes(app: FastifyInstance, dependencies:
       }
     }
   }, async (request) => {
-    if (!dependencies.documentRepository) {
-      throw notImplemented("Document lookup requires persistence repositories from a later task.");
-    }
+    const documentRepository = requireRouteDependency(dependencies.documentRepository, "documentRepository");
     requireProjectPermission(request, request.query.projectId, "document:read");
 
-    return toDocumentResponse(await dependencies.documentRepository.getDocument(request.query.projectId, request.params.id));
+    return toDocumentResponse(await documentRepository.getDocument(request.query.projectId, request.params.id));
   });
 
   app.get<{ Params: { id: string }; Querystring: { projectId: string } }>("/v1/documents/:id/status", {
@@ -128,12 +131,10 @@ export async function registerDocumentRoutes(app: FastifyInstance, dependencies:
       }
     }
   }, async (request) => {
-    if (!dependencies.documentRepository) {
-      throw notImplemented("Document status lookup requires persistence repositories from a later task.");
-    }
+    const documentRepository = requireRouteDependency(dependencies.documentRepository, "documentRepository");
     requireProjectPermission(request, request.query.projectId, "document:read");
 
-    const document = await dependencies.documentRepository.getDocument(request.query.projectId, request.params.id);
+    const document = await documentRepository.getDocument(request.query.projectId, request.params.id);
     return {
       id: document.id,
       project_id: document.projectId,
@@ -153,13 +154,11 @@ export async function registerDocumentRoutes(app: FastifyInstance, dependencies:
       }
     }
   }, async (request) => {
-    if (!dependencies.artifactRepository) {
-      throw notImplemented("Processing run listing requires derived artifact repository dependencies.");
-    }
+    const artifactRepository = requireRouteDependency(dependencies.artifactRepository, "artifactRepository");
     requireProjectPermission(request, request.query.projectId, "document:read");
 
     return {
-      processing_runs: (await dependencies.artifactRepository.listProcessingRuns(request.query.projectId, request.params.id)).map(toProcessingRunResponse)
+      processing_runs: (await artifactRepository.listProcessingRuns(request.query.projectId, request.params.id)).map(toProcessingRunResponse)
     };
   });
 
@@ -174,9 +173,7 @@ export async function registerDocumentRoutes(app: FastifyInstance, dependencies:
       }
     }
   }, async (request, reply) => {
-    if (!dependencies.recomputeService) {
-      throw notImplemented("Document recompute requires job dispatcher runtime dependencies.");
-    }
+    const recomputeService = requireRouteDependency(dependencies.recomputeService, "recomputeService");
     requireProjectPermission(request, request.body.projectId, "document:write");
 
     try {
@@ -197,7 +194,7 @@ export async function registerDocumentRoutes(app: FastifyInstance, dependencies:
       if (request.body.requestId !== undefined) {
         Object.assign(recomputeInput, { requestId: request.body.requestId });
       }
-      const result = await dependencies.recomputeService.requestRecompute(recomputeInput);
+      const result = await recomputeService.requestRecompute(recomputeInput);
 
       reply.status(202).send({
         request_id: request.id,
@@ -220,13 +217,11 @@ export async function registerDocumentRoutes(app: FastifyInstance, dependencies:
   });
 
   app.post<{ Body: SearchDocumentsBody }>("/v1/documents/search", async (request) => {
-    if (!dependencies.chunkSearchRepository) {
-      throw notImplemented("Document search requires chunk search repositories from a later task.");
-    }
+    const chunkSearchRepository = requireRouteDependency(dependencies.chunkSearchRepository, "chunkSearchRepository");
     requireProjectPermissionForEach(request, request.body.projectIds, "document:search");
 
     return {
-      hits: await dependencies.chunkSearchRepository.searchDocumentChunks(request.body)
+      hits: await chunkSearchRepository.searchDocumentChunks(request.body)
     };
   });
 }

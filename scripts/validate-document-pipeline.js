@@ -90,7 +90,8 @@ assert(routes.includes('"/v1/documents/:id/status"'), "Document routes must regi
 assert(routes.includes("route_job"), "Document upload response must expose route_job.");
 assert(routes.includes('"/v1/documents/:id/recompute"'), "Document routes must register recompute endpoint.");
 assert(routes.includes('"/v1/documents/:id/processing-runs"'), "Document routes must register processing run listing endpoint.");
-assert(routes.includes("notImplemented"), "Document routes must return explicit placeholder behavior when dependencies are missing.");
+assert(routes.includes("assertRouteDependencies"), "Document routes must validate runtime dependencies during registration.");
+assert(routes.includes("requireRouteDependency"), "Document route handlers must guard dependency-free tests.");
 assert(routes.includes("DocumentUploadService"), "Document route dependencies must accept DocumentUploadService.");
 assert(runtime.includes("DocumentUploadService"), "API runtime must construct DocumentUploadService.");
 assert(runtime.includes("LocalFsObjectStorage"), "API runtime must construct local-fs object storage.");

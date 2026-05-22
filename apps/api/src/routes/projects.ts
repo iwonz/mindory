@@ -1,9 +1,9 @@
 import type { FastifyInstance } from "fastify";
 import type { CreateProjectInput, ProjectRecord, ProjectRepository } from "@mindory/core/projects";
 import { authorizedReadableProjectIds, requireProjectPermission, shouldBypassAuthorization } from "../auth.js";
-import { notImplemented } from "../errors.js";
+import { assertRouteDependencies, requireRouteDependency, type RouteDependencyOptions } from "./dependencies.js";
 
-export interface ProjectRouteDependencies {
+export interface ProjectRouteDependencies extends RouteDependencyOptions {
   projectRepository?: ProjectRepository;
 }
 
@@ -20,28 +20,26 @@ const projectBodySchema = {
 } as const;
 
 export async function registerProjectRoutes(app: FastifyInstance, dependencies: ProjectRouteDependencies = {}): Promise<void> {
+  assertRouteDependencies("Project routes", dependencies, [["projectRepository", dependencies.projectRepository]]);
+
   app.post<{ Body: CreateProjectInput }>("/v1/projects", {
     schema: {
       body: projectBodySchema
     }
   }, async (request, reply) => {
-    if (!dependencies.projectRepository) {
-      throw notImplemented("Project creation requires persistence repositories from a later task.");
-    }
+    const projectRepository = requireRouteDependency(dependencies.projectRepository, "projectRepository");
     requireProjectPermission(request, request.body.id, "project:read");
 
-    const project = await dependencies.projectRepository.createProject(request.body);
+    const project = await projectRepository.createProject(request.body);
     reply.status(201).send(toProjectResponse(project));
   });
 
   app.get<{ Querystring: { limit?: number } }>("/v1/projects", async (request) => {
-    if (!dependencies.projectRepository) {
-      throw notImplemented("Project listing requires persistence repositories from a later task.");
-    }
+    const projectRepository = requireRouteDependency(dependencies.projectRepository, "projectRepository");
 
     const allowedProjectIds = shouldBypassAuthorization(request) ? null : new Set(authorizedReadableProjectIds(request));
     return {
-      projects: (await dependencies.projectRepository.listProjects(request.query.limit ?? 100))
+      projects: (await projectRepository.listProjects(request.query.limit ?? 100))
         .filter((project) => allowedProjectIds === null || allowedProjectIds.has(project.id))
         .map(toProjectResponse)
     };
@@ -58,12 +56,10 @@ export async function registerProjectRoutes(app: FastifyInstance, dependencies: 
       }
     }
   }, async (request) => {
-    if (!dependencies.projectRepository) {
-      throw notImplemented("Project lookup requires persistence repositories from a later task.");
-    }
+    const projectRepository = requireRouteDependency(dependencies.projectRepository, "projectRepository");
     requireProjectPermission(request, request.params.id, "project:read");
 
-    return toProjectResponse(await dependencies.projectRepository.getProject(request.params.id));
+    return toProjectResponse(await projectRepository.getProject(request.params.id));
   });
 }
 

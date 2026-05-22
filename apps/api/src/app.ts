@@ -20,6 +20,7 @@ import { registerTokenRoutes, type TokenRouteDependencies } from "./routes/token
 export interface BuildApiAppOptions {
   config?: MindoryConfig;
   logger?: FastifyServerOptions["logger"];
+  allowDependencyFreeRoutes?: boolean;
   auth?: ApiAuthDependencies;
   artifacts?: ArtifactRouteDependencies;
   tokens?: TokenRouteDependencies;
@@ -62,19 +63,19 @@ export async function buildApiApp(options: BuildApiAppOptions = {}): Promise<Fas
 
   registerErrorHandlers(app);
   registerRequestGuards(app, config);
-  await registerAuth(app, options.auth);
+  await registerAuth(app, withDependencyFreeRouteMode(options.auth, options.allowDependencyFreeRoutes));
   await registerHealthRoutes(app, config);
-  await registerArtifactRoutes(app, options.artifacts);
-  await registerTokenRoutes(app, options.tokens);
-  await registerProjectRoutes(app, options.projects);
-  await registerPeerRoutes(app, options.peers);
-  await registerSessionRoutes(app, options.sessions);
-  await registerDocumentRoutes(app, options.documents);
-  await registerFaceRoutes(app, options.faces);
-  await registerJobRoutes(app, options.jobs);
-  await registerMemoryRoutes(app, options.memories);
-  await registerSearchRoutes(app, options.search);
-  await registerContextRoutes(app, options.context);
+  await registerArtifactRoutes(app, withDependencyFreeRouteMode(options.artifacts, options.allowDependencyFreeRoutes));
+  await registerTokenRoutes(app, withDependencyFreeRouteMode(options.tokens, options.allowDependencyFreeRoutes));
+  await registerProjectRoutes(app, withDependencyFreeRouteMode(options.projects, options.allowDependencyFreeRoutes));
+  await registerPeerRoutes(app, withDependencyFreeRouteMode(options.peers, options.allowDependencyFreeRoutes));
+  await registerSessionRoutes(app, withDependencyFreeRouteMode(options.sessions, options.allowDependencyFreeRoutes));
+  await registerDocumentRoutes(app, withDependencyFreeRouteMode(options.documents, options.allowDependencyFreeRoutes));
+  await registerFaceRoutes(app, withDependencyFreeRouteMode(options.faces, options.allowDependencyFreeRoutes));
+  await registerJobRoutes(app, withDependencyFreeRouteMode(options.jobs, options.allowDependencyFreeRoutes));
+  await registerMemoryRoutes(app, withDependencyFreeRouteMode(options.memories, options.allowDependencyFreeRoutes));
+  await registerSearchRoutes(app, withDependencyFreeRouteMode(options.search, options.allowDependencyFreeRoutes));
+  await registerContextRoutes(app, withDependencyFreeRouteMode(options.context, options.allowDependencyFreeRoutes));
   if (options.close) {
     app.addHook("onClose", async () => {
       await options.close?.();
@@ -82,6 +83,16 @@ export async function buildApiApp(options: BuildApiAppOptions = {}): Promise<Fas
   }
 
   return app;
+}
+
+function withDependencyFreeRouteMode<T extends object>(dependencies: T | undefined, allowDependencyFreeRoutes: boolean | undefined): T & { allowDependencyFreeRoutes?: boolean } {
+  if (allowDependencyFreeRoutes !== true) {
+    return dependencies ?? {} as T & { allowDependencyFreeRoutes?: boolean };
+  }
+  return {
+    ...(dependencies ?? {}),
+    allowDependencyFreeRoutes: true
+  } as T & { allowDependencyFreeRoutes?: boolean };
 }
 
 declare module "fastify" {

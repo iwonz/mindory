@@ -6,9 +6,10 @@ import {
 } from "@mindory/core/faces";
 import type { FaceIdentityRecord, FaceIdentityStatus, FaceObservationRecord } from "@mindory/core/artifacts";
 import { requireProjectPermission } from "../auth.js";
-import { ApiError, notImplemented } from "../errors.js";
+import { ApiError } from "../errors.js";
+import { assertRouteDependencies, requireRouteDependency, type RouteDependencyOptions } from "./dependencies.js";
 
-export interface FaceRouteDependencies {
+export interface FaceRouteDependencies extends RouteDependencyOptions {
   faceService?: FaceService;
 }
 
@@ -40,6 +41,8 @@ interface MergeFaceIdentityBody extends ProjectQuery {
 }
 
 export async function registerFaceRoutes(app: FastifyInstance, dependencies: FaceRouteDependencies = {}): Promise<void> {
+  assertRouteDependencies("Face routes", dependencies, [["faceService", dependencies.faceService]]);
+
   app.get<{ Querystring: ListFaceIdentitiesQuery }>("/v1/faces/identities", {
     schema: {
       querystring: {
@@ -182,10 +185,7 @@ const projectQuerySchema = {
 } as const;
 
 function requireFaceService(dependencies: FaceRouteDependencies): FaceService {
-  if (!dependencies.faceService) {
-    throw notImplemented("Face identity operations require a FaceService runtime dependency.");
-  }
-  return dependencies.faceService;
+  return requireRouteDependency(dependencies.faceService, "faceService");
 }
 
 function toMergeResponse(result: MergeFaceIdentitiesResult): Record<string, unknown> {

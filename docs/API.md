@@ -3,9 +3,7 @@
 The HTTP API is the source of truth for Mindory behavior. MCP, CLI and runtime
 adapters call the API rather than accessing the database directly.
 
-## Current Skeleton
-
-`TASK-5` adds a Fastify app factory and server entrypoint in `apps/api`.
+## Runtime Contract
 
 Available process routes:
 
@@ -23,8 +21,9 @@ GET  /v1/projects/:id
 ```
 
 When started through the API server runtime, project routes use
-`DbProjectRepository`. When `buildApiApp` is used without dependencies, they
-return structured `501 not_implemented` responses.
+`DbProjectRepository`. The product server requires all route dependencies during
+startup. Tests that intentionally construct a dependency-free app must pass
+`allowDependencyFreeRoutes: true`.
 
 Registered token routes:
 
@@ -79,22 +78,20 @@ POST /v1/documents/search
 ```
 
 `POST /v1/documents` is wired for multipart parsing. In the API server runtime,
-`TASK-18` injects `DocumentUploadService`, local filesystem object storage,
-document repositories and BullMQ dispatch, so uploads can store the file, create
-the `Document` row and enqueue `document.scan` when async antivirus is required
-or `document.route` when it can route immediately. The upload response includes
-`scan_job` and `route_job` fields. In a bare `buildApiApp` call without
-dependencies, it still returns `501 not_implemented`.
+`DocumentUploadService`, object storage, document repositories and BullMQ
+dispatch are injected, so uploads can store the file, create the `Document` row
+and enqueue `document.scan` when async antivirus is required or `document.route`
+when it can route immediately. The upload response includes `scan_job` and
+`route_job` fields.
 
 Document read/status/list/search routes use document repositories when the API
 server runtime is built. Document search uses pgvector semantic search when an
 embeddings provider is configured; otherwise it falls back to text-based chunk
-search for scaffold/local operation. After `TASK-41`, fallback search uses
-PostgreSQL full-text search over derived artifact text spans and returns
-source refs for the artifact, processing run and chunk. After `TASK-42`, search
-also accepts optional `metadataFilters` over typed attachment metadata. Numeric
-filters support `lt`, `lte`, `gt`, `gte` and `between`; text, boolean and
-timestamp filters support exact `eq` matching.
+search for local operation. Fallback search uses PostgreSQL full-text search
+over derived artifact text spans and returns source refs for the artifact,
+processing run and chunk. Search also accepts optional `metadataFilters` over
+typed attachment metadata. Numeric filters support `lt`, `lte`, `gt`, `gte` and
+`between`; text, boolean and timestamp filters support exact `eq` matching.
 Current metadata keys include size, MIME, extension, checksum, media type,
 container, duration, dimensions, page count, frame count and codec when the
 route stage can derive them.
@@ -166,8 +163,8 @@ POST /v1/context/build
 ```
 
 These routes use `MemoryService` and `ContextBuilder` when the API server
-runtime is built. In a bare `buildApiApp` call without dependencies, they return
-structured `501 not_implemented` responses.
+runtime is built. Product startup requires those dependencies before serving
+traffic.
 
 Manual `POST /v1/memories` still defaults to `active` memory claims and requires
 source refs. Automatic memory derivation is worker-side only and creates
@@ -196,12 +193,12 @@ GET  /v1/jobs
 POST /v1/jobs/:id/retry
 ```
 
-`TASK-21` wires these routes to `ProcessingJobStore` and
-`ProcessingJobDispatcher` in the API runtime. Job reads and manual retry are
-project-scoped and require `project:read` permission.
+These routes use `ProcessingJobStore` and `ProcessingJobDispatcher` in the API
+runtime. Job reads and manual retry are project-scoped and require
+`project:read` permission.
 
-After `TASK-49`, job responses include a normalized `details` object in
-addition to the raw durable metadata. `details.status` can describe stage graph
+Job responses include a normalized `details` object in addition to the raw
+durable metadata. `details.status` can describe stage graph
 outcomes such as `skipped`, `disabled`, `blocked_by_scan`, `partial_failed`,
 `failed` or `retrying` while the database row keeps its coarse durable job
 status. `details.stages` carries per-stage progress and queued child job ids.
@@ -210,24 +207,22 @@ retryability for failed jobs.
 
 ## MCP Boundary
 
-`TASK-11` adds MCP tools in `apps/mcp`; those tools call HTTP API paths rather
-than repositories or database internals. `TASK-21` adds job get/list/retry tool
-coverage over the jobs API. Token management remains outside the current MCP
-tool set.
+MCP tools in `apps/mcp` call HTTP API paths rather than repositories or database
+internals. Job get/list/retry tools call the jobs API. Token management remains
+outside the current MCP tool set.
 
 ## CLI Boundary
 
-`TASK-12` adds the `mindory` CLI in `apps/cli`. CLI commands also call HTTP API
-paths rather than repositories or database internals. `TASK-21` wires job
-list/retry commands to implemented API routes; `TASK-29` wires token
-create/list/revoke/rotate commands to implemented API routes.
+The `mindory` CLI in `apps/cli` calls HTTP API paths rather than repositories or
+database internals. Job list/retry and token create/list/revoke/rotate commands
+call implemented API routes.
 
 ## Hermes Adapter Boundary
 
-`TASK-13` adds the Hermes adapter in `apps/adapters/hermes`. It calls HTTP API
-paths for project/peer/session setup, context build, message append, document
-upload and optional memory/document tools. The API server runtime now accepts
-document uploads through local-fs storage and BullMQ scan job dispatch.
+The Hermes adapter in `apps/adapters/hermes` calls HTTP API paths for
+project/peer/session setup, context build, message append, document upload and
+optional memory/document tools. The API server runtime accepts document uploads
+through object storage and BullMQ scan job dispatch.
 
 ## Error Shape
 
@@ -236,9 +231,9 @@ Errors return JSON with:
 ```json
 {
   "error": {
-    "code": "not_implemented",
-    "message": "Project listing requires persistence repositories from a later task.",
-    "statusCode": 501,
+    "code": "project_access_denied",
+    "message": "Token does not grant project:read on project homelab.",
+    "statusCode": 403,
     "requestId": "request-id"
   }
 }
@@ -246,9 +241,8 @@ Errors return JSON with:
 
 When the API server runtime is built, bearer tokens are verified against hashed
 access tokens in PostgreSQL and route handlers enforce project-scoped
-permissions. A bare `buildApiApp` call without auth dependencies still uses the
-placeholder context for scaffold tests and returns the existing explicit
-placeholders.
+permissions. Dependency-free app construction is an explicit test mode and is
+not a product runtime.
 
 ## MVP Endpoint Groups
 
@@ -264,15 +258,8 @@ placeholders.
 - Context builder
 - Processing jobs
 
-`TASK-14` adds Drizzle-backed repository classes in `@mindory/db`. `TASK-15`
-adds API runtime dependency construction and wires core routes to those
-repositories. `TASK-17` wires access token verification and route-level
-permission checks. `TASK-18` wires document upload storage/queue runtime.
-`TASK-20` wires pgvector-backed document chunk search. `TASK-21` wires
-processing job status/list/retry routes. `TASK-22` wires message-triggered
-summary and conservative memory derivation jobs. `TASK-29` wires token lifecycle
-operations. `TASK-45` wires face identity/observation management.
-`TASK-48` adds unified artifact search across derived artifact text spans.
-`TASK-49` adds stage graph details to job responses and worker job metadata.
-`TASK-81` adds the unified multimodal search route across document chunks,
-artifact spans and face observations.
+The API runtime wires Drizzle-backed repositories, access token verification,
+route-level permission checks, document upload storage/queue runtime,
+pgvector-backed document chunk search, processing job status/list/retry routes,
+message-triggered summary and memory derivation jobs, token lifecycle
+operations, face identity/observation management and unified multimodal search.

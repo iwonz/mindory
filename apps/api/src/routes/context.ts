@@ -1,13 +1,15 @@
 import type { FastifyInstance } from "fastify";
 import { ContextBuilder, type BuildContextInput } from "@mindory/core/memory";
 import { requireProjectPermissionForEach } from "../auth.js";
-import { notImplemented } from "../errors.js";
+import { assertRouteDependencies, requireRouteDependency, type RouteDependencyOptions } from "./dependencies.js";
 
-export interface ContextRouteDependencies {
+export interface ContextRouteDependencies extends RouteDependencyOptions {
   contextBuilder?: ContextBuilder;
 }
 
 export async function registerContextRoutes(app: FastifyInstance, dependencies: ContextRouteDependencies = {}): Promise<void> {
+  assertRouteDependencies("Context routes", dependencies, [["contextBuilder", dependencies.contextBuilder]]);
+
   app.post<{ Body: BuildContextInput }>("/v1/context/build", {
     schema: {
       body: {
@@ -37,11 +39,9 @@ export async function registerContextRoutes(app: FastifyInstance, dependencies: 
       }
     }
   }, async (request) => {
-    if (!dependencies.contextBuilder) {
-      throw notImplemented("Context build requires memory, session and document repositories from a later task.");
-    }
+    const contextBuilder = requireRouteDependency(dependencies.contextBuilder, "contextBuilder");
     requireProjectPermissionForEach(request, request.body.projectIds, "context:build");
 
-    return dependencies.contextBuilder.build(request.body);
+    return contextBuilder.build(request.body);
   });
 }

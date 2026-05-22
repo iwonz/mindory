@@ -68,7 +68,7 @@ test("API request guard rate-limits non-health requests", async () => {
     MINDORY_API_RATE_LIMIT_WINDOW_MS: "60000",
     MINDORY_API_RATE_LIMIT_MAX: "1"
   });
-  const apiApp = await modules.buildApiApp({ config, logger: false });
+  const apiApp = await modules.buildApiApp({ config, logger: false, allowDependencyFreeRoutes: true });
 
   try {
     const firstHealth = await apiApp.inject({ method: "GET", url: "/health" });

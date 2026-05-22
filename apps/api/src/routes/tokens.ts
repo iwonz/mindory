@@ -12,9 +12,10 @@ import {
   type RotateAccessTokenInput
 } from "@mindory/auth";
 import { requireProjectPermission } from "../auth.js";
-import { ApiError, notImplemented } from "../errors.js";
+import { ApiError } from "../errors.js";
+import { assertRouteDependencies, requireRouteDependency, type RouteDependencyOptions } from "./dependencies.js";
 
-export interface TokenRouteDependencies {
+export interface TokenRouteDependencies extends RouteDependencyOptions {
   accessTokenRepository?: AccessTokenRepository;
   idFactory?: () => string;
   tokenFactory?: () => string;
@@ -67,6 +68,7 @@ const tokenResponseSchema = {
 } as const;
 
 export async function registerTokenRoutes(app: FastifyInstance, dependencies: TokenRouteDependencies = {}): Promise<void> {
+  assertRouteDependencies("Token routes", dependencies, [["accessTokenRepository", dependencies.accessTokenRepository]]);
   const idFactory = dependencies.idFactory ?? (() => randomUUID());
   const tokenFactory = dependencies.tokenFactory ?? generateAccessTokenSecret;
   const nowFactory = dependencies.now ?? (() => new Date());
@@ -222,10 +224,7 @@ const tokenProjectBodySchema = {
 } as const;
 
 function requireAccessTokenRepository(repository: AccessTokenRepository | undefined): AccessTokenRepository {
-  if (!repository) {
-    throw notImplemented("Token operations require access token repository runtime dependencies.");
-  }
-  return repository;
+  return requireRouteDependency(repository, "accessTokenRepository");
 }
 
 function normalizePermissions(values: string[]): MindoryPermission[] {

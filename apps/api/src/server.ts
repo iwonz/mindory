@@ -5,7 +5,7 @@ import { buildApiRuntimeDependencies } from "./runtime.js";
 export async function startApiServer(): Promise<void> {
   const config = loadMindoryConfig();
   const runtime = buildApiRuntimeDependencies(config);
-  const app = await buildApiApp({ config, ...runtime });
+  const app = await buildApiApp({ config, ...runtime, allowDependencyFreeRoutes: false });
 
   try {
     await app.listen({

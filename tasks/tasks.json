@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-87",
+  "current_task_id": "TASK-88",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -649,7 +649,7 @@
     {
       "id": "TASK-88",
       "title": "Replace public API not-implemented fallbacks",
-      "status": "draft",
+      "status": "done",
       "branch": "task/TASK-88-api-runtime-dependency-contract",
       "file": "tasks/TASK-88.json"
     },

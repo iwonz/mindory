@@ -3,9 +3,9 @@ import type { FastifyInstance } from "fastify";
 import type { EnqueuedProcessingJob, ProcessingJobDispatcher } from "@mindory/core/queue";
 import type { AppendMessageInput, CreateSessionInput, MessageRecord, SessionRecord, SessionRepository } from "@mindory/core/sessions";
 import { requireProjectPermission } from "../auth.js";
-import { notImplemented } from "../errors.js";
+import { assertRouteDependencies, requireRouteDependency, type RouteDependencyOptions } from "./dependencies.js";
 
-export interface SessionRouteDependencies {
+export interface SessionRouteDependencies extends RouteDependencyOptions {
   sessionRepository?: SessionRepository;
   jobDispatcher?: ProcessingJobDispatcher;
   idFactory?: () => string;
@@ -15,15 +15,14 @@ type SessionBody = Omit<CreateSessionInput, "id"> & { id?: string };
 type MessageBody = Omit<AppendMessageInput, "id" | "sessionId"> & { id?: string };
 
 export async function registerSessionRoutes(app: FastifyInstance, dependencies: SessionRouteDependencies = {}): Promise<void> {
+  assertRouteDependencies("Session routes", dependencies, [["sessionRepository", dependencies.sessionRepository]]);
   const idFactory = dependencies.idFactory ?? (() => randomUUID());
 
   app.post<{ Body: SessionBody }>("/v1/sessions", async (request, reply) => {
-    if (!dependencies.sessionRepository) {
-      throw notImplemented("Session creation requires persistence repositories from a later task.");
-    }
+    const sessionRepository = requireRouteDependency(dependencies.sessionRepository, "sessionRepository");
     requireProjectPermission(request, request.body.projectId, "session:write");
 
-    const session = await dependencies.sessionRepository.createSession({
+    const session = await sessionRepository.createSession({
       ...request.body,
       id: request.body.id ?? `sess_${idFactory()}`
     });
@@ -31,32 +30,26 @@ export async function registerSessionRoutes(app: FastifyInstance, dependencies: 
   });
 
   app.get<{ Querystring: { projectId: string; limit?: number } }>("/v1/sessions", async (request) => {
-    if (!dependencies.sessionRepository) {
-      throw notImplemented("Session listing requires persistence repositories from a later task.");
-    }
+    const sessionRepository = requireRouteDependency(dependencies.sessionRepository, "sessionRepository");
     requireProjectPermission(request, request.query.projectId, "session:read");
 
     return {
-      sessions: (await dependencies.sessionRepository.listSessions(request.query.projectId, request.query.limit ?? 100)).map(toSessionResponse)
+      sessions: (await sessionRepository.listSessions(request.query.projectId, request.query.limit ?? 100)).map(toSessionResponse)
     };
   });
 
   app.get<{ Params: { id: string }; Querystring: { projectId: string } }>("/v1/sessions/:id", async (request) => {
-    if (!dependencies.sessionRepository) {
-      throw notImplemented("Session lookup requires persistence repositories from a later task.");
-    }
+    const sessionRepository = requireRouteDependency(dependencies.sessionRepository, "sessionRepository");
     requireProjectPermission(request, request.query.projectId, "session:read");
 
-    return toSessionResponse(await dependencies.sessionRepository.getSession(request.query.projectId, request.params.id));
+    return toSessionResponse(await sessionRepository.getSession(request.query.projectId, request.params.id));
   });
 
   app.post<{ Params: { id: string }; Body: MessageBody }>("/v1/sessions/:id/messages", async (request, reply) => {
-    if (!dependencies.sessionRepository) {
-      throw notImplemented("Message append requires persistence repositories from a later task.");
-    }
+    const sessionRepository = requireRouteDependency(dependencies.sessionRepository, "sessionRepository");
     requireProjectPermission(request, request.body.projectId, "message:write");
 
-    const message = await dependencies.sessionRepository.appendMessage({
+    const message = await sessionRepository.appendMessage({
       ...request.body,
       id: request.body.id ?? `msg_${idFactory()}`,
       sessionId: request.params.id
@@ -70,13 +63,11 @@ export async function registerSessionRoutes(app: FastifyInstance, dependencies: 
   });
 
   app.get<{ Params: { id: string }; Querystring: { projectId: string; limit?: number } }>("/v1/sessions/:id/messages", async (request) => {
-    if (!dependencies.sessionRepository) {
-      throw notImplemented("Message listing requires persistence repositories from a later task.");
-    }
+    const sessionRepository = requireRouteDependency(dependencies.sessionRepository, "sessionRepository");
     requireProjectPermission(request, request.query.projectId, "message:read");
 
     return {
-      messages: (await dependencies.sessionRepository.listMessages(
+      messages: (await sessionRepository.listMessages(
         request.query.projectId,
         request.params.id,
         request.query.limit ?? 50

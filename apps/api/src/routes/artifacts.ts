@@ -5,9 +5,9 @@ import type {
   SearchArtifactsInput
 } from "@mindory/core/artifacts";
 import { requireProjectPermissionForEach } from "../auth.js";
-import { notImplemented } from "../errors.js";
+import { assertRouteDependencies, requireRouteDependency, type RouteDependencyOptions } from "./dependencies.js";
 
-export interface ArtifactRouteDependencies {
+export interface ArtifactRouteDependencies extends RouteDependencyOptions {
   artifactRepository?: DerivedArtifactRepository;
 }
 
@@ -31,6 +31,8 @@ const metadataFilterSchema = {
 } as const;
 
 export async function registerArtifactRoutes(app: FastifyInstance, dependencies: ArtifactRouteDependencies = {}): Promise<void> {
+  assertRouteDependencies("Artifact routes", dependencies, [["artifactRepository", dependencies.artifactRepository]]);
+
   app.post<{ Body: SearchArtifactsBody }>("/v1/artifacts/search", {
     schema: {
       body: {
@@ -76,11 +78,9 @@ export async function registerArtifactRoutes(app: FastifyInstance, dependencies:
       }
     }
   }, async (request) => {
-    if (!dependencies.artifactRepository) {
-      throw notImplemented("Artifact search requires a DerivedArtifactRepository runtime dependency.");
-    }
+    const artifactRepository = requireRouteDependency(dependencies.artifactRepository, "artifactRepository");
     requireProjectPermissionForEach(request, request.body.projectIds, "document:search");
-    const hits = await dependencies.artifactRepository.searchArtifacts(request.body);
+    const hits = await artifactRepository.searchArtifacts(request.body);
     return {
       hits: hits.map(toArtifactSearchHitResponse)
     };

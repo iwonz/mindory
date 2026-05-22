@@ -9,7 +9,7 @@
     "pnpm": ">=10.0.0"
   },
   "scripts": {
-    "api:validate": "node scripts/validate-api-skeleton.js",
+    "api:validate": "node scripts/validate-api-contract.js",
     "api:runtime:validate": "node scripts/validate-api-runtime-wiring.js",
     "backup:validate": "pnpm --filter @mindory/installer typecheck && node scripts/validate-backup-restore.js",
     "bootstrap:validate": "node scripts/validate-bootstrap-scripts.js",

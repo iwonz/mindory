@@ -9,9 +9,9 @@ import {
   type SourceRef
 } from "@mindory/core/memory";
 import { requireProjectPermission, requireProjectPermissionForEach } from "../auth.js";
-import { notImplemented } from "../errors.js";
+import { assertRouteDependencies, requireRouteDependency, type RouteDependencyOptions } from "./dependencies.js";
 
-export interface MemoryRouteDependencies {
+export interface MemoryRouteDependencies extends RouteDependencyOptions {
   memoryService?: MemoryService;
 }
 
@@ -42,6 +42,8 @@ const sourceRefSchema = {
 } as const;
 
 export async function registerMemoryRoutes(app: FastifyInstance, dependencies: MemoryRouteDependencies = {}): Promise<void> {
+  assertRouteDependencies("Memory routes", dependencies, [["memoryService", dependencies.memoryService]]);
+
   app.post<{ Body: RememberMemoryBody }>("/v1/memories", {
     schema: {
       body: {
@@ -63,12 +65,10 @@ export async function registerMemoryRoutes(app: FastifyInstance, dependencies: M
       }
     }
   }, async (request, reply) => {
-    if (!dependencies.memoryService) {
-      throw notImplemented("Manual memory remember requires a MemoryRepository runtime dependency from a later task.");
-    }
+    const memoryService = requireRouteDependency(dependencies.memoryService, "memoryService");
     requireProjectPermission(request, request.body.projectId, "memory:write");
 
-    const memory = await dependencies.memoryService.remember(request.body);
+    const memory = await memoryService.remember(request.body);
     reply.status(201).send(toMemoryResponse(memory));
   });
 
@@ -78,12 +78,10 @@ export async function registerMemoryRoutes(app: FastifyInstance, dependencies: M
       querystring: projectQuerySchema
     }
   }, async (request) => {
-    if (!dependencies.memoryService) {
-      throw notImplemented("Memory lookup requires a MemoryRepository runtime dependency from a later task.");
-    }
+    const memoryService = requireRouteDependency(dependencies.memoryService, "memoryService");
     requireProjectPermission(request, request.query.projectId, "memory:read");
 
-    return toMemoryResponse(await dependencies.memoryService.get(request.query.projectId, request.params.id));
+    return toMemoryResponse(await memoryService.get(request.query.projectId, request.params.id));
   });
 
   app.post<{ Body: SearchMemoriesBody }>("/v1/memories/search", {
@@ -112,12 +110,10 @@ export async function registerMemoryRoutes(app: FastifyInstance, dependencies: M
       }
     }
   }, async (request) => {
-    if (!dependencies.memoryService) {
-      throw notImplemented("Memory search requires a MemoryRepository runtime dependency from a later task.");
-    }
+    const memoryService = requireRouteDependency(dependencies.memoryService, "memoryService");
     requireProjectPermissionForEach(request, request.body.projectIds, "memory:read");
 
-    const hits = await dependencies.memoryService.search(request.body);
+    const hits = await memoryService.search(request.body);
     return {
       hits: hits.map(toMemorySearchHitResponse)
     };
@@ -136,12 +132,10 @@ export async function registerMemoryRoutes(app: FastifyInstance, dependencies: M
       }
     }
   }, async (request) => {
-    if (!dependencies.memoryService) {
-      throw notImplemented("Memory explanation requires a MemoryRepository runtime dependency from a later task.");
-    }
+    const memoryService = requireRouteDependency(dependencies.memoryService, "memoryService");
     requireProjectPermission(request, request.body.projectId, "memory:read");
 
-    return dependencies.memoryService.explain({
+    return memoryService.explain({
       projectId: request.body.projectId,
       memoryId: request.params.id
     });
@@ -153,12 +147,10 @@ export async function registerMemoryRoutes(app: FastifyInstance, dependencies: M
       querystring: projectQuerySchema
     }
   }, async (request) => {
-    if (!dependencies.memoryService) {
-      throw notImplemented("Memory archive requires a MemoryRepository runtime dependency from a later task.");
-    }
+    const memoryService = requireRouteDependency(dependencies.memoryService, "memoryService");
     requireProjectPermission(request, request.query.projectId, "memory:delete");
 
-    return toMemoryResponse(await dependencies.memoryService.archive(request.query.projectId, request.params.id));
+    return toMemoryResponse(await memoryService.archive(request.query.projectId, request.params.id));
   });
 }
 

@@ -131,6 +131,7 @@ for (const symbol of ["DbProcessingJobStore", "createPendingJob", "markJobRunnin
 }
 
 assert(!apiFiles.includes("@mindory/db"), "TASK-14 must not wire API routes directly to @mindory/db.");
-assert(apiFiles.includes("notImplemented"), "API routes should remain explicit placeholders until runtime wiring task.");
+assert(apiFiles.includes("assertRouteDependencies"), "API routes must validate injected runtime dependencies.");
+assert(apiFiles.includes("requireRouteDependency"), "API routes must guard dependency-free tests.");
 
-console.log("Database repository skeleton validated.");
+console.log("Database repositories validated.");

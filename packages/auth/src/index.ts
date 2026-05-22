@@ -30,7 +30,7 @@ export interface AuthorizationContext {
   tokenId: string | null;
   tokenPresented: boolean;
   allowedProjects: ProjectAuthorizationScope[];
-  placeholder: boolean;
+  dependencyFree: boolean;
 }
 
 export interface VerifiedAccessToken {
@@ -143,25 +143,25 @@ export async function verifyBearerToken(input: {
     tokenId: verified.tokenId,
     tokenPresented: true,
     allowedProjects: verified.allowedProjects,
-    placeholder: false
+    dependencyFree: false
   };
 }
 
-export function unauthenticatedContext(placeholder: boolean): AuthorizationContext {
+export function unauthenticatedContext(dependencyFree: boolean): AuthorizationContext {
   return {
     tokenId: null,
     tokenPresented: false,
     allowedProjects: [],
-    placeholder
+    dependencyFree
   };
 }
 
-export function placeholderAuthorizationContext(tokenPresented: boolean): AuthorizationContext {
+export function dependencyFreeAuthorizationContext(tokenPresented: boolean): AuthorizationContext {
   return {
-    tokenId: tokenPresented ? "placeholder" : null,
+    tokenId: tokenPresented ? "dependency-free" : null,
     tokenPresented,
     allowedProjects: [],
-    placeholder: true
+    dependencyFree: true
   };
 }
 

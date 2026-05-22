@@ -2,10 +2,9 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import {
   AuthError,
   authorizedProjectIds,
+  dependencyFreeAuthorizationContext,
   parseBearerToken,
-  placeholderAuthorizationContext,
   requireProjectPermission as requireProjectPermissionFromContext,
-  unauthenticatedContext,
   verifyBearerToken,
   type AccessTokenRepository,
   type AuthorizationContext,
@@ -16,6 +15,7 @@ import { ApiError } from "./errors.js";
 export interface ApiAuthDependencies {
   accessTokenRepository?: AccessTokenRepository;
   now?: () => Date;
+  allowDependencyFreeRoutes?: boolean;
 }
 
 declare module "fastify" {
@@ -24,8 +24,8 @@ declare module "fastify" {
   }
 }
 
-export function buildPlaceholderAuthorizationContext(request: FastifyRequest): AuthorizationContext {
-  return placeholderAuthorizationContext(parseBearerToken(request.headers.authorization) !== null);
+export function buildDependencyFreeAuthorizationContext(request: FastifyRequest): AuthorizationContext {
+  return dependencyFreeAuthorizationContext(parseBearerToken(request.headers.authorization) !== null);
 }
 
 export async function registerAuth(app: FastifyInstance, dependencies: ApiAuthDependencies = {}): Promise<void> {
@@ -33,7 +33,10 @@ export async function registerAuth(app: FastifyInstance, dependencies: ApiAuthDe
 
   app.addHook("onRequest", async (request) => {
     if (!dependencies.accessTokenRepository) {
-      request.authorizationContext = buildPlaceholderAuthorizationContext(request);
+      if (dependencies.allowDependencyFreeRoutes !== true) {
+        throw new Error("API auth requires accessTokenRepository runtime dependency.");
+      }
+      request.authorizationContext = buildDependencyFreeAuthorizationContext(request);
       return;
     }
 
@@ -49,8 +52,8 @@ export async function registerAuth(app: FastifyInstance, dependencies: ApiAuthDe
   });
 }
 
-export async function registerAuthPlaceholder(app: FastifyInstance): Promise<void> {
-  await registerAuth(app);
+export async function registerDependencyFreeAuth(app: FastifyInstance): Promise<void> {
+  await registerAuth(app, { allowDependencyFreeRoutes: true });
 }
 
 export function requireProjectPermission(request: FastifyRequest, projectId: string, permission: MindoryPermission): void {
@@ -84,7 +87,7 @@ export function authorizedReadableProjectIds(request: FastifyRequest): string[] 
 }
 
 export function shouldBypassAuthorization(request: FastifyRequest): boolean {
-  return request.authorizationContext?.placeholder === true;
+  return request.authorizationContext?.dependencyFree === true;
 }
 
 function toApiAuthError(error: unknown): ApiError {

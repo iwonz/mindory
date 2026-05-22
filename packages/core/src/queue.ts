@@ -238,7 +238,7 @@ export class ProcessingJobRunner {
 
 export type QueueErrorCode =
   | "processor_not_found"
-  | "queue_not_implemented"
+  | "queue_adapter_missing"
   | "queue_operation_failed";
 
 export class QueueError extends Error {
