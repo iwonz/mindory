@@ -6,6 +6,7 @@ import {
   type ExtractTextInput,
   type TextExtractor
 } from "@mindory/core/processing";
+import type { LlmOcrOutput, LlmOcrProvider, LlmRoleDescriptor } from "@mindory/llm";
 
 export interface DoclingPdfExtractorOptions {
   ocr?: {
@@ -14,6 +15,8 @@ export interface DoclingPdfExtractorOptions {
     model: string;
     required: boolean;
   };
+  ocrProvider?: LlmOcrProvider;
+  ocrRole?: LlmRoleDescriptor;
 }
 
 interface PdfObject {
@@ -27,6 +30,7 @@ interface PageText {
   text: string;
   width: number | null;
   height: number | null;
+  confidence?: number | null;
   metadata: Record<string, unknown>;
 }
 
@@ -35,8 +39,10 @@ const supportedExtensions = new Set([".pdf"]);
 
 export class DoclingPdfExtractor implements TextExtractor {
   readonly name = "docling-pdf";
-  readonly version = "docling-pdf-v1";
+  readonly version = "docling-pdf-v2";
   private readonly ocr: Required<DoclingPdfExtractorOptions>["ocr"];
+  private readonly ocrProvider: LlmOcrProvider | undefined;
+  private readonly ocrRole: LlmRoleDescriptor | undefined;
 
   constructor(options: DoclingPdfExtractorOptions = {}) {
     this.ocr = options.ocr ?? {
@@ -45,6 +51,8 @@ export class DoclingPdfExtractor implements TextExtractor {
       model: "",
       required: false
     };
+    this.ocrProvider = options.ocrProvider;
+    this.ocrRole = options.ocrRole;
   }
 
   supports(document: { originalFilename: string; mimeType: string }): boolean {
@@ -61,16 +69,14 @@ export class DoclingPdfExtractor implements TextExtractor {
 
     try {
       const bytes = await readAllBytes(input.body);
-      const pages = extractPdfPageText(bytes);
-      const hasNativeText = pages.some((page) => page.text.length > 0);
-      if (!hasNativeText && this.ocr.enabled && this.ocr.required) {
-        throw new ProcessingError(
-          "text_extraction_failed",
-          "PDF OCR is required, but no concrete OCR adapter is installed for rasterized PDF pages."
-        );
-      }
+      const nativePages = extractPdfPageText(bytes);
+      const ocrResult = await this.applyOcr({
+        bytes,
+        nativePages,
+        input
+      });
 
-      const extractedPages = withTextOffsets(pages);
+      const extractedPages = withTextOffsets(ocrResult.pages);
       return {
         projectId: input.document.projectId,
         documentId: input.document.id,
@@ -81,17 +87,19 @@ export class DoclingPdfExtractor implements TextExtractor {
           extractor: this.name,
           extractor_version: this.version,
           original_filename: input.document.originalFilename,
-          page_count: estimatePdfPageCount(bytes, pages.length),
-          native_text_pages: pages.filter((page) => page.text.length > 0).length,
+          page_count: estimatePdfPageCount(bytes, extractedPages.length),
+          native_text_pages: extractedPages.filter((page) => page.metadata?.native_text === true).length,
+          ocr_text_pages: extractedPages.filter((page) => page.ocr === true && page.text.length > 0).length,
           pdf_page_model: "document_artifacts.pdf_page",
           ocr: {
             enabled: this.ocr.enabled,
             provider: this.ocr.provider,
             model: this.ocr.model,
             required: this.ocr.required,
-            status: this.ocr.enabled
-              ? hasNativeText ? "skipped_native_text_available" : "skipped_no_adapter"
-              : "disabled"
+            status: ocrResult.status,
+            pages_attempted: ocrResult.pagesAttempted,
+            pages_extracted: ocrResult.pagesExtracted,
+            ...(ocrResult.error ? { error: ocrResult.error } : {})
           }
         }
       };
@@ -101,6 +109,90 @@ export class DoclingPdfExtractor implements TextExtractor {
       }
       throw new ProcessingError("text_extraction_failed", "Failed to extract PDF document content.", error);
     }
+  }
+
+  private async applyOcr(input: {
+    bytes: Buffer;
+    nativePages: PageText[];
+    input: ExtractTextInput;
+  }): Promise<{
+    pages: PageText[];
+    status: string;
+    pagesAttempted: number;
+    pagesExtracted: number;
+    error?: string;
+  }> {
+    const pagesNeedingOcr = input.nativePages.filter((page) => page.text.trim().length === 0);
+    if (!this.ocr.enabled) {
+      return {
+        pages: input.nativePages,
+        status: "disabled",
+        pagesAttempted: 0,
+        pagesExtracted: 0
+      };
+    }
+    if (pagesNeedingOcr.length === 0 && input.nativePages.length > 0) {
+      return {
+        pages: input.nativePages,
+        status: "skipped_native_text_available",
+        pagesAttempted: 0,
+        pagesExtracted: 0
+      };
+    }
+    if (this.ocrProvider === undefined || this.ocrRole === undefined) {
+      if (this.ocr.required) {
+        throw new ProcessingError(
+          "text_extraction_failed",
+          "PDF OCR is required, but no concrete OCR adapter is installed for rasterized PDF pages."
+        );
+      }
+      return {
+        pages: input.nativePages,
+        status: "skipped_no_adapter",
+        pagesAttempted: pagesNeedingOcr.length || estimatePdfPageCount(input.bytes, input.nativePages.length),
+        pagesExtracted: 0
+      };
+    }
+
+    const result = await this.ocrProvider.recognizeText({
+      bytes: input.bytes,
+      mimeType: input.input.document.mimeType
+    }, {
+      role: this.ocrRole,
+      refs: {
+        projectId: input.input.document.projectId,
+        documentId: input.input.document.id
+      }
+    });
+    if (result.status !== "success" || result.value === undefined) {
+      const error = result.audit.errorMessage ?? "PDF OCR provider failed.";
+      if (this.ocr.required) {
+        throw new ProcessingError("text_extraction_failed", error);
+      }
+      return {
+        pages: input.nativePages,
+        status: "failed",
+        pagesAttempted: pagesNeedingOcr.length || estimatePdfPageCount(input.bytes, input.nativePages.length),
+        pagesExtracted: 0,
+        error
+      };
+    }
+
+    const ocrPages = ocrPagesFromOutput(result.value);
+    const mergedPages = mergeOcrPages(input.nativePages, ocrPages, {
+      provider: this.ocr.provider,
+      model: this.ocr.model
+    });
+    const pagesExtracted = mergedPages.filter((page) => page.metadata.ocr === true && page.text.trim().length > 0).length;
+    if (pagesExtracted === 0 && this.ocr.required) {
+      throw new ProcessingError("text_extraction_failed", "PDF OCR is required, but the OCR provider returned no text.");
+    }
+    return {
+      pages: mergedPages,
+      status: pagesExtracted > 0 ? "succeeded" : "no_text",
+      pagesAttempted: pagesNeedingOcr.length || estimatePdfPageCount(input.bytes, input.nativePages.length),
+      pagesExtracted
+    };
   }
 }
 
@@ -341,10 +433,93 @@ function withTextOffsets(pages: PageText[]): ExtractedTextPage[] {
       endOffset,
       width: page.width,
       height: page.height,
-      ocr: false,
+      ocr: page.metadata.ocr === true,
+      confidence: page.confidence ?? null,
       metadata: page.metadata
     };
   });
+}
+
+function ocrPagesFromOutput(output: LlmOcrOutput): PageText[] {
+  if (Array.isArray(output.pages) && output.pages.length > 0) {
+    return output.pages
+      .filter((page) => page.text.trim().length > 0)
+      .map((page) => ({
+        pageNumber: page.pageNumber,
+        text: normalizeExtractedPdfText(page.text),
+        width: null,
+        height: null,
+        confidence: page.confidence ?? null,
+        metadata: {
+          native_text: false,
+          ocr: true
+        }
+      }));
+  }
+  const text = normalizeExtractedPdfText(output.text);
+  return text.length === 0
+    ? []
+    : [{
+      pageNumber: 1,
+      text,
+      width: null,
+      height: null,
+      confidence: null,
+      metadata: {
+        native_text: false,
+        ocr: true
+      }
+    }];
+}
+
+function mergeOcrPages(
+  nativePages: PageText[],
+  ocrPages: PageText[],
+  ocrModel: { provider: string; model: string }
+): PageText[] {
+  if (nativePages.length === 0) {
+    return ocrPages.map((page) => withOcrModelMetadata(page, ocrModel));
+  }
+  const ocrByPageNumber = new Map(ocrPages.map((page) => [page.pageNumber, page]));
+  return nativePages.map((nativePage) => {
+    if (nativePage.text.trim().length > 0) {
+      return nativePage;
+    }
+    const ocrPage = ocrByPageNumber.get(nativePage.pageNumber);
+    if (ocrPage === undefined) {
+      return {
+        ...nativePage,
+        metadata: {
+          ...nativePage.metadata,
+          ocr: false,
+          ocr_status: "no_text"
+        }
+      };
+    }
+    return withOcrModelMetadata({
+      ...ocrPage,
+      width: nativePage.width,
+      height: nativePage.height,
+      metadata: {
+        ...nativePage.metadata,
+        ...ocrPage.metadata,
+        native_text: false,
+        ocr: true
+      }
+    }, ocrModel);
+  });
+}
+
+function withOcrModelMetadata(page: PageText, ocrModel: { provider: string; model: string }): PageText {
+  return {
+    ...page,
+    metadata: {
+      ...page.metadata,
+      ocr: true,
+      ocr_provider: ocrModel.provider,
+      ocr_model: ocrModel.model
+    }
+  };
 }
 
 function estimatePdfPageCount(bytes: Buffer, extractedPages: number): number {

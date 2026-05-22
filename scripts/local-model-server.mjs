@@ -48,6 +48,24 @@ const server = http.createServer(async (request, response) => {
       return;
     }
 
+    if (request.method === "POST" && url.pathname === "/ocr") {
+      const body = await readJson(request);
+      const model = stringOrDefault(body.model, "mindory-local-ocr");
+      const text = "Local deterministic OCR text from Mindory local model service.";
+      writeJson(response, 200, {
+        model,
+        text,
+        pages: [
+          {
+            page_number: 1,
+            text,
+            confidence: 0.99
+          }
+        ]
+      });
+      return;
+    }
+
     if (request.method === "POST" && url.pathname === "/chat/completions") {
       const body = await readJson(request);
       const model = stringOrDefault(body.model, "mindory-local-chat");

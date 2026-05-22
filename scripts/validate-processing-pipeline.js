@@ -162,9 +162,11 @@ for (const token of ["AudioTranscriptExtractor", "transcriptSegments", "transcri
 }
 
 assert(doclingPackage.dependencies?.["@mindory/core"] === "workspace:*", "Docling PDF extractor must depend on @mindory/core.");
+assert(doclingPackage.dependencies?.["@mindory/llm"] === "workspace:*", "Docling PDF extractor must route OCR through @mindory/llm.");
 assert(doclingPackage.exports?.["."], "Docling PDF extractor must export its root module.");
 assert(doclingTsconfig.references?.some((reference) => reference.path === "../../../../packages/core"), "Docling PDF extractor must reference @mindory/core.");
-for (const token of ["DoclingPdfExtractor", "extractPdfPageText", "\"application/pdf\"", "\".pdf\"", "native_text_pages", "ocr"]) {
+assert(doclingTsconfig.references?.some((reference) => reference.path === "../../../../packages/llm"), "Docling PDF extractor must reference @mindory/llm.");
+for (const token of ["DoclingPdfExtractor", "extractPdfPageText", "\"application/pdf\"", "\".pdf\"", "native_text_pages", "ocr", "ocrProvider", "recognizeText", "ocr_text_pages"]) {
   assert(docling.includes(token), `Docling PDF extractor must include ${token}.`);
 }
 
@@ -293,6 +295,7 @@ for (const token of [
   "FaceService",
   "pdf_page",
   "pdf_native_text",
+  "ocr_text",
   "transcript_segment",
   "video_keyframe",
   "face_observation",

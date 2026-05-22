@@ -1281,7 +1281,7 @@ indexed / ready
 For MVP:
 
 - text extraction is required for `.txt` and `.md`;
-- PDF extraction should be supported through an extractor adapter if feasible in MVP;
+- PDF extraction should support native text and scanned-PDF OCR through a model adapter;
 - image OCR is optional and not required;
 - audio/video are not MVP.
 
@@ -1862,7 +1862,8 @@ Recommended scripts:
 `pnpm test` runs the MVP integration suite against PostgreSQL and Redis. The
 suite verifies both disabled embeddings fallback (`chunked`) and configured
 OpenAI-compatible embeddings through a local fake provider, pgvector row
-persistence and semantic document search without external provider credentials.
+persistence, scanned-PDF OCR through a local fake OCR provider and semantic
+document search without external provider credentials.
 
 `pnpm mvp:demo --model-profile local --require-indexed` runs a self-contained
 strict indexed flow with the deterministic local HTTP embedding service.
@@ -1897,7 +1898,7 @@ The MVP is successful when the following demo can be performed.
 7. Upload a Markdown or PDF document.
 8. Document is stored as a `Document`.
 9. Document is scanned or scan is explicitly skipped according to config.
-10. Document text is extracted.
+10. Document text is extracted, including scanned-PDF OCR when configured.
 11. Text is chunked.
 12. Chunks are indexed.
 13. Create a MemoryClaim:

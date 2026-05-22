@@ -60,11 +60,11 @@ The document pipeline processors now include:
   when embeddings or vector index runtime are not configured.
 
 The current concrete pieces are the built-in text/Markdown extractor, the
-Docling PDF native text extractor, image semantic fallback extractor, audio
+Docling PDF native text/OCR extractor, image semantic fallback extractor, audio
 transcript fallback extractor, video keyframe fallback extractor, face
 observation auto-matching through `FaceService`, fixed-size chunker,
-OpenAI-compatible embeddings provider, Ollama embeddings provider, and explicit
-pgvector/Qdrant vector index scaffolds.
+OpenAI-compatible embeddings provider, Ollama embeddings provider, local HTTP
+OCR provider, and explicit pgvector/Qdrant vector index scaffolds.
 
 Routing is intentionally separate from antivirus and extraction. When antivirus
 is disabled, upload enqueues `document.route` directly. When asynchronous

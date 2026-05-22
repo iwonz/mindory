@@ -126,6 +126,18 @@ export interface LlmChatOutput {
   usage?: LlmOperationUsage;
 }
 
+export interface LlmOcrPage {
+  pageNumber: number;
+  text: string;
+  confidence?: number | null;
+}
+
+export interface LlmOcrOutput {
+  text: string;
+  pages?: LlmOcrPage[];
+  usage?: LlmOperationUsage;
+}
+
 export interface OpenAICompatibleChatOptions {
   baseUrl: string;
   model: string;
@@ -165,7 +177,7 @@ export interface LlmChatProvider {
 }
 
 export interface LlmOcrProvider {
-  recognizeText(input: { bytes: Uint8Array; mimeType: string }, context: LlmProviderCallContext): Promise<LlmOperationResult<{ text: string }>>;
+  recognizeText(input: { bytes: Uint8Array; mimeType: string }, context: LlmProviderCallContext): Promise<LlmOperationResult<LlmOcrOutput>>;
 }
 
 export interface LlmAsrProvider {
@@ -198,6 +210,7 @@ export interface MindoryLlm {
   providers: LlmProviderDescriptor[];
   chat?: LlmChatProvider;
   textEmbeddings?: EmbeddingsProvider;
+  ocr?: LlmOcrProvider;
   healthCheck(provider: Exclude<LlmProvider, "disabled">, options?: Omit<LlmProviderHealthCheckOptions, "fetchImpl">): Promise<LlmProviderHealth>;
   disabledResult<TValue>(role: LlmRole, refs?: LlmOperationRefs): LlmOperationResult<TValue>;
 }
@@ -267,6 +280,10 @@ export function buildMindoryLlm(
   const textEmbeddings = buildMindoryTextEmbeddingsProvider(config, options);
   if (textEmbeddings !== undefined) {
     runtime.textEmbeddings = textEmbeddings;
+  }
+  const ocr = buildMindoryOcrProvider(config, options);
+  if (ocr !== undefined) {
+    runtime.ocr = ocr;
   }
   return runtime;
 }
@@ -406,6 +423,34 @@ export function buildMindoryChatProvider(
   }
 
   throw new Error(`${chat.provider} chat is configured but no chat adapter is installed.`);
+}
+
+export function buildMindoryOcrProvider(
+  config: MindoryConfig,
+  options: MindoryLlmOptions = {}
+): LlmOcrProvider | undefined {
+  const ocr = config.llm.ocr;
+  if (!ocr.enabled || ocr.provider === "disabled") {
+    return undefined;
+  }
+
+  if (ocr.provider === "local-http") {
+    const providerOptions: LocalHttpModelOptions = {
+      baseUrl: config.llm.localHttp.baseUrl,
+      model: ocr.model
+    };
+    if (options.fetchImpl !== undefined) {
+      providerOptions.fetchImpl = options.fetchImpl;
+    }
+    return new LocalHttpOcrProvider(
+      providerOptions,
+      descriptor("ocr", ocr),
+      options.auditSink,
+      options.operationRefs ?? {}
+    );
+  }
+
+  throw new Error(`${ocr.provider} OCR is configured but no OCR adapter is installed.`);
 }
 
 export async function checkMindoryLlmProviderHealth(
@@ -645,6 +690,90 @@ export class LocalHttpChatProvider implements LlmChatProvider {
   }
 }
 
+export class LocalHttpOcrProvider implements LlmOcrProvider {
+  private readonly fetchImpl: typeof fetch;
+
+  constructor(
+    private readonly options: LocalHttpModelOptions,
+    private readonly role: LlmRoleDescriptor,
+    private readonly auditSink: LlmAuditSink | undefined,
+    private readonly refs: LlmOperationRefs
+  ) {
+    this.fetchImpl = options.fetchImpl ?? fetch;
+  }
+
+  async recognizeText(input: { bytes: Uint8Array; mimeType: string }, context: LlmProviderCallContext): Promise<LlmOperationResult<LlmOcrOutput>> {
+    const startedAt = Date.now();
+    const model = context.role.model || this.options.model;
+    try {
+      const requestInit: RequestInit = {
+        method: "POST",
+        headers: {
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          model,
+          mime_type: input.mimeType,
+          data_base64: Buffer.from(input.bytes).toString("base64")
+        })
+      };
+      if (context.signal !== undefined) {
+        requestInit.signal = context.signal;
+      }
+      const response = await this.fetchImpl(`${trimTrailingSlash(this.options.baseUrl)}/ocr`, requestInit);
+      const responseText = await response.text();
+      if (!response.ok) {
+        throw new Error(`Local HTTP OCR request failed with ${response.status}: ${responseText}`);
+      }
+      const payload = JSON.parse(responseText) as LocalHttpOcrResponse;
+      const output: LlmOcrOutput = {
+        text: payload.text ?? localHttpOcrPages(payload).map((page) => page.text).join("\n\n").trim(),
+        pages: localHttpOcrPages(payload),
+        usage: usageFromOpenAI(payload.usage)
+      };
+      return this.result("success", startedAt, model, output, context.refs);
+    } catch (error) {
+      return this.result("failed", startedAt, model, undefined, context.refs, error);
+    }
+  }
+
+  private result(
+    status: LlmOperationStatus,
+    startedAt: number,
+    model: string,
+    value?: LlmOcrOutput,
+    refs: LlmOperationRefs = {},
+    error?: unknown
+  ): LlmOperationResult<LlmOcrOutput> {
+    const durationMs = Date.now() - startedAt;
+    const audit: LlmOperationAudit = {
+      role: this.role.role,
+      provider: this.role.provider,
+      model,
+      status,
+      durationMs,
+      usage: {
+        ...value?.usage,
+        durationMs
+      },
+      refs: {
+        ...this.refs,
+        ...refs
+      }
+    };
+    if (error !== undefined) {
+      audit.errorCode = errorCode(error);
+      audit.errorMessage = errorMessage(error);
+    }
+    this.auditSink?.(audit);
+    return {
+      status,
+      ...(value === undefined ? {} : { value }),
+      audit
+    };
+  }
+}
+
 export class OpenAICompatibleChatProvider implements LlmChatProvider {
   private readonly fetchImpl: typeof fetch;
 
@@ -773,6 +902,17 @@ interface LocalHttpChatResponse extends OpenAICompatibleChatResponse {
   message?: {
     content?: string;
   };
+}
+
+interface LocalHttpOcrResponse {
+  text?: string;
+  pages?: Array<{
+    page_number?: number;
+    pageNumber?: number;
+    text?: string;
+    confidence?: number | null;
+  }>;
+  usage?: OpenAICompatibleChatResponse["usage"];
 }
 
 export function openAiCompatibleBearerToken(config: MindoryConfig): string | undefined {
@@ -951,6 +1091,29 @@ function localHttpEmbeddingTextIndex(body: LocalHttpEmbeddingsResponse, index: n
 
 function localHttpChatText(payload: LocalHttpChatResponse): string {
   return payload.choices?.[0]?.message?.content ?? payload.text ?? payload.output ?? payload.message?.content ?? "";
+}
+
+function localHttpOcrPages(payload: LocalHttpOcrResponse): LlmOcrPage[] {
+  if (Array.isArray(payload.pages) && payload.pages.length > 0) {
+    return payload.pages
+      .map((page, index) => {
+        const text = typeof page.text === "string" ? page.text : "";
+        return {
+          pageNumber: page.page_number ?? page.pageNumber ?? index + 1,
+          text,
+          confidence: page.confidence ?? null
+        };
+      })
+      .filter((page) => page.text.trim().length > 0);
+  }
+  if (typeof payload.text === "string" && payload.text.trim().length > 0) {
+    return [{
+      pageNumber: 1,
+      text: payload.text.trim(),
+      confidence: null
+    }];
+  }
+  return [];
 }
 
 function trimTrailingSlash(value: string): string {

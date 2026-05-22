@@ -8,7 +8,7 @@ The canonical product and engineering specification is `docs/PRD.md`.
 
 ## Repository Status
 
-This repository is complete through `TASK-75`. Mindory can run a local
+This repository is complete through `TASK-76`. Mindory can run a local
 demo-MVP through Docker Compose, seed demo credentials, process uploaded
 documents through the worker pipeline and run live acceptance. `pnpm check`
 passes through the repo validation, typecheck, lint, tests and dry-run
@@ -21,7 +21,7 @@ experimental/profile-smoke surfaces and future work:
 | --- | --- |
 | API | Supported local MVP: Fastify server runtime wires PostgreSQL repositories, bearer-token access control, projects, tokens, peers, sessions, messages, memories, context, documents, jobs and search routes. Bare app factories may return structured `501` responses when runtime dependencies are omitted for tests. |
 | Worker pipeline | Supported local MVP: scan, route, extract, chunk, embed and index processors are registered. Text and metadata fallback search work without external model credentials. |
-| Document modalities | Supported fallback: text/Markdown, native-text PDF, deterministic image metadata/caption text, embedded WAV transcript text and manifest-derived video keyframes. Future: real scanned-PDF OCR, cloud/local vision, ASR, ffmpeg keyframe extraction and model-backed face recognition. |
+| Document modalities | Supported fallback: text/Markdown, native-text PDF, scanned-PDF OCR through local HTTP when enabled, deterministic image metadata/caption text, embedded WAV transcript text and manifest-derived video keyframes. Future: cloud/local vision, ASR, ffmpeg keyframe extraction and model-backed face recognition. |
 | Vectors | Supported local MVP: pgvector for 1536-dimensional text embeddings when a compatible provider is configured. Supported fallback: PostgreSQL full-text search when embeddings are disabled. Future: Qdrant adapter. |
 | LLM/model runtime | Supported boundary: all model operations route through `@mindory/llm`, with disabled behavior, audit hooks, OpenAI-compatible chat/embeddings, Ollama text embeddings, local HTTP chat/embeddings, local provider health checks and a deterministic local embeddings acceptance profile. Unsupported roles remain disabled or experimental until concrete adapters land. |
 | Interfaces | Supported local MVP: HTTP API, CLI and MCP stdio tools call the API. Hermes adapter exposes the lifecycle surface but does not import or verify against a real Hermes SDK yet. |

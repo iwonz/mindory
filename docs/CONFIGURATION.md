@@ -152,7 +152,8 @@ The role/provider support matrix is centralized in `@mindory/llm` and the
 config catalog. `chat` and `text-embedding` have supported OpenAI-compatible
 and local HTTP adapters today; text embeddings also support Ollama. OCR, ASR,
 vision, image embeddings and face roles are experimental; generation roles are
-future. Any
+future. Scanned-PDF OCR is implemented through the experimental OCR role and the
+local HTTP provider. Any
 enabled role or selected provider that is not
 `supported` requires `MINDORY_INSTALL_ALLOW_EXPERIMENTAL=true`, including
 answer-file and non-interactive installer runs.
@@ -215,10 +216,11 @@ MINDORY_LLM_OLLAMA_BASE_URL=http://ollama:11434
 ```
 
 `MINDORY_LLM_LOCAL_HTTP_BASE_URL` configures the optional local HTTP model
-service used by supported `chat` and `text-embedding` roles. The service must
-answer `GET /health`, `POST /chat/completions` and `POST /embeddings`; the
-SDK accepts OpenAI-compatible response shapes plus simple `{ text }`,
-`{ output }` and `{ embeddings }` bodies. `MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS`
+service used by supported `chat` and `text-embedding` roles and by the
+experimental scanned-PDF OCR path. The service must answer `GET /health`,
+`POST /chat/completions`, `POST /embeddings` and `POST /ocr`; the SDK accepts
+OpenAI-compatible response shapes plus simple `{ text }`, `{ output }`,
+`{ embeddings }` and OCR `{ pages }` bodies. `MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS`
 controls the default guardrail for future `local-command` adapters.
 
 Runtime consumers must obtain operation providers and role snapshots from
