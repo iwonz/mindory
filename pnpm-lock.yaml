@@ -53,6 +53,9 @@ importers:
       '@mindory/storage-local-fs':
         specifier: workspace:*
         version: link:../../packages/storage/local-fs
+      '@mindory/storage-s3':
+        specifier: workspace:*
+        version: link:../../packages/storage/s3
       '@mindory/vector-pgvector':
         specifier: workspace:*
         version: link:../../packages/vector/pgvector
@@ -113,6 +116,9 @@ importers:
       '@mindory/storage-local-fs':
         specifier: workspace:*
         version: link:../../packages/storage/local-fs
+      '@mindory/storage-s3':
+        specifier: workspace:*
+        version: link:../../packages/storage/s3
       '@mindory/vector-pgvector':
         specifier: workspace:*
         version: link:../../packages/vector/pgvector

@@ -7,6 +7,7 @@ import type { DocumentChunkSearchRepository } from "@mindory/core/memory";
 import type { EmbeddingsProvider } from "@mindory/core/processing";
 import { ProcessingJobDispatcher } from "@mindory/core/queue";
 import { DocumentRecomputeService } from "@mindory/core/recompute";
+import type { ObjectStorage } from "@mindory/core/storage";
 import {
   DbAccessTokenRepository,
   createMindoryDatabaseClient,
@@ -23,6 +24,7 @@ import {
 import { buildMindoryLlm } from "@mindory/llm";
 import { BullMqProcessingJobQueue } from "@mindory/queue-bullmq";
 import { LocalFsObjectStorage } from "@mindory/storage-local-fs";
+import { S3ObjectStorage } from "@mindory/storage-s3";
 import { PgVectorChunkIndex, PgVectorDocumentChunkSearchRepository } from "@mindory/vector-pgvector";
 import type { BuildApiAppOptions } from "./app.js";
 
@@ -128,13 +130,20 @@ export function buildApiRuntimeDependencies(config: MindoryConfig): ApiRuntimeDe
   };
 }
 
-function buildObjectStorage(config: MindoryConfig): LocalFsObjectStorage {
-  if (config.storage.provider !== "local-fs") {
-    throw new Error("Only local-fs object storage is wired in the API runtime. S3/MinIO remains a future adapter task.");
+function buildObjectStorage(config: MindoryConfig): ObjectStorage {
+  if (config.storage.provider === "local-fs") {
+    return new LocalFsObjectStorage({
+      rootPath: config.storage.localPath
+    });
   }
 
-  return new LocalFsObjectStorage({
-    rootPath: config.storage.localPath
+  return new S3ObjectStorage({
+    endpoint: config.storage.s3.endpoint,
+    region: config.storage.s3.region,
+    bucket: config.storage.s3.bucket,
+    accessKeyId: config.storage.s3.accessKeyId,
+    secretAccessKey: config.storage.s3.secretAccessKey,
+    forcePathStyle: config.storage.s3.forcePathStyle
   });
 }
 

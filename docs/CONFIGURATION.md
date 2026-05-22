@@ -72,13 +72,15 @@ for global production limits.
 
 ## Object Storage
 
-`MINDORY_STORAGE_PROVIDER` selects `local-fs` or `s3`. In `TASK-6`, `local-fs`
-is implemented by `@mindory/storage-local-fs` and uses
-`MINDORY_STORAGE_LOCAL_PATH` as its root directory. Object keys are always
-treated as relative paths below that root.
+`MINDORY_STORAGE_PROVIDER` selects `local-fs` or `s3`. `local-fs` is implemented
+by `@mindory/storage-local-fs` and uses `MINDORY_STORAGE_LOCAL_PATH` as its root
+directory. Object keys are always treated as relative paths below that root.
 
-The S3/MinIO settings are already represented in `.env.example`, but
-`@mindory/storage-s3` is still a skeleton and does not perform network calls.
+`s3` is implemented by `@mindory/storage-s3` and is wired into the API and worker
+runtimes. It uses the S3-compatible settings from `.env.example`: endpoint,
+region, bucket, access key, secret key and path-style mode. Path-style mode is
+the default so local S3-compatible services such as LibreFS or MinIO can be used
+without wildcard DNS.
 
 ## Queue And Workers
 

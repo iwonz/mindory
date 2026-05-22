@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { loadMindoryConfig, PGVECTOR_EMBEDDING_DIMENSIONS, type MindoryConfig } from "@mindory/config";
 import { ProcessingJobDispatcher, type ProcessingJobProcessor } from "@mindory/core/queue";
+import type { ObjectStorage } from "@mindory/core/storage";
 import {
   createMindoryDatabaseClient,
   DbDocumentChunkRepository,
@@ -13,6 +14,7 @@ import {
 import { buildMindoryLlm } from "@mindory/llm";
 import { BullMqProcessingJobQueue } from "@mindory/queue-bullmq";
 import { LocalFsObjectStorage } from "@mindory/storage-local-fs";
+import { S3ObjectStorage } from "@mindory/storage-s3";
 import { PgVectorChunkIndex } from "@mindory/vector-pgvector";
 import { buildDocumentPipelineProcessors, type DocumentPipelineProcessorOptions } from "./document-pipeline.js";
 import { buildMemoryRuntimeProcessors } from "./memory-pipeline.js";
@@ -25,18 +27,12 @@ export interface WorkerRuntime {
 }
 
 export function buildWorkerRuntime(config: MindoryConfig = loadMindoryConfig()): WorkerRuntime {
-  if (config.storage.provider !== "local-fs") {
-    throw new Error("Only local-fs object storage is wired in the worker runtime. S3/MinIO remains a future adapter task.");
-  }
-
   const database = createMindoryDatabaseClient(config.database.url);
   const queue = new BullMqProcessingJobQueue({
     redisUrl: config.redis.url,
     queuePrefix: config.redis.queuePrefix
   });
-  const storage = new LocalFsObjectStorage({
-    rootPath: config.storage.localPath
-  });
+  const storage = buildObjectStorage(config);
   const documents = new DbDocumentRepository(database.db);
   const artifacts = new DbDerivedArtifactRepository(database.db);
   const chunks = new DbDocumentChunkRepository(database.db);
@@ -90,4 +86,21 @@ export function buildWorkerRuntime(config: MindoryConfig = loadMindoryConfig()):
       await database.close();
     }
   };
+}
+
+function buildObjectStorage(config: MindoryConfig): ObjectStorage {
+  if (config.storage.provider === "local-fs") {
+    return new LocalFsObjectStorage({
+      rootPath: config.storage.localPath
+    });
+  }
+
+  return new S3ObjectStorage({
+    endpoint: config.storage.s3.endpoint,
+    region: config.storage.s3.region,
+    bucket: config.storage.s3.bucket,
+    accessKeyId: config.storage.s3.accessKeyId,
+    secretAccessKey: config.storage.s3.secretAccessKey,
+    forcePathStyle: config.storage.s3.forcePathStyle
+  });
 }

@@ -99,8 +99,9 @@ The database package also exposes `pnpm db:generate`, `pnpm db:migrate` and
 The API package currently exposes a Fastify app skeleton with `GET /health`,
 `GET /ready` and project route stubs under `/v1/projects`.
 
-The storage packages currently expose the shared `ObjectStorage` interface,
-a working local filesystem adapter and an explicit S3/MinIO skeleton.
+The storage packages expose the shared `ObjectStorage` interface, a local
+filesystem adapter and an S3-compatible adapter for LibreFS, MinIO or external
+S3-compatible endpoints.
 
 The queue packages expose processing job queue contracts, a BullMQ adapter,
 worker base runner, document pipeline runtime builder and memory/context worker

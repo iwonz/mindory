@@ -1,0 +1,65 @@
+{
+  "id": "TASK-56",
+  "title": "Add S3-compatible storage adapter",
+  "status": "done",
+  "type": "chore",
+  "priority": "high",
+  "branch": "task/TASK-56-s3-compatible-storage-adapter",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Implement real S3-compatible object storage for LibreFS/external S3 profiles.",
+    "background": "The installer plan requires storage choices beyond local-fs. The existing @mindory/storage-s3 package is still a skeleton, and API/worker runtimes currently reject storage.provider=s3."
+  },
+  "scope": {
+    "in": [
+      "Implement @mindory/storage-s3 put/get/stat/exists/delete over S3-compatible HTTP.",
+      "Support path-style endpoints for local S3-compatible services such as LibreFS/MinIO.",
+      "Use AWS Signature V4 signing without introducing a new SDK dependency.",
+      "Wire API and worker runtime storage factory to use S3ObjectStorage when MINDORY_STORAGE_PROVIDER=s3.",
+      "Add a local S3-compatible smoke test to storage validation.",
+      "Update docs to remove the S3 skeleton warning."
+    ],
+    "out": [
+      "Installer UI/storage wizard integration.",
+      "LibreFS Compose profile implementation.",
+      "Multipart upload optimization.",
+      "Database schema changes."
+    ]
+  },
+  "acceptance_criteria": [
+    "@mindory/storage-s3 performs network put/get/stat/exists/delete operations against an S3-compatible endpoint.",
+    "The adapter validates object keys and maps 404s to object_not_found.",
+    "API and worker runtimes can construct S3ObjectStorage from Mindory config.",
+    "A local S3-compatible smoke test covers put/get/stat/exists/delete.",
+    "Storage validator no longer expects storage_not_implemented.",
+    "No database schema changes are included."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "pnpm storage:validate",
+      "pnpm typecheck",
+      "pnpm lint",
+      "pnpm tasks:validate",
+      "pnpm test",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-56.",
+      "Confirm packages/db/drizzle/0000_initial_schema.sql is unchanged."
+    ]
+  },
+  "dependencies": [
+    "TASK-55"
+  ],
+  "risks": [
+    "S3-compatible services vary in strictness; the adapter should use conservative path-style SigV4 requests.",
+    "The smoke test should not require downloading external Docker images."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch is committed and merged back into master."
+  ]
+}

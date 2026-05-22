@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-55",
+  "current_task_id": "TASK-56",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -421,6 +421,13 @@
       "status": "done",
       "branch": "task/TASK-55-llm-operation-audit",
       "file": "tasks/TASK-55.json"
+    },
+    {
+      "id": "TASK-56",
+      "title": "Add S3-compatible storage adapter",
+      "status": "done",
+      "branch": "task/TASK-56-s3-compatible-storage-adapter",
+      "file": "tasks/TASK-56.json"
     }
   ]
 }
