@@ -1,0 +1,59 @@
+{
+  "id": "TASK-64",
+  "title": "Public state documentation audit",
+  "status": "done",
+  "type": "docs",
+  "priority": "high",
+  "branch": "task/TASK-64-public-state-documentation-audit",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Update public-facing docs so they accurately describe the current runnable demo state, supported surfaces, experimental paths, placeholders and future work after TASK-63.",
+    "background": "README and deployment docs still contain older skeleton-era wording. Installer, document pipeline and production hardening docs need a clearer supported/experimental/future split before public release work continues."
+  },
+  "scope": {
+    "in": [
+      "Update README.md repository status and local demo quickstart.",
+      "Update docs/DEPLOYMENT.md to describe current Compose/demo support and experimental profiles.",
+      "Update docs/INSTALLER.md to make current dry-run versus future execution boundaries explicit.",
+      "Update docs/DOCUMENT_PIPELINE.md to separate supported fallback processing from future model-backed processing.",
+      "Update docs/PRODUCTION_HARDENING.md to distinguish current baseline from public release gaps."
+    ],
+    "out": [
+      "Implementing installer execution.",
+      "Changing runtime behavior.",
+      "Adding release publishing automation.",
+      "Adding real model adapters."
+    ]
+  },
+  "acceptance_criteria": [
+    "README.md no longer claims the repository is only bootstrapped through TASK-53.",
+    "Docs clearly distinguish supported, experimental, placeholder/profile-smoke and future capabilities.",
+    "Local demo quickstart documents pnpm mvp:demo, mvp:up, mvp:reset and pnpm check.",
+    "Installer docs state that current CLI is dry-run/planning and full execution is a later task.",
+    "Document pipeline docs state which modality processors are deterministic fallback versus model-backed future work.",
+    "Production hardening docs identify GitHub/public-release gaps without implying they are already complete."
+  ],
+  "verification": {
+    "commands": [
+      "rg -n \"TASK-53|Fastify API skeleton|Docker Compose placeholders|profile skeleton\" README.md docs/DEPLOYMENT.md docs/INSTALLER.md docs/DOCUMENT_PIPELINE.md docs/PRODUCTION_HARDENING.md",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-64.",
+      "Confirm docs do not overstate unsupported model-backed or installer execution behavior."
+    ]
+  },
+  "dependencies": [
+    "TASK-63"
+  ],
+  "risks": [
+    "Docs may accidentally market deterministic fallback behavior as real model-backed processing.",
+    "Docs may imply the installer mutates host state before the executor task exists."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch is committed and merged back into master."
+  ]
+}

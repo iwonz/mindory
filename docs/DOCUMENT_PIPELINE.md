@@ -37,6 +37,19 @@ extraction and video keyframe extraction are the currently implemented routes.
 
 Processing status must be durable in PostgreSQL, not only in BullMQ.
 
+## Current Support Level
+
+| Modality or stage | Status |
+| --- | --- |
+| Text and Markdown | Supported local MVP. Extracts text, chunks it, stores spans and can search through full-text or pgvector when embeddings are enabled. |
+| Native-text PDF | Supported local MVP. Extracts page-level native text and source refs. |
+| Scanned PDF OCR | Future model-backed work. OCR configuration is recorded, but no real OCR adapter runs by default. |
+| Image | Supported deterministic fallback. Stores derived caption/analysis text from file metadata and embedded text signals. Future work adds real OCR, vision labels, image embeddings and object detection. |
+| Face observations | Supported deterministic fallback only when explicit people-count signals are present. Future work adds real face detection and recognition adapters. |
+| Audio | Supported deterministic fallback for WAV metadata and embedded `INFO/ICMT` transcript text. Future work adds real ASR. |
+| Video | Supported deterministic fallback through embedded `MINDORY_VIDEO_MANIFEST`. Future work adds real ffmpeg keyframe extraction and frame bitmap artifacts. |
+| Embeddings and vector search | Supported for text chunks through `@mindory/llm` and pgvector when a compatible 1536-dimensional provider is configured. Full-text fallback is supported when embeddings are disabled. |
+
 ## Derived Artifact State
 
 RAW originals remain immutable in object storage. Post-upload processors write
@@ -49,15 +62,15 @@ only derived state:
 - `document_artifact_text_spans` stores source-local text spans with optional
   page, frame, time and bounding-box coordinates.
 - `document_media_metadata` and `document_metadata_index` store typed metadata
-  used by future filters.
+  used by structured metadata search filters.
 - `face_identities` and `face_observations` keep face matching workspace-scoped.
 
 This schema is designed so any derived run can be superseded and recomputed for
 one document without changing the RAW object.
 
-Original files must stay out of PostgreSQL. The future upload path should store
-the blob through `ObjectStorage`, then persist only document metadata and the
-storage key in the database.
+Original files stay out of PostgreSQL. Upload stores the blob through
+`ObjectStorage`, then persists only document metadata and the storage key in the
+database.
 
 ## Current TASK-8 Flow
 
@@ -109,9 +122,10 @@ The bare runtime default route configuration is conservative:
 - video: disabled by default, creates `document.extract` when enabled;
 - video keyframe limit: `10`.
 
-Disabling a modality means no job is created for that file type. Enabling a
-future modality before its processor exists records a skipped route with
-`processor_not_implemented`; it does not enqueue a missing processor.
+Disabling a modality means no job is created for that file type. If a future
+modality is added to configuration before its processor exists, routing records
+a skipped route with `processor_not_implemented`; it does not enqueue a missing
+processor.
 
 For the local MVP path, `.env.example`, Docker Compose and `pnpm mvp:demo`
 enable text, PDF, image, audio and video routers while keeping model-backed
@@ -151,8 +165,8 @@ native PDF text streams without mutating the RAW object. It writes:
 - chunk metadata and source refs that point back to overlapping page artifacts.
 
 OCR configuration is recorded in extraction metadata. The default runtime keeps
-OCR disabled; scanned-PDF OCR requires a later concrete OCR/model adapter, while
-native-text PDFs are searchable now.
+OCR disabled. Scanned-PDF OCR is future model-backed work; native-text PDFs are
+searchable now.
 
 ## Image Processing
 
@@ -171,8 +185,8 @@ artifact-backed spans. It writes:
 
 The current extractor is deterministic and does not call cloud or local vision
 models. It records configured OCR, vision-captioning and image-embedding
-capability state from `@mindory/llm` so a later concrete adapter can
-replace derived outputs without changing RAW originals.
+capability state from `@mindory/llm` so a future concrete adapter can replace
+derived outputs without changing RAW originals.
 
 When face detection is enabled, the same fallback extractor can create
 workspace-scoped face observations from explicit people-count signals in the
@@ -195,8 +209,8 @@ without mutating the RAW object. It writes:
   time ranges.
 
 The default runtime records ASR capability state from `@mindory/llm`.
-Real cloud/local ASR execution is deferred to a later adapter; current local
-tests use deterministic embedded transcript fallback text.
+Real cloud/local ASR execution is future adapter work; current local tests use
+deterministic embedded transcript fallback text.
 
 ## Video Processing
 
@@ -213,7 +227,7 @@ extractor reads an embedded `MINDORY_VIDEO_MANIFEST` fallback and respects
 
 The route stage can index fallback video `duration_ms`, `codec` and
 `frame_count` metadata from the manifest. Real ffmpeg keyframe extraction and
-bitmap storage are deferred to a later adapter; current tests use deterministic
+bitmap storage are future adapter work; current tests use deterministic
 manifest-derived frame descriptions.
 
 ## Recompute Flow
