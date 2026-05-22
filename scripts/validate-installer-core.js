@@ -54,7 +54,7 @@ for (const symbol of [
 ]) {
   assert(installerSource.includes(symbol), `Installer core must expose ${symbol}.`);
 }
-for (const token of ["CONFIG_CATALOG", "MINDORY_HOME_DIRECTORIES", "composeProfilesForAnswers", "redactEnvMap"]) {
+for (const token of ["CONFIG_CATALOG", "llmRoleProviderSupportStatus", "llmRoleSupportStatus", "MINDORY_HOME_DIRECTORIES", "composeProfilesForAnswers", "redactEnvMap"]) {
   assert(installerSource.includes(token), `Installer core must include ${token}.`);
 }
 for (const token of ["command === \"start\"", "stopBeforeStepId: null", "initialTokenPath", "mindory-installer start", "command === \"update\"", "command === \"uninstall\""]) {
@@ -525,5 +525,26 @@ try {
   experimentalBlocked = String(error).includes("requires experimental mode");
 }
 assert(experimentalBlocked, "Wizard must block future LLM roles unless experimental mode is enabled.");
+
+const experimentalProviderAnswers = installer.createDefaultInstallAnswers({
+  llmRoles: {
+    TEXT_EMBEDDING: {
+      enabled: true,
+      provider: "local-http",
+      model: "local-embedding",
+      required: false,
+      timeoutMs: 60000,
+      concurrency: 1,
+      dimensions: 1536
+    }
+  }
+});
+const experimentalProviderErrors = installer.validateInstallAnswers(experimentalProviderAnswers);
+assert(experimentalProviderErrors.some((error) => error.includes("provider local-http requires experimental mode")), "Installer validation must block experimental LLM providers unless experimental mode is enabled.");
+const allowedExperimentalProviderErrors = installer.validateInstallAnswers({
+  ...experimentalProviderAnswers,
+  allowExperimental: true
+});
+assert(!allowedExperimentalProviderErrors.some((error) => error.includes("requires experimental mode")), "Installer validation must allow experimental LLM providers when experimental mode is enabled.");
 
 console.log("Installer core and wizard validated.");

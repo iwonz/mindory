@@ -35,6 +35,140 @@ export interface ConfigCatalogEntry {
   resourceHint?: ConfigResourceHint;
 }
 
+export type LlmProviderCatalogValue = "disabled" | "openai-compatible" | "ollama" | "local-http" | "local-command";
+export type LlmRoleCatalogKey =
+  | "CHAT"
+  | "TEXT_EMBEDDING"
+  | "IMAGE_EMBEDDING"
+  | "VISION_CAPTIONING"
+  | "OCR"
+  | "ASR"
+  | "FACE_DETECTION"
+  | "FACE_RECOGNITION"
+  | "IMAGE_GENERATION"
+  | "AUDIO_GENERATION";
+
+export interface LlmRoleSupportCatalogEntry {
+  key: LlmRoleCatalogKey;
+  status: ConfigSupportStatus;
+  defaultProvider: LlmProviderCatalogValue;
+  defaultModel: string;
+  providerSupport: Record<LlmProviderCatalogValue, ConfigSupportStatus>;
+}
+
+export const LLM_PROVIDER_VALUES = [
+  "disabled",
+  "openai-compatible",
+  "ollama",
+  "local-http",
+  "local-command"
+] as const satisfies readonly LlmProviderCatalogValue[];
+
+export const LLM_ROLE_SUPPORT_CATALOG = [
+  llmRoleSupport("CHAT", "experimental", "disabled", "", {
+    "openai-compatible": "experimental",
+    "ollama": "experimental",
+    "local-http": "future",
+    "local-command": "future"
+  }),
+  llmRoleSupport("TEXT_EMBEDDING", "supported", "disabled", "", {
+    "openai-compatible": "supported",
+    "ollama": "supported",
+    "local-http": "experimental",
+    "local-command": "future"
+  }),
+  llmRoleSupport("IMAGE_EMBEDDING", "experimental", "local-http", "CLIP ViT-L-16-SigLIP2-256__webli", {
+    "openai-compatible": "future",
+    "ollama": "future",
+    "local-http": "experimental",
+    "local-command": "future"
+  }),
+  llmRoleSupport("VISION_CAPTIONING", "experimental", "disabled", "", {
+    "openai-compatible": "experimental",
+    "ollama": "future",
+    "local-http": "experimental",
+    "local-command": "future"
+  }),
+  llmRoleSupport("OCR", "experimental", "local-http", "ESLAV__PP-OCRv5_mobile", {
+    "openai-compatible": "experimental",
+    "ollama": "future",
+    "local-http": "experimental",
+    "local-command": "future"
+  }),
+  llmRoleSupport("ASR", "experimental", "disabled", "", {
+    "openai-compatible": "experimental",
+    "ollama": "future",
+    "local-http": "experimental",
+    "local-command": "future"
+  }),
+  llmRoleSupport("FACE_DETECTION", "experimental", "local-http", "buffalo_l", {
+    "openai-compatible": "future",
+    "ollama": "future",
+    "local-http": "experimental",
+    "local-command": "future"
+  }),
+  llmRoleSupport("FACE_RECOGNITION", "experimental", "local-http", "buffalo_l", {
+    "openai-compatible": "future",
+    "ollama": "future",
+    "local-http": "experimental",
+    "local-command": "future"
+  }),
+  llmRoleSupport("IMAGE_GENERATION", "future", "disabled", "", {
+    "openai-compatible": "future",
+    "ollama": "future",
+    "local-http": "future",
+    "local-command": "future"
+  }),
+  llmRoleSupport("AUDIO_GENERATION", "future", "disabled", "", {
+    "openai-compatible": "future",
+    "ollama": "future",
+    "local-http": "future",
+    "local-command": "future"
+  })
+] as const satisfies readonly LlmRoleSupportCatalogEntry[];
+
+const llmRoleSupportByKey = new Map(LLM_ROLE_SUPPORT_CATALOG.map((entry) => [entry.key, entry]));
+
+export function requireLlmRoleSupportCatalogEntry(key: string): LlmRoleSupportCatalogEntry {
+  const entry = llmRoleSupportByKey.get(key as LlmRoleCatalogKey);
+  if (entry === undefined) {
+    throw new Error(`${key} is not defined in the LLM role support catalog.`);
+  }
+  return entry;
+}
+
+export function llmRoleSupportStatus(key: string): ConfigSupportStatus {
+  return requireLlmRoleSupportCatalogEntry(key).status;
+}
+
+export function llmRoleProviderSupportStatus(key: string, provider: string): ConfigSupportStatus {
+  const entry = requireLlmRoleSupportCatalogEntry(key);
+  const support = entry.providerSupport[provider as LlmProviderCatalogValue];
+  if (support === undefined) {
+    throw new Error(`${provider} is not valid for LLM role ${key}.`);
+  }
+  return support;
+}
+
+function llmRoleSupport(
+  key: LlmRoleCatalogKey,
+  status: ConfigSupportStatus,
+  defaultProvider: LlmProviderCatalogValue,
+  defaultModel: string,
+  providerSupport: Omit<Record<LlmProviderCatalogValue, ConfigSupportStatus>, "disabled">
+): LlmRoleSupportCatalogEntry {
+  return {
+    key,
+    status,
+    defaultProvider,
+    defaultModel,
+    providerSupport: {
+      disabled: "supported",
+      ...providerSupport
+    }
+  };
+}
+
 export const CONFIG_CATALOG_SECTIONS = [
   {
     id: "installer",
@@ -221,33 +355,25 @@ export const CONFIG_CATALOG = [
   entry("MINDORY_DOCUMENT_PROCESSING_VIDEO_REQUIRED", "document-processing", "boolean", "false", "Treat video processing as required.", "runtime", "supported"),
   entry("MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES", "document-processing", "number", "10", "Maximum derived video keyframes.", "both", "supported"),
 
-  llmRoleEntries("CHAT", "Chat/completion calls for agent-facing LLM features.", "future"),
-  llmRoleEntries("TEXT_EMBEDDING", "Text embeddings for semantic document search.", "supported", { dimensions: true }),
-  llmRoleEntries("IMAGE_EMBEDDING", "CLIP/image embeddings for visual search.", "future", {
+  llmRoleEntries("CHAT", "Chat/completion calls for agent-facing LLM features."),
+  llmRoleEntries("TEXT_EMBEDDING", "Text embeddings for semantic document search.", { dimensions: true }),
+  llmRoleEntries("IMAGE_EMBEDDING", "CLIP/image embeddings for visual search.", {
     dimensions: true,
-    provider: "local-http",
-    model: "CLIP ViT-L-16-SigLIP2-256__webli",
     resourceHint: { memory: "8GB+", disk: "3GB+", gpu: "recommended" }
   }),
-  llmRoleEntries("VISION_CAPTIONING", "Vision captioning for image/video frames.", "future"),
-  llmRoleEntries("OCR", "OCR for images and scanned PDFs.", "future", {
-    provider: "local-http",
-    model: "ESLAV__PP-OCRv5_mobile",
+  llmRoleEntries("VISION_CAPTIONING", "Vision captioning for image/video frames."),
+  llmRoleEntries("OCR", "OCR for images and scanned PDFs.", {
     resourceHint: { memory: "4GB+", disk: "1GB+" }
   }),
-  llmRoleEntries("ASR", "ASR for audio and video transcripts.", "future"),
-  llmRoleEntries("FACE_DETECTION", "Face detection for workspace-scoped face observations.", "future", {
-    provider: "local-http",
-    model: "buffalo_l",
+  llmRoleEntries("ASR", "ASR for audio and video transcripts."),
+  llmRoleEntries("FACE_DETECTION", "Face detection for workspace-scoped face observations.", {
     resourceHint: { memory: "4GB+", disk: "1GB+" }
   }),
-  llmRoleEntries("FACE_RECOGNITION", "Face recognition for workspace-scoped face identity matching.", "future", {
-    provider: "local-http",
-    model: "buffalo_l",
+  llmRoleEntries("FACE_RECOGNITION", "Face recognition for workspace-scoped face identity matching.", {
     resourceHint: { memory: "4GB+", disk: "1GB+" }
   }),
-  llmRoleEntries("IMAGE_GENERATION", "Image generation for future agent outputs.", "future"),
-  llmRoleEntries("AUDIO_GENERATION", "Audio generation for future agent outputs.", "future"),
+  llmRoleEntries("IMAGE_GENERATION", "Image generation for future agent outputs."),
+  llmRoleEntries("AUDIO_GENERATION", "Audio generation for future agent outputs."),
   entry("MINDORY_LLM_OPENAI_COMPATIBLE_BASE_URL", "llm", "string", "", "OpenAI-compatible base URL.", "both", "supported"),
   entry("MINDORY_LLM_OPENAI_COMPATIBLE_AUTH_MODE", "llm", "enum", "none", "OpenAI-compatible auth mode.", "both", "supported", {
     allowedValues: ["none", "api-key", "oauth-bearer"]
@@ -361,15 +487,13 @@ export function configAllowedValues(name: string): readonly string[] {
 function llmRoleEntries(
   key: string,
   description: string,
-  supportStatus: ConfigSupportStatus,
   options: {
     dimensions?: boolean;
-    provider?: string;
-    model?: string;
     resourceHint?: ConfigResourceHint;
   } = {}
 ): ConfigCatalogEntry[] {
   const prefix = `MINDORY_LLM_${key}`;
+  const roleSupport = requireLlmRoleSupportCatalogEntry(key);
   const role = key.toLowerCase().replace(/_/g, " ");
   const enabledOptions: Parameters<typeof entry>[7] = {
     prompt: {
@@ -383,18 +507,18 @@ function llmRoleEntries(
   }
 
   const entries = [
-    entry(`${prefix}_ENABLED`, "llm", "boolean", "false", `Enable ${description}`, "both", supportStatus, enabledOptions),
-    entry(`${prefix}_PROVIDER`, "llm", "enum", options.provider ?? "disabled", `${description} provider.`, "both", supportStatus, {
-      allowedValues: ["disabled", "openai-compatible", "ollama", "local-http", "local-command"]
+    entry(`${prefix}_ENABLED`, "llm", "boolean", "false", `Enable ${description}`, "both", roleSupport.status, enabledOptions),
+    entry(`${prefix}_PROVIDER`, "llm", "enum", roleSupport.defaultProvider, `${description} provider.`, "both", roleSupport.status, {
+      allowedValues: LLM_PROVIDER_VALUES
     }),
-    entry(`${prefix}_MODEL`, "llm", "string", options.model ?? "", `${description} model name.`, "both", supportStatus),
-    entry(`${prefix}_REQUIRED`, "llm", "boolean", "false", `Require ${description}`, "both", supportStatus),
-    entry(`${prefix}_TIMEOUT_MS`, "llm", "number", "60000", `${description} timeout in milliseconds.`, "both", supportStatus),
-    entry(`${prefix}_CONCURRENCY`, "llm", "number", "1", `${description} concurrency limit.`, "both", supportStatus)
+    entry(`${prefix}_MODEL`, "llm", "string", roleSupport.defaultModel, `${description} model name.`, "both", roleSupport.status),
+    entry(`${prefix}_REQUIRED`, "llm", "boolean", "false", `Require ${description}`, "both", roleSupport.status),
+    entry(`${prefix}_TIMEOUT_MS`, "llm", "number", "60000", `${description} timeout in milliseconds.`, "both", roleSupport.status),
+    entry(`${prefix}_CONCURRENCY`, "llm", "number", "1", `${description} concurrency limit.`, "both", roleSupport.status)
   ];
 
   if (options.dimensions === true) {
-    entries.splice(3, 0, entry(`${prefix}_DIMENSIONS`, "llm", "string", "", `${description} embedding dimensions.`, "both", supportStatus));
+    entries.splice(3, 0, entry(`${prefix}_DIMENSIONS`, "llm", "string", "", `${description} embedding dimensions.`, "both", roleSupport.status));
   }
 
   return entries;

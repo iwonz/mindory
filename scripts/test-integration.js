@@ -32,6 +32,7 @@ const testEnv = {
   MINDORY_CACHE_PREFIX: `mindory:test-cache:${testRunId}`,
   MINDORY_STORAGE_PROVIDER: "local-fs",
   MINDORY_STORAGE_LOCAL_PATH: storagePath,
+  MINDORY_INSTALL_ALLOW_EXPERIMENTAL: "true",
   MINDORY_AV_ENABLED: "false",
   MINDORY_AV_PROVIDER: "disabled",
   MINDORY_AV_MODE: "disabled",

@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-71",
+  "current_task_id": "TASK-72",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -533,6 +533,13 @@
       "status": "done",
       "branch": "task/TASK-71-ci-release-publishing",
       "file": "tasks/TASK-71.json"
+    },
+    {
+      "id": "TASK-72",
+      "title": "Clean up LLM provider support matrix",
+      "status": "done",
+      "branch": "task/TASK-72-llm-provider-support-matrix-cleanup",
+      "file": "tasks/TASK-72.json"
     }
   ]
 }

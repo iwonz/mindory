@@ -148,6 +148,13 @@ from embedded WAV `INFO/ICMT` text until a concrete ASR adapter is installed.
 Video extraction uses `MINDORY_DOCUMENT_PROCESSING_VIDEO_MAX_KEYFRAMES` to cap
 manifest-derived keyframes; the default remains `10`.
 
+The role/provider support matrix is centralized in `@mindory/llm` and the
+config catalog. `text-embedding` is the only supported live model operation
+today. Chat, OCR, ASR, vision, image embeddings and face roles are experimental;
+generation roles are future. Any enabled role or selected provider that is not
+`supported` requires `MINDORY_INSTALL_ALLOW_EXPERIMENTAL=true`, including
+answer-file and non-interactive installer runs.
+
 Text embeddings are the only capability used for pgvector indexing today.
 When `MINDORY_LLM_TEXT_EMBEDDING_ENABLED=true`,
 `MINDORY_LLM_TEXT_EMBEDDING_MODEL` is required. The current MVP

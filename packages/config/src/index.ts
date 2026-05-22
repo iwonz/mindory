@@ -2,7 +2,9 @@ import {
   configAllowedValues,
   configDefaultBoolean,
   configDefaultNumber,
-  configDefaultValue
+  configDefaultValue,
+  llmRoleProviderSupportStatus,
+  llmRoleSupportStatus
 } from "./catalog.js";
 
 export * from "./catalog.js";
@@ -440,8 +442,14 @@ function validateLlmConfig(config: MindoryConfig): void {
     if (!capability.enabled) {
       continue;
     }
+    if (llmRoleSupportStatus(envKey) !== "supported" && !config.install.allowExperimental) {
+      throw new Error(`MINDORY_LLM_${envKey}_ENABLED requires MINDORY_INSTALL_ALLOW_EXPERIMENTAL=true because the role is ${llmRoleSupportStatus(envKey)}.`);
+    }
     if (capability.provider === "disabled") {
       throw new Error(`MINDORY_LLM_${envKey}_PROVIDER cannot be disabled when the capability is enabled.`);
+    }
+    if (llmRoleProviderSupportStatus(envKey, capability.provider) !== "supported" && !config.install.allowExperimental) {
+      throw new Error(`MINDORY_LLM_${envKey}_PROVIDER=${capability.provider} requires MINDORY_INSTALL_ALLOW_EXPERIMENTAL=true because it is ${llmRoleProviderSupportStatus(envKey, capability.provider)} for this role.`);
     }
     if (capability.model.trim() === "") {
       throw new Error(`MINDORY_LLM_${envKey}_MODEL is required when the capability is enabled.`);

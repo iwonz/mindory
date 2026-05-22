@@ -20,6 +20,8 @@ documentation.
 
 ### Added
 
+- `TASK-72`: centralized LLM role/provider support matrix with config and
+  installer gating for experimental model roles.
 - `TASK-71`: release workflow baseline with `pnpm check`, Docker image build,
   release bundle/checksum artifacts and packaged installer smoke validation.
 - `TASK-70`: public repository hygiene baseline, including license,

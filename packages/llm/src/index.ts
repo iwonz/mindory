@@ -1,4 +1,12 @@
-import type { LlmProvider, MindoryConfig } from "@mindory/config";
+import {
+  LLM_ROLE_SUPPORT_CATALOG,
+  llmRoleProviderSupportStatus as catalogLlmRoleProviderSupportStatus,
+  llmRoleSupportStatus as catalogLlmRoleSupportStatus,
+  type ConfigSupportStatus,
+  type LlmProvider,
+  type LlmRoleCatalogKey,
+  type MindoryConfig
+} from "@mindory/config";
 import type { EmbeddingResult, EmbeddingsProvider, EmbedTextsInput } from "@mindory/core/processing";
 import { OpenAICompatibleEmbeddingsProvider, type OpenAICompatibleEmbeddingsOptions } from "@mindory/embeddings-openai-compatible";
 import { OllamaEmbeddingsProvider, type OllamaEmbeddingsOptions } from "@mindory/embeddings-ollama";
@@ -16,6 +24,7 @@ export type LlmRole =
   | "audio-generation";
 
 export type LlmOperationStatus = "success" | "disabled" | "failed";
+export type LlmRoleSupportStatus = Extract<ConfigSupportStatus, "supported" | "experimental" | "future">;
 
 export interface LlmRoleDescriptor {
   role: LlmRole;
@@ -40,6 +49,15 @@ export interface LlmProviderDescriptor {
   baseUrl?: string;
   authMode?: "none" | "api-key" | "oauth-bearer";
   commandTimeoutMs?: number;
+}
+
+export interface LlmRoleSupportDescriptor {
+  role: LlmRole;
+  key: LlmRoleCatalogKey;
+  status: ConfigSupportStatus;
+  defaultProvider: LlmProvider;
+  defaultModel: string;
+  providerSupport: Record<LlmProvider, ConfigSupportStatus>;
 }
 
 export interface LlmOperationUsage {
@@ -141,10 +159,20 @@ export interface MindoryLlmOptions {
 
 export interface MindoryLlm {
   registry: LlmRoleRegistry;
+  roleSupport: readonly LlmRoleSupportDescriptor[];
   providers: LlmProviderDescriptor[];
   textEmbeddings?: EmbeddingsProvider;
   disabledResult<TValue>(role: LlmRole, refs?: LlmOperationRefs): LlmOperationResult<TValue>;
 }
+
+export const LLM_ROLE_PROVIDER_SUPPORT_MATRIX: readonly LlmRoleSupportDescriptor[] = LLM_ROLE_SUPPORT_CATALOG.map((entry) => ({
+  role: catalogKeyToLlmRole(entry.key),
+  key: entry.key,
+  status: entry.status,
+  defaultProvider: entry.defaultProvider,
+  defaultModel: entry.defaultModel,
+  providerSupport: entry.providerSupport
+}));
 
 export class LlmRoleRegistry {
   private readonly roles: Map<LlmRole, LlmRoleDescriptor>;
@@ -181,6 +209,7 @@ export function buildMindoryLlm(
   const registry = new LlmRoleRegistry(llmRoleDescriptors(config));
   const runtime: MindoryLlm = {
     registry,
+    roleSupport: LLM_ROLE_PROVIDER_SUPPORT_MATRIX,
     providers: llmProviders(config),
     disabledResult: (role, refs) => disabledLlmOperationResult(registry.require(role), refs, options.auditSink)
   };
@@ -203,6 +232,14 @@ export function llmRoleState(
     model: descriptor.model,
     required: descriptor.required
   };
+}
+
+export function llmRoleSupportStatus(role: LlmRole): ConfigSupportStatus {
+  return catalogLlmRoleSupportStatus(llmRoleToCatalogKey(role));
+}
+
+export function llmRoleProviderSupportStatus(role: LlmRole, provider: LlmProvider): ConfigSupportStatus {
+  return catalogLlmRoleProviderSupportStatus(llmRoleToCatalogKey(role), provider);
 }
 
 export function buildMindoryTextEmbeddingsProvider(
@@ -412,6 +449,14 @@ function llmProviders(config: MindoryConfig): LlmProviderDescriptor[] {
       commandTimeoutMs: config.llm.localCommand.timeoutMs
     }
   ];
+}
+
+function llmRoleToCatalogKey(role: LlmRole): LlmRoleCatalogKey {
+  return role.toUpperCase().replace(/-/g, "_") as LlmRoleCatalogKey;
+}
+
+function catalogKeyToLlmRole(key: LlmRoleCatalogKey): LlmRole {
+  return key.toLowerCase().replace(/_/g, "-") as LlmRole;
 }
 
 function nonEmpty(value: string): string | undefined {
