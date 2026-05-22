@@ -15,7 +15,7 @@ minimum baseline for the MVP release path.
 | Installer execution | Partial baseline. Current installer can prepare `$MINDORY_HOME`, start Compose through health checks, provision the first token, refresh local assets, create/restore runtime backups and uninstall with explicit confirmation, but remote release update is future work. |
 | Public self-host acceptance | Supported gate. `pnpm selfhost:acceptance` dry-runs the public self-host path; opt-in live mode runs installer start, MVP acceptance, backup, reset and uninstall in a temporary home. |
 | Backup and restore | Supported MVP. Installer commands cover config, installer metadata, PostgreSQL dumps and local object storage state. Point-in-time recovery, scheduled backups and encrypted remote backups are future hardening work. |
-| Observability | Supported baseline. Structured logs, model operation audit helpers, Prometheus metrics exporters, in-process job/stage metrics, health snapshots and rate-limit strategy are documented in `docs/OBSERVABILITY.md`. Tracing, log aggregation and alerting remain future hardening. |
+| Observability | Supported baseline. Structured logs, model operation audit helpers, Prometheus metrics exporters, OpenTelemetry OTLP tracing/log export, in-process job/stage metrics, health snapshots and rate-limit strategy are documented in `docs/OBSERVABILITY.md`. |
 | Public GitHub readiness | Supported baseline. The repo includes license, contribution guide, root security policy, issue/PR templates, changelog/release notes policy, support matrix and repository status docs. |
 
 ## CI Gate
@@ -185,6 +185,7 @@ the endpoints support bearer-token protection through
 `MINDORY_METRICS_BEARER_TOKEN` and avoid project/document/session ids as
 labels.
 
-OpenTelemetry tracing, log aggregation and alerting remain future hardening,
-but emitted logs and metric names must remain structured enough to support
-those systems without rewriting runtime code.
+OpenTelemetry trace and structured log export are configured through
+`MINDORY_OTEL_*`. API requests, worker jobs, model operations, object storage
+and vector operations emit safe spans when tracing is enabled. Export failures
+are non-fatal for runtime operations.

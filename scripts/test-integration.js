@@ -238,6 +238,8 @@ test("MVP runtime integration covers auth, upload, worker jobs and context", { t
     MINDORY_LLM_OCR_MODEL: "mindory-test-ocr",
     MINDORY_LLM_LOCAL_HTTP_BASE_URL: fakeOcr.baseUrl
   });
+  const traceCollector = await startOtlpCollector("/v1/traces");
+  const logCollector = await startOtlpCollector("/v1/logs");
   const config = modules.loadMindoryConfig({
     ...testEnv,
     MINDORY_METRICS_ENABLED: "true",
@@ -245,6 +247,11 @@ test("MVP runtime integration covers auth, upload, worker jobs and context", { t
     MINDORY_METRICS_BEARER_TOKEN: "metrics-test-token",
     MINDORY_METRICS_WORKER_HOST: "127.0.0.1",
     MINDORY_METRICS_WORKER_PORT: String(workerMetricsPort),
+    MINDORY_OTEL_TRACES_ENABLED: "true",
+    MINDORY_OTEL_SERVICE_NAME: "mindory-test",
+    MINDORY_OTEL_EXPORTER_OTLP_ENDPOINT: traceCollector.url,
+    MINDORY_OTEL_LOG_EXPORT_ENABLED: "true",
+    MINDORY_OTEL_LOG_EXPORT_ENDPOINT: logCollector.url,
     MINDORY_DOCLING_ENABLED: "true",
     MINDORY_DOCLING_URL: doclingService.baseUrl,
     MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_PROVIDER: "ffmpeg",
@@ -267,6 +274,7 @@ test("MVP runtime integration covers auth, upload, worker jobs and context", { t
     MINDORY_LLM_LOCAL_HTTP_BASE_URL: fakeOcr.baseUrl
   });
   let apiApp = null;
+  let apiRuntime = null;
   let workerRuntime = null;
   let managementDatabase = null;
   let managementQueue = null;
@@ -280,7 +288,7 @@ test("MVP runtime integration covers auth, upload, worker jobs and context", { t
       permissions: [...modules.MINDORY_PERMISSIONS]
     });
 
-    const apiRuntime = modules.buildApiRuntimeDependencies(config);
+    apiRuntime = modules.buildApiRuntimeDependencies(config);
     apiApp = await modules.buildApiApp({ config, ...apiRuntime, logger: false });
     await apiApp.listen({ host: "127.0.0.1", port: 0 });
     const apiUrl = addressToUrl(apiApp.server.address());
@@ -320,6 +328,10 @@ test("MVP runtime integration covers auth, upload, worker jobs and context", { t
     await assertDocumentRecompute(apiUrl, documentId);
     await assertMemoryAndContext(apiUrl, sessionId, messageId, documentId);
     await assertMetricsEndpoints(apiUrl, workerMetricsPort);
+    await apiRuntime.tracing.flush();
+    await workerRuntime.tracing.flush();
+    assertTracePropagation(traceCollector.payloads);
+    assertStructuredLogExport(logCollector.payloads);
     await assertRevokedTokenIsRejected(apiUrl, childToken.id, childToken.rawToken);
   } finally {
     if (workerRuntime) {
@@ -336,6 +348,8 @@ test("MVP runtime integration covers auth, upload, worker jobs and context", { t
       await managementDatabase.close();
     }
     await doclingService?.close();
+    await traceCollector.close();
+    await logCollector.close();
     await fakeOcr.close();
     await cleanupProject(projectId);
     await rm(storagePath, { recursive: true, force: true });
@@ -722,6 +736,37 @@ async function assertMetricsEndpoints(apiUrl, workerMetricsPort) {
   assert.match(workerMetrics, /mindory_storage_operations_total\{operation="get_object",provider="local-fs",status="success"\}/);
   assert.match(workerMetrics, /mindory_vector_operations_total\{operation="upsert_artifact_vectors",provider="pgvector",status="success"\}/);
   assert.match(workerMetrics, /mindory_processing_queue_depth\{queue="processing",status="waiting"\}/);
+}
+
+function assertTracePropagation(payloads) {
+  const spans = payloads.flatMap((payload) => extractOtlpSpans(payload));
+  assert(spans.some((span) => span.name === "api.request"), "OTLP traces must include API request spans.");
+  assert(spans.some((span) => span.name === "worker.job"), "OTLP traces must include worker job spans.");
+  assert(spans.some((span) => span.name === "model.vision-captioning"), "OTLP traces must include model operation spans.");
+  assert(spans.some((span) => span.name === "storage.put_object"), "OTLP traces must include storage spans.");
+  assert(spans.some((span) => span.name === "vector.upsert_artifact_vectors"), "OTLP traces must include vector spans.");
+  const apiSpans = spans.filter((span) => span.name === "api.request");
+  const apiSpanIds = new Set(apiSpans.map((span) => span.spanId));
+  const workerSpan = spans.find((span) => span.name === "worker.job" && apiSpanIds.has(span.parentSpanId));
+  const apiSpan = apiSpans.find((span) => span.spanId === workerSpan?.parentSpanId);
+  assert(apiSpan?.traceId, "API span must include trace id.");
+  assert(workerSpan, "A worker job span must continue an API traceparent.");
+  assert.equal(workerSpan.traceId, apiSpan.traceId, "Worker job span must share the API trace id.");
+  const rendered = JSON.stringify(payloads);
+  assert(!rendered.includes(bootstrapToken), "OTLP traces must not include raw bearer tokens.");
+  assert(!rendered.includes("source-backed context and durable memory recall"), "OTLP traces must not include raw document or transcript content.");
+}
+
+function assertStructuredLogExport(payloads) {
+  const rendered = JSON.stringify(payloads);
+  assert.match(rendered, /model_operation/, "OTLP logs must include model operation log events.");
+  assert(!rendered.includes(bootstrapToken), "OTLP logs must not include raw bearer tokens.");
+}
+
+function extractOtlpSpans(payload) {
+  return (payload.resourceSpans ?? [])
+    .flatMap((resourceSpan) => resourceSpan.scopeSpans ?? [])
+    .flatMap((scopeSpan) => scopeSpan.spans ?? []);
 }
 
 async function assertTokenLifecycle(apiUrl) {
@@ -2040,6 +2085,45 @@ function startLocalHttpOcrServer(options) {
       resolve({
         baseUrl: `http://127.0.0.1:${address.port}`,
         calls,
+        close: () => new Promise((closeResolve, closeReject) => {
+          server.close((error) => {
+            if (error) {
+              closeReject(error);
+              return;
+            }
+            closeResolve();
+          });
+        })
+      });
+    });
+  });
+}
+
+function startOtlpCollector(pathname) {
+  const payloads = [];
+  const server = http.createServer(async (request, response) => {
+    if (request.method !== "POST" || request.url !== pathname) {
+      response.writeHead(404, { "content-type": "application/json" });
+      response.end(JSON.stringify({ error: "not_found" }));
+      return;
+    }
+    try {
+      payloads.push(JSON.parse(await readRequestBody(request)));
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end("{}");
+    } catch (error) {
+      response.writeHead(400, { "content-type": "application/json" });
+      response.end(JSON.stringify({ error: error instanceof Error ? error.message : "invalid_otlp_payload" }));
+    }
+  });
+
+  return new Promise((resolve) => {
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      assert.ok(address && typeof address !== "string", "OTLP collector must listen on a TCP address.");
+      resolve({
+        payloads,
+        url: `http://127.0.0.1:${address.port}${pathname}`,
         close: () => new Promise((closeResolve, closeReject) => {
           server.close((error) => {
             if (error) {

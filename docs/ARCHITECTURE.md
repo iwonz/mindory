@@ -119,11 +119,11 @@ default, support status, visibility and secret handling.
 
 ## Observability
 
-`@mindory/observability` owns shared MVP helper shapes for structured log
-events, model operation audit querying, in-process job stage metrics, health
-snapshots and the documented rate-limit strategy. The API uses it for `/health`
-and `/ready` payload metadata. It does not provide Prometheus, OpenTelemetry,
-external log aggregation or durable enterprise audit persistence in the MVP.
+`@mindory/observability` owns shared helper shapes for structured log events,
+model operation audit querying, in-process job stage metrics, health snapshots,
+Prometheus metrics and OTLP trace/log export. The API uses it for `/health`,
+`/ready`, `/metrics` and request tracing. The worker uses it for job, stage,
+model, storage and vector observability.
 
 `TASK-58` adds `@mindory/installer` as the deterministic installer core. It
 builds answer-file install plans, dependency check results, generated config and

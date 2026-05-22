@@ -7,6 +7,7 @@ import { DocumentRecomputeError, DocumentRecomputeService } from "@mindory/core/
 import { requireProjectPermission, requireProjectPermissionForEach } from "../auth.js";
 import { ApiError } from "../errors.js";
 import { assertRouteDependencies, requireRouteDependency, type RouteDependencyOptions } from "./dependencies.js";
+import { traceMetadataForRequest } from "./tracing.js";
 
 export interface DocumentRouteDependencies extends RouteDependencyOptions {
   uploadService?: DocumentUploadService;
@@ -62,6 +63,7 @@ export async function registerDocumentRoutes(app: FastifyInstance, dependencies:
       throw new ApiError(400, "project_id_required", "Multipart field projectId is required.");
     }
     requireProjectPermission(request, projectId, "document:write");
+    const traceMetadata = traceMetadataForRequest(request);
 
     const uploadInput: UploadDocumentInput = {
       projectId,
@@ -72,9 +74,10 @@ export async function registerDocumentRoutes(app: FastifyInstance, dependencies:
         type: "api",
         received_at: new Date().toISOString(),
         metadata: {
-          request_id: request.id
+          ...traceMetadata
         }
-      }
+      },
+      metadata: traceMetadata
     };
     const title = readMultipartField(file, "title");
     if (title !== undefined) {

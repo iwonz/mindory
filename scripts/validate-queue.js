@@ -73,6 +73,7 @@ assert(core.includes("getJob"), "Job store must support job lookup.");
 assert(core.includes("listJobs"), "Job store must support job listing.");
 assert(core.includes("resetJobForRetry"), "Job store must support retry reset.");
 assert(core.includes("async retry"), "Dispatcher must support retry enqueue.");
+assert(core.includes("metadataFactory"), "Dispatcher must support runtime metadata injection for trace propagation.");
 assert(core.includes("processor_not_found"), "Runner must fail clearly when a processor is missing.");
 
 for (const symbol of ["BullMqProcessingJobQueue", "BullMqProcessingJobWorker", "parseRedisUrl"]) {
@@ -92,10 +93,12 @@ assert(workerRunner.includes("buildWorkerBaseRunner"), "Worker app must export b
 assert(workerRunner.includes("ProcessingJobRunner"), "Worker base runner must use ProcessingJobRunner.");
 assert(workerRunner.includes("BullMqProcessingJobWorker"), "Worker base runner must use BullMQ worker.");
 assert(workerRunner.includes("recordJobStage"), "Worker base runner must emit job/stage metrics.");
+assert(workerRunner.includes("startActiveSpan(\"worker.job\""), "Worker base runner must continue trace context around jobs.");
 assert(!workerRunner.includes("document.scan"), "Worker base runner must stay generic and not register concrete processors.");
 assert(workerRuntime.includes("buildWorkerRuntime"), "Worker runtime must build a concrete worker runtime.");
 assert(workerRuntime.includes("buildDocumentPipelineProcessors"), "Worker runtime must register document pipeline processors.");
 assert(workerRuntime.includes("DbProcessingJobStore"), "Worker runtime must use durable processing job store.");
 assert(workerRuntime.includes("createWorkerMetricsServer"), "Worker runtime must expose a metrics server when configured.");
+assert(workerRuntime.includes("metadataFactory: () => tracing.currentTraceMetadata()"), "Worker runtime must propagate trace context to downstream jobs.");
 
 console.log("Queue scaffold validated.");

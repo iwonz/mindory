@@ -186,6 +186,11 @@ export const CONFIG_CATALOG_SECTIONS = [
     description: "Prometheus-compatible API and worker metrics settings."
   },
   {
+    id: "telemetry",
+    title: "OpenTelemetry Export",
+    description: "OTLP trace and structured log export settings."
+  },
+  {
     id: "database",
     title: "Database",
     description: "PostgreSQL connection settings."
@@ -299,6 +304,21 @@ export const CONFIG_CATALOG = [
   }),
   entry("MINDORY_METRICS_WORKER_HOST", "metrics", "string", "0.0.0.0", "Worker metrics HTTP listen host.", "runtime", "supported"),
   entry("MINDORY_METRICS_WORKER_PORT", "metrics", "number", "3001", "Worker metrics HTTP listen port.", "both", "supported"),
+
+  entry("MINDORY_OTEL_TRACES_ENABLED", "telemetry", "boolean", "false", "Enable OTLP trace export for API, worker, storage, vector, jobs and model operations.", "both", "supported"),
+  entry("MINDORY_OTEL_SERVICE_NAME", "telemetry", "string", "mindory", "OpenTelemetry service.name prefix used by Mindory runtimes.", "both", "supported"),
+  entry("MINDORY_OTEL_EXPORTER_OTLP_ENDPOINT", "telemetry", "string", "http://localhost:4318/v1/traces", "OTLP HTTP traces endpoint.", "both", "supported"),
+  entry("MINDORY_OTEL_EXPORTER_OTLP_HEADERS", "telemetry", "string", "", "Comma-separated OTLP trace exporter headers.", "both", "supported", {
+    secret: true
+  }),
+  entry("MINDORY_OTEL_EXPORT_TIMEOUT_MS", "telemetry", "number", "5000", "OTLP trace export timeout in milliseconds.", "both", "supported"),
+  entry("MINDORY_OTEL_SAMPLE_RATE", "telemetry", "number", "1", "Trace sample rate from 0 to 1.", "both", "supported"),
+  entry("MINDORY_OTEL_LOG_EXPORT_ENABLED", "telemetry", "boolean", "false", "Enable OTLP structured log export.", "both", "supported"),
+  entry("MINDORY_OTEL_LOG_EXPORT_ENDPOINT", "telemetry", "string", "http://localhost:4318/v1/logs", "OTLP HTTP logs endpoint.", "both", "supported"),
+  entry("MINDORY_OTEL_LOG_EXPORT_HEADERS", "telemetry", "string", "", "Comma-separated OTLP log exporter headers.", "both", "supported", {
+    secret: true
+  }),
+  entry("MINDORY_OTEL_LOG_EXPORT_TIMEOUT_MS", "telemetry", "number", "5000", "OTLP structured log export timeout in milliseconds.", "both", "supported"),
 
   entry("MINDORY_DATABASE_URL", "database", "string", "postgresql://mindory:mindory@postgres:5432/mindory", "PostgreSQL database URL.", "both", "supported", {
     secret: true

@@ -24,7 +24,14 @@ import {
   type MindoryDatabase
 } from "@mindory/db";
 import { buildMindoryLlm } from "@mindory/llm";
-import { PrometheusMetricsRegistry, type PrometheusMetricsHttpServer } from "@mindory/observability";
+import {
+  createMindoryTracer,
+  createModelOperationLogEvent,
+  createOtlpStructuredLogExporter,
+  type MindoryTracer,
+  PrometheusMetricsRegistry,
+  type PrometheusMetricsHttpServer
+} from "@mindory/observability";
 import { BullMqProcessingJobQueue } from "@mindory/queue-bullmq";
 import { LocalFsObjectStorage } from "@mindory/storage-local-fs";
 import { S3ObjectStorage } from "@mindory/storage-s3";
@@ -38,6 +45,7 @@ import { buildWorkerBaseRunner, type WorkerBaseRunner } from "./runner.js";
 export interface WorkerRuntime {
   runner: WorkerBaseRunner;
   metrics: PrometheusMetricsRegistry;
+  tracing: MindoryTracer;
   metricsServer: PrometheusMetricsHttpServer;
   start(): Promise<void>;
   close(): Promise<void>;
@@ -45,12 +53,20 @@ export interface WorkerRuntime {
 
 export function buildWorkerRuntime(config: MindoryConfig = loadMindoryConfig()): WorkerRuntime {
   const metrics = new PrometheusMetricsRegistry();
+  const tracing = buildTracer(config);
+  const logExporter = createOtlpStructuredLogExporter({
+    enabled: config.telemetry.logExportEnabled,
+    serviceName: `${config.telemetry.serviceName}-worker`,
+    endpoint: config.telemetry.logExportEndpoint,
+    headers: config.telemetry.logExportHeaders,
+    timeoutMs: config.telemetry.logExportTimeoutMs
+  });
   const database = createMindoryDatabaseClient(config.database.url);
   const queue = new BullMqProcessingJobQueue({
     redisUrl: config.redis.url,
     queuePrefix: config.redis.queuePrefix
   });
-  const storage = instrumentObjectStorage(buildObjectStorage(config), metrics);
+  const storage = instrumentObjectStorage(buildObjectStorage(config), metrics, tracing);
   const documents = new DbDocumentRepository(database.db);
   const artifacts = new DbDerivedArtifactRepository(database.db);
   const chunks = new DbDocumentChunkRepository(database.db);
@@ -59,10 +75,15 @@ export function buildWorkerRuntime(config: MindoryConfig = loadMindoryConfig()):
   const store = new DbProcessingJobStore(database.db, () => `job_${randomUUID()}`);
   const dispatcher = new ProcessingJobDispatcher({
     store,
-    queue
+    queue,
+    metadataFactory: () => tracing.currentTraceMetadata()
   });
   const llm = buildMindoryLlm(config, {
-    auditSink: (audit) => metrics.recordModelOperation(audit)
+    auditSink: (audit) => {
+      metrics.recordModelOperation(audit);
+      tracing.recordModelOperation(audit);
+      logExporter.export(createModelOperationLogEvent(audit));
+    }
   });
   const processorOptions: DocumentPipelineProcessorOptions = {
     config,
@@ -78,7 +99,7 @@ export function buildWorkerRuntime(config: MindoryConfig = loadMindoryConfig()):
     processorOptions.embeddings = embeddings;
   }
   if (embeddings || llm.imageEmbeddings) {
-    processorOptions.vectorIndex = instrumentVectorIndex(buildVectorIndex(config, database.db), metrics);
+    processorOptions.vectorIndex = instrumentVectorIndex(buildVectorIndex(config, database.db), metrics, tracing);
   }
   const documentProcessors = buildDocumentPipelineProcessors(processorOptions);
   const memoryProcessors = new Map<string, ProcessingJobProcessor>(buildMemoryRuntimeProcessors({
@@ -94,13 +115,15 @@ export function buildWorkerRuntime(config: MindoryConfig = loadMindoryConfig()):
     config,
     store,
     processors,
-    metrics
+    metrics,
+    tracing
   });
   const metricsServer = createWorkerMetricsServer(config, metrics, queue);
 
   return {
     runner,
     metrics,
+    tracing,
     metricsServer,
     start: async () => {
       await runner.start();
@@ -109,10 +132,23 @@ export function buildWorkerRuntime(config: MindoryConfig = loadMindoryConfig()):
     close: async () => {
       await metricsServer.close();
       await runner.close();
+      await logExporter.shutdown();
+      await tracing.shutdown();
       await queue.close();
       await database.close();
     }
   };
+}
+
+function buildTracer(config: MindoryConfig): MindoryTracer {
+  return createMindoryTracer({
+    enabled: config.telemetry.tracesEnabled,
+    serviceName: `${config.telemetry.serviceName}-worker`,
+    endpoint: config.telemetry.tracesEndpoint,
+    headers: config.telemetry.tracesHeaders,
+    timeoutMs: config.telemetry.tracesTimeoutMs,
+    sampleRate: config.telemetry.sampleRate
+  });
 }
 
 function buildVectorIndex(config: MindoryConfig, db: MindoryDatabase): PgVectorChunkIndex | QdrantVectorIndex {
@@ -161,91 +197,99 @@ function buildObjectStorage(config: MindoryConfig): ObjectStorage {
 class MetricsObjectStorage implements ObjectStorage {
   readonly provider;
 
-  constructor(private readonly inner: ObjectStorage, private readonly metrics: PrometheusMetricsRegistry) {
+  constructor(private readonly inner: ObjectStorage, private readonly metrics: PrometheusMetricsRegistry, private readonly tracing: MindoryTracer) {
     this.provider = inner.provider;
   }
 
   putObject(input: PutObjectInput): Promise<StoredObject> {
-    return recordStorage(this.metrics, this.provider, "put_object", () => this.inner.putObject(input));
+    return recordStorage(this.metrics, this.tracing, this.provider, "put_object", () => this.inner.putObject(input));
   }
 
   getObject(key: string): Promise<StoredObjectBody> {
-    return recordStorage(this.metrics, this.provider, "get_object", () => this.inner.getObject(key));
+    return recordStorage(this.metrics, this.tracing, this.provider, "get_object", () => this.inner.getObject(key));
   }
 
   statObject(key: string): Promise<StoredObject> {
-    return recordStorage(this.metrics, this.provider, "stat_object", () => this.inner.statObject(key));
+    return recordStorage(this.metrics, this.tracing, this.provider, "stat_object", () => this.inner.statObject(key));
   }
 
   objectExists(key: string): Promise<boolean> {
-    return recordStorage(this.metrics, this.provider, "object_exists", () => this.inner.objectExists(key));
+    return recordStorage(this.metrics, this.tracing, this.provider, "object_exists", () => this.inner.objectExists(key));
   }
 
   deleteObject(key: string): Promise<void> {
-    return recordStorage(this.metrics, this.provider, "delete_object", () => this.inner.deleteObject(key));
+    return recordStorage(this.metrics, this.tracing, this.provider, "delete_object", () => this.inner.deleteObject(key));
   }
 }
 
 class MetricsVectorIndex implements VectorIndex {
   readonly provider;
 
-  constructor(private readonly inner: VectorIndex, private readonly metrics: PrometheusMetricsRegistry) {
+  constructor(private readonly inner: VectorIndex, private readonly metrics: PrometheusMetricsRegistry, private readonly tracing: MindoryTracer) {
     this.provider = inner.provider;
   }
 
   upsertDocumentChunks(input: UpsertVectorChunksInput): Promise<VectorIndexResult[]> {
-    return recordVector(this.metrics, this.provider, "upsert_document_chunks", () => this.inner.upsertDocumentChunks(input));
+    return recordVector(this.metrics, this.tracing, this.provider, "upsert_document_chunks", () => this.inner.upsertDocumentChunks(input));
   }
 
   upsertArtifactVectors(input: UpsertVectorArtifactsInput): Promise<VectorArtifactIndexResult[]> {
-    return recordVector(this.metrics, this.provider, "upsert_artifact_vectors", () => this.inner.upsertArtifactVectors(input));
+    return recordVector(this.metrics, this.tracing, this.provider, "upsert_artifact_vectors", () => this.inner.upsertArtifactVectors(input));
   }
 
   deleteDocumentChunks(projectId: string, documentId: string): Promise<void> {
-    return recordVector(this.metrics, this.provider, "delete_document_chunks", () => this.inner.deleteDocumentChunks(projectId, documentId));
+    return recordVector(this.metrics, this.tracing, this.provider, "delete_document_chunks", () => this.inner.deleteDocumentChunks(projectId, documentId));
   }
 
   deleteDocumentArtifactVectors(projectId: string, documentId: string): Promise<void> {
-    return recordVector(this.metrics, this.provider, "delete_document_artifact_vectors", () => this.inner.deleteDocumentArtifactVectors(projectId, documentId));
+    return recordVector(this.metrics, this.tracing, this.provider, "delete_document_artifact_vectors", () => this.inner.deleteDocumentArtifactVectors(projectId, documentId));
   }
 
   searchDocumentChunks(input: SearchVectorChunksInput): Promise<VectorSearchHit[]> {
-    return recordVector(this.metrics, this.provider, "search_document_chunks", () => this.inner.searchDocumentChunks(input));
+    return recordVector(this.metrics, this.tracing, this.provider, "search_document_chunks", () => this.inner.searchDocumentChunks(input));
   }
 
   searchArtifactVectors(input: SearchVectorArtifactsInput): Promise<VectorArtifactSearchHit[]> {
-    return recordVector(this.metrics, this.provider, "search_artifact_vectors", () => this.inner.searchArtifactVectors(input));
+    return recordVector(this.metrics, this.tracing, this.provider, "search_artifact_vectors", () => this.inner.searchArtifactVectors(input));
   }
 }
 
-function instrumentObjectStorage(storage: ObjectStorage, metrics: PrometheusMetricsRegistry): ObjectStorage {
-  return new MetricsObjectStorage(storage, metrics);
+function instrumentObjectStorage(storage: ObjectStorage, metrics: PrometheusMetricsRegistry, tracing: MindoryTracer): ObjectStorage {
+  return new MetricsObjectStorage(storage, metrics, tracing);
 }
 
-function instrumentVectorIndex<T extends VectorIndex>(vectorIndex: T, metrics: PrometheusMetricsRegistry): T {
-  return new MetricsVectorIndex(vectorIndex, metrics) as unknown as T;
+function instrumentVectorIndex<T extends VectorIndex>(vectorIndex: T, metrics: PrometheusMetricsRegistry, tracing: MindoryTracer): T {
+  return new MetricsVectorIndex(vectorIndex, metrics, tracing) as unknown as T;
 }
 
-async function recordStorage<T>(metrics: PrometheusMetricsRegistry, provider: string, operation: string, run: () => Promise<T>): Promise<T> {
+async function recordStorage<T>(metrics: PrometheusMetricsRegistry, tracing: MindoryTracer, provider: string, operation: string, run: () => Promise<T>): Promise<T> {
   const startedAt = performance.now();
   try {
     const result = await run();
-    metrics.recordStorageOperation({ provider, operation, status: "success", durationMs: performance.now() - startedAt });
+    const durationMs = performance.now() - startedAt;
+    metrics.recordStorageOperation({ provider, operation, status: "success", durationMs });
+    tracing.recordOperation({ name: `storage.${operation}`, kind: "client", provider, operation, status: "success", durationMs });
     return result;
   } catch (error) {
-    metrics.recordStorageOperation({ provider, operation, status: "failed", durationMs: performance.now() - startedAt });
+    const durationMs = performance.now() - startedAt;
+    metrics.recordStorageOperation({ provider, operation, status: "failed", durationMs });
+    tracing.recordOperation({ name: `storage.${operation}`, kind: "client", provider, operation, status: "failed", durationMs, attributes: { "error.type": error instanceof Error ? error.name : typeof error } });
     throw error;
   }
 }
 
-async function recordVector<T>(metrics: PrometheusMetricsRegistry, provider: string, operation: string, run: () => Promise<T>): Promise<T> {
+async function recordVector<T>(metrics: PrometheusMetricsRegistry, tracing: MindoryTracer, provider: string, operation: string, run: () => Promise<T>): Promise<T> {
   const startedAt = performance.now();
   try {
     const result = await run();
-    metrics.recordVectorOperation({ provider, operation, status: "success", durationMs: performance.now() - startedAt });
+    const durationMs = performance.now() - startedAt;
+    metrics.recordVectorOperation({ provider, operation, status: "success", durationMs });
+    tracing.recordOperation({ name: `vector.${operation}`, kind: "client", provider, operation, status: "success", durationMs });
     return result;
   } catch (error) {
-    metrics.recordVectorOperation({ provider, operation, status: "failed", durationMs: performance.now() - startedAt });
+    const durationMs = performance.now() - startedAt;
+    metrics.recordVectorOperation({ provider, operation, status: "failed", durationMs });
+    tracing.recordOperation({ name: `vector.${operation}`, kind: "client", provider, operation, status: "failed", durationMs, attributes: { "error.type": error instanceof Error ? error.name : typeof error } });
     throw error;
   }
 }

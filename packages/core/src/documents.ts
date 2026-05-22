@@ -202,6 +202,7 @@ export class DocumentUploadService {
         idempotencyKey: `document.scan:${document.id}:${this.scannerVersion}`,
         processorVersion: this.scannerVersion,
         metadata: {
+          ...extractRuntimeJobMetadata(input.metadata, input.source?.metadata),
           storage_key: storageKey,
           antivirus_provider: this.antivirusPolicy.provider
         }
@@ -285,10 +286,27 @@ export class DocumentUploadService {
       idempotencyKey: `document.route:${document.id}:${this.routeProcessorVersion}`,
       processorVersion: this.routeProcessorVersion,
       metadata: {
+        ...extractRuntimeJobMetadata(document.metadata, document.source.metadata),
         storage_key: document.storageKey
       }
     });
   }
+}
+
+function extractRuntimeJobMetadata(...sources: Array<Record<string, unknown> | undefined>): Record<string, unknown> {
+  const metadata: Record<string, unknown> = {};
+  for (const source of sources) {
+    if (source === undefined) {
+      continue;
+    }
+    for (const key of ["request_id", "correlation_id", "traceparent", "trace_id", "parent_span_id"]) {
+      const value = source[key];
+      if (typeof value === "string" && value.trim() !== "") {
+        metadata[key] = value;
+      }
+    }
+  }
+  return metadata;
 }
 
 export type DocumentUploadErrorCode =

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import Fastify, { type FastifyBaseLogger, type FastifyInstance, type FastifyServerOptions } from "fastify";
 import { loadMindoryConfig, type MindoryConfig } from "@mindory/config";
+import type { MindoryTracer } from "@mindory/observability";
 import { registerAuth, type ApiAuthDependencies } from "./auth.js";
 import { registerErrorHandlers } from "./errors.js";
 import { registerArtifactRoutes, type ArtifactRouteDependencies } from "./routes/artifacts.js";
@@ -17,6 +18,7 @@ import { registerProjectRoutes, type ProjectRouteDependencies } from "./routes/p
 import { registerSearchRoutes, type SearchRouteDependencies } from "./routes/search.js";
 import { registerSessionRoutes, type SessionRouteDependencies } from "./routes/sessions.js";
 import { registerTokenRoutes, type TokenRouteDependencies } from "./routes/tokens.js";
+import { registerTracingHooks } from "./routes/tracing.js";
 
 export interface BuildApiAppOptions {
   config?: MindoryConfig;
@@ -32,6 +34,7 @@ export interface BuildApiAppOptions {
   faces?: FaceRouteDependencies;
   jobs?: JobRouteDependencies;
   metrics?: ApiMetricsDependencies;
+  tracing?: MindoryTracer;
   memories?: MemoryRouteDependencies;
   search?: SearchRouteDependencies;
   context?: ContextRouteDependencies;
@@ -66,6 +69,7 @@ export async function buildApiApp(options: BuildApiAppOptions = {}): Promise<Fas
 
   registerErrorHandlers(app);
   registerRequestGuards(app, config);
+  await registerTracingHooks(app, options.tracing);
   await registerMetricsRoutes(app, config, metrics);
   await registerAuth(app, withDependencyFreeRouteMode(options.auth, options.allowDependencyFreeRoutes));
   await registerHealthRoutes(app, config);

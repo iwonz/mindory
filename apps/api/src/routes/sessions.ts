@@ -4,6 +4,7 @@ import type { EnqueuedProcessingJob, ProcessingJobDispatcher } from "@mindory/co
 import type { AppendMessageInput, CreateSessionInput, MessageRecord, SessionRecord, SessionRepository } from "@mindory/core/sessions";
 import { requireProjectPermission } from "../auth.js";
 import { assertRouteDependencies, requireRouteDependency, type RouteDependencyOptions } from "./dependencies.js";
+import { traceMetadataForRequest } from "./tracing.js";
 
 export interface SessionRouteDependencies extends RouteDependencyOptions {
   sessionRepository?: SessionRepository;
@@ -54,7 +55,7 @@ export async function registerSessionRoutes(app: FastifyInstance, dependencies: 
       id: request.body.id ?? `msg_${idFactory()}`,
       sessionId: request.params.id
     });
-    const processingJobs = await enqueueMessageRuntimeJobs(dependencies.jobDispatcher, message);
+    const processingJobs = await enqueueMessageRuntimeJobs(dependencies.jobDispatcher, message, traceMetadataForRequest(request));
     const response = toMessageResponse(message);
     if (processingJobs.length > 0) {
       response.processing_jobs = processingJobs.map(toProcessingJobResponse);
@@ -106,7 +107,8 @@ function toMessageResponse(message: MessageRecord): Record<string, unknown> {
 
 async function enqueueMessageRuntimeJobs(
   jobDispatcher: ProcessingJobDispatcher | undefined,
-  message: MessageRecord
+  message: MessageRecord,
+  runtimeMetadata: Record<string, unknown>
 ): Promise<EnqueuedProcessingJob[]> {
   if (!jobDispatcher) {
     return [];
@@ -121,6 +123,7 @@ async function enqueueMessageRuntimeJobs(
       idempotencyKey: `session.summarize:${message.sessionId}:${message.id}:session-summary-v1`,
       processorVersion: "session-summary-v1",
       metadata: {
+        ...runtimeMetadata,
         trigger: "message_appended",
         message_id: message.id
       }
@@ -133,6 +136,7 @@ async function enqueueMessageRuntimeJobs(
       idempotencyKey: `memory.derive:${message.sessionId}:${message.id}:explicit-memory-cues-v1`,
       processorVersion: "memory-derive-conservative-v1",
       metadata: {
+        ...runtimeMetadata,
         trigger: "message_appended",
         message_id: message.id
       }
