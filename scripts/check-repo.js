@@ -11,6 +11,7 @@ const checks = [
   ["production:validate", "scripts/validate-production-hardening.js"],
   ["public:validate", "scripts/validate-public-github-hygiene.js"],
   ["installer:validate", "scripts/validate-installer-core.js"],
+  ["backup:validate", "scripts/validate-backup-restore.js"],
   ["installer:matrix:validate", "scripts/validate-installer-matrix.js"],
   ["installer:acceptance", "scripts/installer-acceptance.js"],
   ["bootstrap:validate", "scripts/validate-bootstrap-scripts.js"],

@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-84",
+  "current_task_id": "TASK-85",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -624,6 +624,13 @@
       "status": "done",
       "branch": "task/TASK-84-observability-audit-hardening",
       "file": "tasks/TASK-84.json"
+    },
+    {
+      "id": "TASK-85",
+      "title": "Add backup and restore MVP",
+      "status": "done",
+      "branch": "task/TASK-85-backup-restore-mvp",
+      "file": "tasks/TASK-85.json"
     }
   ]
 }

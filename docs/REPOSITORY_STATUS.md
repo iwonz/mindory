@@ -6,7 +6,7 @@ The repository should be described with the support levels in
 
 ## Current Baseline
 
-The repository is complete through `TASK-84`.
+The repository is complete through `TASK-85`.
 
 Supported local MVP path:
 
@@ -14,7 +14,8 @@ Supported local MVP path:
 - `pnpm test` runs integration tests with PostgreSQL and Redis.
 - `pnpm mvp:demo` starts the local Docker Compose demo and runs live acceptance.
 - The installer can plan, prepare, start through health checks, provision the
-  first project/token, update local assets and uninstall with confirmation.
+  first project/token, update local assets, create runtime backups, restore
+  runtime backups and uninstall with confirmation.
 - Release-style bundles can be generated with `pnpm release:bundle`.
 - Release validation can be run locally with `pnpm release:validate`.
 - LLM role/provider support levels are centralized and enforced by config and
@@ -50,6 +51,8 @@ Supported local MVP path:
 - Observability baseline includes structured log helpers, model operation audit
   querying, in-process job/stage metrics, health snapshots and documented
   in-process rate-limit strategy.
+- Backup/restore MVP includes installer CLI commands for config, installer
+  metadata, PostgreSQL dumps and local object-storage state.
 
 Public GitHub hygiene baseline:
 
@@ -67,7 +70,8 @@ Public GitHub hygiene baseline:
 - Signed release manifests are future work.
 - Registry push policy for Docker images is future hardening.
 - Full automated installer resume is future work.
-- Scripted backup/restore is future work.
+- Point-in-time recovery, scheduled backups, encrypted remote backups and
+  external S3 bucket streaming backups are future work.
 - Prometheus/OpenTelemetry exporters, log aggregation and alerting are future
   observability hardening work.
 - Official Hermes SDK certification is future work; the current supported path

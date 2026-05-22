@@ -19,6 +19,7 @@ project/token.
 | S3 storage bootstrap | Supported baseline. Local LibreFS/MinIO profiles run bucket bootstrap services; external S3-compatible endpoints are signed access-checked before migrations. |
 | First project/token provisioning | Supported. It creates the initial project and bearer token, then writes `config/initial-token.json`. |
 | Update assets | Supported for local config/Compose asset refresh with pre-update backup and rollback. Remote release download is future work. |
+| Runtime backup/restore | Supported MVP. It writes `backup-manifest.json`, config, installer metadata, PostgreSQL dumps and local object storage copies. |
 | Uninstall | Supported with explicit `--yes`; optional backup is written next to the removed home. |
 | Dependency detection | Supported through injectable probes and diagnostics. |
 | Lock, journal and recovery diagnostics | Supported. `repair` and `resume` inspect current state. |
@@ -134,13 +135,16 @@ pnpm release:bundle -- --version 0.1.0 --url-base https://downloads.example.com/
 The bootstrap launches `bin/mindory-installer` when a packaged binary exists, or
 falls back to `node packages/installer/dist/cli.js wizard` for source-style
 bundles. The installer CLI currently supports `wizard`, `plan`/`dry-run`,
-`prepare`, `start`, `update`, `uninstall`, `render-defaults`, `repair` and
-`resume`. `prepare` executes only the local file preparation steps. `start`
+`prepare`, `start`, `update`, `backup`, `restore`, `uninstall`,
+`render-defaults`, `repair` and `resume`. `prepare` executes only the local
+file preparation steps. `start`
 additionally runs Docker Compose pull/build, infrastructure startup, migrations,
 API/worker/MCP startup, health checks and first project/token provisioning.
 `update --dry-run` previews local asset refresh, while `update` creates a
-pre-update backup before rewriting config and Compose assets. `uninstall`
-requires `--yes` and can preserve a sibling backup with `--backup`.
+pre-update backup before rewriting config and Compose assets. `backup` creates
+a runtime backup under `$MINDORY_HOME/backups`; `restore` requires `--yes`
+before overwriting local state. `uninstall` requires `--yes` and can preserve a
+sibling backup with `--backup`.
 
 ## Recovery Surface
 
@@ -155,6 +159,8 @@ The CLI exposes:
 mindory-installer repair --home ~/.mindory
 mindory-installer resume --home ~/.mindory
 mindory-installer update --home ~/.mindory --source /path/to/mindory --dry-run
+mindory-installer backup --home ~/.mindory
+mindory-installer restore --home ~/.mindory --backup ~/.mindory/backups/<backup-dir> --yes
 mindory-installer uninstall --home ~/.mindory --yes --backup
 ```
 
@@ -241,6 +247,62 @@ operation. Update creates a pre-update backup under `$MINDORY_HOME/backups` and
 restores config/assets from that backup if local asset refresh fails. Uninstall
 requires explicit confirmation and can copy the home to a sibling backup before
 removal.
+
+## Backup And Restore
+
+The MVP backup command is local and single-home aware:
+
+```bash
+mindory-installer backup --home ~/.mindory
+```
+
+It creates a timestamped directory under `$MINDORY_HOME/backups` with:
+
+- `backup-manifest.json` describing the backup, storage mode and component
+  reports;
+- `config/` with generated `.env`, `mindory.config.json` and first-run token
+  file when present;
+- `installer-state/` with installer metadata and Compose assets;
+- `postgres/mindory.sql`, produced through Docker Compose `pg_dump`;
+- `objects/` for local filesystem RAW object data, or `librefs/` for the local
+  LibreFS bind-mounted S3 profile.
+
+Useful options:
+
+```bash
+mindory-installer backup --home ~/.mindory --label before-upgrade
+mindory-installer backup --home ~/.mindory --output /backups/mindory-pre-upgrade
+mindory-installer backup --home ~/.mindory --dry-run
+mindory-installer backup --home ~/.mindory --no-postgres --no-objects
+```
+
+Restore is intentionally guarded because it overwrites local state:
+
+```bash
+mindory-installer restore --home ~/.mindory --backup ~/.mindory/backups/<backup-dir> --yes
+```
+
+Restore copies backed-up config and local object data back into
+`$MINDORY_HOME`, then imports `postgres/mindory.sql` through Docker Compose
+`psql`. The PostgreSQL service must be running and reachable through the
+installed Compose assets. To restore only selected components:
+
+```bash
+mindory-installer restore --home ~/.mindory --backup ~/.mindory/backups/<backup-dir> --yes --no-postgres
+mindory-installer restore --home ~/.mindory --backup ~/.mindory/backups/<backup-dir> --yes --no-objects
+mindory-installer restore --home ~/.mindory --backup ~/.mindory/backups/<backup-dir> --yes --no-config
+```
+
+External S3-compatible bucket data is not copied by the MVP local backup
+command. The backup manifest records that component as skipped; use provider
+native bucket backup tooling for external S3, then restore the bucket before or
+alongside the Mindory database restore.
+
+Validate the scripted backup/restore path without starting Docker:
+
+```bash
+pnpm backup:validate
+```
 
 ## Generated State
 

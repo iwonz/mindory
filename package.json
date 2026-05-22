@@ -11,6 +11,7 @@
   "scripts": {
     "api:validate": "node scripts/validate-api-skeleton.js",
     "api:runtime:validate": "node scripts/validate-api-runtime-wiring.js",
+    "backup:validate": "pnpm --filter @mindory/installer typecheck && node scripts/validate-backup-restore.js",
     "bootstrap:validate": "node scripts/validate-bootstrap-scripts.js",
     "check": "node scripts/check-repo.js",
     "cli:smoke": "node scripts/smoke-cli.js",

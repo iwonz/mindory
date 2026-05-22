@@ -2,6 +2,7 @@
 import {
   acquireInstallLock,
   buildRedactedInstallSummary,
+  createMindoryRuntimeBackup,
   createDefaultInstallAnswers,
   createReadlineWizardIo,
   executeInstallPlan,
@@ -13,6 +14,7 @@ import {
   readInstallLock,
   renderEnvFile,
   renderMindoryConfigJson,
+  restoreMindoryRuntimeBackup,
   runInstallWizard,
   uninstallMindoryHome,
   updateInstallAssets
@@ -42,6 +44,10 @@ try {
     runRepairCommand();
   } else if (command === "update") {
     await runUpdateCommand();
+  } else if (command === "backup") {
+    await runBackupCommand();
+  } else if (command === "restore") {
+    await runRestoreCommand();
   } else if (command === "uninstall") {
     runUninstallCommand();
   } else if (command === "--help" || command === "-h" || command === "help") {
@@ -52,6 +58,60 @@ try {
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error));
   process.exit(1);
+}
+
+async function runBackupCommand(): Promise<void> {
+  const home = optionValue("--home") ?? createDefaultInstallAnswers().mindoryHome;
+  const outputDirectory = optionValue("--output");
+  const label = optionValue("--label");
+  const sourceRoot = optionValue("--source");
+  try {
+    const report = await createMindoryRuntimeBackup(home, {
+      dryRun: args.includes("--dry-run"),
+      includeConfig: !args.includes("--no-config"),
+      includePostgres: !args.includes("--no-postgres"),
+      includeObjects: !args.includes("--no-objects"),
+      owner: "mindory-installer-cli",
+      ...(outputDirectory === undefined ? {} : { outputDirectory }),
+      ...(label === undefined ? {} : { label }),
+      ...(sourceRoot === undefined ? {} : { sourceRoot })
+    });
+    printJson({
+      status: report.dryRun ? "backup_dry_run" : "backed_up",
+      mindoryHome: home,
+      ...report
+    });
+  } catch (error) {
+    printJson({ diagnostic: formatInstallerDiagnostic(error) });
+    process.exitCode = 1;
+  }
+}
+
+async function runRestoreCommand(): Promise<void> {
+  const home = optionValue("--home") ?? createDefaultInstallAnswers().mindoryHome;
+  const backupPath = optionValue("--backup");
+  const sourceRoot = optionValue("--source");
+  if (backupPath === undefined) {
+    throw new Error("restore requires --backup <path>.");
+  }
+  try {
+    const report = await restoreMindoryRuntimeBackup(home, backupPath, {
+      yes: args.includes("--yes"),
+      restoreConfig: !args.includes("--no-config"),
+      restorePostgres: !args.includes("--no-postgres"),
+      restoreObjects: !args.includes("--no-objects"),
+      owner: "mindory-installer-cli",
+      ...(sourceRoot === undefined ? {} : { sourceRoot })
+    });
+    printJson({
+      status: "restored",
+      mindoryHome: home,
+      ...report
+    });
+  } catch (error) {
+    printJson({ diagnostic: formatInstallerDiagnostic(error) });
+    process.exitCode = 1;
+  }
 }
 
 async function runUpdateCommand(): Promise<void> {
@@ -220,6 +280,8 @@ Usage:
   mindory-installer resume [--home <path>]
   mindory-installer repair [--home <path>]
   mindory-installer update [--home <path>] [--source <path>] [--dry-run]
+  mindory-installer backup [--home <path>] [--output <path>] [--label <name>] [--dry-run] [--no-postgres] [--no-objects]
+  mindory-installer restore --home <path> --backup <path> --yes [--no-postgres] [--no-objects] [--no-config]
   mindory-installer uninstall --home <path> --yes [--backup]
 
 The prepare command writes the local MINDORY_HOME directory tree, generated

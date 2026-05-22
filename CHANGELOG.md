@@ -20,6 +20,8 @@ documentation.
 
 ### Added
 
+- `TASK-85`: installer runtime backup/restore commands for config, installer
+  metadata, PostgreSQL dumps and local object storage state.
 - `TASK-84`: observability baseline with structured log helpers, model audit
   queries, in-process job/stage metrics, health snapshots and rate-limit docs.
 - `TASK-83`: Hermes-like runtime hook registration plus fake-compatible harness

@@ -44,6 +44,8 @@ for (const symbol of [
   "InstallCommandRunner",
   "updateInstallAssets",
   "uninstallMindoryHome",
+  "createMindoryRuntimeBackup",
+  "restoreMindoryRuntimeBackup",
   "inspectInstallState",
   "buildWizardPromptPlan",
   "runInstallWizard",
@@ -60,7 +62,7 @@ for (const symbol of [
 for (const token of ["CONFIG_CATALOG", "llmRoleProviderSupportStatus", "llmRoleSupportStatus", "MINDORY_HOME_DIRECTORIES", "composeProfilesForAnswers", "redactEnvMap"]) {
   assert(installerSource.includes(token), `Installer core must include ${token}.`);
 }
-for (const token of ["command === \"start\"", "stopBeforeStepId: null", "initialTokenPath", "mindory-installer start", "command === \"update\"", "command === \"uninstall\""]) {
+for (const token of ["command === \"start\"", "stopBeforeStepId: null", "initialTokenPath", "mindory-installer start", "command === \"update\"", "command === \"backup\"", "command === \"restore\"", "command === \"uninstall\""]) {
   assert(installerCli.includes(token), `Installer CLI must expose startup command token ${token}.`);
 }
 
