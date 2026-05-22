@@ -153,6 +153,8 @@ export interface MindoryConfig {
     };
     localCommand: {
       timeoutMs: number;
+      healthcheckCommand: string;
+      healthcheckArgs: string[];
     };
   };
   mcp: {
@@ -411,7 +413,9 @@ export function loadMindoryConfig(env: EnvSource = process.env): MindoryConfig {
         baseUrl: readString(env, "MINDORY_LLM_LOCAL_HTTP_BASE_URL", catalogString("MINDORY_LLM_LOCAL_HTTP_BASE_URL"))
       },
       localCommand: {
-        timeoutMs: readNumber(env, "MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS", catalogNumber("MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS"))
+        timeoutMs: readNumber(env, "MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS", catalogNumber("MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS")),
+        healthcheckCommand: readString(env, "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND", catalogString("MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND")),
+        healthcheckArgs: readStringArray(env, "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS", catalogString("MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS"))
       }
     },
     mcp: {
@@ -558,6 +562,13 @@ function validateLlmConfig(config: MindoryConfig): void {
 
   if (usesLlmProvider(config, "local-http") && config.llm.localHttp.baseUrl.trim() === "") {
     throw new Error("MINDORY_LLM_LOCAL_HTTP_BASE_URL is required when a local HTTP capability is enabled.");
+  }
+
+  if (config.llm.localCommand.timeoutMs <= 0) {
+    throw new Error("MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS must be greater than zero.");
+  }
+  if (usesLlmProvider(config, "local-command") && config.llm.localCommand.healthcheckCommand.trim() === "") {
+    throw new Error("MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND is required when a local-command capability is enabled.");
   }
 }
 

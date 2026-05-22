@@ -54,6 +54,7 @@ assert(rootPackage.scripts?.["installer:validate"]?.includes("scripts/validate-i
 assert(rootTsconfig.references?.some((reference) => reference.path === "packages/installer"), "Root tsconfig must reference @mindory/installer.");
 assert(installerPackage.name === "@mindory/installer", "Installer package must be named @mindory/installer.");
 assert(installerPackage.dependencies?.["@mindory/config"] === "workspace:*", "Installer core must depend on @mindory/config.");
+assert(installerPackage.dependencies?.["@mindory/llm"] === "workspace:*", "Installer core must depend on @mindory/llm for local-command provider healthchecks.");
 assert(installerPackage.dependencies?.["@mindory/storage-s3"] === "workspace:*", "Installer core must depend on @mindory/storage-s3 for S3 credential checks.");
 
 for (const symbol of [
@@ -82,16 +83,22 @@ for (const symbol of [
   "checkS3StorageAccess",
   "formatInstallerDiagnostic",
   "ClamAvInstallerHealthError",
-  "checkClamAvInstallerHealth"
+  "checkClamAvInstallerHealth",
+  "checkLocalCommandLlmInstallerHealth"
 ]) {
   assert(installerSource.includes(symbol), `Installer core must expose ${symbol}.`);
 }
-for (const token of ["CONFIG_CATALOG", "llmRoleProviderSupportStatus", "llmRoleSupportStatus", "MINDORY_HOME_DIRECTORIES", "composeProfilesForAnswers", "redactEnvMap"]) {
+for (const token of ["CONFIG_CATALOG", "llmRoleProviderSupportStatus", "llmRoleSupportStatus", "checkMindoryLlmProviderHealth", "MINDORY_HOME_DIRECTORIES", "composeProfilesForAnswers", "redactEnvMap"]) {
   assert(installerSource.includes(token), `Installer core must include ${token}.`);
 }
 for (const token of ["MINDORY_CLAMAV_HEALTH_RETRIES", "MINDORY_CLAMAV_HEALTH_TIMEOUT_MS"]) {
   assert(installerSource.includes(token), `Installer ClamAV health must include ${token}.`);
   assert(envExample.includes(token), `.env.example must include ${token}.`);
+}
+for (const token of ["MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND", "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS"]) {
+  assert(installerSource.includes(token), `Installer local-command health must include ${token}.`);
+  assert(envExample.includes(token), `.env.example must include ${token}.`);
+  assert(composeFile.includes(token), `docker-compose.yml must include ${token}.`);
 }
 for (const token of ["infected_probe_not_detected", "unexpected_infected_result", "daemon_unavailable", "protocol_failure"]) {
   assert(installerSource.includes(token), `Installer ClamAV health must include ${token}.`);
@@ -121,7 +128,9 @@ for (const promptId of [
   "tokens.cli_api_token",
   "llm.TEXT_EMBEDDING.enabled",
   "llm.TEXT_EMBEDDING.provider",
-  "llm.OCR.enabled"
+  "llm.OCR.enabled",
+  "llm.local_command.healthcheck_command",
+  "llm.local_command.healthcheck_args"
 ]) {
   assert(wizardPromptIds.includes(promptId), `Wizard prompt plan must include ${promptId}.`);
 }
@@ -239,6 +248,14 @@ const healthyComposePs = JSON.stringify([
   { Service: "mcp", State: "running", Health: "healthy" },
   { Service: "migrate", State: "exited", ExitCode: "0" }
 ]);
+const healthyNoClamAvComposePs = JSON.stringify([
+  { Service: "postgres", State: "running", Health: "healthy" },
+  { Service: "redis", State: "running", Health: "healthy" },
+  { Service: "api", State: "running", Health: "healthy" },
+  { Service: "worker", State: "running", Health: "healthy" },
+  { Service: "mcp", State: "running", Health: "healthy" },
+  { Service: "migrate", State: "exited", ExitCode: "0" }
+]);
 const healthyQdrantComposePs = JSON.stringify([
   { Service: "postgres", State: "running", Health: "healthy" },
   { Service: "redis", State: "running", Health: "healthy" },
@@ -288,6 +305,64 @@ for (const token of ["pull --ignore-buildable", "build", "up -d postgres redis c
 assert(composeCommands.some((command) => command.includes("exec -T clamav sh -lc") && command.includes("clamdscan")), "Installer health-check must execute ClamAV scan probes.");
 assert(composeCommands.some((command) => command.includes("EICAR-STANDARD-ANTIVIRUS-TEST-FILE")), "Installer health-check must verify an infected EICAR probe.");
 fs.rmSync(composeHome, { recursive: true, force: true });
+
+const localCommandHome = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-installer-local-command-"));
+fs.rmSync(localCommandHome, { recursive: true, force: true });
+const localCommandCalls = [];
+const localCommandAudits = [];
+await installer.executeInstallPlan(installer.createDefaultInstallAnswers({
+  mindoryHome: localCommandHome,
+  allowExperimental: true,
+  antivirus: { mode: "disabled", provider: "disabled", clamavPlatform: "linux/amd64" },
+  llmProviders: {
+    localCommandHealthcheckCommand: "mindory-local-health",
+    localCommandHealthcheckArgs: ["healthcheck", "--role", "{role}", "--model", "{model}"]
+  },
+  llmRoles: {
+    TEXT_EMBEDDING: {
+      enabled: true,
+      provider: "local-command",
+      model: "local-command-embedding",
+      required: false,
+      timeoutMs: 1000,
+      concurrency: 1,
+      dimensions: 1536
+    }
+  }
+}), {
+  sourceRoot: root,
+  owner: "validator",
+  stopBeforeStepId: "create-first-token",
+  timeoutMs: 100,
+  pollIntervalMs: 1,
+  apiReadyCheck: async () => true,
+  commandRunner: {
+    async run(command, args) {
+      if (args.includes("ps")) {
+        return { status: 0, stdout: healthyNoClamAvComposePs, stderr: "" };
+      }
+      return { status: 0, stdout: "ok", stderr: "" };
+    }
+  },
+  llmAuditSink: (audit) => localCommandAudits.push(audit),
+  llmCommandRunner: {
+    async run(command, args) {
+      localCommandCalls.push({ command, args });
+      const role = args[args.indexOf("--role") + 1];
+      const model = args[args.indexOf("--model") + 1];
+      return {
+        status: 0,
+        stdout: JSON.stringify({ status: "ok", provider: "local-command", role, model }),
+        stderr: ""
+      };
+    }
+  }
+});
+assert(localCommandCalls[0]?.command === "mindory-local-health", "Installer health-check must execute configured local-command healthcheck command.");
+assert(localCommandCalls[0]?.args.includes("text-embedding"), "Installer local-command healthcheck must render the configured role argument.");
+assert(localCommandCalls[0]?.args.includes("local-command-embedding"), "Installer local-command healthcheck must render the configured model argument.");
+assert(localCommandAudits.some((audit) => audit.role === "text-embedding" && audit.provider === "local-command" && audit.status === "success"), "Installer local-command healthcheck must emit audit events.");
+fs.rmSync(localCommandHome, { recursive: true, force: true });
 
 const clamAvHealthPlan = installer.createInstallPlan(installer.createDefaultInstallAnswers({
   mindoryHome: "/tmp/mindory-clamav-health-validator"
@@ -817,10 +892,20 @@ const futureProviderAnswers = installer.createDefaultInstallAnswers({
 });
 const futureProviderErrors = installer.validateInstallAnswers(futureProviderAnswers);
 assert(futureProviderErrors.some((error) => error.includes("provider local-command requires experimental mode")), "Installer validation must block future LLM providers unless experimental mode is enabled.");
+assert(futureProviderErrors.some((error) => error.includes("localCommandHealthcheckCommand is required")), "Installer validation must require local-command healthcheck command when local-command provider is enabled.");
 const allowedFutureProviderErrors = installer.validateInstallAnswers({
   ...futureProviderAnswers,
   allowExperimental: true
 });
 assert(!allowedFutureProviderErrors.some((error) => error.includes("requires experimental mode")), "Installer validation must allow future LLM providers when experimental mode is enabled.");
+const configuredLocalCommandProviderErrors = installer.validateInstallAnswers(installer.createDefaultInstallAnswers({
+  ...futureProviderAnswers,
+  allowExperimental: true,
+  llmProviders: {
+    localCommandHealthcheckCommand: "mindory-local-health",
+    localCommandHealthcheckArgs: ["healthcheck", "--role", "{role}", "--model", "{model}"]
+  }
+}));
+assert(configuredLocalCommandProviderErrors.length === 0, "Installer validation must accept configured local-command healthcheck contract when experimental mode is enabled.");
 
 console.log("Installer core and wizard validated.");

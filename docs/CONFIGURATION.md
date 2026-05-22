@@ -277,8 +277,13 @@ paths. The service must answer `GET /health`, `POST /chat/completions`,
 OpenAI-compatible response shapes plus simple `{ text }`, `{ output }`,
 `{ embeddings }`, OCR `{ pages }`, vision `{ caption, labels }`, ASR
 `{ text, segments }` and face `{ faces }` bodies.
-`MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS` controls the default guardrail for
-future `local-command` adapters.
+
+`MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND` and
+`MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS` configure the executable preflight
+for `local-command` providers. The args value is a JSON string array; `{role}`
+and `{model}` are rendered for each enabled role. The command must print JSON
+with `status`, `provider`, `role` and `model`, and
+`MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS` bounds each healthcheck execution.
 
 Local-command video keyframe extraction uses its own command settings:
 

@@ -412,7 +412,19 @@ export const CONFIG_CATALOG = [
   }),
   entry("MINDORY_LLM_OLLAMA_BASE_URL", "llm", "string", "http://ollama:11434", "Ollama base URL.", "both", "supported"),
   entry("MINDORY_LLM_LOCAL_HTTP_BASE_URL", "llm", "string", "http://llm:8080", "Local HTTP model server base URL.", "both", "supported"),
-  entry("MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS", "llm", "number", "120000", "Default timeout for local command providers.", "both", "future"),
+  entry("MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS", "llm", "number", "120000", "Default timeout for local-command provider healthchecks and operations.", "both", "experimental"),
+  entry("MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND", "llm", "string", "", "Executable used for local-command provider healthchecks.", "both", "experimental", {
+    prompt: {
+      label: "Local-command healthcheck executable",
+      help: "Absolute path or PATH-resolved executable that prints the healthcheck JSON contract to stdout."
+    }
+  }),
+  entry("MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS", "llm", "string", "[\"healthcheck\",\"--role\",\"{role}\",\"--model\",\"{model}\"]", "JSON array of arguments for local-command provider healthchecks. {role} and {model} are replaced per configured role.", "both", "experimental", {
+    prompt: {
+      label: "Local-command healthcheck args",
+      help: "JSON string array passed to the executable. Use {role} and {model} tokens for per-role validation."
+    }
+  }),
 
   entry("MINDORY_MCP_ENABLED", "mcp", "boolean", "true", "Enable the MCP stdio server.", "runtime", "supported"),
   entry("MINDORY_MCP_TRANSPORT", "mcp", "enum", "stdio", "MCP transport.", "runtime", "supported", {

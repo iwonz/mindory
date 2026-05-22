@@ -849,6 +849,8 @@ MINDORY_LLM_OPENAI_OAUTH_ACCESS_TOKEN=
 MINDORY_LLM_OLLAMA_BASE_URL=http://ollama:11434
 MINDORY_LLM_LOCAL_HTTP_BASE_URL=http://llm:8080
 MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS=120000
+MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND=
+MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS=["healthcheck","--role","{role}","--model","{model}"]
 
 # -----------------------------------------------------------------------------
 # MCP

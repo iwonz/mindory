@@ -19,6 +19,7 @@ import { cwd as processCwd, env as processEnv, pid as processPid, stdin as defau
 import { createInterface, type Interface as ReadlineInterface } from "node:readline/promises";
 import {
   CONFIG_CATALOG,
+  loadMindoryConfig,
   llmRoleProviderSupportStatus,
   llmRoleSupportStatus,
   type AntivirusMode,
@@ -31,6 +32,12 @@ import {
   type StorageProvider,
   type VectorProvider
 } from "@mindory/config";
+import {
+  checkMindoryLlmProviderHealth,
+  type LlmAuditSink,
+  type LlmLocalCommandRunner,
+  type LlmProviderHealth
+} from "@mindory/llm";
 import { S3ObjectStorage } from "@mindory/storage-s3";
 
 export const INSTALLER_SCHEMA_VERSION = 1;
@@ -130,6 +137,8 @@ export interface LlmProviderAnswers {
   ollamaBaseUrl: string;
   localHttpBaseUrl: string;
   localCommandTimeoutMs: number;
+  localCommandHealthcheckCommand: string;
+  localCommandHealthcheckArgs: string[];
 }
 
 export interface InterfaceAnswers {
@@ -348,6 +357,8 @@ export interface InstallExecutionOptions {
   timeoutMs?: number;
   pollIntervalMs?: number;
   commandRunner?: InstallCommandRunner;
+  llmCommandRunner?: LlmLocalCommandRunner;
+  llmAuditSink?: LlmAuditSink;
   apiReadyCheck?: (url: string) => Promise<boolean> | boolean;
   firstRunCredentials?: FirstRunCredentials;
   s3FetchImpl?: typeof fetch;
@@ -533,7 +544,9 @@ export function createDefaultInstallAnswers(overrides: Partial<MindoryInstallAns
       openaiOAuthAccessToken: catalogDefault("MINDORY_LLM_OPENAI_OAUTH_ACCESS_TOKEN"),
       ollamaBaseUrl: catalogDefault("MINDORY_LLM_OLLAMA_BASE_URL"),
       localHttpBaseUrl: catalogDefault("MINDORY_LLM_LOCAL_HTTP_BASE_URL"),
-      localCommandTimeoutMs: Number.parseInt(catalogDefault("MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS"), 10)
+      localCommandTimeoutMs: Number.parseInt(catalogDefault("MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS"), 10),
+      localCommandHealthcheckCommand: catalogDefault("MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND"),
+      localCommandHealthcheckArgs: parseJsonStringArray(catalogDefault("MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS"), "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS")
     },
     interfaces: {
       apiPort: Number.parseInt(catalogDefault("MINDORY_API_PORT"), 10),
@@ -616,6 +629,17 @@ export function validateInstallAnswers(answers: MindoryInstallAnswers): string[]
     }
     if (roleAnswers.enabled && roleAnswers.provider !== "disabled" && roleAnswers.model.trim() === "") {
       errors.push(`llmRoles.${role}.model is required when the role is enabled.`);
+    }
+  }
+  if (answers.llmProviders.localCommandTimeoutMs <= 0) {
+    errors.push("llmProviders.localCommandTimeoutMs must be greater than zero.");
+  }
+  if (answersUsesLocalCommandProvider(answers)) {
+    if (answers.llmProviders.localCommandHealthcheckCommand.trim() === "") {
+      errors.push("llmProviders.localCommandHealthcheckCommand is required when a local-command LLM role is enabled.");
+    }
+    if (!answers.llmProviders.localCommandHealthcheckArgs.every((entry) => typeof entry === "string")) {
+      errors.push("llmProviders.localCommandHealthcheckArgs must be a JSON string array.");
     }
   }
   return errors;
@@ -1219,6 +1243,8 @@ export function answersToEnvMap(answers: MindoryInstallAnswers): Record<string, 
   assign(env, "MINDORY_LLM_OLLAMA_BASE_URL", answers.llmProviders.ollamaBaseUrl);
   assign(env, "MINDORY_LLM_LOCAL_HTTP_BASE_URL", answers.llmProviders.localHttpBaseUrl);
   assign(env, "MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS", String(answers.llmProviders.localCommandTimeoutMs));
+  assign(env, "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND", answers.llmProviders.localCommandHealthcheckCommand);
+  assign(env, "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS", JSON.stringify(answers.llmProviders.localCommandHealthcheckArgs));
   assign(env, "MINDORY_MCP_ENABLED", bool(answers.interfaces.mcpEnabled));
   assign(env, "MINDORY_HERMES_ADAPTER_ENABLED", bool(answers.interfaces.hermesEnabled));
   assign(env, "MINDORY_MCP_API_TOKEN", answers.tokens.mcpApiToken);
@@ -1261,6 +1287,7 @@ export function renderMindoryConfigJson(answers: MindoryInstallAnswers): string 
     antivirus: answers.antivirus,
     modalities: answers.modalities,
     llm_roles: answers.llmRoles,
+    llm_providers: answers.llmProviders,
     interfaces: answers.interfaces
   }, null, 2)}\n`;
 }
@@ -1319,6 +1346,10 @@ export function composeProfilesForAnswers(answers: MindoryInstallAnswers): strin
   return Array.from(profiles).sort();
 }
 
+function answersUsesLocalCommandProvider(answers: MindoryInstallAnswers): boolean {
+  return Object.values(answers.llmRoles).some((roleAnswers) => roleAnswers?.enabled === true && roleAnswers.provider === "local-command");
+}
+
 export function buildWizardPromptPlan(options: WizardOptions = {}): WizardPrompt[] {
   const answers = createDefaultInstallAnswers(options.initialAnswers);
   const prompts: WizardPrompt[] = [
@@ -1374,6 +1405,8 @@ export function buildWizardPromptPlan(options: WizardOptions = {}): WizardPrompt
       prompts.push(promptFromEntry(`llm.${role}.dimensions`, dimensionsEntry, "number"));
     }
   }
+  prompts.push(promptFromCatalog("llm.local_command.healthcheck_command", "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND", "text"));
+  prompts.push(promptFromCatalog("llm.local_command.healthcheck_args", "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS", "text"));
 
   return prompts.map((promptItem) => {
     if (promptItem.defaultValue !== "") {
@@ -1470,6 +1503,14 @@ export async function runInstallWizard(io: WizardIo, options: WizardOptions = {}
       roleAnswers.dimensions = dimensions.trim() === "" ? null : Number.parseInt(dimensions, 10);
     }
     answers.llmRoles[role] = roleAnswers;
+  }
+
+  if (answersUsesLocalCommandProvider(answers)) {
+    answers.llmProviders.localCommandHealthcheckCommand = await askString(io, promptFromCatalog("llm.local_command.healthcheck_command", "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND", "text"));
+    answers.llmProviders.localCommandHealthcheckArgs = parseJsonStringArray(
+      await askString(io, promptFromCatalog("llm.local_command.healthcheck_args", "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS", "text")),
+      "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS"
+    );
   }
 
   answers.interfaces.apiPort = await askNumber(io, promptFromCatalog("interfaces.api_port", "MINDORY_API_PORT", "number"));
@@ -1761,6 +1802,7 @@ async function startComposeRuntime(plan: InstallPlan, options: InstallExecutionO
 async function runInstallHealthChecks(plan: InstallPlan, options: InstallExecutionOptions): Promise<void> {
   await waitForComposeServices(plan, options);
   await checkClamAvInstallerHealth(plan, options);
+  await checkLocalCommandLlmInstallerHealth(plan, options);
   await waitForApiReady(plan, options);
 }
 
@@ -1843,6 +1885,28 @@ export async function checkClamAvInstallerHealth(plan: InstallPlan, options: Ins
   });
 }
 
+export async function checkLocalCommandLlmInstallerHealth(plan: InstallPlan, options: InstallExecutionOptions = {}): Promise<LlmProviderHealth | null> {
+  if (!planUsesLocalCommandProvider(plan)) {
+    return null;
+  }
+  const config = loadMindoryConfig(plan.environment);
+  const healthOptions: {
+    commandRunner?: LlmLocalCommandRunner;
+    auditSink?: LlmAuditSink;
+  } = {};
+  if (options.llmCommandRunner !== undefined) {
+    healthOptions.commandRunner = options.llmCommandRunner;
+  }
+  if (options.llmAuditSink !== undefined) {
+    healthOptions.auditSink = options.llmAuditSink;
+  }
+  const health = await checkMindoryLlmProviderHealth(config, "local-command", healthOptions);
+  if (health.status === "ok") {
+    return health;
+  }
+  throw new Error(formatLocalCommandLlmHealthFailure(health));
+}
+
 async function provisionFirstRunToken(plan: InstallPlan, stepItem: InstallPlanStep, options: InstallExecutionOptions): Promise<void> {
   const credentials = options.firstRunCredentials ?? generateFirstRunCredentials(plan);
   const targetPath = path.join(plan.mindoryHome, "config", "initial-token.json");
@@ -1914,6 +1978,27 @@ function isClamAvDetailedHealthCandidate(plan: InstallPlan, record: Record<strin
 
 function isClamAvInstallerEnabled(plan: InstallPlan): boolean {
   return plan.environment.MINDORY_AV_MODE !== "disabled" && plan.environment.MINDORY_AV_PROVIDER === "clamav";
+}
+
+function planUsesLocalCommandProvider(plan: InstallPlan): boolean {
+  return LLM_ROLE_KEYS.some((role) =>
+    plan.environment[`MINDORY_LLM_${role}_ENABLED`] === "true" &&
+    plan.environment[`MINDORY_LLM_${role}_PROVIDER`] === "local-command"
+  );
+}
+
+function formatLocalCommandLlmHealthFailure(health: LlmProviderHealth): string {
+  const checks = health.checks ?? [];
+  const failedChecks = checks.filter((check) => check.status === "failed");
+  const details = failedChecks.map((check) =>
+    `${check.role}/${check.model}: ${check.errorCode ?? "local_command_healthcheck_failed"}${check.errorMessage === undefined ? "" : ` - ${check.errorMessage}`}`
+  );
+  const summary = health.errorMessage ?? "local-command LLM healthcheck failed.";
+  return [
+    summary,
+    "Verify MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND, MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS and the configured role/model names.",
+    ...details
+  ].join(" ");
 }
 
 function storageBootstrapServices(plan: InstallPlan): string[] {
@@ -2745,7 +2830,9 @@ function promptIdToEnvName(promptId: string): string | undefined {
     "interfaces.hermes_enabled": "MINDORY_HERMES_ADAPTER_ENABLED",
     "tokens.mcp_api_token": "MINDORY_MCP_API_TOKEN",
     "tokens.cli_api_token": "MINDORY_CLI_API_TOKEN",
-    "tokens.hermes_api_token": "MINDORY_HERMES_API_TOKEN"
+    "tokens.hermes_api_token": "MINDORY_HERMES_API_TOKEN",
+    "llm.local_command.healthcheck_command": "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND",
+    "llm.local_command.healthcheck_args": "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS"
   };
   if (direct[promptId] !== undefined) {
     return direct[promptId];
@@ -2872,6 +2959,18 @@ function assign(env: Record<string, string>, name: string, value: string): void 
 
 function bool(value: boolean): string {
   return value ? "true" : "false";
+}
+
+function parseJsonStringArray(value: string, label: string): string[] {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!Array.isArray(parsed) || !parsed.every((entry) => typeof entry === "string")) {
+      throw new Error("expected a JSON array of strings");
+    }
+    return parsed;
+  } catch (error) {
+    throw new Error(`${label} must be a JSON array of strings: ${errorToString(error)}.`);
+  }
 }
 
 function isSecretEntry(entry: ConfigCatalogEntry): boolean {

@@ -65,6 +65,7 @@ All model operations must go through `@mindory/llm`.
 | Disabled model roles | Supported | Disabled attempts are handled and audited. |
 | Text embeddings | Supported | OpenAI-compatible, Ollama and local HTTP provider flows are implemented through `@mindory/llm`; pgvector requires 1536-dimensional vectors. |
 | Chat | Supported SDK adapter | OpenAI-compatible API-key/OAuth modes and local HTTP chat are implemented in `@mindory/llm`; product flows do not require chat by default. |
+| Local-command provider healthchecks | Supported preflight | `@mindory/llm` and installer execute the configured command per enabled role, validate JSON role/model compatibility, enforce timeout and emit audit events. |
 | OCR | Experimental role, supported PDF/image paths | Scanned-PDF and image OCR run through `@mindory/llm` local HTTP OCR when enabled. |
 | Vision captioning and image embeddings | Experimental | Image vision captioning runs through `@mindory/llm` local HTTP when enabled; image embeddings remain future hardening. |
 | ASR | Experimental | Audio ASR runs through `@mindory/llm` local HTTP when enabled; embedded WAV transcript fallback remains supported. |

@@ -96,7 +96,7 @@ function isAllowedBuildOutput(relativePath) {
 }
 
 function buildInstallerArtifacts() {
-  const result = spawnSync("pnpm", ["--filter", "@mindory/storage-s3", "--filter", "@mindory/installer", "typecheck"], {
+  const result = spawnSync("pnpm", ["--filter", "@mindory/llm", "--filter", "@mindory/storage-s3", "--filter", "@mindory/installer", "typecheck"], {
     cwd: root,
     encoding: "utf8"
   });
@@ -183,12 +183,18 @@ const allowedBuildOutputRoots = [
   path.join("packages", "core", "dist"),
   path.join("packages", "config", "dist"),
   path.join("packages", "installer", "dist"),
+  path.join("packages", "llm", "dist"),
+  path.join("packages", "processors", "embeddings", "openai-compatible", "dist"),
+  path.join("packages", "processors", "embeddings", "ollama", "dist"),
   path.join("packages", "storage", "s3", "dist")
 ];
 
 const packagedWorkspacePackages = [
   "packages/config",
   "packages/core",
+  "packages/llm",
+  "packages/processors/embeddings/openai-compatible",
+  "packages/processors/embeddings/ollama",
   "packages/storage/s3"
 ];
 
