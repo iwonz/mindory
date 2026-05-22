@@ -1,0 +1,64 @@
+{
+  "id": "TASK-69",
+  "title": "Harden release bundle and bootstrap path",
+  "status": "done",
+  "type": "chore",
+  "priority": "high",
+  "branch": "task/TASK-69-release-bundle-bootstrap-hardening",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Add a repeatable release bundle generator and harden shell/PowerShell bootstrap extraction for local and hosted release manifests.",
+    "background": "The installer can prepare, start, provision and manage local lifecycle operations. The bootstrap path now needs a concrete bundle layout, manifest generation and safer staging before public release work."
+  },
+  "scope": {
+    "in": [
+      "Add a release bundle builder that emits a tar.gz bundle and env-style manifest with SHA-256.",
+      "Include the source-style runtime, installer, Compose assets, docs and task metadata in the bundle while excluding local build outputs and dependencies.",
+      "Support local paths, file:// URLs and remote URLs in bootstrap bundle download.",
+      "Extract release bundles into a staging directory and promote only after successful extraction.",
+      "Improve bootstrap diagnostics for checksum, extraction and promotion failures.",
+      "Validate bootstrap scripts and generated release manifests in the dry-run acceptance path.",
+      "Document release bundle creation and local manifest testing."
+    ],
+    "out": [
+      "GitHub release publishing.",
+      "Signed release manifests.",
+      "Binary packaging for the installer.",
+      "CI release automation.",
+      "Remote update orchestration."
+    ]
+  },
+  "acceptance_criteria": [
+    "A `pnpm release:bundle -- --version <version>` command creates a release tarball and manifest.",
+    "The manifest includes release version, bundle URL and bundle SHA-256.",
+    "Bootstrap scripts accept local bundle paths or file:// URLs in addition to hosted URLs.",
+    "Bootstrap extraction uses temporary staging and does not overwrite an existing release directory until extraction succeeds.",
+    "Bootstrap validation builds a temporary bundle and verifies the generated manifest checksum.",
+    "Installer and deployment docs describe the release bundle and bootstrap test path.",
+    "pnpm check passes."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm bootstrap:validate",
+      "pnpm installer:acceptance",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-69.",
+      "Confirm release publishing and signing are not implemented in this task."
+    ]
+  },
+  "dependencies": [
+    "TASK-68"
+  ],
+  "risks": [
+    "Release bundles must not include node_modules, local demo data or other machine-specific build outputs.",
+    "Bootstrap promotion must not destroy a previously extracted release when extraction fails."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch is committed and merged back into master."
+  ]
+}

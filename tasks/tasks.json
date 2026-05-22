@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-68",
+  "current_task_id": "TASK-69",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -512,6 +512,13 @@
       "status": "done",
       "branch": "task/TASK-68-installer-update-uninstall-repair",
       "file": "tasks/TASK-68.json"
+    },
+    {
+      "id": "TASK-69",
+      "title": "Harden release bundle and bootstrap path",
+      "status": "done",
+      "branch": "task/TASK-69-release-bundle-bootstrap-hardening",
+      "file": "tasks/TASK-69.json"
     }
   ]
 }

@@ -17,7 +17,7 @@ secrets, rate limits and structured logs are maintained in
 | Installer Compose startup | Supported as an explicit start step. It can pull/build, start infrastructure, run migrations, start API/worker/MCP and wait for health checks. |
 | Installer first-run provisioning | Supported. The start step creates the first project/token and writes `config/initial-token.json` under `$MINDORY_HOME`. |
 | Installer lifecycle operations | Supported baseline for local asset update and guarded uninstall. Remote release update and full automated resume remain future work. |
-| Release images and bundles | Manual baseline only. Publishing automation and signed release manifests are future release tasks. |
+| Release images and bundles | Bundle generation is supported with `pnpm release:bundle`. Publishing automation and signed release manifests are future release tasks. |
 | Heavy local models | Experimental. Profiles exist for wiring checks or local experiments, not as a guaranteed default install. |
 
 The expected local demo flow is:
@@ -72,7 +72,17 @@ intentional install root.
 
 `deploy/compose/release-manifest.json` lists the Compose files, Dockerfile,
 environment template and required `MINDORY_HOME` directories that release
-bundles must carry until the installer can render host-specific assets.
+bundles must carry until the installer can render host-specific assets. The
+baseline bundle builder is:
+
+```bash
+pnpm release:bundle -- --version 0.1.0
+```
+
+It writes `dist/releases/mindory-<version>.tar.gz` and a matching env-style
+manifest with the bundle SHA-256. Without `--url-base`, the manifest uses a
+local `file://` bundle URL so the bootstrap path can be tested without a remote
+release server.
 
 MCP stdio is normally launched by an MCP client, not exposed as a Compose
 network service. The Compose `mcp` service is a packaging artifact that proves

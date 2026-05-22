@@ -41,6 +41,78 @@ function Invoke-Download {
   Invoke-WebRequest -Uri $Url -OutFile $OutputPath -UseBasicParsing
 }
 
+function Copy-OrDownload {
+  param([string]$Source, [string]$OutputPath)
+  if ($Source.StartsWith("file://")) {
+    $uri = [System.Uri]$Source
+    $localPath = $uri.LocalPath
+    if (-not (Test-Path -LiteralPath $localPath)) {
+      throw "Release bundle file does not exist: $localPath"
+    }
+    Copy-Item -LiteralPath $localPath -Destination $OutputPath -Force
+    return
+  }
+  if (Test-Path -LiteralPath $Source) {
+    Copy-Item -LiteralPath $Source -Destination $OutputPath -Force
+    return
+  }
+  Invoke-Download -Url $Source -OutputPath $OutputPath
+}
+
+function Expand-MindoryRelease {
+  param(
+    [string]$BundlePath,
+    [string]$ReleaseVersion,
+    [string]$ReleaseDir,
+    [string]$ReleasesDir
+  )
+
+  $stagingDir = Join-Path $ReleasesDir "$ReleaseVersion.staging.$PID"
+  $previousDir = Join-Path $ReleasesDir "$ReleaseVersion.previous.$PID"
+  if (Test-Path -LiteralPath $stagingDir) {
+    Remove-Item -LiteralPath $stagingDir -Recurse -Force
+  }
+  if (Test-Path -LiteralPath $previousDir) {
+    Remove-Item -LiteralPath $previousDir -Recurse -Force
+  }
+  New-MindoryDirectory $stagingDir
+
+  Write-Host "Extracting Mindory release $ReleaseVersion into a staging directory..."
+  tar -xzf $BundlePath -C $stagingDir
+  if ($LASTEXITCODE -ne 0) {
+    Remove-Item -LiteralPath $stagingDir -Recurse -Force
+    throw "Failed to extract release bundle. The installed release directory was not changed."
+  }
+
+  $extractedRoot = Join-Path $stagingDir "mindory-$ReleaseVersion"
+  if (-not (Test-Path -LiteralPath $extractedRoot)) {
+    $extractedRoot = $stagingDir
+  }
+
+  if (Test-Path -LiteralPath $ReleaseDir) {
+    Move-Item -LiteralPath $ReleaseDir -Destination $previousDir
+  }
+
+  try {
+    Move-Item -LiteralPath $extractedRoot -Destination $ReleaseDir
+  } catch {
+    if (Test-Path -LiteralPath $previousDir) {
+      Move-Item -LiteralPath $previousDir -Destination $ReleaseDir
+    }
+    if (Test-Path -LiteralPath $stagingDir) {
+      Remove-Item -LiteralPath $stagingDir -Recurse -Force
+    }
+    throw "Failed to promote staged release. Previous release directory was restored when present. $($_.Exception.Message)"
+  }
+
+  if (Test-Path -LiteralPath $stagingDir) {
+    Remove-Item -LiteralPath $stagingDir -Recurse -Force
+  }
+  if (Test-Path -LiteralPath $previousDir) {
+    Remove-Item -LiteralPath $previousDir -Recurse -Force
+  }
+}
+
 function Invoke-MindoryInstaller {
   param([string]$ReleaseDir)
   $binary = Join-Path $ReleaseDir "bin/mindory-installer"
@@ -102,17 +174,14 @@ if ([string]::IsNullOrWhiteSpace($releaseVersion) -or [string]::IsNullOrWhiteSpa
 
 $bundlePath = Join-Path $downloadsDir "mindory-$releaseVersion.tar.gz"
 $releaseDir = Join-Path $releasesDir $releaseVersion
-Invoke-Download -Url $bundleUrl -OutputPath $bundlePath
+Copy-OrDownload -Source $bundleUrl -OutputPath $bundlePath
 
 $actualSha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $bundlePath).Hash.ToLowerInvariant()
 if ($actualSha256 -ne $bundleSha256.ToLowerInvariant()) {
   throw "Checksum mismatch for $bundlePath. Expected $bundleSha256, got $actualSha256."
 }
 
-New-MindoryDirectory $releaseDir
-tar -xzf $bundlePath -C $releaseDir
-if ($LASTEXITCODE -ne 0) {
-  exit $LASTEXITCODE
-}
+Write-Host "Verified Mindory release bundle checksum for $releaseVersion."
+Expand-MindoryRelease -BundlePath $bundlePath -ReleaseVersion $releaseVersion -ReleaseDir $releaseDir -ReleasesDir $releasesDir
 
 Invoke-MindoryInstaller -ReleaseDir $releaseDir
