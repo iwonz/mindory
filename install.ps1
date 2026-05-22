@@ -8,6 +8,11 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+trap {
+  Write-Error "Mindory bootstrap interrupted or failed. No further install steps will run. Use the repair command after relaunch to inspect staged state. $($_.Exception.Message)"
+  exit 130
+}
+
 if ([string]::IsNullOrWhiteSpace($MindoryHome)) {
   $MindoryHome = Join-Path $HOME ".mindory"
 }

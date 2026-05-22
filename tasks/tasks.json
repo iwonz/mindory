@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-60",
+  "current_task_id": "TASK-61",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -456,6 +456,13 @@
       "status": "done",
       "branch": "task/TASK-60-bootstrap-scripts",
       "file": "tasks/TASK-60.json"
+    },
+    {
+      "id": "TASK-61",
+      "title": "Add installer failure handling and recovery",
+      "status": "done",
+      "branch": "task/TASK-61-failure-handling-recovery",
+      "file": "tasks/TASK-61.json"
     }
   ]
 }

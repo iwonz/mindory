@@ -2,8 +2,9 @@
 
 The installer is built in layers. `TASK-58` adds the non-interactive core in
 `@mindory/installer`; `TASK-59` adds the interactive wizard layer. `TASK-60`
-adds the cross-platform bootstrap scripts and installer CLI entrypoint. Later
-tasks add failure recovery and full install acceptance.
+adds the cross-platform bootstrap scripts and installer CLI entrypoint.
+`TASK-61` adds lock, journal and diagnostic primitives. Later tasks add full
+install acceptance.
 
 ## Core Package
 
@@ -44,6 +45,9 @@ Both scripts use `MINDORY_HOME`, defaulting to `~/.mindory`, and stage release
 downloads under `$MINDORY_HOME/install/downloads` plus extracted releases under
 `$MINDORY_HOME/install/releases/<version>`.
 
+If the bootstrap receives `SIGINT`/Ctrl+C or fails, it stops further steps and
+prints a short recovery message instead of continuing after a partial operation.
+
 For dev/test mode, pass a local source or release directory:
 
 ```bash
@@ -64,14 +68,30 @@ MINDORY_RELEASE_BUNDLE_SHA256=<sha256>
 ```
 
 The bootstrap verifies the bundle checksum before extraction. Signature
-verification, interrupt recovery and resume/repair behavior are added by later
-tasks.
+verification is added by a later task.
 
 The bootstrap launches `bin/mindory-installer` when a packaged binary exists, or
 falls back to `node packages/installer/dist/cli.js wizard` for source-style
 bundles. The installer CLI currently supports `wizard`, `plan`/`dry-run` and
 `render-defaults`; it collects and validates answers but does not execute the
 install plan yet.
+
+## Recovery Surface
+
+The installer core can acquire an install lock at
+`$MINDORY_HOME/install/install.lock`, persist a transaction journal at
+`$MINDORY_HOME/install/install-journal.json` and format clear diagnostics for
+dependency or execution failures.
+
+The CLI exposes:
+
+```bash
+mindory-installer repair --home ~/.mindory
+mindory-installer resume --home ~/.mindory
+```
+
+`repair` inspects lock and journal state. `resume` reports the stored journal
+and makes clear that full resume execution is added by a later task.
 
 ## Wizard Prompts
 

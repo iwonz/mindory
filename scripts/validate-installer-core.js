@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -39,7 +40,11 @@ for (const symbol of [
   "buildRedactedInstallSummary",
   "buildWizardPromptPlan",
   "runInstallWizard",
-  "createReadlineWizardIo"
+  "createReadlineWizardIo",
+  "acquireInstallLock",
+  "writeInstallJournal",
+  "readInstallJournal",
+  "formatInstallerDiagnostic"
 ]) {
   assert(installerSource.includes(symbol), `Installer core must expose ${symbol}.`);
 }
@@ -145,6 +150,34 @@ assert(rollbackOrder.join(",") === "write-env:restore_file,write-config:restore_
 assert(rollbackReport.executions.every((execution) => execution.status === "completed"), "Rollback report must mark successful executions.");
 assert(journal.toJSON().some((entry) => entry.event === "rollback_completed"), "Journal must record rollback completion.");
 
+const failingJournal = new installer.InstallTransactionJournal();
+for (const step of completedSteps.slice(0, 1)) {
+  failingJournal.recordPlanned(step);
+  failingJournal.markCompleted(step);
+}
+const failingRollback = await installer.rollbackCompletedActions(plan, failingJournal, () => {
+  throw new Error("rollback failed");
+});
+assert(failingRollback.executions[0].status === "failed", "Rollback report must capture failed rollback outcomes.");
+assert(failingJournal.toJSON().some((entry) => entry.event === "rollback_failed"), "Journal must record rollback failure.");
+
+const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-installer-"));
+const lock = installer.acquireInstallLock(tempHome, "validator");
+assert(fs.existsSync(installer.installLockPath(tempHome)), "Install lock must be created under MINDORY_HOME/install.");
+assert(installer.readInstallLock(tempHome).owner === "validator", "Install lock must be readable.");
+let lockRejected = false;
+try {
+  installer.acquireInstallLock(tempHome, "validator-2");
+} catch (error) {
+  lockRejected = String(error).includes("Another Mindory installer run");
+}
+assert(lockRejected, "Concurrent installer lock acquisition must be rejected.");
+lock.release();
+assert(!fs.existsSync(installer.installLockPath(tempHome)), "Install lock release must remove the lock file.");
+const journalPath = installer.writeInstallJournal(tempHome, journal);
+assert(journalPath === installer.installJournalPath(tempHome), "Journal must be written to the canonical path.");
+assert(installer.readInstallJournal(tempHome).length === journal.toJSON().length, "Persisted journal must be readable.");
+
 const failedAnswers = installer.createDefaultInstallAnswers({
   mindoryHome: "",
   interfaces: { apiPort: 70000, mcpEnabled: true, hermesEnabled: false }
@@ -174,6 +207,9 @@ const dependencyChecks = installer.detectHostDependencies(installer.createDefaul
 assert(dependencyChecks.some((check) => check.id === "pnpm" && check.status === "missing"), "Dependency detector must report missing pnpm.");
 assert(dependencyChecks.some((check) => check.id === "api-port" && check.status === "failed"), "Dependency detector must report unavailable API port.");
 assert(dependencyChecks.some((check) => check.id === "disk-space" && check.status === "failed"), "Dependency detector must report insufficient disk space.");
+const diagnostic = installer.formatInstallerDiagnostic(new Error("install failed"), dependencyChecks);
+assert(diagnostic.summary === "install failed", "Installer diagnostic must include the failure summary.");
+assert(diagnostic.nextSteps.some((step) => step.includes("pnpm")), "Installer diagnostic must include dependency fixes.");
 
 const scriptedResponses = new Map([
   ["install.profile", "persistent-local"],
