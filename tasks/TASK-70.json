@@ -1,0 +1,66 @@
+{
+  "id": "TASK-70",
+  "title": "Add public GitHub hygiene",
+  "status": "done",
+  "type": "chore",
+  "priority": "high",
+  "branch": "task/TASK-70-public-github-hygiene",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Add the public repository files and policy docs needed before Mindory can be published as a self-hostable project.",
+    "background": "TASK-69 added release bundle bootstrap hardening. Public users still need license, contribution, security, issue/PR and support/status documentation before GitHub readiness work can move to CI and release publishing."
+  },
+  "scope": {
+    "in": [
+      "Add a root LICENSE file.",
+      "Add CONTRIBUTING.md with Mindory task process expectations.",
+      "Add a root SECURITY.md policy that points to runtime security docs and private vulnerability reporting.",
+      "Add issue templates and pull request template under .github.",
+      "Add changelog and release notes policy.",
+      "Add public support matrix and repository status documentation.",
+      "Update README and production hardening docs to reference the public baseline.",
+      "Add validation so pnpm check covers public GitHub hygiene files."
+    ],
+    "out": [
+      "Release artifact publishing automation.",
+      "Signed releases.",
+      "Long-term support version policy after first public release.",
+      "Maintainer governance or CODEOWNERS.",
+      "CI workflow expansion beyond existing pnpm check gate."
+    ]
+  },
+  "acceptance_criteria": [
+    "LICENSE exists and states the repository license.",
+    "CONTRIBUTING.md describes the task-scoped development process and checks.",
+    "Root SECURITY.md describes vulnerability reporting and supported versions.",
+    "GitHub issue and pull request templates exist.",
+    "CHANGELOG.md documents the release notes policy.",
+    "Docs include a public support matrix and repository status.",
+    "README links the public repository files.",
+    "pnpm check validates the public GitHub hygiene baseline."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm public:validate",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-70.",
+      "Confirm no release publishing or signed release automation was added."
+    ]
+  },
+  "dependencies": [
+    "TASK-69"
+  ],
+  "risks": [
+    "Public docs must not overstate experimental or future functionality.",
+    "Security reporting instructions must not invite public disclosure of vulnerabilities or secrets."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch is committed and merged back into master."
+  ]
+}

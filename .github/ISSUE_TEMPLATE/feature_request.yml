@@ -1,0 +1,59 @@
+name: Feature request
+description: Propose a scoped improvement or future Mindory capability.
+title: "feature: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Mindory work is task-scoped. A maintainer may convert accepted requests into a TASK file.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user or operator problem should this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe the smallest useful version.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - API
+        - worker pipeline
+        - installer
+        - CLI
+        - MCP
+        - Hermes adapter
+        - storage/search
+        - LLM/model role
+        - documentation
+        - operations
+        - other
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: What would prove the feature works?
+      placeholder: |
+        - ...
+        - ...
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I checked README.md and docs/SUPPORT_MATRIX.md for current support level.
+          required: true
+        - label: This request does not include secrets or private deployment data.
+          required: true

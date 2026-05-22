@@ -3,6 +3,8 @@
 Mindory MVP uses project-level authorization through access tokens. Tokens can
 grant permissions across one or more projects.
 
+Public vulnerability reporting expectations live in the root `SECURITY.md`.
+
 `TASK-17` makes API runtime authorization active. Raw bearer tokens are never
 stored by the API; the runtime hashes presented tokens with SHA-256 and compares
 them with `access_tokens.token_hash`. Active, non-expired tokens receive their

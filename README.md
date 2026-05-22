@@ -8,7 +8,7 @@ The canonical product and engineering specification is `docs/PRD.md`.
 
 ## Repository Status
 
-This repository is complete through `TASK-63`. Mindory can run a local
+This repository is complete through `TASK-70`. Mindory can run a local
 demo-MVP through Docker Compose, seed demo credentials, process uploaded
 documents through the worker pipeline and run live acceptance. `pnpm check`
 passes through the repo validation, typecheck, lint, tests and dry-run
@@ -27,6 +27,16 @@ experimental/profile-smoke surfaces and future work:
 | Interfaces | Supported local MVP: HTTP API, CLI and MCP stdio tools call the API. Hermes adapter exposes the lifecycle surface but does not import or verify against a real Hermes SDK yet. |
 | Installer | Supported today: wizard, plan/dry-run, prepare execution for `$MINDORY_HOME` directories/config/compose assets, Docker Compose startup through health checks, first project/token provisioning, local asset update, guarded uninstall, dependency detection, lock/journal diagnostics, bootstrap staging and installer acceptance. Future: remote release update and full automated resume execution. |
 | Deployment | Supported local MVP: Compose stack with single-home bind mounts under `MINDORY_HOME`, defaulting to `${HOME}/.mindory` outside demo scripts. Future: release artifact publishing and production-grade update/rollback automation. |
+
+Public repository files:
+
+- `LICENSE`: Apache-2.0 license.
+- `CONTRIBUTING.md`: contributor workflow and task process.
+- `SECURITY.md`: vulnerability reporting policy.
+- `CHANGELOG.md`: changelog and release notes policy.
+- `docs/REPOSITORY_STATUS.md`: current public repository status.
+- `docs/SUPPORT_MATRIX.md`: supported, experimental, placeholder and future
+  capability matrix.
 
 ## Development Process
 

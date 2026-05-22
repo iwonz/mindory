@@ -1,0 +1,67 @@
+name: Bug report
+description: Report a reproducible problem in a supported Mindory path.
+title: "bug: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for supported local MVP behavior. Do not include secrets or real tokens.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What failed, and what did you expect instead?
+    validations:
+      required: true
+  - type: dropdown
+    id: support-level
+    attributes:
+      label: Support level
+      options:
+        - supported
+        - experimental
+        - placeholder/profile-smoke
+        - future/unknown
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+      description: Include exact commands such as pnpm check, pnpm test or pnpm mvp:demo.
+      placeholder: |
+        1. Run ...
+        2. Upload ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include OS, Node.js, pnpm, Docker Compose and Mindory commit/tag.
+      placeholder: |
+        OS:
+        Node.js:
+        pnpm:
+        Docker Compose:
+        Mindory commit/tag:
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or output
+      description: Paste relevant output with tokens, URLs, credentials and personal data redacted.
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I removed secrets and personal data.
+          required: true
+        - label: I checked docs/SUPPORT_MATRIX.md for the support level.
+          required: true
