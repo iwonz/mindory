@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-110",
+  "current_task_id": "TASK-111",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -810,7 +810,7 @@
     {
       "id": "TASK-111",
       "title": "Add Hermes runtime integration package",
-      "status": "draft",
+      "status": "done",
       "branch": "task/TASK-111-hermes-runtime-integration-package",
       "file": "tasks/TASK-111.json"
     },

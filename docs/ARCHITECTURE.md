@@ -21,31 +21,31 @@ PostgreSQL remains the canonical business-state store.
 ## MVP Shape
 
 The MVP should prove durable sessions, source-backed memories, document upload
-and processing, context building, MCP, CLI and one Hermes adapter without
-implementing future enterprise features early.
+and processing, context building, MCP, CLI and one Hermes adapter while keeping
+enterprise-only features outside the local MVP surface.
 
 ## Monorepo Layout
 
-`TASK-2` establishes the pnpm workspace skeleton:
+`TASK-2` establishes the pnpm workspace:
 
 - `apps/` contains API, MCP, CLI, worker and Hermes adapter applications.
 - `packages/` contains shared core, database, SDK, config, auth, storage,
   queue, vector, processor and observability packages.
 - Root TypeScript project references cover every workspace package.
 
-Workspace `src/index.ts` files are placeholders only. Runtime behavior is added
-by later task-scoped changes.
+Workspace `src/index.ts` files expose the public TypeScript boundaries for the
+runtime packages and applications.
 
 ## Compose Scaffold
 
 `TASK-3` adds Docker Compose services for Postgres, Redis, API, MCP and worker.
-`TASK-26` replaces API, MCP and worker placeholders with a shared built Node
-image, a `migrate` service running `pnpm db:migrate`, real dist entrypoints and
-local object storage mounts for API/worker.
+`TASK-26` wires API, MCP and worker to a shared built Node image, a `migrate`
+service running `pnpm db:migrate`, dist entrypoints and local object storage
+mounts for API/worker.
 
 `TASK-57` moves Compose runtime state from Docker named volumes into bind mounts
 under the host `MINDORY_HOME` root. Postgres, Redis, local object storage,
-LibreFS data, logs, config and future installer state now live in one
+LibreFS data, logs, config and installer state now live in one
 Mindory-owned directory so installer update/uninstall flows can reason about a
 single root.
 
@@ -60,8 +60,8 @@ with Drizzle and mirrored by the initial SQL migration. PostgreSQL remains the
 canonical state store for projects, tokens, peers, sessions, messages,
 documents, chunks, memory claims and processing jobs.
 
-Runtime repositories and API handlers are intentionally not part of the schema
-task.
+Runtime repositories and API handlers are implemented in later task-scoped
+layers over the schema package.
 
 `TASK-14` adds the first database repository layer in `@mindory/db`:
 
@@ -72,9 +72,8 @@ task.
 - processing job store implementing `ProcessingJobStore`;
 - text-based document chunk search repository for repository wiring tests.
 
-These repositories are Drizzle-backed skeletons. Core API runtime wiring now
-uses them, but they have not been exercised against a live PostgreSQL database
-in the bootstrap environment.
+These repositories are Drizzle-backed implementations. Core API runtime wiring
+uses them, and the integration suite exercises them against PostgreSQL.
 
 `TASK-15` wires the first API runtime dependency graph:
 
@@ -92,26 +91,24 @@ object storage, `DbProcessingJobStore`, `ProcessingJobDispatcher` and BullMQ.
 session summary and conservative memory derivation processors to the worker
 runtime.
 
-## API Skeleton
+## API Runtime
 
 `TASK-5` adds the Fastify API process shape in `apps/api`. The app loads
 configuration from `@mindory/config`, registers health/readiness routes,
 attaches an authorization context, and returns structured errors. Runtime API
-construction verifies bearer tokens against PostgreSQL token hashes; bare app
-factory usage still has a placeholder context for scaffold validation.
+construction verifies bearer tokens against PostgreSQL token hashes; dependency
+free app factory usage is limited to tests.
 
 Project routes are registered under `/v1/projects`, but they intentionally
-use injected repositories when the server runtime is built. If the app factory
-is used without dependencies, routes still return explicit `501 not_implemented`
-placeholders. Docker Compose still uses the explicit TASK-3 placeholders until a
-later task adds runnable images or installed dependencies.
+use injected repositories when the server runtime is built. Production startup
+fails fast when required dependencies are missing.
 
 ## Configuration Catalog
 
 `TASK-52` makes `packages/config/src/catalog.ts` the central catalog for
 Mindory configuration metadata. Runtime loaders, generated `.env.example`,
-future installer prompts and Compose/env validation all derive their defaults
-and supported values from this catalog.
+installer prompts and Compose/env validation all derive their defaults and
+supported values from this catalog.
 
 This keeps installer work, Docker profiles and runtime packages aligned: new
 `MINDORY_*` settings are invalid until the catalog describes their type,
@@ -179,9 +176,9 @@ Concrete PostgreSQL repositories and document processors are later tasks.
   and a `document.scan` processor wrapper that enqueues routing after a clean
   verdict.
 
-The API server runtime now includes concrete local-fs storage, document
-repository and BullMQ queue dependencies for uploads. The bare app factory still
-returns explicit `not_implemented` responses when dependencies are omitted.
+The API server runtime includes concrete local-fs or S3-compatible storage,
+document repository and BullMQ queue dependencies for uploads. Dependency-free
+route factories are test-only.
 
 ## Extraction, Chunking And Indexing
 
@@ -308,5 +305,5 @@ runtime:
 
 The adapter does not import a Hermes SDK, does not run as a daemon and does not
 access PostgreSQL, Redis, object storage or vector indexes directly. The
-supported repository acceptance uses a fake-compatible runtime harness; official
-Hermes SDK certification remains future work.
+supported repository acceptance includes a runnable host example and conformance
+harness for the documented Hermes lifecycle contract.
