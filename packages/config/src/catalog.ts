@@ -333,6 +333,9 @@ export const CONFIG_CATALOG = [
   entry("MINDORY_BACKUP_INCLUDE_POSTGRES", "backups", "boolean", "true", "Include PostgreSQL dumps in scheduled backups.", "both", "supported"),
   entry("MINDORY_BACKUP_INCLUDE_OBJECTS", "backups", "boolean", "true", "Include local object storage data in scheduled backups.", "both", "supported"),
 
+  entry("MINDORY_POSTGRES_WAL_ARCHIVE_ENABLED", "backups", "boolean", "true", "Enable local PostgreSQL WAL archiving for PITR-capable Compose deployments.", "both", "supported"),
+  entry("MINDORY_POSTGRES_WAL_ARCHIVE_TIMEOUT_SECONDS", "backups", "number", "60", "Maximum seconds before PostgreSQL rotates WAL for archiving.", "both", "supported"),
+
   entry("MINDORY_DATABASE_URL", "database", "string", "postgresql://mindory:mindory@postgres:5432/mindory", "PostgreSQL database URL.", "both", "supported", {
     secret: true
   }),

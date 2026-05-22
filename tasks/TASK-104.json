@@ -1,7 +1,7 @@
 {
   "id": "TASK-104",
   "title": "Add PITR backup baseline",
-  "status": "draft",
+  "status": "done",
   "type": "feature",
   "priority": "high",
   "branch": "task/TASK-104-pitr-backup-baseline",

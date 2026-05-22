@@ -96,6 +96,14 @@ backups include. Health is written to
 `$MINDORY_HOME/backups/scheduled-backup.lock` and JSONL run logs are appended to
 `$MINDORY_HOME/logs/scheduled-backup.log`.
 
+`MINDORY_POSTGRES_WAL_ARCHIVE_ENABLED` controls the local Compose Postgres WAL
+archive command. It defaults to `true` so point-in-time recovery can be used
+after the first `pitr-backup` base backup. WAL files are archived under
+`$MINDORY_HOME/backups/postgres-wal`.
+
+`MINDORY_POSTGRES_WAL_ARCHIVE_TIMEOUT_SECONDS` controls the Postgres
+`archive_timeout` value and defaults to `60`.
+
 ## API Request Guards
 
 `MINDORY_API_RATE_LIMIT_ENABLED` enables the API rate-limit guard. It defaults

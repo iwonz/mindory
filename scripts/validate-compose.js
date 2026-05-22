@@ -84,6 +84,9 @@ for (const envName of ["MINDORY_OTEL_TRACES_ENABLED", "MINDORY_OTEL_EXPORTER_OTL
 for (const envName of ["MINDORY_BACKUP_SCHEDULE_ENABLED", "MINDORY_BACKUP_SCHEDULE_INTERVAL_MINUTES", "MINDORY_BACKUP_RETENTION_COUNT", "MINDORY_BACKUP_RETENTION_DAYS", "MINDORY_BACKUP_INCLUDE_CONFIG", "MINDORY_BACKUP_INCLUDE_POSTGRES", "MINDORY_BACKUP_INCLUDE_OBJECTS"]) {
   assert(compose.includes(envName), `Compose must include scheduled backup env ${envName}.`);
 }
+for (const token of ["MINDORY_POSTGRES_WAL_ARCHIVE_ENABLED", "archive_mode=on", "archive_command='test ! -f /var/lib/postgresql/wal-archive/%f && cp %p /var/lib/postgresql/wal-archive/%f'", "${MINDORY_HOME:-${HOME}/.mindory}/backups/postgres-wal:/var/lib/postgresql/wal-archive"]) {
+  assert(compose.includes(token), `Compose must include PostgreSQL PITR WAL archive token ${token}.`);
+}
 assert(compose.includes("${MINDORY_METRICS_WORKER_PORT:-3001}:${MINDORY_METRICS_WORKER_PORT:-3001}"), "Worker service must publish the configured metrics port.");
 assert(compose.includes("clamdscan --no-summary /tmp/mindory-clamav-health.txt"), "Compose must health-check the ClamAV daemon with a real scan.");
 assert(compose.includes("\n  llm:"), "Compose must define an optional local LLM SDK service.");

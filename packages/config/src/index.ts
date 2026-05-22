@@ -107,6 +107,8 @@ export interface MindoryConfig {
     includeConfig: boolean;
     includePostgres: boolean;
     includeObjects: boolean;
+    postgresWalArchiveEnabled: boolean;
+    postgresWalArchiveTimeoutSeconds: number;
   };
   database: {
     url: string;
@@ -386,7 +388,9 @@ export function loadMindoryConfig(env: EnvSource = process.env): MindoryConfig {
       retentionDays: readNumber(env, "MINDORY_BACKUP_RETENTION_DAYS", catalogNumber("MINDORY_BACKUP_RETENTION_DAYS")),
       includeConfig: readBoolean(env, "MINDORY_BACKUP_INCLUDE_CONFIG", catalogBoolean("MINDORY_BACKUP_INCLUDE_CONFIG")),
       includePostgres: readBoolean(env, "MINDORY_BACKUP_INCLUDE_POSTGRES", catalogBoolean("MINDORY_BACKUP_INCLUDE_POSTGRES")),
-      includeObjects: readBoolean(env, "MINDORY_BACKUP_INCLUDE_OBJECTS", catalogBoolean("MINDORY_BACKUP_INCLUDE_OBJECTS"))
+      includeObjects: readBoolean(env, "MINDORY_BACKUP_INCLUDE_OBJECTS", catalogBoolean("MINDORY_BACKUP_INCLUDE_OBJECTS")),
+      postgresWalArchiveEnabled: readBoolean(env, "MINDORY_POSTGRES_WAL_ARCHIVE_ENABLED", catalogBoolean("MINDORY_POSTGRES_WAL_ARCHIVE_ENABLED")),
+      postgresWalArchiveTimeoutSeconds: readNumber(env, "MINDORY_POSTGRES_WAL_ARCHIVE_TIMEOUT_SECONDS", catalogNumber("MINDORY_POSTGRES_WAL_ARCHIVE_TIMEOUT_SECONDS"))
     },
     database: {
       url: readString(env, "MINDORY_DATABASE_URL", catalogString("MINDORY_DATABASE_URL"))
@@ -588,6 +592,9 @@ function validateBackupConfig(config: MindoryConfig): void {
   }
   if (!Number.isInteger(config.backups.retentionDays) || config.backups.retentionDays <= 0) {
     throw new Error("MINDORY_BACKUP_RETENTION_DAYS must be a positive integer.");
+  }
+  if (!Number.isInteger(config.backups.postgresWalArchiveTimeoutSeconds) || config.backups.postgresWalArchiveTimeoutSeconds <= 0) {
+    throw new Error("MINDORY_POSTGRES_WAL_ARCHIVE_TIMEOUT_SECONDS must be a positive integer.");
   }
 }
 

@@ -72,6 +72,8 @@ for (const symbol of [
   "uninstallMindoryHome",
   "createMindoryRuntimeBackup",
   "restoreMindoryRuntimeBackup",
+  "createMindoryPostgresPitrBaseBackup",
+  "restoreMindoryPostgresPitrBackup",
   "inspectInstallState",
   "buildWizardPromptPlan",
   "runInstallWizard",
@@ -110,7 +112,7 @@ for (const token of ["infected_probe_not_detected", "unexpected_infected_result"
   assert(installerSource.includes(token), `Installer ClamAV health must include ${token}.`);
 }
 assert(composeFile.includes("clamdscan --no-summary"), "ClamAV Compose service must include a real daemon healthcheck.");
-for (const token of ["command === \"start\"", "stopBeforeStepId: null", "initialTokenPath", "mindory-installer start", "command === \"update\"", "command === \"backup\"", "command === \"restore\"", "command === \"uninstall\""]) {
+for (const token of ["command === \"start\"", "stopBeforeStepId: null", "initialTokenPath", "mindory-installer start", "command === \"update\"", "command === \"backup\"", "command === \"pitr-backup\"", "command === \"pitr-restore\"", "command === \"restore\"", "command === \"uninstall\""]) {
   assert(installerCli.includes(token), `Installer CLI must expose startup command token ${token}.`);
 }
 

@@ -21,6 +21,7 @@ project/token.
 | First project/token provisioning | Supported. It creates the initial project and bearer token, then writes `config/initial-token.json`. |
 | Update assets | Supported for local config/Compose asset refresh with pre-update backup and rollback. Remote release download is future work. |
 | Runtime backup/restore | Supported MVP. It writes `backup-manifest.json`, config, installer metadata, PostgreSQL dumps and local object storage copies. |
+| PostgreSQL PITR | Supported local baseline. `pitr-backup` creates a `pg_basebackup` base backup and `pitr-restore` stages recovery with WAL archive refs and a target time. |
 | Scheduled local backups | Supported. `backup-schedule` uses config-driven intervals, a lock file, retention, logs and health state under `$MINDORY_HOME`. |
 | Uninstall | Supported with explicit `--yes`; optional backup is written next to the removed home. |
 | Dependency detection | Supported through injectable probes and diagnostics. |
@@ -146,7 +147,8 @@ pnpm release:bundle -- --version 0.1.0 --url-base https://downloads.example.com/
 The bootstrap launches `bin/mindory-installer` when a packaged binary exists, or
 falls back to `node packages/installer/dist/cli.js wizard` for source-style
 bundles. The installer CLI currently supports `wizard`, `plan`/`dry-run`,
-`prepare`, `start`, `update`, `backup`, `backup-schedule`, `restore`, `uninstall`,
+`prepare`, `start`, `update`, `backup`, `backup-schedule`, `pitr-backup`,
+`pitr-restore`, `restore`, `uninstall`,
 `render-defaults`, `repair` and `resume`. `prepare` executes only the local
 file preparation steps. `start`
 additionally runs Docker Compose pull/build, infrastructure startup, migrations,
@@ -154,9 +156,11 @@ API/worker/MCP startup, health checks and first project/token provisioning.
 `update --dry-run` previews local asset refresh, while `update` creates a
 pre-update backup before rewriting config and Compose assets. `backup` creates
 a runtime backup under `$MINDORY_HOME/backups`; `backup-schedule` executes the
-configured scheduled backup runner once and records health. `restore` requires
-`--yes` before overwriting local state. `uninstall` requires `--yes` and can
-preserve a sibling backup with `--backup`.
+configured scheduled backup runner once and records health. `pitr-backup`
+creates a PostgreSQL base backup for WAL-based recovery; `pitr-restore` stages
+or explicitly replaces the local Postgres data directory with a target-time
+recovery directory. `restore` requires `--yes` before overwriting local state.
+`uninstall` requires `--yes` and can preserve a sibling backup with `--backup`.
 
 ## Recovery Surface
 
@@ -173,6 +177,8 @@ mindory-installer resume --home ~/.mindory
 mindory-installer update --home ~/.mindory --source /path/to/mindory --dry-run
 mindory-installer backup --home ~/.mindory
 mindory-installer backup-schedule --home ~/.mindory --status
+mindory-installer pitr-backup --home ~/.mindory
+mindory-installer pitr-restore --home ~/.mindory --backup ~/.mindory/backups/<pitr-dir> --target-time 2026-05-22T12:00:00Z --yes
 mindory-installer restore --home ~/.mindory --backup ~/.mindory/backups/<backup-dir> --yes
 mindory-installer uninstall --home ~/.mindory --yes --backup
 ```
@@ -340,6 +346,49 @@ External S3-compatible bucket data is not copied by the MVP local backup
 command. The backup manifest records that component as skipped; use provider
 native bucket backup tooling for external S3, then restore the bucket before or
 alongside the Mindory database restore.
+
+### PostgreSQL PITR
+
+The local Compose Postgres profile enables WAL archiving by default:
+
+```env
+MINDORY_POSTGRES_WAL_ARCHIVE_ENABLED=true
+MINDORY_POSTGRES_WAL_ARCHIVE_TIMEOUT_SECONDS=60
+```
+
+WAL files are archived to:
+
+```text
+$MINDORY_HOME/backups/postgres-wal
+```
+
+Create a PITR base backup:
+
+```bash
+mindory-installer pitr-backup --home ~/.mindory
+mindory-installer pitr-backup --home ~/.mindory --label before-migration
+```
+
+This runs `pg_basebackup` inside the Postgres service, copies the tar-format
+base backup under `$MINDORY_HOME/backups/<timestamp>-postgres-pitr-base`, writes
+`pitr-manifest.json` and forces `pg_switch_wal()` so the archive path receives a
+fresh WAL segment.
+
+Stage a restore directory for a specific target time:
+
+```bash
+mindory-installer pitr-restore --home ~/.mindory \
+  --backup ~/.mindory/backups/<pitr-dir> \
+  --target-time 2026-05-22T12:00:00Z \
+  --yes
+```
+
+The staged directory is written under `$MINDORY_HOME/backups/pitr-restore` with
+`postgresql.auto.conf` containing `restore_command` and
+`recovery_target_time`, plus `recovery.signal`. It does not overwrite live data.
+To replace the local Compose Postgres data directory, pass
+`--replace-live-data`; the installer stops Compose first and copies the current
+`$MINDORY_HOME/data/postgres` to a timestamped backup before replacement.
 
 Validate the scripted backup/restore path without starting Docker:
 

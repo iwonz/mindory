@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-103",
+  "current_task_id": "TASK-104",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -761,7 +761,7 @@
     {
       "id": "TASK-104",
       "title": "Add PITR backup baseline",
-      "status": "draft",
+      "status": "done",
       "branch": "task/TASK-104-pitr-backup-baseline",
       "file": "tasks/TASK-104.json"
     },

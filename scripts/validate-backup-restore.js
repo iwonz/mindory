@@ -23,12 +23,20 @@ const productionDocs = read("docs/PRODUCTION_HARDENING.md");
 for (const token of [
   "createMindoryRuntimeBackup",
   "restoreMindoryRuntimeBackup",
+  "createMindoryPostgresPitrBaseBackup",
+  "restoreMindoryPostgresPitrBackup",
+  "PostgresPitrBackupManifest",
   "runScheduledMindoryBackup",
   "ScheduledBackupHealth",
   "RuntimeBackupManifest",
   "pg_dump",
+  "pg_basebackup",
+  "pg_switch_wal",
   "psql",
   "backup-manifest.json",
+  "pitr-manifest.json",
+  "recovery_target_time",
+  "postgres-wal",
   "scheduled-backup-health.json",
   "scheduled-backup.lock",
   "external_s3"
@@ -36,16 +44,17 @@ for (const token of [
   assert(installerSource.includes(token), `Installer source must include ${token}.`);
 }
 
-for (const token of ["command === \"backup\"", "command === \"backup-schedule\"", "command === \"restore\"", "mindory-installer backup", "mindory-installer backup-schedule", "mindory-installer restore"]) {
+for (const token of ["command === \"backup\"", "command === \"backup-schedule\"", "command === \"pitr-backup\"", "command === \"pitr-restore\"", "command === \"restore\"", "mindory-installer backup", "mindory-installer backup-schedule", "mindory-installer pitr-backup", "mindory-installer pitr-restore", "mindory-installer restore"]) {
   assert(installerCli.includes(token), `Installer CLI must expose ${token}.`);
 }
 
-for (const token of ["backup-manifest.json", "pg_dump", "restore --home", "backup-schedule --home", "scheduled-backup-health.json", "scheduled-backup.log", "MINDORY_BACKUP_RETENTION_COUNT", "External S3-compatible bucket data"]) {
+for (const token of ["backup-manifest.json", "pitr-manifest.json", "pg_dump", "pg_basebackup", "restore --home", "backup-schedule --home", "pitr-backup --home", "pitr-restore --home", "scheduled-backup-health.json", "scheduled-backup.log", "MINDORY_BACKUP_RETENTION_COUNT", "MINDORY_POSTGRES_WAL_ARCHIVE_ENABLED", "External S3-compatible bucket data"]) {
   assert(installerDocs.includes(token), `Installer docs must describe ${token}.`);
 }
 assert(productionDocs.includes("mindory-installer backup"), "Production hardening docs must use the installer backup command.");
+assert(productionDocs.includes("mindory-installer pitr-backup"), "Production hardening docs must use the PITR backup command.");
 assert(productionDocs.includes("MINDORY_BACKUP_SCHEDULE_ENABLED"), "Production hardening docs must document scheduled backup config.");
-assert(productionDocs.includes("point-in-time recovery"), "Production hardening docs must keep PITR as future hardening.");
+assert(productionDocs.includes("recovery_target_time"), "Production hardening docs must document PITR target-time recovery.");
 
 const installer = await import("../packages/installer/dist/index.js");
 
@@ -69,13 +78,26 @@ fs.writeFileSync(path.join(home, "install", "compose", "docker-compose.yml"), "s
 const commandRunner = {
   async run(command, args) {
     commands.push(`${command} ${args.join(" ")}`);
+    const restoreVolume = args.find((entry) => typeof entry === "string" && entry.endsWith(":/restore"));
+    if (typeof restoreVolume === "string") {
+      const restorePath = restoreVolume.slice(0, -":/restore".length);
+      fs.mkdirSync(restorePath, { recursive: true });
+      fs.writeFileSync(path.join(restorePath, "postgresql.auto.conf"), "restore_command = 'cp /wal-archive/%f %p'\nrecovery_target_time = '2026-05-22T12:00:00.000Z'\n");
+      fs.writeFileSync(path.join(restorePath, "recovery.signal"), "");
+    }
     const cpIndex = args.indexOf("cp");
     if (cpIndex !== -1) {
       const source = args[cpIndex + 1];
       const target = args[cpIndex + 2];
       if (typeof source === "string" && source.startsWith("postgres:") && typeof target === "string") {
         fs.mkdirSync(path.dirname(target), { recursive: true });
-        fs.writeFileSync(target, "-- mindory pg_dump fixture\n");
+        if (source.includes("mindory-pitr-base")) {
+          fs.mkdirSync(target, { recursive: true });
+          fs.writeFileSync(path.join(target, "base.tar.gz"), "base tar fixture\n");
+          fs.writeFileSync(path.join(target, "pg_wal.tar.gz"), "wal tar fixture\n");
+        } else {
+          fs.writeFileSync(target, "-- mindory pg_dump fixture\n");
+        }
       }
     }
     return { status: 0, stdout: "ok", stderr: "" };
@@ -202,6 +224,59 @@ const scheduledRestoreReport = await installer.restoreMindoryRuntimeBackup(home,
 assert(scheduledRestoreReport.restored === true, "Scheduled backup output must be restorable.");
 assert(fs.readFileSync(path.join(home, "config", ".env"), "utf8").includes("MINDORY_BACKUP_SCHEDULE_ENABLED=true"), "Scheduled restore must restore backup config.");
 assert(fs.readFileSync(path.join(home, "data", "objects", "documents", "raw.txt"), "utf8") === "scheduled raw object\n", "Scheduled restore must restore object files.");
+
+const pitrDryRun = await installer.createMindoryPostgresPitrBaseBackup(home, {
+  dryRun: true,
+  commandRunner
+});
+assert(pitrDryRun.dryRun === true, "PITR base backup dry-run must report dryRun=true.");
+assert(!fs.existsSync(pitrDryRun.backupPath), "PITR dry-run must not create the backup directory.");
+
+const pitrReport = await installer.createMindoryPostgresPitrBaseBackup(home, {
+  label: "validator",
+  commandRunner
+});
+assert(fs.existsSync(pitrReport.manifestPath), "PITR base backup must write pitr-manifest.json.");
+assert(fs.existsSync(path.join(pitrReport.baseBackupPath, "base.tar.gz")), "PITR base backup must copy base.tar.gz out of Postgres.");
+assert(fs.existsSync(path.join(home, "backups", "postgres-wal")), "PITR base backup must ensure the WAL archive directory under MINDORY_HOME.");
+assert(commands.some((command) => command.includes("pg_basebackup")), "PITR backup must run pg_basebackup through Compose.");
+assert(commands.some((command) => command.includes("pg_switch_wal")), "PITR backup must switch WAL after the base backup.");
+
+let pitrRestoreRejected = false;
+try {
+  await installer.restoreMindoryPostgresPitrBackup(home, pitrReport.backupPath, {
+    yes: false,
+    targetTime: "2026-05-22T12:00:00.000Z",
+    commandRunner
+  });
+} catch (error) {
+  pitrRestoreRejected = String(error).includes("requires explicit confirmation");
+}
+assert(pitrRestoreRejected, "PITR restore must reject calls without yes=true.");
+
+const pitrRestoreReport = await installer.restoreMindoryPostgresPitrBackup(home, pitrReport.backupPath, {
+  yes: true,
+  targetTime: "2026-05-22T12:00:00.000Z",
+  commandRunner
+});
+assert(pitrRestoreReport.targetTime === "2026-05-22T12:00:00.000Z", "PITR restore must normalize and report the target time.");
+assert(fs.existsSync(pitrRestoreReport.recoveryConfigPath), "PITR restore must stage postgresql.auto.conf.");
+assert(fs.existsSync(pitrRestoreReport.recoverySignalPath), "PITR restore must stage recovery.signal.");
+assert(fs.readFileSync(pitrRestoreReport.recoveryConfigPath, "utf8").includes("recovery_target_time"), "PITR restore config must include recovery_target_time.");
+assert(commands.some((command) => command.includes("-v") && command.includes(":/wal-archive:ro")), "PITR restore must mount the WAL archive read-only.");
+
+fs.mkdirSync(path.join(home, "data", "postgres"), { recursive: true });
+fs.writeFileSync(path.join(home, "data", "postgres", "PG_VERSION"), "16\n");
+const pitrReplaceReport = await installer.restoreMindoryPostgresPitrBackup(home, pitrReport.backupPath, {
+  yes: true,
+  targetTime: new Date("2026-05-22T12:30:00.000Z"),
+  replaceLiveData: true,
+  commandRunner
+});
+assert(pitrReplaceReport.replacedLiveData === true, "PITR restore must support explicit live data replacement.");
+assert(pitrReplaceReport.liveDataBackupPath !== undefined && fs.existsSync(pitrReplaceReport.liveDataBackupPath), "PITR live replacement must back up existing Postgres data first.");
+assert(fs.existsSync(path.join(home, "data", "postgres", "recovery.signal")), "PITR live replacement must replace Postgres data with the staged recovery directory.");
+assert(commands.some((command) => command.includes("compose") && command.includes("down")), "PITR live replacement must stop the Compose stack first.");
 
 const externalHome = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-backup-external-s3-"));
 fs.mkdirSync(path.join(externalHome, "config"), { recursive: true });
