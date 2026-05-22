@@ -21,6 +21,7 @@ writing README, issues, release notes and docs.
 | Linux/macOS source development | Supported | Primary contributor path. |
 | Windows source development | Experimental | PowerShell bootstrap exists; full native matrix is dry-run validated. |
 | Docker Compose local demo | Supported | `pnpm mvp:demo` is the local MVP demo path; `--model-profile local --require-indexed` proves indexed pgvector search with deterministic local embeddings. |
+| Public self-host acceptance | Supported gate | `pnpm selfhost:acceptance` dry-runs the public self-host path; opt-in live mode runs installer start, MVP acceptance, backup, reset and uninstall in a temporary home. |
 | One-home installer layout | Supported baseline | `$MINDORY_HOME` config, logs, data, install and backups layout is implemented. |
 | Backup and restore | Supported MVP | `mindory-installer backup` and `restore` cover config, installer metadata, PostgreSQL dumps and local object storage state. External S3 bucket data needs provider-native backup tooling. |
 | Remote release update | Future | Local asset update exists; remote release orchestration is later work. |

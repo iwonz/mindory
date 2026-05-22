@@ -6,13 +6,16 @@ The repository should be described with the support levels in
 
 ## Current Baseline
 
-The repository is complete through `TASK-85`.
+The repository is complete through `TASK-86`.
 
 Supported local MVP path:
 
 - `pnpm check` passes from a clean checkout with dependencies installed.
 - `pnpm test` runs integration tests with PostgreSQL and Redis.
 - `pnpm mvp:demo` starts the local Docker Compose demo and runs live acceptance.
+- `pnpm selfhost:acceptance` runs the public self-host dry-run gate; setting
+  `MINDORY_SELFHOST_ACCEPTANCE_LIVE=true` runs installer start, MVP acceptance,
+  backup, reset and uninstall in a temporary home.
 - The installer can plan, prepare, start through health checks, provision the
   first project/token, update local assets, create runtime backups, restore
   runtime backups and uninstall with confirmation.
@@ -53,6 +56,8 @@ Supported local MVP path:
   in-process rate-limit strategy.
 - Backup/restore MVP includes installer CLI commands for config, installer
   metadata, PostgreSQL dumps and local object-storage state.
+- Public self-host acceptance is documented as the release-readiness gate for
+  local self-host users.
 
 Public GitHub hygiene baseline:
 

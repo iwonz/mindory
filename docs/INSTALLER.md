@@ -210,6 +210,20 @@ health runners; real installer-driven startup is available through the explicit
 `start` command. Live mode is opt-in because it may need cached images or
 network access for Docker pulls.
 
+`TASK-86` adds the public self-host acceptance gate:
+
+```bash
+pnpm selfhost:acceptance
+```
+
+The default path is non-destructive and uses a temporary `MINDORY_HOME`.
+Opt-in live mode runs installer `start`, live MVP acceptance, backup, stack
+reset and guarded uninstall:
+
+```bash
+MINDORY_SELFHOST_ACCEPTANCE_LIVE=true pnpm selfhost:acceptance
+```
+
 ## Wizard Prompts
 
 The wizard prompts for:

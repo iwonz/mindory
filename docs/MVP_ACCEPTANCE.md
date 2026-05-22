@@ -2,7 +2,9 @@
 
 `TASK-27` adds local acceptance paths. `TASK-35` adds a one-command Docker demo
 wrapper around the live path. `TASK-51` extends the demo to cover multimodal
-derived artifacts and model profiles.
+derived artifacts and model profiles. `TASK-86` adds the public self-host
+acceptance gate that ties installer startup, runtime acceptance, backup and
+uninstall together.
 
 One-command live demo:
 
@@ -36,6 +38,32 @@ Dry-run coverage check:
 
 ```bash
 pnpm mvp:acceptance
+```
+
+Public self-host release-readiness gate:
+
+```bash
+pnpm selfhost:acceptance
+```
+
+The default self-host command dry-runs the public flow in a temporary
+`MINDORY_HOME`: installer plan/prepare, backup dry-run, MVP scenario coverage
+for uploads/jobs/search/context/CLI/MCP/Hermes and guarded uninstall. It does
+not start Docker by default.
+
+Opt-in live self-host flow:
+
+```bash
+MINDORY_SELFHOST_ACCEPTANCE_LIVE=true pnpm selfhost:acceptance
+```
+
+Live mode uses a temporary `MINDORY_HOME`, runs installer `start`, executes the
+live MVP acceptance against the provisioned API token, creates a runtime backup,
+stops the stack and runs guarded uninstall. To additionally prove the
+deterministic local model profile and strict indexed search:
+
+```bash
+MINDORY_SELFHOST_ACCEPTANCE_LIVE=true MINDORY_SELFHOST_ACCEPTANCE_LOCAL=true pnpm selfhost:acceptance
 ```
 
 Manual live Docker flow:
@@ -87,5 +115,6 @@ remain supported and should process documents to `chunked` in the default local
 flow.
 
 Docker is not available in every development environment. In those cases the
-dry-run remains the repository check, and the live command should be run where
-Docker Compose can start Postgres, Redis, API, worker, MCP and ClamAV.
+dry-run remains the repository check, and the live commands should be run where
+Docker Compose can start Postgres, Redis, API, worker, MCP, ClamAV and optional
+local model services.
