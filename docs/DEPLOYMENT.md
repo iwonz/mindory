@@ -3,7 +3,7 @@
 Mindory targets self-hosted Docker Compose deployment.
 
 Production hardening expectations for CI, release images, backups, rollback,
-secrets, rate limits and structured logs are maintained in
+secrets, rate limits, structured logs and observability are maintained in
 `docs/PRODUCTION_HARDENING.md`.
 
 ## Current Support Level

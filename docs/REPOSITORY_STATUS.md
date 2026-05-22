@@ -6,7 +6,7 @@ The repository should be described with the support levels in
 
 ## Current Baseline
 
-The repository is complete through `TASK-83`.
+The repository is complete through `TASK-84`.
 
 Supported local MVP path:
 
@@ -47,6 +47,9 @@ Supported local MVP path:
 - Hermes integration includes runtime hook registration for Hermes-like hosts
   plus a fake-compatible harness covering context-before-prompt, attachment
   upload, saved turns and later-session recall.
+- Observability baseline includes structured log helpers, model operation audit
+  querying, in-process job/stage metrics, health snapshots and documented
+  in-process rate-limit strategy.
 
 Public GitHub hygiene baseline:
 
@@ -65,6 +68,8 @@ Public GitHub hygiene baseline:
 - Registry push policy for Docker images is future hardening.
 - Full automated installer resume is future work.
 - Scripted backup/restore is future work.
+- Prometheus/OpenTelemetry exporters, log aggregation and alerting are future
+  observability hardening work.
 - Official Hermes SDK certification is future work; the current supported path
   is the fake-compatible runtime harness.
 - Heavy multimodal model adapters are still experimental unless a role is

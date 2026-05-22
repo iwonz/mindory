@@ -47,6 +47,9 @@ importers:
       '@mindory/llm':
         specifier: workspace:*
         version: link:../../packages/llm
+      '@mindory/observability':
+        specifier: workspace:*
+        version: link:../../packages/observability
       '@mindory/queue-bullmq':
         specifier: workspace:*
         version: link:../../packages/queue/bullmq

@@ -20,6 +20,8 @@ documentation.
 
 ### Added
 
+- `TASK-84`: observability baseline with structured log helpers, model audit
+  queries, in-process job/stage metrics, health snapshots and rate-limit docs.
 - `TASK-83`: Hermes-like runtime hook registration plus fake-compatible harness
   for context-before-prompt, attachment upload, saved turns and later recall.
 - `TASK-82`: LibreFS/MinIO local S3 bucket bootstrap and signed external

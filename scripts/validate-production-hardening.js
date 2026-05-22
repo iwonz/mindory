@@ -29,6 +29,8 @@ const compose = read("docker-compose.yml");
 const app = read("apps/api/src/app.ts");
 const config = read("packages/config/src/index.ts");
 const requestGuard = read("apps/api/src/request-guard.ts");
+const healthRoute = read("apps/api/src/routes/health.ts");
+const observability = read("packages/observability/src/index.ts");
 const productionHardening = read("docs/PRODUCTION_HARDENING.md");
 const productionHardeningLower = productionHardening.toLowerCase();
 const deployment = read("docs/DEPLOYMENT.md");
@@ -53,6 +55,13 @@ for (const token of ["registerRequestGuards", "rateLimit", "ApiError(429", "x-ra
 }
 assertIncludes(app, "registerRequestGuards(app, config)", "apps/api/src/app.ts");
 
+for (const token of ["createHealthSnapshot", "uptime_ms", "BASIC_RATE_LIMIT_STRATEGY"]) {
+  assertIncludes(healthRoute, token, "apps/api/src/routes/health.ts");
+}
+for (const token of ["createStructuredLogEvent", "InMemoryModelOperationAuditStore", "JobStageMetrics", "redactSecrets", "structured_logs", "audit_helpers"]) {
+  assertIncludes(observability, token, "packages/observability/src/index.ts");
+}
+
 for (const token of [
   "docker build",
   "pnpm check",
@@ -63,8 +72,11 @@ for (const token of [
   "distributed rate limiting",
   "deferred",
   "structured logs",
+  "model operation audit",
+  "job stage metrics",
   "request_id",
-  "job_id"
+  "job_id",
+  "docs/observability.md"
 ]) {
   assertIncludes(productionHardeningLower, token, "docs/PRODUCTION_HARDENING.md");
 }

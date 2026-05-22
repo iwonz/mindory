@@ -43,6 +43,7 @@
     "mvp:reset": "node scripts/mvp-demo.js reset",
     "mvp:seed": "node scripts/seed-demo.js",
     "mvp:up": "node scripts/mvp-demo.js up",
+    "observability:validate": "pnpm --filter @mindory/observability typecheck && node scripts/validate-observability.js",
     "processing:validate": "node scripts/validate-processing-pipeline.js",
     "production:validate": "node scripts/validate-production-hardening.js",
     "public:validate": "node scripts/validate-public-github-hygiene.js",
