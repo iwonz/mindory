@@ -6,7 +6,7 @@ The repository should be described with the support levels in
 
 ## Current Baseline
 
-The repository is complete through `TASK-82`.
+The repository is complete through `TASK-83`.
 
 Supported local MVP path:
 
@@ -44,6 +44,9 @@ Supported local MVP path:
 - LibreFS and MinIO local S3-compatible profiles include health-gated bucket
   bootstrap, and installer startup validates signed access for external
   S3-compatible buckets.
+- Hermes integration includes runtime hook registration for Hermes-like hosts
+  plus a fake-compatible harness covering context-before-prompt, attachment
+  upload, saved turns and later-session recall.
 
 Public GitHub hygiene baseline:
 
@@ -62,7 +65,8 @@ Public GitHub hygiene baseline:
 - Registry push policy for Docker images is future hardening.
 - Full automated installer resume is future work.
 - Scripted backup/restore is future work.
-- Real Hermes SDK/runtime verification is future work.
+- Official Hermes SDK certification is future work; the current supported path
+  is the fake-compatible runtime harness.
 - Heavy multimodal model adapters are still experimental unless a role is
   explicitly documented as supported in `docs/SUPPORT_MATRIX.md`.
 - A web UI is not part of the MVP.

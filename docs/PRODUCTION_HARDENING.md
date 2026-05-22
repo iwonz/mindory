@@ -28,8 +28,8 @@ pnpm check
 ```
 
 The default CI path must not require private provider credentials. Live external
-embedding providers, hosted storage and real Hermes deployments are verified by
-separate environment-specific checks.
+embedding providers, hosted storage and official Hermes SDK deployments are
+verified by separate environment-specific checks.
 
 ## Release Images
 

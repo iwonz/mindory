@@ -287,8 +287,13 @@ runtime:
   saved message metadata.
 - `MindoryHermesRuntimeBridge` maps the local Hermes runtime contract fixture
   (`before_prompt`, `after_response`, `completed_turn`) onto adapter methods.
+- `installMindoryHermesRuntime` registers those lifecycle handlers on
+  Hermes-like runtimes exposing hook registrars and returns augmented prompt or
+  saved-turn payloads.
 - Optional `memor_*` tools ensure identity before calling memory and document
   HTTP API paths.
 
 The adapter does not import a Hermes SDK, does not run as a daemon and does not
-access PostgreSQL, Redis, object storage or vector indexes directly.
+access PostgreSQL, Redis, object storage or vector indexes directly. The
+supported repository acceptance uses a fake-compatible runtime harness; official
+Hermes SDK certification remains future work.

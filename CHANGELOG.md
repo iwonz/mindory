@@ -20,6 +20,8 @@ documentation.
 
 ### Added
 
+- `TASK-83`: Hermes-like runtime hook registration plus fake-compatible harness
+  for context-before-prompt, attachment upload, saved turns and later recall.
 - `TASK-82`: LibreFS/MinIO local S3 bucket bootstrap and signed external
   S3-compatible access checks in storage and installer startup flows.
 - `TASK-81`: unified multimodal search through `POST /v1/search`, CLI
