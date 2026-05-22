@@ -217,6 +217,7 @@ test("sync_scan upload waits for antivirus verdict and applies policies", { time
 });
 
 test("MVP runtime integration covers auth, upload, worker jobs and context", { timeout: 120_000 }, async () => {
+  const workerMetricsPort = await getFreePort();
   const fakeOcr = await startLocalHttpOcrServer({
     pages: scannedPdfFixture.ocr_pages,
     imageText: "Image OCR provider text detects passport at airport.",
@@ -239,6 +240,11 @@ test("MVP runtime integration covers auth, upload, worker jobs and context", { t
   });
   const config = modules.loadMindoryConfig({
     ...testEnv,
+    MINDORY_METRICS_ENABLED: "true",
+    MINDORY_METRICS_PATH: "/metrics",
+    MINDORY_METRICS_BEARER_TOKEN: "metrics-test-token",
+    MINDORY_METRICS_WORKER_HOST: "127.0.0.1",
+    MINDORY_METRICS_WORKER_PORT: String(workerMetricsPort),
     MINDORY_DOCLING_ENABLED: "true",
     MINDORY_DOCLING_URL: doclingService.baseUrl,
     MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_PROVIDER: "ffmpeg",
@@ -313,6 +319,7 @@ test("MVP runtime integration covers auth, upload, worker jobs and context", { t
     await assertJobsApi(apiUrl, managementStore, sessionId, documentId, routeJobId);
     await assertDocumentRecompute(apiUrl, documentId);
     await assertMemoryAndContext(apiUrl, sessionId, messageId, documentId);
+    await assertMetricsEndpoints(apiUrl, workerMetricsPort);
     await assertRevokedTokenIsRejected(apiUrl, childToken.id, childToken.rawToken);
   } finally {
     if (workerRuntime) {
@@ -695,6 +702,26 @@ async function assertAuthEnforcement(apiUrl) {
 
   const project = await requestJson(apiUrl, "GET", `/v1/projects/${encodeURIComponent(projectId)}`);
   assert.equal(project.id, projectId);
+}
+
+async function assertMetricsEndpoints(apiUrl, workerMetricsPort) {
+  const unauthorized = await fetch(`${apiUrl}/metrics`);
+  assert.equal(unauthorized.status, 401, "metrics endpoint must require the configured bearer token.");
+
+  const apiMetrics = await fetchText(`${apiUrl}/metrics`, "metrics-test-token");
+  assert.match(apiMetrics, /# TYPE mindory_api_requests_total counter/);
+  assert.match(apiMetrics, /mindory_api_requests_total\{method="GET",route="\/v1\/jobs\/:id",status="200"\}/);
+  assert.match(apiMetrics, /mindory_processing_queue_depth\{queue="processing",status="waiting"\}/);
+  assert.match(apiMetrics, /mindory_storage_operations_total\{operation="put_object",provider="local-fs",status="success"\}/);
+
+  const workerMetrics = await fetchText(`http://127.0.0.1:${workerMetricsPort}/metrics`, "metrics-test-token");
+  assert.match(workerMetrics, /# TYPE mindory_processing_jobs_total counter/);
+  assert.match(workerMetrics, /mindory_processing_jobs_total\{job_type="document\.extract",status="succeeded"\}/);
+  assert.match(workerMetrics, /mindory_processing_job_stage_duration_seconds_count\{job_type="document\.extract",stage="extract",status="success"\}/);
+  assert.match(workerMetrics, /mindory_model_operations_total\{model="mindory-test-vision",provider="local-http",role="vision-captioning",status="success"\}/);
+  assert.match(workerMetrics, /mindory_storage_operations_total\{operation="get_object",provider="local-fs",status="success"\}/);
+  assert.match(workerMetrics, /mindory_vector_operations_total\{operation="upsert_artifact_vectors",provider="pgvector",status="success"\}/);
+  assert.match(workerMetrics, /mindory_processing_queue_depth\{queue="processing",status="waiting"\}/);
 }
 
 async function assertTokenLifecycle(apiUrl) {
@@ -1642,6 +1669,20 @@ async function requestJson(apiUrl, method, pathname, body = undefined, token = b
     throw new Error(`${method} ${pathname} failed ${response.status}: ${JSON.stringify(payload)}`);
   }
   return payload;
+}
+
+async function fetchText(url, token) {
+  const response = await fetch(url, {
+    headers: {
+      accept: "text/plain",
+      authorization: `Bearer ${token}`
+    }
+  });
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(`GET ${url} failed ${response.status}: ${text}`);
+  }
+  return text;
 }
 
 async function waitForJobStatus(apiUrl, jobId, status) {

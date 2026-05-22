@@ -43,7 +43,7 @@ for (const token of ["pull_request:", "push:", "node-version: 24", "pnpm install
   assertIncludes(ci, token, ".github/workflows/ci.yml");
 }
 
-for (const token of ["MINDORY_API_RATE_LIMIT_ENABLED", "MINDORY_API_RATE_LIMIT_WINDOW_MS", "MINDORY_API_RATE_LIMIT_MAX"]) {
+for (const token of ["MINDORY_API_RATE_LIMIT_ENABLED", "MINDORY_API_RATE_LIMIT_WINDOW_MS", "MINDORY_API_RATE_LIMIT_MAX", "MINDORY_METRICS_ENABLED", "MINDORY_METRICS_BEARER_TOKEN"]) {
   assertIncludes(envExample, token, ".env.example");
   assertIncludes(compose, token, "docker-compose.yml");
   assertIncludes(config, token, "packages/config/src/index.ts");
@@ -58,7 +58,7 @@ assertIncludes(app, "registerRequestGuards(app, config)", "apps/api/src/app.ts")
 for (const token of ["createHealthSnapshot", "uptime_ms", "BASIC_RATE_LIMIT_STRATEGY"]) {
   assertIncludes(healthRoute, token, "apps/api/src/routes/health.ts");
 }
-for (const token of ["createStructuredLogEvent", "InMemoryModelOperationAuditStore", "JobStageMetrics", "redactSecrets", "structured_logs", "audit_helpers"]) {
+for (const token of ["createStructuredLogEvent", "InMemoryModelOperationAuditStore", "JobStageMetrics", "PrometheusMetricsRegistry", "recordApiRequest", "recordQueueDepth", "redactSecrets", "structured_logs", "audit_helpers"]) {
   assertIncludes(observability, token, "packages/observability/src/index.ts");
 }
 
@@ -74,6 +74,7 @@ for (const token of [
   "structured logs",
   "model operation audit",
   "job stage metrics",
+  "prometheus metrics",
   "request_id",
   "job_id",
   "docs/observability.md"

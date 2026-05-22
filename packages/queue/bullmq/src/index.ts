@@ -60,6 +60,11 @@ export class BullMqProcessingJobQueue implements ProcessingJobQueue {
     await this.queue.close();
   }
 
+  async getJobCounts(): Promise<Record<string, number>> {
+    const counts = await this.queue.getJobCounts("waiting", "active", "delayed", "failed", "completed", "paused");
+    return Object.fromEntries(Object.entries(counts).map(([key, value]) => [key, Number(value)]));
+  }
+
   private jobOptions(payload: ProcessingJobQueuePayload): JobsOptions {
     return {
       jobId: toBullMqJobId(payload.idempotencyKey),

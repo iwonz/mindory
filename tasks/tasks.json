@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-100",
+  "current_task_id": "TASK-101",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -740,7 +740,7 @@
     {
       "id": "TASK-101",
       "title": "Add production metrics exporter",
-      "status": "draft",
+      "status": "done",
       "branch": "task/TASK-101-production-metrics-exporter",
       "file": "tasks/TASK-101.json"
     },

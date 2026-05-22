@@ -86,13 +86,16 @@ assert(bullmq.includes("attempts: payload.maxAttempts"), "BullMQ enqueue must co
 assert(bullmq.includes("type: \"exponential\""), "BullMQ enqueue must configure exponential backoff.");
 assert(bullmq.includes("prefix: options.queuePrefix"), "BullMQ queue must use configured queue prefix.");
 assert(bullmq.includes("prefix: this.options.queuePrefix"), "BullMQ worker must use configured queue prefix.");
+assert(bullmq.includes("getJobCounts"), "BullMQ queue must expose queue depth counts for metrics.");
 
 assert(workerRunner.includes("buildWorkerBaseRunner"), "Worker app must export base runner builder.");
 assert(workerRunner.includes("ProcessingJobRunner"), "Worker base runner must use ProcessingJobRunner.");
 assert(workerRunner.includes("BullMqProcessingJobWorker"), "Worker base runner must use BullMQ worker.");
+assert(workerRunner.includes("recordJobStage"), "Worker base runner must emit job/stage metrics.");
 assert(!workerRunner.includes("document.scan"), "Worker base runner must stay generic and not register concrete processors.");
 assert(workerRuntime.includes("buildWorkerRuntime"), "Worker runtime must build a concrete worker runtime.");
 assert(workerRuntime.includes("buildDocumentPipelineProcessors"), "Worker runtime must register document pipeline processors.");
 assert(workerRuntime.includes("DbProcessingJobStore"), "Worker runtime must use durable processing job store.");
+assert(workerRuntime.includes("createWorkerMetricsServer"), "Worker runtime must expose a metrics server when configured.");
 
 console.log("Queue scaffold validated.");

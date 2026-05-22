@@ -10,7 +10,12 @@ Available process routes:
 ```text
 GET /health
 GET /ready
+GET /metrics
 ```
+
+`GET /metrics` is available only when `MINDORY_METRICS_ENABLED=true`. If
+`MINDORY_METRICS_BEARER_TOKEN` is set, the route requires `Authorization:
+Bearer <token>` and returns Prometheus text format.
 
 Registered project routes:
 

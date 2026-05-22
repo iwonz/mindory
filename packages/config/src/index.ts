@@ -80,6 +80,13 @@ export interface MindoryConfig {
       maxRequests: number;
     };
   };
+  metrics: {
+    enabled: boolean;
+    path: string;
+    bearerToken: string;
+    workerHost: string;
+    workerPort: number;
+  };
   database: {
     url: string;
   };
@@ -332,6 +339,13 @@ export function loadMindoryConfig(env: EnvSource = process.env): MindoryConfig {
         maxRequests: readNumber(env, "MINDORY_API_RATE_LIMIT_MAX", catalogNumber("MINDORY_API_RATE_LIMIT_MAX"))
       }
     },
+    metrics: {
+      enabled: readBoolean(env, "MINDORY_METRICS_ENABLED", catalogBoolean("MINDORY_METRICS_ENABLED")),
+      path: readString(env, "MINDORY_METRICS_PATH", catalogString("MINDORY_METRICS_PATH")),
+      bearerToken: readString(env, "MINDORY_METRICS_BEARER_TOKEN", catalogString("MINDORY_METRICS_BEARER_TOKEN")),
+      workerHost: readString(env, "MINDORY_METRICS_WORKER_HOST", catalogString("MINDORY_METRICS_WORKER_HOST")),
+      workerPort: readNumber(env, "MINDORY_METRICS_WORKER_PORT", catalogNumber("MINDORY_METRICS_WORKER_PORT"))
+    },
     database: {
       url: readString(env, "MINDORY_DATABASE_URL", catalogString("MINDORY_DATABASE_URL"))
     },
@@ -457,6 +471,7 @@ export function loadMindoryConfig(env: EnvSource = process.env): MindoryConfig {
 
 export function validateMindoryConfig(config: MindoryConfig): void {
   validateApiConfig(config);
+  validateMetricsConfig(config);
   validateDocumentProcessingConfig(config);
   validateDoclingConfig(config);
   validateLlmConfig(config);
@@ -473,6 +488,18 @@ function validateApiConfig(config: MindoryConfig): void {
 
   if (config.api.rateLimit.maxRequests <= 0) {
     throw new Error("MINDORY_API_RATE_LIMIT_MAX must be greater than zero when rate limits are enabled.");
+  }
+}
+
+function validateMetricsConfig(config: MindoryConfig): void {
+  if (!config.metrics.path.startsWith("/")) {
+    throw new Error("MINDORY_METRICS_PATH must start with /.");
+  }
+  if (config.metrics.workerHost.trim() === "") {
+    throw new Error("MINDORY_METRICS_WORKER_HOST must not be empty.");
+  }
+  if (config.metrics.workerPort <= 0 || config.metrics.workerPort > 65535) {
+    throw new Error("MINDORY_METRICS_WORKER_PORT must be a valid TCP port.");
   }
 }
 

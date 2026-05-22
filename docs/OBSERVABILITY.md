@@ -2,9 +2,9 @@
 
 Mindory's MVP observability baseline is intentionally small and self-hostable.
 It provides structured logs, in-process audit/metric helpers, lightweight health
-payloads and documented rate-limit behavior. Prometheus, OpenTelemetry,
-external log aggregation, alerting and durable enterprise audit tables are
-future hardening work.
+payloads, Prometheus-compatible metrics exporters and documented rate-limit
+behavior. OpenTelemetry, external log aggregation, alerting and durable
+enterprise audit tables remain future hardening.
 
 ## Structured Logs
 
@@ -57,8 +57,59 @@ by job type, stage and status. The summary includes count, total duration,
 maximum duration and average duration.
 
 Use it for lightweight diagnostics around worker stages such as scan, extract,
-chunk, embed, index, OCR, ASR, keyframe extraction and face matching. It is not a
-Prometheus exporter and does not persist metrics after process restart.
+chunk, embed, index, OCR, ASR, keyframe extraction and face matching.
+
+## Prometheus Metrics
+
+Set `MINDORY_METRICS_ENABLED=true` to expose scrapeable metrics.
+
+The API serves metrics at `MINDORY_METRICS_PATH`, default `/metrics`, on the
+existing API listener. The worker starts a separate metrics HTTP listener at
+`MINDORY_METRICS_WORKER_HOST:MINDORY_METRICS_WORKER_PORT`, default
+`0.0.0.0:3001`, using the same path. Set
+`MINDORY_METRICS_BEARER_TOKEN` to require `Authorization: Bearer <token>` for
+both endpoints. Metrics are disabled by default, and public deployments should
+either keep the worker metrics port private to the Prometheus network or set a
+strong bearer token.
+
+Exported metric families include:
+
+- `mindory_api_requests_total`
+- `mindory_api_request_duration_seconds`
+- `mindory_processing_jobs_total`
+- `mindory_processing_job_duration_seconds`
+- `mindory_processing_job_stages_total`
+- `mindory_processing_job_stage_duration_seconds`
+- `mindory_processing_queue_depth`
+- `mindory_model_operations_total`
+- `mindory_model_operation_duration_seconds`
+- `mindory_model_operation_tokens_total`
+- `mindory_storage_operations_total`
+- `mindory_storage_operation_duration_seconds`
+- `mindory_vector_operations_total`
+- `mindory_vector_operation_duration_seconds`
+
+Labels intentionally stay low-cardinality: method, route template, status,
+job type, stage, queue status, provider, model role, model name and operation.
+Project ids, document ids, session ids, bearer tokens and raw user content are
+not emitted as metric labels or values.
+
+Prometheus scrape_config example:
+
+```yaml
+scrape_configs:
+  - job_name: mindory-api
+    metrics_path: /metrics
+    bearer_token: ${MINDORY_METRICS_BEARER_TOKEN}
+    static_configs:
+      - targets: ["mindory-api:3000"]
+
+  - job_name: mindory-worker
+    metrics_path: /metrics
+    bearer_token: ${MINDORY_METRICS_BEARER_TOKEN}
+    static_configs:
+      - targets: ["mindory-worker:3001"]
+```
 
 ## Health Endpoints
 

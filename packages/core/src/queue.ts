@@ -339,7 +339,7 @@ function statusDetailForJobStatus(status: ProcessingJobStatus): ProcessingJobSta
   }
 }
 
-function stageNameForJobType(type: ProcessingJobType): string {
+export function stageNameForJobType(type: ProcessingJobType): string {
   switch (type) {
     case "document.scan":
       return "scan";

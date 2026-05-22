@@ -11,6 +11,7 @@ import { registerFaceRoutes, type FaceRouteDependencies } from "./routes/faces.j
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerJobRoutes, type JobRouteDependencies } from "./routes/jobs.js";
 import { registerMemoryRoutes, type MemoryRouteDependencies } from "./routes/memories.js";
+import { createApiMetricsDependencies, registerMetricsRoutes, type ApiMetricsDependencies } from "./routes/metrics.js";
 import { registerPeerRoutes, type PeerRouteDependencies } from "./routes/peers.js";
 import { registerProjectRoutes, type ProjectRouteDependencies } from "./routes/projects.js";
 import { registerSearchRoutes, type SearchRouteDependencies } from "./routes/search.js";
@@ -30,6 +31,7 @@ export interface BuildApiAppOptions {
   documents?: DocumentRouteDependencies;
   faces?: FaceRouteDependencies;
   jobs?: JobRouteDependencies;
+  metrics?: ApiMetricsDependencies;
   memories?: MemoryRouteDependencies;
   search?: SearchRouteDependencies;
   context?: ContextRouteDependencies;
@@ -58,11 +60,13 @@ export async function buildApiApp(options: BuildApiAppOptions = {}): Promise<Fas
   fastifyOptions.logger = options.logger === undefined ? loggerOptions(config) : options.logger;
 
   const app = Fastify(fastifyOptions);
+  const metrics = options.metrics ?? createApiMetricsDependencies();
 
   app.decorate("mindoryConfig", config);
 
   registerErrorHandlers(app);
   registerRequestGuards(app, config);
+  await registerMetricsRoutes(app, config, metrics);
   await registerAuth(app, withDependencyFreeRouteMode(options.auth, options.allowDependencyFreeRoutes));
   await registerHealthRoutes(app, config);
   await registerArtifactRoutes(app, withDependencyFreeRouteMode(options.artifacts, options.allowDependencyFreeRoutes));
