@@ -1,0 +1,65 @@
+{
+  "id": "TASK-59",
+  "title": "Add interactive installer wizard",
+  "status": "done",
+  "type": "chore",
+  "priority": "high",
+  "branch": "task/TASK-59-interactive-wizard",
+  "created_at": "2026-05-22",
+  "updated_at": "2026-05-22",
+  "context": {
+    "summary": "Add the interactive question layer that turns operator choices into installer answer files.",
+    "background": "TASK-58 introduced a deterministic installer core. The next layer must prompt for domain, storage, antivirus, model roles, modalities, interfaces and tokens while staying testable through injectable IO."
+  },
+  "scope": {
+    "in": [
+      "Add wizard prompt metadata and stable prompt IDs.",
+      "Add injectable wizard IO and a Node readline adapter.",
+      "Prompt for install profile, MINDORY_HOME, public URL/domain, AV mode, storage, modalities, LLM roles/providers/models/resource hints, interfaces and tokens.",
+      "Generate a redacted confirmation preview before returning answers.",
+      "Block future/experimental LLM role enablement unless experimental mode is enabled.",
+      "Add validator coverage for prompt plan, scripted wizard flow, redaction and experimental gating.",
+      "Update installer documentation."
+    ],
+    "out": [
+      "Bootstrap install.sh/install.ps1 scripts.",
+      "Release download/checksum verification.",
+      "Signal handling, repair and resume commands.",
+      "Executing Docker Compose during install."
+    ]
+  },
+  "acceptance_criteria": [
+    "Wizard prompts are derived from config catalog metadata where available.",
+    "Scripted wizard IO can produce a valid MindoryInstallAnswers object without a terminal.",
+    "Node readline adapter is available for real interactive use.",
+    "Redacted confirmation preview hides secrets before confirmation.",
+    "Experimental/future LLM roles cannot be enabled unless experimental mode is true.",
+    "Installer validator covers wizard prompt IDs and a scripted flow."
+  ],
+  "verification": {
+    "commands": [
+      "git branch --show-current",
+      "pnpm --filter @mindory/installer typecheck",
+      "pnpm installer:validate",
+      "pnpm lint",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm branch name includes TASK-59.",
+      "Confirm no bootstrap scripts or Compose execution are added."
+    ]
+  },
+  "dependencies": [
+    "TASK-58"
+  ],
+  "risks": [
+    "Prompt logic must remain testable and not depend on a real TTY.",
+    "Secrets must never appear in the confirmation preview."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is changed to accepted or done.",
+    "Branch is committed and merged back into master."
+  ]
+}
