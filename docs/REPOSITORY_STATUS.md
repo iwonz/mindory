@@ -6,7 +6,7 @@ The repository should be described with the support levels in
 
 ## Current Baseline
 
-The repository is complete through `TASK-79`.
+The repository is complete through `TASK-80`.
 
 Supported local MVP path:
 
@@ -35,6 +35,9 @@ Supported local MVP path:
 - Video keyframe extraction supports the manifest fallback and an opt-in
   local-command provider. Extracted frame bytes can run through configured OCR
   and vision providers before searchable frame artifacts are written.
+- Face detection and recognition can run through `@mindory/llm` local HTTP when
+  experimental face roles are enabled. Provider boxes and embeddings are stored
+  as workspace-scoped face observations and auto-matched through `FaceService`.
 
 Public GitHub hygiene baseline:
 

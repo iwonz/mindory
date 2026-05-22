@@ -158,6 +158,24 @@ export interface LlmVisionCaptionOutput {
   usage?: LlmOperationUsage;
 }
 
+export interface LlmFaceObservationOutput {
+  boundingBox: Record<string, unknown>;
+  embedding?: number[] | null;
+  confidence?: number | null;
+  label?: string | null;
+}
+
+export interface LlmFaceDetectionOutput {
+  faces: LlmFaceObservationOutput[];
+  usage?: LlmOperationUsage;
+}
+
+export interface LlmFaceRecognitionOutput {
+  faces: LlmFaceObservationOutput[];
+  identityIds?: string[];
+  usage?: LlmOperationUsage;
+}
+
 export interface OpenAICompatibleChatOptions {
   baseUrl: string;
   model: string;
@@ -209,8 +227,8 @@ export interface LlmVisionProvider {
 }
 
 export interface LlmFaceProvider {
-  detectFaces(input: { bytes: Uint8Array; mimeType: string }, context: LlmProviderCallContext): Promise<LlmOperationResult<{ count: number }>>;
-  recognizeFaces(input: { bytes: Uint8Array; mimeType: string }, context: LlmProviderCallContext): Promise<LlmOperationResult<{ identityIds: string[] }>>;
+  detectFaces(input: { bytes: Uint8Array; mimeType: string }, context: LlmProviderCallContext): Promise<LlmOperationResult<LlmFaceDetectionOutput>>;
+  recognizeFaces(input: { bytes: Uint8Array; mimeType: string }, context: LlmProviderCallContext): Promise<LlmOperationResult<LlmFaceRecognitionOutput>>;
 }
 
 export interface LlmGenerationProvider {
@@ -233,6 +251,7 @@ export interface MindoryLlm {
   ocr?: LlmOcrProvider;
   asr?: LlmAsrProvider;
   vision?: LlmVisionProvider;
+  faces?: LlmFaceProvider;
   healthCheck(provider: Exclude<LlmProvider, "disabled">, options?: Omit<LlmProviderHealthCheckOptions, "fetchImpl">): Promise<LlmProviderHealth>;
   disabledResult<TValue>(role: LlmRole, refs?: LlmOperationRefs): LlmOperationResult<TValue>;
 }
@@ -314,6 +333,10 @@ export function buildMindoryLlm(
   const vision = buildMindoryVisionProvider(config, options);
   if (vision !== undefined) {
     runtime.vision = vision;
+  }
+  const faces = buildMindoryFaceProvider(config, options);
+  if (faces !== undefined) {
+    runtime.faces = faces;
   }
   return runtime;
 }
@@ -537,6 +560,39 @@ export function buildMindoryAsrProvider(
   }
 
   throw new Error(`${asr.provider} ASR is configured but no ASR adapter is installed.`);
+}
+
+export function buildMindoryFaceProvider(
+  config: MindoryConfig,
+  options: MindoryLlmOptions = {}
+): LlmFaceProvider | undefined {
+  const detection = config.llm.faceDetection;
+  const recognition = config.llm.faceRecognition;
+  const detectionEnabled = detection.enabled && detection.provider !== "disabled";
+  const recognitionEnabled = recognition.enabled && recognition.provider !== "disabled";
+  if (!detectionEnabled && !recognitionEnabled) {
+    return undefined;
+  }
+  const providers = new Set([detection.provider, recognition.provider].filter((provider) => provider !== "disabled"));
+  if (providers.size > 1) {
+    throw new Error("Face detection and face recognition must use the same provider in the current @mindory/llm runtime.");
+  }
+  const provider = providers.values().next().value;
+  if (provider === "local-http") {
+    const providerOptions: LocalHttpModelOptions = {
+      baseUrl: config.llm.localHttp.baseUrl,
+      model: recognition.model || detection.model
+    };
+    if (options.fetchImpl !== undefined) {
+      providerOptions.fetchImpl = options.fetchImpl;
+    }
+    return new LocalHttpFaceProvider(
+      providerOptions,
+      options.auditSink,
+      options.operationRefs ?? {}
+    );
+  }
+  throw new Error(`${provider} face detection/recognition is configured but no face adapter is installed.`);
 }
 
 export async function checkMindoryLlmProviderHealth(
@@ -1033,6 +1089,105 @@ export class LocalHttpVisionProvider implements LlmVisionProvider {
   }
 }
 
+export class LocalHttpFaceProvider implements LlmFaceProvider {
+  private readonly fetchImpl: typeof fetch;
+
+  constructor(
+    private readonly options: LocalHttpModelOptions,
+    private readonly auditSink: LlmAuditSink | undefined,
+    private readonly refs: LlmOperationRefs
+  ) {
+    this.fetchImpl = options.fetchImpl ?? fetch;
+  }
+
+  detectFaces(input: { bytes: Uint8Array; mimeType: string }, context: LlmProviderCallContext): Promise<LlmOperationResult<LlmFaceDetectionOutput>> {
+    return this.callFaceEndpoint("/faces/detect", input, context, (payload) => ({
+      faces: localHttpFaceObservations(payload.faces),
+      usage: usageFromOpenAI(payload.usage)
+    }));
+  }
+
+  recognizeFaces(input: { bytes: Uint8Array; mimeType: string }, context: LlmProviderCallContext): Promise<LlmOperationResult<LlmFaceRecognitionOutput>> {
+    return this.callFaceEndpoint("/faces/recognize", input, context, (payload) => ({
+      faces: localHttpFaceObservations(payload.faces),
+      identityIds: Array.isArray(payload.identity_ids) ? payload.identity_ids.filter((id): id is string => typeof id === "string") : [],
+      usage: usageFromOpenAI(payload.usage)
+    }));
+  }
+
+  private async callFaceEndpoint<TValue>(
+    endpoint: "/faces/detect" | "/faces/recognize",
+    input: { bytes: Uint8Array; mimeType: string },
+    context: LlmProviderCallContext,
+    parse: (payload: LocalHttpFaceResponse) => TValue
+  ): Promise<LlmOperationResult<TValue>> {
+    const startedAt = Date.now();
+    const model = context.role.model || this.options.model;
+    try {
+      const requestInit: RequestInit = {
+        method: "POST",
+        headers: {
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          model,
+          mime_type: input.mimeType,
+          data_base64: Buffer.from(input.bytes).toString("base64")
+        })
+      };
+      if (context.signal !== undefined) {
+        requestInit.signal = context.signal;
+      }
+      const response = await this.fetchImpl(`${trimTrailingSlash(this.options.baseUrl)}${endpoint}`, requestInit);
+      const responseText = await response.text();
+      if (!response.ok) {
+        throw new Error(`Local HTTP face request failed with ${response.status}: ${responseText}`);
+      }
+      const payload = JSON.parse(responseText) as LocalHttpFaceResponse;
+      return this.result<TValue>("success", startedAt, model, parse(payload), context.role, context.refs);
+    } catch (error) {
+      return this.result<TValue>("failed", startedAt, model, undefined, context.role, context.refs, error);
+    }
+  }
+
+  private result<TValue>(
+    status: LlmOperationStatus,
+    startedAt: number,
+    model: string,
+    value: TValue | undefined,
+    role: LlmRoleDescriptor,
+    refs: LlmOperationRefs = {},
+    error?: unknown
+  ): LlmOperationResult<TValue> {
+    const durationMs = Date.now() - startedAt;
+    const audit: LlmOperationAudit = {
+      role: role.role,
+      provider: role.provider,
+      model,
+      status,
+      durationMs,
+      usage: {
+        durationMs,
+        imageCount: 1
+      },
+      refs: {
+        ...this.refs,
+        ...refs
+      }
+    };
+    if (error !== undefined) {
+      audit.errorCode = errorCode(error);
+      audit.errorMessage = errorMessage(error);
+    }
+    this.auditSink?.(audit);
+    return {
+      status,
+      ...(value === undefined ? {} : { value }),
+      audit
+    };
+  }
+}
+
 export class OpenAICompatibleChatProvider implements LlmChatProvider {
   private readonly fetchImpl: typeof fetch;
 
@@ -1199,6 +1354,18 @@ interface LocalHttpVisionCaptionResponse {
   usage?: OpenAICompatibleChatResponse["usage"];
 }
 
+interface LocalHttpFaceResponse {
+  faces?: Array<{
+    bounding_box?: Record<string, unknown>;
+    boundingBox?: Record<string, unknown>;
+    embedding?: number[] | null;
+    confidence?: number | null;
+    label?: string | null;
+  }>;
+  identity_ids?: unknown[];
+  usage?: OpenAICompatibleChatResponse["usage"];
+}
+
 export function openAiCompatibleBearerToken(config: MindoryConfig): string | undefined {
   if (config.llm.openaiCompatible.authMode === "api-key") {
     return nonEmpty(config.llm.openaiCompatible.apiKey);
@@ -1317,6 +1484,35 @@ function localHttpAsrSegments(response: LocalHttpAsrResponse): LlmAsrSegment[] {
       };
     })
     .filter((segment): segment is LlmAsrSegment => segment !== null);
+}
+
+function localHttpFaceObservations(faces: LocalHttpFaceResponse["faces"]): LlmFaceObservationOutput[] {
+  if (!Array.isArray(faces)) {
+    return [];
+  }
+  return faces
+    .map((face): LlmFaceObservationOutput | null => {
+      const boundingBox = face.boundingBox ?? face.bounding_box;
+      if (boundingBox === undefined) {
+        return null;
+      }
+      const output: LlmFaceObservationOutput = {
+        boundingBox
+      };
+      if (Array.isArray(face.embedding)) {
+        output.embedding = face.embedding.filter((value): value is number => typeof value === "number");
+      } else if (face.embedding === null) {
+        output.embedding = null;
+      }
+      if (typeof face.confidence === "number" || face.confidence === null) {
+        output.confidence = face.confidence;
+      }
+      if (typeof face.label === "string" || face.label === null) {
+        output.label = face.label;
+      }
+      return output;
+    })
+    .filter((face): face is LlmFaceObservationOutput => face !== null);
 }
 
 function integerOrDefault(value: unknown, fallback: number): number {

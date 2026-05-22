@@ -1284,8 +1284,8 @@ For MVP:
 - PDF extraction should support native text and scanned-PDF OCR through a model adapter;
 - image OCR and vision captioning are optional experimental paths and not
   required for the default MVP;
-- audio ASR and video keyframe extraction are optional experimental paths and
-  not required for the default MVP.
+- audio ASR, video keyframe extraction and face detection/recognition are
+  optional experimental paths and not required for the default MVP.
 
 ### 15.2 Session/message pipeline
 

@@ -208,13 +208,18 @@ function imageSemanticExtractorOptions(llm: MindoryLlm): ImageSemanticExtractorO
     imageEmbedding: llmRoleState(llm, "image-embedding"),
     ocr: llmRoleState(llm, "ocr"),
     ocrRole: llm.registry.require("ocr"),
-    visionRole: llm.registry.require("vision-captioning")
+    visionRole: llm.registry.require("vision-captioning"),
+    faceDetectionRole: llm.registry.require("face-detection"),
+    faceRecognitionRole: llm.registry.require("face-recognition")
   };
   if (llm.ocr !== undefined) {
     options.ocrProvider = llm.ocr;
   }
   if (llm.vision !== undefined) {
     options.visionProvider = llm.vision;
+  }
+  if (llm.faces !== undefined) {
+    options.faceProvider = llm.faces;
   }
   return options;
 }

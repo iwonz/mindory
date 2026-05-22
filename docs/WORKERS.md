@@ -65,7 +65,8 @@ audio ASR/transcript extractor, video keyframe manifest/local-command
 extractor, face
 observation auto-matching through `FaceService`, fixed-size chunker,
 OpenAI-compatible embeddings provider, Ollama embeddings provider, local HTTP
-OCR/vision/ASR provider, and explicit pgvector/Qdrant vector index scaffolds.
+OCR/vision/ASR/face provider, and explicit pgvector/Qdrant vector index
+scaffolds.
 
 Routing is intentionally separate from antivirus and extraction. When antivirus
 is disabled, upload enqueues `document.route` directly. When asynchronous

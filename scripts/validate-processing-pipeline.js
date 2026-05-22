@@ -177,7 +177,7 @@ assert(imageSemanticPackage.dependencies?.["@mindory/llm"] === "workspace:*", "I
 assert(imageSemanticPackage.exports?.["."], "Image semantic extractor must export its root module.");
 assert(imageSemanticTsconfig.references?.some((reference) => reference.path === "../../../../packages/core"), "Image semantic extractor must reference @mindory/core.");
 assert(imageSemanticTsconfig.references?.some((reference) => reference.path === "../../../../packages/llm"), "Image semantic extractor must reference @mindory/llm.");
-for (const token of ["ImageSemanticExtractor", "image_caption", "image_analysis", "ocr_text", "image_embedding", "faceObservations", "face_detection", "deterministicFaceEmbedding", "extractEmbeddedImageText", "ocrProvider", "visionProvider", "recognizeText", "captionImage", "provider_ocr", "provider_caption"]) {
+for (const token of ["ImageSemanticExtractor", "image_caption", "image_analysis", "ocr_text", "image_embedding", "faceObservations", "face_detection", "deterministicFaceEmbedding", "extractEmbeddedImageText", "ocrProvider", "visionProvider", "faceProvider", "recognizeText", "captionImage", "detectFaces", "recognizeFaces", "provider_ocr", "provider_caption", "provider_detected", "provider_recognized", "llm_face_provider"]) {
   assert(imageSemantic.includes(token), `Image semantic extractor must include ${token}.`);
 }
 
