@@ -249,6 +249,15 @@ S3-compatible storage, it validates the endpoint URL, bucket and credentials,
 then signs bucket-level access checks through `@mindory/storage-s3`. The
 installer never deletes external buckets during rollback or uninstall.
 
+When antivirus is enabled with the ClamAV provider, installer startup enables
+the `clamav` Compose profile and performs runtime health validation after the
+infrastructure services start. The validation runs a clean `clamdscan` probe and
+an EICAR infected probe inside the ClamAV service. Failures are categorized as
+daemon unavailable, timeout, protocol failure, clean probe reported infected or
+EICAR probe not detected. The diagnostic includes `MINDORY_AV_MODE`,
+`MINDORY_AV_PROVIDER`, `MINDORY_CLAMAV_PLATFORM`, the last scan output and the
+recommended repair path.
+
 ## Transaction Model
 
 Every install action is planned before execution. The journal records planned,

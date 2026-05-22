@@ -338,6 +338,16 @@ services:
       - "3310:3310"
     volumes:
       - ${MINDORY_HOME:-${HOME}/.mindory}/data/clamav:/var/lib/clamav
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "printf 'mindory clamav compose health' >/tmp/mindory-clamav-health.txt && clamdscan --no-summary /tmp/mindory-clamav-health.txt >/dev/null 2>&1"
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 90s
 
   qdrant:
     image: qdrant/qdrant:latest

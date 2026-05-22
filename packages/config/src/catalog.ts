@@ -345,6 +345,8 @@ export const CONFIG_CATALOG = [
   entry("MINDORY_CLAMAV_HOST", "antivirus", "string", "clamav", "ClamAV host.", "runtime", "supported"),
   entry("MINDORY_CLAMAV_PORT", "antivirus", "number", "3310", "ClamAV port.", "runtime", "supported"),
   entry("MINDORY_CLAMAV_PLATFORM", "antivirus", "string", "linux/amd64", "Compose platform override for the ClamAV image.", "installer", "supported"),
+  entry("MINDORY_CLAMAV_HEALTH_RETRIES", "antivirus", "number", "12", "Installer ClamAV health retry attempts.", "installer", "supported"),
+  entry("MINDORY_CLAMAV_HEALTH_TIMEOUT_MS", "antivirus", "number", "120000", "Installer ClamAV health timeout.", "installer", "supported"),
 
   entry("MINDORY_WORKER_TYPE", "workers", "string", "all", "Worker type filter.", "runtime", "supported"),
   entry("MINDORY_WORKER_CONCURRENCY", "workers", "number", "2", "Worker concurrency.", "runtime", "supported"),

@@ -127,6 +127,14 @@ On Apple Silicon, the `clamav/clamav:stable` image may need amd64 emulation.
 The Compose profile uses `MINDORY_CLAMAV_PLATFORM=linux/amd64` by default for
 that reason.
 
+The `clamav` service has a Compose healthcheck that scans a clean probe with
+`clamdscan`. Installer startup adds a stricter check: it executes both a clean
+probe and an EICAR infected probe inside the service. If the daemon cannot be
+reached, the scan protocol fails or the EICAR probe is not detected, startup
+stops with a repairable diagnostic. Adjust `MINDORY_CLAMAV_PLATFORM`,
+`MINDORY_CLAMAV_HEALTH_RETRIES` and `MINDORY_CLAMAV_HEALTH_TIMEOUT_MS` when the
+image needs more time or a different platform on the target host.
+
 `pnpm mvp:seed` creates a deterministic demo project and bearer token directly
 in PostgreSQL when a host-reachable database URL is available. The one-command
 demo uses the same seed script from inside the Compose network so the base stack

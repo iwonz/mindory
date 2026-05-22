@@ -1,7 +1,7 @@
 {
   "id": "TASK-95",
   "title": "Harden ClamAV installer health and diagnostics",
-  "status": "draft",
+  "status": "done",
   "type": "feature",
   "priority": "high",
   "branch": "task/TASK-95-clamav-installer-health-hardening",
