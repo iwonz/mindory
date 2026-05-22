@@ -1,8 +1,9 @@
 # Installer
 
 The installer is built in layers. `TASK-58` adds the non-interactive core in
-`@mindory/installer`; `TASK-59` adds the interactive wizard layer. Later tasks
-add bootstrap scripts, failure recovery and full install acceptance.
+`@mindory/installer`; `TASK-59` adds the interactive wizard layer. `TASK-60`
+adds the cross-platform bootstrap scripts and installer CLI entrypoint. Later
+tasks add failure recovery and full install acceptance.
 
 ## Core Package
 
@@ -31,6 +32,46 @@ returns validated answers after showing a redacted confirmation summary.
 
 Shell and PowerShell bootstrap scripts belong to the bootstrap task. Signal
 handling, repair and resume logic belong to the recovery task.
+
+## Bootstrap
+
+The repository root contains:
+
+- `install.sh` for Linux/macOS shells;
+- `install.ps1` for Windows PowerShell.
+
+Both scripts use `MINDORY_HOME`, defaulting to `~/.mindory`, and stage release
+downloads under `$MINDORY_HOME/install/downloads` plus extracted releases under
+`$MINDORY_HOME/install/releases/<version>`.
+
+For dev/test mode, pass a local source or release directory:
+
+```bash
+./install.sh --source /path/to/mindory
+```
+
+```powershell
+./install.ps1 -Source C:\path\to\mindory
+```
+
+For release mode, provide a manifest URL or manifest file. The manifest is a
+simple env-style file:
+
+```env
+MINDORY_RELEASE_VERSION=1.2.3
+MINDORY_RELEASE_BUNDLE_URL=https://example.com/mindory-1.2.3.tar.gz
+MINDORY_RELEASE_BUNDLE_SHA256=<sha256>
+```
+
+The bootstrap verifies the bundle checksum before extraction. Signature
+verification, interrupt recovery and resume/repair behavior are added by later
+tasks.
+
+The bootstrap launches `bin/mindory-installer` when a packaged binary exists, or
+falls back to `node packages/installer/dist/cli.js wizard` for source-style
+bundles. The installer CLI currently supports `wizard`, `plan`/`dry-run` and
+`render-defaults`; it collects and validates answers but does not execute the
+install plan yet.
 
 ## Wizard Prompts
 
