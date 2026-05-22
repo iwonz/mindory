@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { createCipheriv, createDecipheriv, createHash, randomBytes, scryptSync } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, createPublicKey, randomBytes, scryptSync, verify as verifySignature } from "node:crypto";
 import {
   closeSync,
   constants,
@@ -13,6 +13,7 @@ import {
   readSync,
   readdirSync,
   readFileSync,
+  renameSync,
   rmSync,
   statSync,
   unlinkSync,
@@ -23,6 +24,7 @@ import { cwd as processCwd, env as processEnv, pid as processPid, stdin as defau
 import { createInterface, type Interface as ReadlineInterface } from "node:readline/promises";
 import type { Writable } from "node:stream";
 import { finished } from "node:stream/promises";
+import { fileURLToPath } from "node:url";
 import { createGunzip, createGzip, gunzipSync, gzipSync } from "node:zlib";
 import {
   CONFIG_CATALOG,
@@ -379,6 +381,7 @@ export interface InstallExecutionOptions {
   stopBeforeStepId?: string | null;
   rollbackOnFailure?: boolean;
   dockerBinary?: string;
+  tarBinary?: string;
   timeoutMs?: number;
   pollIntervalMs?: number;
   commandRunner?: InstallCommandRunner;
@@ -438,6 +441,32 @@ export interface InstallUpdateReport {
   backup?: InstallBackupReport;
   executedStepIds: string[];
   pendingStepIds: string[];
+}
+
+export interface RemoteReleaseUpdateOptions extends InstallExecutionOptions {
+  manifestUrl?: string;
+  manifestPath?: string;
+  publicKeyPath?: string;
+  publicKeyPem?: string;
+  dryRun?: boolean;
+  backupLabel?: string;
+  fetchImpl?: typeof fetch;
+}
+
+export interface RemoteReleaseUpdateReport {
+  dryRun: boolean;
+  releaseVersion: string;
+  manifestPath: string;
+  bundlePath: string;
+  bundleSha256: string;
+  releaseDirectory: string;
+  previousReleaseBackupPath?: string;
+  installBackup?: InstallBackupReport;
+  runtimeBackup?: RuntimeBackupReport;
+  journalPath: string;
+  executedStepIds: string[];
+  pendingStepIds: string[];
+  rollbackReport?: RollbackReport;
 }
 
 export interface InstallUninstallOptions {
@@ -1416,6 +1445,138 @@ export async function updateInstallAssets(
     };
   } catch (error) {
     restoreInstallBackup(plan.mindoryHome, backup.backupPath);
+    throw error;
+  }
+}
+
+export async function updateInstallFromRemoteRelease(
+  answers: MindoryInstallAnswers,
+  options: RemoteReleaseUpdateOptions = {}
+): Promise<RemoteReleaseUpdateReport> {
+  const plan = createInstallPlan(answers);
+  const resolvedHome = assertSafeMindoryHome(plan.mindoryHome);
+  const remoteEntries: InstallJournalEntry[] = [];
+  const record = (actionId: string, event: InstallJournalEvent, message: string, error?: unknown): void => {
+    remoteEntries.push({
+      sequence: remoteEntries.length + 1,
+      actionId,
+      event,
+      message,
+      ...(error === undefined ? {} : { error: errorToString(error) })
+    });
+    writeInstallJournal(resolvedHome, remoteEntries);
+  };
+
+  if (options.manifestUrl === undefined && options.manifestPath === undefined) {
+    throw new Error("Remote update requires manifestUrl or manifestPath.");
+  }
+
+  const downloadsDir = path.join(resolvedHome, "install", "downloads");
+  mkdirSync(downloadsDir, { recursive: true, mode: 0o700 });
+  const manifestTargetPath = path.join(downloadsDir, `remote-update-${timestampLabel()}.manifest.env`);
+
+  try {
+    record("download-release-manifest", "planned", "Download signed release manifest.");
+    await copyOrDownloadReleaseFile(options.manifestPath ?? options.manifestUrl ?? "", manifestTargetPath, options.fetchImpl);
+    if (options.manifestPath !== undefined && existsSync(`${options.manifestPath}.public.pem`)) {
+      cpSync(`${options.manifestPath}.public.pem`, `${manifestTargetPath}.public.pem`);
+    }
+    record("download-release-manifest", "completed", "Download signed release manifest.");
+
+    record("verify-release-manifest", "planned", "Verify release manifest signature.");
+    const manifestContent = readFileSync(manifestTargetPath, "utf8");
+    const manifest = parseReleaseManifest(manifestContent);
+    verifyReleaseManifestSignature(manifestTargetPath, manifestContent, {
+      ...(options.publicKeyPath === undefined ? {} : { publicKeyPath: options.publicKeyPath }),
+      ...(options.publicKeyPem === undefined ? {} : { publicKeyPem: options.publicKeyPem })
+    });
+    record("verify-release-manifest", "completed", "Verify release manifest signature.");
+
+    const bundlePath = path.join(downloadsDir, `mindory-${manifest.version}.tar.gz`);
+    record("download-release-bundle", "planned", "Download release bundle.");
+    await copyOrDownloadReleaseFile(manifest.bundleUrl, bundlePath, options.fetchImpl);
+    record("download-release-bundle", "completed", "Download release bundle.");
+
+    record("verify-release-bundle", "planned", "Verify release bundle checksum.");
+    const actualSha256 = sha256File(bundlePath);
+    if (actualSha256 !== manifest.bundleSha256) {
+      throw new Error(`Remote release bundle checksum mismatch. Expected ${manifest.bundleSha256}, got ${actualSha256}.`);
+    }
+    record("verify-release-bundle", "completed", "Verify release bundle checksum.");
+
+    if (options.dryRun === true) {
+      return {
+        dryRun: true,
+        releaseVersion: manifest.version,
+        manifestPath: manifestTargetPath,
+        bundlePath,
+        bundleSha256: actualSha256,
+        releaseDirectory: path.join(resolvedHome, "install", "releases", manifest.version),
+        journalPath: writeInstallJournal(resolvedHome, remoteEntries),
+        executedStepIds: remoteEntries.filter((entry) => entry.event === "completed").map((entry) => entry.actionId),
+        pendingStepIds: ["backup-current-state", "stage-release", "write-config", "write-env", "write-compose-assets", "pull-images", "start-infra", "bootstrap-storage", "run-migrations", "start-runtime", "health-check", "create-first-token"]
+      };
+    }
+
+    record("backup-current-state", "planned", "Create pre-update runtime backup.");
+    const installBackup = createInstallBackup(resolvedHome, options.backupLabel ?? `pre-remote-update-${manifest.version}`);
+    const runtimeBackup = await createMindoryRuntimeBackup(resolvedHome, {
+      ...options,
+      label: options.backupLabel ?? `pre-remote-update-${manifest.version}`,
+      owner: options.owner ?? "mindory-installer-remote-update"
+    });
+    record("backup-current-state", "completed", "Create pre-update runtime backup.");
+
+    record("stage-release", "planned", "Extract and stage verified release bundle.");
+    const staged = await stageVerifiedReleaseBundle(resolvedHome, manifest.version, bundlePath, options);
+    record("stage-release", "completed", "Extract and stage verified release bundle.");
+
+    try {
+      const installReport = await executeInstallPlan(answers, {
+        ...options,
+        sourceRoot: staged.releaseDirectory,
+        stopBeforeStepId: null,
+        owner: options.owner ?? "mindory-installer-remote-update"
+      });
+      const combinedJournal = renumberJournal([...remoteEntries, ...installReport.journal]);
+      const journalPath = writeInstallJournal(resolvedHome, combinedJournal);
+      return {
+        dryRun: false,
+        releaseVersion: manifest.version,
+        manifestPath: manifestTargetPath,
+        bundlePath,
+        bundleSha256: actualSha256,
+        releaseDirectory: staged.releaseDirectory,
+        ...(staged.previousReleaseBackupPath === undefined ? {} : { previousReleaseBackupPath: staged.previousReleaseBackupPath }),
+        installBackup,
+        runtimeBackup,
+        journalPath,
+        executedStepIds: [
+          ...remoteEntries.filter((entry) => entry.event === "completed").map((entry) => entry.actionId),
+          ...installReport.executedStepIds
+        ],
+        pendingStepIds: installReport.pendingStepIds,
+        ...(installReport.rollbackReport === undefined ? {} : { rollbackReport: installReport.rollbackReport })
+      };
+    } catch (error) {
+      restoreInstallBackup(resolvedHome, installBackup.backupPath);
+      restorePreviousReleaseDirectory(staged.releaseDirectory, staged.previousReleaseBackupPath);
+      const installJournal = readInstallJournal(resolvedHome) ?? [];
+      const rollbackEntry: InstallJournalEntry = {
+        sequence: remoteEntries.length + installJournal.length + 1,
+        actionId: "rollback-remote-release",
+        event: "rollback_completed",
+        message: "Restore previous release assets after failed remote update."
+      };
+      const combinedJournal = renumberJournal([...remoteEntries, ...installJournal, rollbackEntry]);
+      writeInstallJournal(resolvedHome, combinedJournal);
+      throw error;
+    }
+  } catch (error) {
+    const existingJournal = readInstallJournal(resolvedHome) ?? [];
+    if (!existingJournal.some((entry) => entry.actionId === "rollback-remote-release") && !remoteEntries.some((entry) => entry.event === "failed")) {
+      record("remote-release-update", "failed", "Remote release update failed.", error);
+    }
     throw error;
   }
 }
@@ -3579,6 +3740,159 @@ function randomHex(bytes: number): string {
 
 function sha256HexBuffer(value: Buffer): string {
   return createHash("sha256").update(value).digest("hex");
+}
+
+function sha256File(filePath: string): string {
+  return createHash("sha256").update(readFileSync(filePath)).digest("hex");
+}
+
+interface ParsedReleaseManifest {
+  version: string;
+  bundleUrl: string;
+  bundleSha256: string;
+  bundleName: string;
+  signatureAlgorithm: string;
+  publicKeySha256: string;
+  signatureBase64: string;
+}
+
+function parseReleaseManifest(content: string): ParsedReleaseManifest {
+  const values = parseEnvFile(content);
+  const manifest = {
+    version: values.MINDORY_RELEASE_VERSION ?? "",
+    bundleUrl: values.MINDORY_RELEASE_BUNDLE_URL ?? "",
+    bundleSha256: values.MINDORY_RELEASE_BUNDLE_SHA256 ?? "",
+    bundleName: values.MINDORY_RELEASE_BUNDLE_NAME ?? "",
+    signatureAlgorithm: values.MINDORY_RELEASE_MANIFEST_SIGNATURE_ALGORITHM ?? "",
+    publicKeySha256: values.MINDORY_RELEASE_PUBLIC_KEY_SHA256 ?? "",
+    signatureBase64: values.MINDORY_RELEASE_MANIFEST_SIGNATURE ?? ""
+  };
+  const missing = Object.entries(manifest)
+    .filter(([key, value]) => key !== "bundleName" && value.trim() === "")
+    .map(([key]) => key);
+  if (missing.length > 0) {
+    throw new Error(`Release manifest is missing required field(s): ${missing.join(", ")}.`);
+  }
+  if (manifest.signatureAlgorithm !== "RSA-SHA256") {
+    throw new Error(`Unsupported release manifest signature algorithm: ${manifest.signatureAlgorithm}.`);
+  }
+  return manifest;
+}
+
+function unsignedReleaseManifestContent(content: string): string {
+  return `${content
+    .split(/\r?\n/)
+    .filter((line) => !line.startsWith("MINDORY_RELEASE_MANIFEST_SIGNATURE="))
+    .join("\n")
+    .replace(/\n*$/, "")}\n`;
+}
+
+function verifyReleaseManifestSignature(
+  manifestPath: string,
+  content: string,
+  options: { publicKeyPath?: string; publicKeyPem?: string }
+): void {
+  const manifest = parseReleaseManifest(content);
+  const publicKeyPem = options.publicKeyPem ?? readReleasePublicKey(manifestPath, options.publicKeyPath);
+  const actualPublicKeySha256 = createHash("sha256").update(publicKeyPem, "utf8").digest("hex");
+  if (actualPublicKeySha256 !== manifest.publicKeySha256) {
+    throw new Error(`Release public key SHA-256 mismatch. Expected ${manifest.publicKeySha256}, got ${actualPublicKeySha256}.`);
+  }
+  const ok = verifySignature(
+    "sha256",
+    Buffer.from(unsignedReleaseManifestContent(content), "utf8"),
+    createPublicKey(publicKeyPem),
+    Buffer.from(manifest.signatureBase64, "base64")
+  );
+  if (!ok) {
+    throw new Error("Manifest signature verification failed.");
+  }
+}
+
+function readReleasePublicKey(manifestPath: string, publicKeyPath: string | undefined): string {
+  const candidate = publicKeyPath ?? `${manifestPath}.public.pem`;
+  if (!existsSync(candidate)) {
+    throw new Error(`Trusted release public key not found at ${candidate}.`);
+  }
+  return readFileSync(candidate, "utf8");
+}
+
+async function copyOrDownloadReleaseFile(source: string, targetPath: string, fetchImpl?: typeof fetch): Promise<void> {
+  mkdirSync(path.dirname(targetPath), { recursive: true, mode: 0o700 });
+  if (source.startsWith("file://")) {
+    cpSync(fileURLToPath(source), targetPath);
+    return;
+  }
+  if (/^https?:\/\//i.test(source)) {
+    const client = fetchImpl ?? fetch;
+    const response = await client(source);
+    if (!response.ok) {
+      throw new Error(`Failed to download ${source}: HTTP ${response.status}.`);
+    }
+    writeFileSync(targetPath, Buffer.from(await response.arrayBuffer()), { mode: 0o600 });
+    return;
+  }
+  const resolvedSource = path.resolve(source);
+  if (!existsSync(resolvedSource)) {
+    throw new Error(`Release file does not exist: ${source}.`);
+  }
+  cpSync(resolvedSource, targetPath);
+}
+
+async function stageVerifiedReleaseBundle(
+  mindoryHome: string,
+  version: string,
+  bundlePath: string,
+  options: InstallExecutionOptions
+): Promise<{ releaseDirectory: string; previousReleaseBackupPath?: string }> {
+  const releasesRoot = path.join(mindoryHome, "install", "releases");
+  const stagingParent = path.join(releasesRoot, `${version}.remote-staging.${processPid}`);
+  const releaseDirectory = path.join(releasesRoot, version);
+  const previousReleaseBackupPath = existsSync(releaseDirectory)
+    ? path.join(releasesRoot, `${version}.previous.${timestampLabel()}`)
+    : undefined;
+  rmSync(stagingParent, { recursive: true, force: true });
+  mkdirSync(stagingParent, { recursive: true, mode: 0o700 });
+  const result = spawnSync(options.tarBinary ?? "tar", ["-xzf", bundlePath, "-C", stagingParent], {
+    cwd: processCwd(),
+    env: processEnv,
+    encoding: "utf8"
+  });
+  if ((result.status ?? 1) !== 0) {
+    rmSync(stagingParent, { recursive: true, force: true });
+    throw new Error(`Failed to extract remote release bundle: ${result.stderr || result.stdout}`);
+  }
+  const extractedRoot = path.join(stagingParent, `mindory-${version}`);
+  const promotedSource = existsSync(extractedRoot) ? extractedRoot : stagingParent;
+  if (previousReleaseBackupPath !== undefined) {
+    renameSync(releaseDirectory, previousReleaseBackupPath);
+  }
+  try {
+    renameSync(promotedSource, releaseDirectory);
+  } catch (error) {
+    restorePreviousReleaseDirectory(releaseDirectory, previousReleaseBackupPath);
+    throw error;
+  } finally {
+    rmSync(stagingParent, { recursive: true, force: true });
+  }
+  return {
+    releaseDirectory,
+    ...(previousReleaseBackupPath === undefined ? {} : { previousReleaseBackupPath })
+  };
+}
+
+function restorePreviousReleaseDirectory(releaseDirectory: string, previousReleaseBackupPath: string | undefined): void {
+  rmSync(releaseDirectory, { recursive: true, force: true });
+  if (previousReleaseBackupPath !== undefined && existsSync(previousReleaseBackupPath)) {
+    renameSync(previousReleaseBackupPath, releaseDirectory);
+  }
+}
+
+function renumberJournal(entries: readonly InstallJournalEntry[]): InstallJournalEntry[] {
+  return entries.map((entry, index) => ({
+    ...entry,
+    sequence: index + 1
+  }));
 }
 
 function createInstallBackup(mindoryHome: string, label: string): InstallBackupReport {

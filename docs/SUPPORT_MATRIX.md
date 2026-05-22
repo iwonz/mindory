@@ -24,7 +24,7 @@ writing README, issues, release notes and docs.
 | Public self-host acceptance | Supported gate | `pnpm selfhost:acceptance` dry-runs the public self-host path; opt-in live mode runs installer start, MVP acceptance, backup, reset and uninstall in a temporary home. |
 | One-home installer layout | Supported baseline | `$MINDORY_HOME` config, logs, data, install and backups layout is implemented. |
 | Backup and restore | Supported MVP | `mindory-installer backup`, `backup-schedule`, `pitr-backup`, `pitr-restore`, `backup-archive`, `backup-upload`, `backup-download`, `backup-restore-archive`, `s3-inventory`, `s3-backup`, `s3-restore` and `restore` cover config, installer metadata, PostgreSQL dumps, local object storage state, scheduled retention/health, local Compose PostgreSQL PITR, encrypted S3-compatible remote backup archives and external S3 object inventory/streaming backup/restore. |
-| Remote release update | Future | Local asset update exists; remote release orchestration is later work. |
+| Remote release update | Supported baseline | Installer `update --manifest-url` and `update --manifest-path` verify signed manifests and bundle checksums, create pre-update backups, stage release assets, run migrations/startup/health checks and rollback release/config assets on failure. |
 | Release artifact publishing | Supported baseline | Release workflow generates bundle, signed manifest, public key sidecar, checksum and release notes artifacts; tag builds push versioned Docker images and upload artifacts to a draft GitHub Release. |
 
 ## Product Surfaces

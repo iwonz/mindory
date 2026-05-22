@@ -29,7 +29,8 @@ import {
   runInstallWizard,
   uninstallMindoryHome,
   uploadEncryptedMindoryBackupArchive,
-  updateInstallAssets
+  updateInstallAssets,
+  updateInstallFromRemoteRelease
 } from "./index.js";
 
 const args = process.argv.slice(2);
@@ -415,13 +416,26 @@ async function runUpdateCommand(): Promise<void> {
     mindoryHome: optionValue("--home") ?? createDefaultInstallAnswers().mindoryHome
   });
   const sourceRoot = optionValue("--source");
+  const manifestUrl = optionValue("--manifest-url");
+  const manifestPath = optionValue("--manifest-path");
+  const publicKeyPath = optionValue("--public-key-path");
+  const publicKeyPem = optionValue("--public-key-pem");
   const dryRun = args.includes("--dry-run");
   try {
-    const report = await updateInstallAssets(answers, {
-      dryRun,
-      owner: "mindory-installer-cli",
-      ...(sourceRoot === undefined ? {} : { sourceRoot })
-    });
+    const report = manifestUrl !== undefined || manifestPath !== undefined
+      ? await updateInstallFromRemoteRelease(answers, {
+        dryRun,
+        owner: "mindory-installer-cli",
+        ...(manifestUrl === undefined ? {} : { manifestUrl }),
+        ...(manifestPath === undefined ? {} : { manifestPath }),
+        ...(publicKeyPath === undefined ? {} : { publicKeyPath }),
+        ...(publicKeyPem === undefined ? {} : { publicKeyPem })
+      })
+      : await updateInstallAssets(answers, {
+        dryRun,
+        owner: "mindory-installer-cli",
+        ...(sourceRoot === undefined ? {} : { sourceRoot })
+      });
     printJson({
       status: dryRun ? "update_dry_run" : "updated",
       mindoryHome: answers.mindoryHome,
@@ -576,6 +590,8 @@ Usage:
   mindory-installer resume [--home <path>]
   mindory-installer repair [--home <path>]
   mindory-installer update [--home <path>] [--source <path>] [--dry-run]
+  mindory-installer update [--home <path>] --manifest-url <url> --public-key-path <public.pem> [--dry-run]
+  mindory-installer update [--home <path>] --manifest-path <file> [--public-key-path <public.pem>] [--dry-run]
   mindory-installer backup [--home <path>] [--output <path>] [--label <name>] [--dry-run] [--no-postgres] [--no-objects]
   mindory-installer backup-archive --home <path> --backup <path> [--output <path>] [--key <secret>] [--key-id <id>]
   mindory-installer backup-upload --home <path> --archive <path> [--object-key <key>]

@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import crypto from "node:crypto";
+import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -42,6 +44,48 @@ function clamAvHealthCommandResult(args, options = {}) {
   return { status: 0, stdout: "/tmp/mindory-clamav-clean-health.txt: OK\n", stderr: "" };
 }
 
+function createSignedRemoteReleaseFixture(version) {
+  const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-remote-release-fixture-"));
+  const releaseRoot = path.join(fixtureRoot, `mindory-${version}`);
+  fs.mkdirSync(path.join(releaseRoot, "deploy", "compose"), { recursive: true });
+  fs.writeFileSync(path.join(releaseRoot, "deploy", "compose", "release-manifest.json"), `${JSON.stringify({
+    assets: [
+      { path: "docker-compose.yml", required: true },
+      { path: "docker-compose.override.yml", required: false }
+    ],
+    mindory_home_directories: ["config", "data/postgres", "data/redis", "data/objects", "logs", "backups", "install"]
+  }, null, 2)}\n`);
+  fs.writeFileSync(path.join(releaseRoot, "docker-compose.yml"), "services:\n  postgres:\n    image: postgres:16\n");
+  fs.writeFileSync(path.join(releaseRoot, "docker-compose.override.yml"), "services: {}\n");
+
+  const bundlePath = path.join(fixtureRoot, `mindory-${version}.tar.gz`);
+  const tarResult = spawnSync("tar", ["-czf", bundlePath, "-C", fixtureRoot, `mindory-${version}`], { encoding: "utf8" });
+  assert((tarResult.status ?? 1) === 0, `remote release fixture tar must succeed: ${tarResult.stderr || tarResult.stdout}`);
+
+  const { privateKey, publicKey } = crypto.generateKeyPairSync("rsa", { modulusLength: 2048 });
+  const publicKeyPem = publicKey.export({ type: "spki", format: "pem" }).toString();
+  const publicKeyPath = path.join(fixtureRoot, `mindory-${version}.manifest.env.public.pem`);
+  fs.writeFileSync(publicKeyPath, publicKeyPem);
+  const checksum = crypto.createHash("sha256").update(fs.readFileSync(bundlePath)).digest("hex");
+  const publicKeySha256 = crypto.createHash("sha256").update(publicKeyPem, "utf8").digest("hex");
+  const unsignedManifest = [
+    "# Mindory release manifest",
+    `MINDORY_RELEASE_VERSION=${version}`,
+    `MINDORY_RELEASE_BUNDLE_URL=${bundlePath}`,
+    `MINDORY_RELEASE_BUNDLE_SHA256=${checksum}`,
+    `MINDORY_RELEASE_BUNDLE_NAME=mindory-${version}.tar.gz`,
+    `MINDORY_RELEASE_CREATED_AT=2026-05-22T00:00:00.000Z`,
+    "MINDORY_RELEASE_MANIFEST_SIGNATURE_ALGORITHM=RSA-SHA256",
+    `MINDORY_RELEASE_PUBLIC_KEY_SHA256=${publicKeySha256}`,
+    ""
+  ].join("\n");
+  const signature = crypto.sign("sha256", Buffer.from(unsignedManifest, "utf8"), privateKey).toString("base64");
+  const manifestPath = path.join(fixtureRoot, `mindory-${version}.manifest.env`);
+  fs.writeFileSync(manifestPath, `${unsignedManifest}MINDORY_RELEASE_MANIFEST_SIGNATURE=${signature}\n`);
+  fs.copyFileSync(publicKeyPath, `${manifestPath}.public.pem`);
+  return { fixtureRoot, bundlePath, manifestPath, publicKeyPath };
+}
+
 const rootPackage = readJson("package.json");
 const rootTsconfig = readJson("tsconfig.json");
 const installerPackage = readJson("packages/installer/package.json");
@@ -69,6 +113,7 @@ for (const symbol of [
   "executeInstallPlan",
   "InstallCommandRunner",
   "updateInstallAssets",
+  "updateInstallFromRemoteRelease",
   "uninstallMindoryHome",
   "createMindoryRuntimeBackup",
   "restoreMindoryRuntimeBackup",
@@ -122,7 +167,7 @@ for (const token of ["infected_probe_not_detected", "unexpected_infected_result"
   assert(installerSource.includes(token), `Installer ClamAV health must include ${token}.`);
 }
 assert(composeFile.includes("clamdscan --no-summary"), "ClamAV Compose service must include a real daemon healthcheck.");
-for (const token of ["command === \"start\"", "stopBeforeStepId: null", "initialTokenPath", "mindory-installer start", "command === \"update\"", "command === \"backup\"", "command === \"backup-archive\"", "command === \"backup-upload\"", "command === \"backup-download\"", "command === \"backup-restore-archive\"", "command === \"s3-inventory\"", "command === \"s3-backup\"", "command === \"s3-restore\"", "command === \"pitr-backup\"", "command === \"pitr-restore\"", "command === \"restore\"", "command === \"uninstall\""]) {
+for (const token of ["command === \"start\"", "stopBeforeStepId: null", "initialTokenPath", "mindory-installer start", "command === \"update\"", "--manifest-url", "--public-key-path", "updateInstallFromRemoteRelease", "command === \"backup\"", "command === \"backup-archive\"", "command === \"backup-upload\"", "command === \"backup-download\"", "command === \"backup-restore-archive\"", "command === \"s3-inventory\"", "command === \"s3-backup\"", "command === \"s3-restore\"", "command === \"pitr-backup\"", "command === \"pitr-restore\"", "command === \"restore\"", "command === \"uninstall\""]) {
   assert(installerCli.includes(token), `Installer CLI must expose startup command token ${token}.`);
 }
 
@@ -705,6 +750,95 @@ try {
 assert(updateRollbackThrown, "Update failure must be surfaced.");
 assert(fs.readFileSync(existingEnvPath, "utf8") === "MINDORY_HOME=old\n", "Update failure must restore previous config from backup.");
 fs.rmSync(updateRollbackHome, { recursive: true, force: true });
+
+const remoteUpdateHome = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-installer-remote-update-"));
+fs.rmSync(remoteUpdateHome, { recursive: true, force: true });
+const remoteUpdateAnswers = installer.createDefaultInstallAnswers({ mindoryHome: remoteUpdateHome });
+await installer.executeInstallPlan(remoteUpdateAnswers, { sourceRoot: root, owner: "validator" });
+fs.mkdirSync(path.join(remoteUpdateHome, "install", "releases"), { recursive: true });
+fs.writeFileSync(path.join(remoteUpdateHome, "install", "releases", "existing-marker.txt"), "keep");
+const remoteFixture = createSignedRemoteReleaseFixture("0.0.0-remote-update");
+const remoteCommands = [];
+const remoteCommandRunner = {
+  async run(command, args) {
+    remoteCommands.push(`${command} ${args.join(" ")}`);
+    const clamAvResult = clamAvHealthCommandResult(args);
+    if (clamAvResult !== null) {
+      return clamAvResult;
+    }
+    const cpIndex = args.indexOf("cp");
+    if (args[0] === "compose" && cpIndex >= 0 && String(args[cpIndex + 1] ?? "").startsWith("postgres:")) {
+      fs.mkdirSync(path.dirname(String(args[cpIndex + 2])), { recursive: true });
+      fs.writeFileSync(String(args[cpIndex + 2]), "-- remote update pg dump\n");
+      return { status: 0, stdout: "copied", stderr: "" };
+    }
+    if (args.includes("ps")) {
+      return { status: 0, stdout: healthyComposePs, stderr: "" };
+    }
+    return { status: 0, stdout: "ok", stderr: "" };
+  }
+};
+const remoteDryRun = await installer.updateInstallFromRemoteRelease(remoteUpdateAnswers, {
+  manifestPath: remoteFixture.manifestPath,
+  publicKeyPath: remoteFixture.publicKeyPath,
+  dryRun: true
+});
+assert(remoteDryRun.dryRun === true, "Remote update dry-run must report dryRun=true.");
+assert(!fs.existsSync(path.join(remoteUpdateHome, "install", "releases", "0.0.0-remote-update")), "Remote update dry-run must not stage the release directory.");
+const remoteUpdateReport = await installer.updateInstallFromRemoteRelease(remoteUpdateAnswers, {
+  manifestPath: remoteFixture.manifestPath,
+  publicKeyPath: remoteFixture.publicKeyPath,
+  owner: "validator",
+  timeoutMs: 100,
+  pollIntervalMs: 1,
+  apiReadyCheck: async () => true,
+  commandRunner: remoteCommandRunner
+});
+assert(remoteUpdateReport.runtimeBackup?.manifestPath !== undefined && fs.existsSync(remoteUpdateReport.runtimeBackup.manifestPath), "Remote update must create a runtime backup before migration.");
+assert(remoteUpdateReport.executedStepIds.includes("run-migrations"), "Remote update must run migrations.");
+assert(remoteUpdateReport.executedStepIds.includes("health-check"), "Remote update must run health checks.");
+assert(remoteCommands.some((command) => command.includes("up migrate")), "Remote update must start the migration service.");
+assert(fs.existsSync(path.join(remoteUpdateReport.releaseDirectory, "deploy", "compose", "release-manifest.json")), "Remote update must stage the verified release directory.");
+
+const tamperedManifestPath = path.join(remoteFixture.fixtureRoot, "tampered.manifest.env");
+fs.writeFileSync(tamperedManifestPath, fs.readFileSync(remoteFixture.manifestPath, "utf8").replace("0.0.0-remote-update", "0.0.0-tampered"));
+let tamperedRemoteRejected = false;
+try {
+  await installer.updateInstallFromRemoteRelease(remoteUpdateAnswers, {
+    manifestPath: tamperedManifestPath,
+    publicKeyPath: remoteFixture.publicKeyPath
+  });
+} catch (error) {
+  tamperedRemoteRejected = String(error).includes("Manifest signature verification failed");
+}
+assert(tamperedRemoteRejected, "Remote update must reject tampered manifests before asset changes.");
+
+const remoteRollbackHome = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-installer-remote-update-rollback-"));
+fs.rmSync(remoteRollbackHome, { recursive: true, force: true });
+const remoteRollbackAnswers = installer.createDefaultInstallAnswers({ mindoryHome: remoteRollbackHome });
+await installer.executeInstallPlan(remoteRollbackAnswers, { sourceRoot: root, owner: "validator" });
+fs.writeFileSync(path.join(remoteRollbackHome, "config", ".env"), "MINDORY_HOME=remote-old\n");
+let remoteRollbackThrown = false;
+try {
+  await installer.updateInstallFromRemoteRelease(remoteRollbackAnswers, {
+    manifestPath: remoteFixture.manifestPath,
+    publicKeyPath: remoteFixture.publicKeyPath,
+    owner: "validator",
+    timeoutMs: 100,
+    pollIntervalMs: 1,
+    commandRunner: remoteCommandRunner,
+    apiReadyCheck: async () => false
+  });
+} catch (error) {
+  remoteRollbackThrown = /api|ready|health/i.test(String(error));
+}
+assert(remoteRollbackThrown, "Remote update healthcheck failure must be surfaced.");
+assert(fs.readFileSync(path.join(remoteRollbackHome, "config", ".env"), "utf8") === "MINDORY_HOME=remote-old\n", "Remote update healthcheck failure must restore previous config.");
+const remoteRollbackJournal = installer.readInstallJournal(remoteRollbackHome) ?? [];
+assert(remoteRollbackJournal.some((entry) => entry.actionId === "rollback-remote-release" && entry.event === "rollback_completed"), "Remote update rollback must be recorded in the journal.");
+fs.rmSync(remoteFixture.fixtureRoot, { recursive: true, force: true });
+fs.rmSync(remoteUpdateHome, { recursive: true, force: true });
+fs.rmSync(remoteRollbackHome, { recursive: true, force: true });
 
 const uninstallHome = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-installer-uninstall-"));
 fs.writeFileSync(path.join(uninstallHome, "marker.txt"), "installed");

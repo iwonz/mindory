@@ -1,7 +1,7 @@
 {
   "id": "TASK-109",
   "title": "Add remote installer update",
-  "status": "draft",
+  "status": "done",
   "type": "feature",
   "priority": "high",
   "branch": "task/TASK-109-remote-installer-update",

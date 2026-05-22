@@ -20,6 +20,9 @@ documentation.
 
 ### Added
 
+- `TASK-109`: signed remote installer update with release download/staging,
+  manifest and checksum verification, pre-update backups, migration/startup
+  health checks and rollback.
 - `TASK-108`: hardened release publishing workflow with tag-only GHCR image
   pushes, generated release notes, signed artifact uploads and a public release
   checklist.
