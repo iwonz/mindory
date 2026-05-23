@@ -118,6 +118,11 @@ search, context preview, manual memory, face identity operations and runtime
 diagnostics. It does not read PostgreSQL, Redis, object storage, vector indexes
 or worker state directly.
 
+Docker Compose and installer deployments run the UI as the `ui` service from
+the release image. The service publishes `MINDORY_UI_PORT`, serves static assets
+from `apps/ui/dist` and proxies browser `/api` requests to `MINDORY_UI_API_URL`
+inside the Compose network.
+
 ## Configuration Catalog
 
 `TASK-52` makes `packages/config/src/catalog.ts` the central catalog for

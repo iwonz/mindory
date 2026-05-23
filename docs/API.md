@@ -227,9 +227,9 @@ GET /v1/runtime/diagnostics
 
 The route requires `projectId` and `project:read`. It returns read-only runtime
 diagnostics for storage/vector/AV/model settings, provider health states,
-metrics links and a redacted installer/config summary. It never returns raw
-tokens, API keys or secret values; secret-bearing settings are exposed only as
-`*_configured` booleans.
+Web UI routing, metrics links and a redacted installer/config summary. It never
+returns raw tokens, API keys or secret values; secret-bearing settings are
+exposed only as `*_configured` booleans.
 
 ## MCP Boundary
 

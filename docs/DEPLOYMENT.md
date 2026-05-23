@@ -14,7 +14,7 @@ secrets, rate limits, structured logs and observability are maintained in
 | Persistent local Compose | Supported for development and self-host testing when `MINDORY_HOME` is set intentionally. |
 | Installer wizard and dry-run | Supported. It can collect answers, render config previews and validate plans. |
 | Installer prepare execution | Supported. It can create `$MINDORY_HOME`, write config/env files and copy Compose assets. |
-| Installer Compose startup | Supported as an explicit start step. It can pull/build, start infrastructure, run migrations, start API/worker/MCP and wait for health checks. |
+| Installer Compose startup | Supported as an explicit start step. It can pull/build, start infrastructure, run migrations, start API/worker/MCP/Web UI and wait for health checks. |
 | Installer first-run provisioning | Supported. The start step creates the first project/token and writes `config/initial-token.json` under `$MINDORY_HOME`. |
 | Installer lifecycle operations | Supported baseline for local asset update, signed remote release update, runtime backup/restore, scheduled local backup, encrypted remote backup archives, external S3 streaming backups, journal resume/repair and guarded uninstall. |
 | Release images and bundles | Bundle generation is supported with `pnpm release:bundle`. Generated manifests are RSA-SHA256 signed, and bootstrap scripts verify the signature before trusting bundle checksums. Publishing automation pushes versioned Docker images on trusted tag builds and publishes signed release artifacts plus generated release notes to public GitHub pre-releases. |
@@ -204,9 +204,10 @@ pnpm --filter @mindory/ui start
 ```
 
 The local UI server listens on `MINDORY_UI_HOST:MINDORY_UI_PORT`, defaulting to
-`127.0.0.1:3080`, and proxies `/api` to `MINDORY_UI_API_URL`, defaulting to
-`http://localhost:3000`. The package is part of workspace typecheck and
-`pnpm check`; runtime Compose/image wiring is tracked separately.
+`127.0.0.1:3080` for source runs. Docker Compose and installer deployments run
+the `ui` service from the release image, publish `MINDORY_UI_PORT` on the host
+and proxy `/api` to `MINDORY_UI_API_URL`, defaulting to `http://api:3000` inside
+the Compose network. The package is part of workspace typecheck and `pnpm check`.
 
 ## Base Services
 
@@ -214,6 +215,7 @@ The local UI server listens on `MINDORY_UI_HOST:MINDORY_UI_PORT`, defaulting to
 - `redis`
 - `migrate`
 - `api`
+- `ui`
 - `mcp`
 - `worker`
 

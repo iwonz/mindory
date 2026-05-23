@@ -12,6 +12,7 @@ COPY scripts ./scripts
 
 RUN pnpm install --frozen-lockfile
 RUN pnpm typecheck
+RUN pnpm --filter @mindory/ui build
 
 ENV NODE_ENV=production
 

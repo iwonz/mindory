@@ -21,7 +21,8 @@ Defaults:
 
 - UI URL: `http://127.0.0.1:3080`
 - API proxy: `/api`
-- Upstream API: `http://localhost:3000`
+- Upstream API for source runs: `http://localhost:3000`
+- Upstream API for Docker/installer runs: `http://api:3000`
 
 The server reads:
 
@@ -33,6 +34,12 @@ The server reads:
 requests go to `/api`, and the server forwards them to the configured Mindory
 API. This keeps the local UI path usable without requiring browser CORS changes
 in the API service.
+
+Docker Compose and installer deployments include a first-class `ui` service.
+The release image builds `@mindory/ui` static assets, starts
+`apps/ui/dist/server.js`, publishes `MINDORY_UI_PORT` on the host and health
+checks `/health`. Local quickstart and persistent-local installs expose the UI
+at `http://localhost:3080` unless `MINDORY_UI_PORT` is changed.
 
 ## Current Surface
 

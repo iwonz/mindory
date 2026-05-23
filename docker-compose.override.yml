@@ -3,6 +3,10 @@ services:
     environment:
       NODE_ENV: development
 
+  ui:
+    environment:
+      NODE_ENV: development
+
   mcp:
     environment:
       NODE_ENV: development

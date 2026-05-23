@@ -101,7 +101,7 @@ for (const token of [
   "storage/vector/AV/model",
   "provider health",
   "metrics links",
-  "TASK-129"
+  "TASK-130"
 ]) {
   assertIncludes(`${uiDocs}\n${readme}\n${statusDocs}\n${supportMatrix}`, token, "public documentation");
 }

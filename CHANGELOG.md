@@ -20,6 +20,9 @@ documentation.
 
 ### Added
 
+- `TASK-130`: Web UI Docker and installer integration with Compose `ui`
+  service, release image UI asset build, installer UI port/env wiring, MVP demo
+  UI output and `pnpm ui:docker:validate` coverage.
 - `TASK-129`: Web UI runtime diagnostics workspace with storage/vector/AV/model
   settings, provider health, recent job status, metrics links, redacted
   installer/config summary and `pnpm ui:diagnostics:validate` coverage.

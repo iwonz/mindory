@@ -875,9 +875,14 @@ export const CONFIG_CATALOG = [
   entry("MINDORY_LLM_LOCAL_COMMAND_MAX_INPUT_BYTES", "llm", "number", "16777216", "Maximum JSON stdin size for local-command model operations.", "both", "experimental"),
   entry("MINDORY_LLM_LOCAL_COMMAND_MAX_OUTPUT_BYTES", "llm", "number", "67108864", "Maximum combined stdout/stderr size for local-command healthchecks and operations.", "both", "experimental"),
 
-  entry("MINDORY_UI_HOST", "ui", "string", "127.0.0.1", "Web UI static server listen host.", "both", "supported"),
-  entry("MINDORY_UI_PORT", "ui", "number", "3080", "Web UI static server listen port.", "both", "supported"),
-  entry("MINDORY_UI_API_URL", "ui", "string", "http://localhost:3000", "Upstream Mindory API URL used by the UI proxy.", "both", "supported"),
+  entry("MINDORY_UI_HOST", "ui", "string", "0.0.0.0", "Web UI static server listen host.", "both", "supported"),
+  entry("MINDORY_UI_PORT", "ui", "number", "3080", "Web UI static server listen port.", "both", "supported", {
+    prompt: {
+      label: "Web UI port",
+      help: "Host port exposed by the Web UI service in Docker and installer deployments."
+    }
+  }),
+  entry("MINDORY_UI_API_URL", "ui", "string", "http://api:3000", "Upstream Mindory API URL used by the UI proxy.", "both", "supported"),
 
   entry("MINDORY_MCP_ENABLED", "mcp", "boolean", "true", "Enable the MCP stdio server.", "runtime", "supported"),
   entry("MINDORY_MCP_TRANSPORT", "mcp", "enum", "stdio", "MCP transport.", "runtime", "supported", {

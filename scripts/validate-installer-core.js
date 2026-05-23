@@ -217,6 +217,7 @@ for (const promptId of [
   "local_models.runner.mindory-deterministic-local-http.enabled",
   "local_models.runner.ollama-nomic-embed-text.enabled",
   "interfaces.api_port",
+  "interfaces.ui_port",
   "tokens.cli_api_token",
   "llm.TEXT_EMBEDDING.enabled",
   "llm.TEXT_EMBEDDING.provider",
@@ -306,11 +307,15 @@ assert(env.MINDORY_REMOTE_BACKUP_S3_SECRET_ACCESS_KEY === "backup-secret", "Rend
 assert(env.MINDORY_LLM_TEXT_EMBEDDING_PROVIDER === "ollama", "Rendered env must include LLM role provider.");
 assert(env.MINDORY_INSTALL_LOCAL_MODEL_AUTO_INSTALL === "false", "Rendered env must include local model auto-install switch.");
 assert(env.MINDORY_INSTALL_LOCAL_MODEL_PULL_RETRIES === "2", "Rendered env must include local model pull retry count.");
+assert(env.MINDORY_UI_HOST === "0.0.0.0", "Rendered env must bind the installer Web UI container on all interfaces.");
+assert(env.MINDORY_UI_PORT === "3080", "Rendered env must include Web UI port.");
+assert(env.MINDORY_UI_API_URL === "http://api:3000", "Rendered env must route Web UI proxy traffic to the API service.");
 
 const envFile = installer.renderEnvFile(answers);
 assert(envFile.includes("MINDORY_S3_ENDPOINT=http://librefs:9000"), "Env file must render S3-compatible endpoint.");
 assert(envFile.includes("MINDORY_LLM_TEXT_EMBEDDING_DIMENSIONS=1536"), "Env file must render embedding dimensions.");
 assert(envFile.includes("MINDORY_INSTALL_LOCAL_MODEL_AUTO_INSTALL=false"), "Env file must render local model auto-install settings.");
+assert(envFile.includes("MINDORY_UI_API_URL=http://api:3000"), "Env file must render Web UI proxy routing.");
 
 const configJson = JSON.parse(installer.renderMindoryConfigJson(answers));
 assert(configJson.mindory_home === "/tmp/mindory-installer-test", "Config JSON must include mindory_home.");
@@ -368,6 +373,7 @@ const healthyComposePs = JSON.stringify([
   { Service: "api", State: "running", Health: "healthy" },
   { Service: "worker", State: "running", Health: "healthy" },
   { Service: "mcp", State: "running", Health: "healthy" },
+  { Service: "ui", State: "running", Health: "healthy" },
   { Service: "migrate", State: "exited", ExitCode: "0" }
 ]);
 const healthyNoClamAvComposePs = JSON.stringify([
@@ -376,6 +382,7 @@ const healthyNoClamAvComposePs = JSON.stringify([
   { Service: "api", State: "running", Health: "healthy" },
   { Service: "worker", State: "running", Health: "healthy" },
   { Service: "mcp", State: "running", Health: "healthy" },
+  { Service: "ui", State: "running", Health: "healthy" },
   { Service: "migrate", State: "exited", ExitCode: "0" }
 ]);
 const healthyQdrantComposePs = JSON.stringify([
@@ -386,6 +393,7 @@ const healthyQdrantComposePs = JSON.stringify([
   { Service: "api", State: "running", Health: "healthy" },
   { Service: "worker", State: "running", Health: "healthy" },
   { Service: "mcp", State: "running", Health: "healthy" },
+  { Service: "ui", State: "running", Health: "healthy" },
   { Service: "migrate", State: "exited", ExitCode: "0" }
 ]);
 const healthyDoclingComposePs = JSON.stringify([
@@ -396,6 +404,7 @@ const healthyDoclingComposePs = JSON.stringify([
   { Service: "api", State: "running", Health: "healthy" },
   { Service: "worker", State: "running", Health: "healthy" },
   { Service: "mcp", State: "running", Health: "healthy" },
+  { Service: "ui", State: "running", Health: "healthy" },
   { Service: "migrate", State: "exited", ExitCode: "0" }
 ]);
 const composeReport = await installer.executeInstallPlan(installer.createDefaultInstallAnswers({ mindoryHome: composeHome }), {
@@ -421,7 +430,7 @@ const composeReport = await installer.executeInstallPlan(installer.createDefault
 });
 assert(composeReport.executedStepIds.includes("health-check"), "Compose execution must run through health-check.");
 assert(composeReport.pendingStepIds[0] === "create-first-token", "Compose execution must leave first token provisioning pending.");
-for (const token of ["pull --ignore-buildable", "build", "up -d postgres redis clamav", "up migrate", "up -d api worker mcp", "ps --all --format json"]) {
+for (const token of ["pull --ignore-buildable", "build", "up -d postgres redis clamav", "up migrate", "up -d api worker mcp ui", "ps --all --format json"]) {
   assert(composeCommands.some((command) => command.includes(token)), `Compose execution must run ${token}.`);
 }
 assert(composeCommands.some((command) => command.includes("exec -T clamav sh -lc") && command.includes("clamdscan")), "Installer health-check must execute ClamAV scan probes.");
@@ -510,6 +519,7 @@ const localModelDependencyChecks = installer.detectHostDependencies(localModelAn
 });
 assert(localModelDependencyChecks.some((check) => check.id.includes("local-model-port-ollama-nomic-embed-text-11434") && check.status === "failed"), "Local model dependency detection must check selected runner ports.");
 assert(localModelDependencyChecks.some((check) => check.id === "disk-space" && check.status === "failed" && check.diagnosis.includes("estimated for selected local model runners")), "Local model dependency detection must include selected runner disk requirements.");
+assert(localModelDependencyChecks.some((check) => check.id === "ui-port" && check.status === "ok"), "Installer dependency detection must check Web UI port availability.");
 
 const resumeFileHome = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-installer-resume-file-"));
 fs.rmSync(resumeFileHome, { recursive: true, force: true });
@@ -1066,7 +1076,7 @@ try {
         if (clamAvResult !== null) {
           return clamAvResult;
         }
-        if (args.join(" ").includes("up -d api worker mcp")) {
+        if (args.join(" ").includes("up -d api worker mcp ui")) {
           return { status: 1, stdout: "", stderr: "runtime failed" };
         }
         return { status: 0, stdout: args.includes("ps") ? healthyComposePs : "ok", stderr: "" };

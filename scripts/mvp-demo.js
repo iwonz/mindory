@@ -10,6 +10,7 @@ const options = parseOptions(args);
 
 const profiles = resolveProfiles(options);
 const apiUrl = (process.env.MINDORY_E2E_API_URL ?? `http://localhost:${process.env.MINDORY_API_PORT ?? "3000"}`).replace(/\/$/, "");
+const uiUrl = `http://localhost:${process.env.MINDORY_UI_PORT ?? "3080"}`;
 const projectId = process.env.MINDORY_DEMO_PROJECT_ID ?? "mindory-demo";
 const demoToken = process.env.MINDORY_DEMO_TOKEN ?? "mindory-demo-token";
 const demoTokenId = process.env.MINDORY_DEMO_TOKEN_ID ?? "tok_mindory_demo";
@@ -57,6 +58,7 @@ async function runUp() {
   console.log("");
   console.log("Mindory MVP demo is ready.");
   console.log(`API URL: ${apiUrl}`);
+  console.log(`Web UI: ${uiUrl}`);
   console.log(`Project: ${projectId}`);
   console.log(`Token: ${demoToken}`);
   console.log("Useful commands:");
@@ -114,7 +116,7 @@ function runLiveAcceptance() {
 }
 
 async function waitForComposeServices(timeoutMs) {
-  const required = ["postgres", "redis", "api", "worker", "mcp"];
+  const required = ["postgres", "redis", "api", "worker", "mcp", "ui"];
   if (profiles.includes("local-models")) {
     required.push("llm");
   }
@@ -281,6 +283,8 @@ function dockerEnv() {
     MINDORY_DOCUMENT_PROCESSING_IMAGE_ENABLED: process.env.MINDORY_DOCUMENT_PROCESSING_IMAGE_ENABLED ?? "true",
     MINDORY_DOCUMENT_PROCESSING_AUDIO_ENABLED: process.env.MINDORY_DOCUMENT_PROCESSING_AUDIO_ENABLED ?? "true",
     MINDORY_DOCUMENT_PROCESSING_VIDEO_ENABLED: process.env.MINDORY_DOCUMENT_PROCESSING_VIDEO_ENABLED ?? "true",
+    MINDORY_UI_HOST: process.env.MINDORY_UI_HOST ?? "0.0.0.0",
+    MINDORY_UI_API_URL: process.env.MINDORY_UI_API_URL ?? "http://api:3000",
     PATH: [
       "/Applications/Docker.app/Contents/Resources/bin",
       "/usr/local/bin",

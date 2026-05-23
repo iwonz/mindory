@@ -16,7 +16,7 @@ artifacts.
 | Plan/dry-run | Supported. It renders deterministic install plans without mutating host state. |
 | Config rendering | Supported in the installer core for generated `.env` and `mindory.config.json` content. |
 | Prepare execution | Supported. It creates `$MINDORY_HOME`, writes generated config/env files and copies release Compose assets with journaled rollback. |
-| Compose startup | Supported. It can pull/build, start infrastructure, run migrations, start API/worker/MCP and wait for Compose/API readiness. |
+| Compose startup | Supported. It can pull/build, start infrastructure, run migrations, start API/worker/MCP/Web UI and wait for Compose/API readiness. |
 | S3 storage bootstrap | Supported baseline. Local LibreFS/MinIO profiles run bucket bootstrap services; external S3-compatible endpoints are signed access-checked before migrations. |
 | Vector backend selection | Supported. The wizard and answer files can choose `pgvector` or `qdrant`; Qdrant automatically adds the `qdrant` Compose profile and is included in Compose health checks. |
 | First project/token provisioning | Supported. It creates the initial project and bearer token, then writes `config/initial-token.json`. |
@@ -110,6 +110,10 @@ The generated raw bearer token is written once to:
 ```text
 $MINDORY_HOME/config/initial-token.json
 ```
+
+The same file includes `api_url` and `ui_url` so a local quickstart user can
+open the Web UI and paste `Authorization: Bearer <token>` without inspecting
+Compose internals.
 
 For release mode, provide a manifest URL or manifest file. The manifest is a
 simple env-style file:

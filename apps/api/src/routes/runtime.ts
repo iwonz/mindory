@@ -99,6 +99,11 @@ function redactedRuntimeConfig(config: MindoryConfig): Record<string, unknown> {
     },
     llm: llmRoleSummary(config),
     interfaces: {
+      ui: {
+        host: config.ui.host,
+        port: config.ui.port,
+        api_url: config.ui.apiUrl
+      },
       mcp: {
         enabled: config.mcp.enabled,
         transport: config.mcp.transport,

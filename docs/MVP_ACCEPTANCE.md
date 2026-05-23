@@ -6,7 +6,8 @@ derived artifacts and model profiles. `TASK-86` adds the public self-host
 acceptance gate. `TASK-112` extends that gate into the release-readiness live
 matrix for sync antivirus, pgvector, Qdrant, Docling, backup, signed remote
 update and uninstall. `TASK-125` adds the checked local-model multimodal gate
-for the supported deterministic local HTTP profile.
+for the supported deterministic local HTTP profile. `TASK-130` adds the Web UI
+service to the Docker and installer paths.
 
 One-command live demo:
 
@@ -16,7 +17,8 @@ pnpm mvp:demo
 
 This starts Docker Compose with the `clamav` profile, enables local multimodal
 routing, waits for required service health/readiness, seeds demo credentials and
-runs live acceptance.
+runs live acceptance. The demo also starts the Web UI at
+`http://localhost:3080`, proxying browser `/api` requests to the API service.
 
 Start and seed without live acceptance:
 

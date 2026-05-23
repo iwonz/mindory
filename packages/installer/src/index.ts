@@ -182,6 +182,7 @@ export interface LlmProviderAnswers {
 
 export interface InterfaceAnswers {
   apiPort: number;
+  uiPort: number;
   mcpEnabled: boolean;
   hermesEnabled: boolean;
 }
@@ -414,6 +415,7 @@ export interface FirstRunCredentials {
   tokenId: string;
   token: string;
   apiUrl: string;
+  uiUrl?: string;
 }
 
 export interface InstallCommandOptions {
@@ -974,6 +976,7 @@ export function createDefaultInstallAnswers(overrides: Partial<MindoryInstallAns
     },
     interfaces: {
       apiPort: Number.parseInt(catalogDefault("MINDORY_API_PORT"), 10),
+      uiPort: Number.parseInt(catalogDefault("MINDORY_UI_PORT"), 10),
       mcpEnabled: catalogDefault("MINDORY_MCP_ENABLED") === "true",
       hermesEnabled: catalogDefault("MINDORY_HERMES_ADAPTER_ENABLED") === "true"
     },
@@ -1083,6 +1086,7 @@ export function createInstallAnswersFromHome(mindoryHome: string): MindoryInstal
     },
     interfaces: {
       apiPort: envNumber(env, "MINDORY_API_PORT"),
+      uiPort: envNumber(env, "MINDORY_UI_PORT"),
       mcpEnabled: envBool(env, "MINDORY_MCP_ENABLED"),
       hermesEnabled: envBool(env, "MINDORY_HERMES_ADAPTER_ENABLED")
     },
@@ -1208,6 +1212,12 @@ export function validateInstallAnswers(answers: MindoryInstallAnswers): string[]
   validateCatalogValue(errors, "MINDORY_LLM_OPENAI_COMPATIBLE_AUTH_MODE", answers.llmProviders.openaiCompatibleAuthMode);
   if (answers.interfaces.apiPort <= 0 || answers.interfaces.apiPort > 65535) {
     errors.push("interfaces.apiPort must be a valid TCP port.");
+  }
+  if (answers.interfaces.uiPort <= 0 || answers.interfaces.uiPort > 65535) {
+    errors.push("interfaces.uiPort must be a valid TCP port.");
+  }
+  if (answers.interfaces.uiPort === answers.interfaces.apiPort) {
+    errors.push("interfaces.uiPort must be different from interfaces.apiPort.");
   }
   if (answers.modalities.videoMaxKeyframes <= 0) {
     errors.push("modalities.videoMaxKeyframes must be greater than zero.");
@@ -1382,7 +1392,7 @@ export function createInstallPlan(answers: MindoryInstallAnswers): InstallPlan {
       step("install-local-models", "Install selected local model runners", "docker", "restore_file", path.posix.join(answers.mindoryHome, "install/local-models")),
       step("bootstrap-storage", "Bootstrap object storage bucket", "docker", "none"),
       step("run-migrations", "Run database migrations", "migration", "none"),
-      step("start-runtime", "Start API, worker and MCP package smoke services", "runtime", "compose_down"),
+      step("start-runtime", "Start API, worker, MCP and Web UI services", "runtime", "compose_down"),
       step("health-check", "Run install health checks", "healthcheck", "none"),
       step("create-first-token", "Create initial project and API token", "token", "restore_file", path.posix.join(answers.mindoryHome, "config/initial-token.json"))
     ]
@@ -1552,6 +1562,15 @@ export function detectHostDependencies(answers: MindoryInstallAnswers, probe: De
     required: true,
     ...(apiPortAvailable ? {} : { diagnosis: `Port ${answers.interfaces.apiPort} is already in use.` }),
     manualFix: "Choose another MINDORY_API_PORT or stop the conflicting process."
+  });
+  const uiPortAvailable = probe.isPortAvailable(answers.interfaces.uiPort);
+  checks.push({
+    id: "ui-port",
+    label: `Web UI port ${answers.interfaces.uiPort}`,
+    status: uiPortAvailable ? "ok" : "failed",
+    required: true,
+    ...(uiPortAvailable ? {} : { diagnosis: `Port ${answers.interfaces.uiPort} is already in use.` }),
+    manualFix: "Choose another MINDORY_UI_PORT or stop the conflicting process."
   });
 
   const diskSpaceBytes = probe.diskSpaceBytes(answers.mindoryHome);
@@ -3217,6 +3236,9 @@ export function answersToEnvMap(answers: MindoryInstallAnswers): Record<string, 
   assign(env, "MINDORY_INSTALL_LOCAL_MODEL_PULL_RETRIES", String(answers.localModels.pullRetries));
   assign(env, "MINDORY_PUBLIC_URL", answers.publicUrl);
   assign(env, "MINDORY_API_PORT", String(answers.interfaces.apiPort));
+  assign(env, "MINDORY_UI_HOST", "0.0.0.0");
+  assign(env, "MINDORY_UI_PORT", String(answers.interfaces.uiPort));
+  assign(env, "MINDORY_UI_API_URL", `http://api:${answers.interfaces.apiPort}`);
   assign(env, "MINDORY_STORAGE_PROVIDER", answers.storage.provider);
   assign(env, "MINDORY_STORAGE_LOCAL_PATH", answers.storage.localPath);
   assign(env, "MINDORY_S3_ENDPOINT", answers.storage.s3.endpoint);
@@ -3464,6 +3486,7 @@ export function buildWizardPromptPlan(options: WizardOptions = {}): WizardPrompt
     promptFromCatalog("local_models.pull_retries", "MINDORY_INSTALL_LOCAL_MODEL_PULL_RETRIES", "number"),
     ...localModelRunnerPrompts(answers),
     promptFromCatalog("interfaces.api_port", "MINDORY_API_PORT", "number"),
+    promptFromCatalog("interfaces.ui_port", "MINDORY_UI_PORT", "number"),
     promptFromCatalog("interfaces.mcp_enabled", "MINDORY_MCP_ENABLED", "boolean"),
     promptFromCatalog("interfaces.hermes_enabled", "MINDORY_HERMES_ADAPTER_ENABLED", "boolean"),
     promptFromCatalog("tokens.mcp_api_token", "MINDORY_MCP_API_TOKEN", "secret"),
@@ -3634,6 +3657,7 @@ export async function runInstallWizard(io: WizardIo, options: WizardOptions = {}
   }
 
   answers.interfaces.apiPort = await askNumber(io, promptFromCatalog("interfaces.api_port", "MINDORY_API_PORT", "number"));
+  answers.interfaces.uiPort = await askNumber(io, promptFromCatalog("interfaces.ui_port", "MINDORY_UI_PORT", "number"));
   answers.interfaces.mcpEnabled = await askBoolean(io, promptFromCatalog("interfaces.mcp_enabled", "MINDORY_MCP_ENABLED", "boolean"));
   answers.interfaces.hermesEnabled = await askBoolean(io, promptFromCatalog("interfaces.hermes_enabled", "MINDORY_HERMES_ADAPTER_ENABLED", "boolean"));
   answers.tokens.mcpApiToken = await askString(io, promptFromCatalog("tokens.mcp_api_token", "MINDORY_MCP_API_TOKEN", "secret"));
@@ -4198,7 +4222,7 @@ async function runComposeMigrations(plan: InstallPlan, options: InstallExecution
 }
 
 async function startComposeRuntime(plan: InstallPlan, options: InstallExecutionOptions): Promise<void> {
-  await runDockerCompose(plan, ["up", "-d", "api", "worker", "mcp"], options);
+  await runDockerCompose(plan, ["up", "-d", "api", "worker", "mcp", "ui"], options);
 }
 
 async function runInstallHealthChecks(plan: InstallPlan, options: InstallExecutionOptions): Promise<void> {
@@ -4362,7 +4386,7 @@ async function provisionFirstRunToken(plan: InstallPlan, stepItem: InstallPlanSt
 async function waitForComposeServices(plan: InstallPlan, options: InstallExecutionOptions): Promise<void> {
   const deadline = Date.now() + (options.timeoutMs ?? 240_000);
   const pollIntervalMs = options.pollIntervalMs ?? 2_000;
-  const required = [...new Set([...infrastructureServices(plan), "api", "worker", "mcp"])];
+  const required = [...new Set([...infrastructureServices(plan), "api", "worker", "mcp", "ui"])];
   const completed = ["migrate", ...storageBootstrapServices(plan)];
   let lastStatus = "";
 
@@ -4690,7 +4714,8 @@ function generateFirstRunCredentials(plan: InstallPlan): FirstRunCredentials {
     projectName: "Mindory Default",
     tokenId: `tok_install_${suffix}`,
     token: `mindory_${randomHex(32)}`,
-    apiUrl: `${plan.environment.MINDORY_PUBLIC_URL ?? "http://localhost:3000"}`.replace(/\/$/, "")
+    apiUrl: `${plan.environment.MINDORY_PUBLIC_URL ?? "http://localhost:3000"}`.replace(/\/$/, ""),
+    uiUrl: `http://localhost:${plan.environment.MINDORY_UI_PORT ?? "3080"}`
   };
 }
 
@@ -4701,9 +4726,11 @@ function renderInitialTokenFile(credentials: FirstRunCredentials): string {
     token_id: credentials.tokenId,
     token: credentials.token,
     api_url: credentials.apiUrl,
+    ui_url: credentials.uiUrl,
     created_at: new Date().toISOString(),
     usage: {
-      authorization_header: `Bearer ${credentials.token}`
+      authorization_header: `Bearer ${credentials.token}`,
+      ui_url: credentials.uiUrl
     }
   }, null, 2)}\n`;
 }
@@ -6216,6 +6243,7 @@ function promptIdToEnvName(promptId: string): string | undefined {
     "modalities.video_ffmpeg_command": "MINDORY_DOCUMENT_PROCESSING_VIDEO_FFMPEG_COMMAND",
     "modalities.video_ffprobe_command": "MINDORY_DOCUMENT_PROCESSING_VIDEO_FFPROBE_COMMAND",
     "interfaces.api_port": "MINDORY_API_PORT",
+    "interfaces.ui_port": "MINDORY_UI_PORT",
     "interfaces.mcp_enabled": "MINDORY_MCP_ENABLED",
     "interfaces.hermes_enabled": "MINDORY_HERMES_ADAPTER_ENABLED",
     "tokens.mcp_api_token": "MINDORY_MCP_API_TOKEN",

@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-129",
+  "current_task_id": "TASK-130",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -939,6 +939,13 @@
       "status": "done",
       "branch": "task/TASK-129-web-ui-runtime-settings-diagnostics",
       "file": "tasks/TASK-129.json"
+    },
+    {
+      "id": "TASK-130",
+      "title": "Web UI Docker and installer integration",
+      "status": "done",
+      "branch": "task/TASK-130-web-ui-docker-installer-integration",
+      "file": "tasks/TASK-130.json"
     }
   ]
 }

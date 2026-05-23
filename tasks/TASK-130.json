@@ -1,0 +1,59 @@
+{
+  "id": "TASK-130",
+  "title": "Web UI Docker and installer integration",
+  "status": "done",
+  "type": "feature",
+  "priority": "high",
+  "branch": "task/TASK-130-web-ui-docker-installer-integration",
+  "created_at": "2026-05-23",
+  "updated_at": "2026-05-23",
+  "context": {
+    "summary": "Make the Web UI a first-class Docker Compose and installer runtime service.",
+    "background": "TASK-126 through TASK-129 implemented the UI package and feature workspaces. The remaining integration scope is packaging the UI into the Docker/release/installer path so local quickstart and persistent-local deployments expose it by default."
+  },
+  "scope": {
+    "in": [
+      "Add a real docker-compose ui service using apps/ui/dist/server.js.",
+      "Build @mindory/ui static assets in the release Docker image.",
+      "Expose MINDORY_UI_HOST, MINDORY_UI_PORT and MINDORY_UI_API_URL through Compose and installer-generated env.",
+      "Add installer wizard/config/runtime support for UI port and include ui in runtime startup and health waits.",
+      "Make pnpm mvp:up report the Web UI URL and wait for the ui service.",
+      "Update docs, config examples and validators for Docker/installer Web UI support."
+    ],
+    "out": [
+      "Playwright E2E acceptance, which is TASK-131.",
+      "Changing Web UI product features already implemented in TASK-126 through TASK-129.",
+      "Adding reverse-proxy or TLS automation beyond the existing public URL setting."
+    ]
+  },
+  "acceptance_criteria": [
+    "Docker Compose defines a ui service that runs the built @mindory/ui server, publishes MINDORY_UI_PORT and health-checks /health.",
+    "The release Docker image builds UI static assets before runtime startup.",
+    "Installer-generated env and wizard support MINDORY_UI_PORT, route UI /api traffic to the API service and include ui in startup readiness.",
+    "pnpm mvp:up waits for the ui service and prints the local Web UI URL.",
+    "README, deployment, installer, UI, configuration, architecture, support matrix, repository status and changelog describe the supported UI Docker/installer path.",
+    "pnpm check includes Web UI Docker/installer validation."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm config:generate",
+      "pnpm compose:validate",
+      "pnpm installer:validate",
+      "pnpm ui:docker:validate",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm docker-compose.yml contains a ui service with command node apps/ui/dist/server.js and /health healthcheck.",
+      "Confirm installer first-run credentials include ui_url for local quickstart users."
+    ]
+  },
+  "dependencies": [
+    "TASK-129"
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is done.",
+    "Branch is committed and merged back into master."
+  ]
+}

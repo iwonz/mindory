@@ -119,7 +119,7 @@ for (const token of [
   "context preview",
   "manual memory",
   "face identity",
-  "TASK-129"
+  "TASK-130"
 ]) {
   assertIncludes(`${uiDocs}\n${readme}\n${statusDocs}\n${supportMatrix}`, token, "public documentation");
 }

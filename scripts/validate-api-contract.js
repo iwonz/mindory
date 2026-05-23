@@ -87,6 +87,7 @@ for (const route of ['"/health"', '"/ready"']) {
 assert(runtimeRoutes.includes('"/v1/runtime/diagnostics"'), "Runtime diagnostics route must include GET /v1/runtime/diagnostics.");
 assert(runtimeRoutes.includes('"project:read"'), "Runtime diagnostics route must require project:read.");
 assert(runtimeRoutes.includes("secret_key_configured"), "Runtime diagnostics must return redacted secret flags.");
+assert(runtimeRoutes.includes("config.ui"), "Runtime diagnostics must expose Web UI routing settings.");
 
 for (const route of ['"/v1/projects"', '"/v1/projects/:id"']) {
   assert(projectRoutes.includes(route), `Project routes must include ${route}.`);

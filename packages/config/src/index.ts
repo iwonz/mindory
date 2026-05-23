@@ -80,6 +80,11 @@ export interface MindoryConfig {
       maxRequests: number;
     };
   };
+  ui: {
+    host: string;
+    port: number;
+    apiUrl: string;
+  };
   metrics: {
     enabled: boolean;
     path: string;
@@ -372,6 +377,11 @@ export function loadMindoryConfig(env: EnvSource = process.env): MindoryConfig {
         maxRequests: readNumber(env, "MINDORY_API_RATE_LIMIT_MAX", catalogNumber("MINDORY_API_RATE_LIMIT_MAX"))
       }
     },
+    ui: {
+      host: readString(env, "MINDORY_UI_HOST", catalogString("MINDORY_UI_HOST")),
+      port: readNumber(env, "MINDORY_UI_PORT", catalogNumber("MINDORY_UI_PORT")),
+      apiUrl: readString(env, "MINDORY_UI_API_URL", catalogString("MINDORY_UI_API_URL"))
+    },
     metrics: {
       enabled: readBoolean(env, "MINDORY_METRICS_ENABLED", catalogBoolean("MINDORY_METRICS_ENABLED")),
       path: readString(env, "MINDORY_METRICS_PATH", catalogString("MINDORY_METRICS_PATH")),
@@ -537,6 +547,7 @@ export function loadMindoryConfig(env: EnvSource = process.env): MindoryConfig {
 
 export function validateMindoryConfig(config: MindoryConfig): void {
   validateApiConfig(config);
+  validateUiConfig(config);
   validateMetricsConfig(config);
   validateTelemetryConfig(config);
   validateBackupConfig(config);
@@ -557,6 +568,16 @@ function validateApiConfig(config: MindoryConfig): void {
   if (config.api.rateLimit.maxRequests <= 0) {
     throw new Error("MINDORY_API_RATE_LIMIT_MAX must be greater than zero when rate limits are enabled.");
   }
+}
+
+function validateUiConfig(config: MindoryConfig): void {
+  if (config.ui.host.trim() === "") {
+    throw new Error("MINDORY_UI_HOST must not be empty.");
+  }
+  if (config.ui.port <= 0 || config.ui.port > 65535) {
+    throw new Error("MINDORY_UI_PORT must be a valid TCP port.");
+  }
+  validateHttpUrl(config.ui.apiUrl, "MINDORY_UI_API_URL");
 }
 
 function validateMetricsConfig(config: MindoryConfig): void {

@@ -24,7 +24,7 @@ const dockerignore = fs.readFileSync(dockerignorePath, "utf8");
 const releaseManifest = JSON.parse(fs.readFileSync(releaseManifestPath, "utf8"));
 const legacyServiceScript = "scripts/docker-" + "place" + "holder-service.mjs";
 
-for (const service of ["postgres", "redis", "migrate", "api", "mcp", "worker", "librefs", "librefs-bucket", "minio", "minio-bucket", "docling"]) {
+for (const service of ["postgres", "redis", "migrate", "api", "ui", "mcp", "worker", "librefs", "librefs-bucket", "minio", "minio-bucket", "docling"]) {
   assert(compose.includes(`\n  ${service}:`), `docker-compose.yml must define ${service}.`);
 }
 
@@ -39,10 +39,12 @@ assert(compose.includes("dockerfile: Dockerfile"), "app services must build from
 assert(dockerfile.includes("pnpm install --frozen-lockfile"), "Dockerfile must install from the locked pnpm dependency graph.");
 assert(dockerfile.includes("apk add --no-cache ffmpeg"), "Dockerfile must install ffmpeg for bundled video keyframe extraction.");
 assert(dockerfile.includes("pnpm typecheck"), "Dockerfile must build TypeScript workspace outputs.");
+assert(dockerfile.includes("pnpm --filter @mindory/ui build"), "Dockerfile must build Web UI static assets.");
 assert(dockerignore.includes("node_modules"), ".dockerignore must exclude node_modules.");
 assert(compose.includes("command: [\"pnpm\", \"db:migrate\"]"), "compose must run migrations before app services.");
 assert(compose.includes("condition: service_completed_successfully"), "app services must wait for migration completion.");
 assert(compose.includes("command: [\"node\", \"apps/api/dist/server.js\"]"), "API service must run the real API server.");
+assert(compose.includes("command: [\"node\", \"apps/ui/dist/server.js\"]"), "UI service must run the real Web UI server.");
 assert(compose.includes("command: [\"node\", \"apps/worker/dist/server.js\"]"), "Worker service must run the real worker server.");
 assert(compose.includes("command: [\"node\", \"apps/mcp/dist/stdio.js\"]"), "MCP service must run the real stdio server.");
 assert(compose.includes("stdin_open: true"), "MCP stdio service must keep stdin open.");
@@ -60,6 +62,10 @@ assert(compose.includes("MINDORY_REDIS_URL"), "compose environment must include 
 assert(compose.includes("condition: service_healthy"), "app services must wait for healthy dependencies.");
 assert(compose.includes("/ready"), "API healthcheck must call /ready.");
 assert(compose.includes("'http://127.0.0.1:'+port+'/ready'"), "API healthcheck must avoid Compose interpolation inside JavaScript.");
+assert(compose.includes("'http://127.0.0.1:'+port+'/health'"), "UI healthcheck must call /health.");
+assert(compose.includes("${MINDORY_UI_PORT:-3080}:${MINDORY_UI_PORT:-3080}"), "UI service must publish the configured UI port.");
+assert(compose.includes("MINDORY_UI_HOST: ${MINDORY_UI_HOST:-0.0.0.0}"), "Compose must bind the Web UI server for container port publishing.");
+assert(compose.includes("MINDORY_UI_API_URL: ${MINDORY_UI_API_URL:-http://api:3000}"), "Compose must route UI /api traffic to the API service by default.");
 assert(compose.includes("${MINDORY_HOME:-${HOME}/.mindory}/data/postgres:/var/lib/postgresql/data"), "Postgres data must be bind-mounted under MINDORY_HOME.");
 assert(compose.includes("${MINDORY_HOME:-${HOME}/.mindory}/data/redis:/data"), "Redis data must be bind-mounted under MINDORY_HOME.");
 assert(compose.includes("${MINDORY_HOME:-${HOME}/.mindory}/data/objects:/data/mindory/objects"), "API/worker services must mount local object storage under MINDORY_HOME.");

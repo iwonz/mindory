@@ -68,6 +68,7 @@
     "ui:documents:validate": "node scripts/validate-ui-document-workspace.js",
     "ui:insights:validate": "node scripts/validate-ui-insights-workspace.js",
     "ui:diagnostics:validate": "node scripts/validate-ui-diagnostics-workspace.js",
+    "ui:docker:validate": "node scripts/validate-ui-docker-installer-integration.js",
     "workspace:validate": "node scripts/validate-workspace.js"
   },
   "devDependencies": {

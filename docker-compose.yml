@@ -167,6 +167,9 @@ x-mindory-env: &mindory-env
   MINDORY_LLM_LOCAL_COMMAND_OPERATION_ARGS: ${MINDORY_LLM_LOCAL_COMMAND_OPERATION_ARGS:-["operate","--role","{role}","--model","{model}","--operation","{operation}"]}
   MINDORY_LLM_LOCAL_COMMAND_MAX_INPUT_BYTES: ${MINDORY_LLM_LOCAL_COMMAND_MAX_INPUT_BYTES:-16777216}
   MINDORY_LLM_LOCAL_COMMAND_MAX_OUTPUT_BYTES: ${MINDORY_LLM_LOCAL_COMMAND_MAX_OUTPUT_BYTES:-67108864}
+  MINDORY_UI_HOST: ${MINDORY_UI_HOST:-0.0.0.0}
+  MINDORY_UI_PORT: ${MINDORY_UI_PORT:-3080}
+  MINDORY_UI_API_URL: ${MINDORY_UI_API_URL:-http://api:3000}
   MINDORY_MCP_ENABLED: ${MINDORY_MCP_ENABLED:-true}
   MINDORY_MCP_TRANSPORT: ${MINDORY_MCP_TRANSPORT:-stdio}
   MINDORY_MCP_API_URL: ${MINDORY_MCP_API_URL:-http://api:3000}
@@ -269,6 +272,29 @@ services:
       - ${MINDORY_HOME:-${HOME}/.mindory}/config:/data/mindory/config:ro
       - ${MINDORY_HOME:-${HOME}/.mindory}/data/objects:/data/mindory/objects
       - ${MINDORY_HOME:-${HOME}/.mindory}/logs:/data/mindory/logs
+
+  ui:
+    <<: *mindory-app
+    command: ["node", "apps/ui/dist/server.js"]
+    environment:
+      <<: *mindory-env
+      NODE_ENV: production
+    ports:
+      - "${MINDORY_UI_PORT:-3080}:${MINDORY_UI_PORT:-3080}"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "const port=process.env.MINDORY_UI_PORT||3080; fetch('http://127.0.0.1:'+port+'/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1));"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   mcp:
     <<: *mindory-app

@@ -8,7 +8,7 @@ The canonical product and engineering specification is `docs/PRD.md`.
 
 ## Repository Status
 
-This repository is complete through `TASK-129`. Mindory can run a local
+This repository is complete through `TASK-130`. Mindory can run a local
 demo-MVP through Docker Compose, seed demo credentials, process uploaded
 documents through the worker pipeline and run live acceptance. `pnpm check`
 passes through the repo validation, typecheck, lint, tests and dry-run
@@ -28,7 +28,7 @@ experimental profile surfaces and documented non-MVP surfaces:
 | Installer | Supported today: wizard, plan/dry-run, prepare execution for `$MINDORY_HOME` directories/config/compose assets, Docker Compose startup through health checks, supported local model auto-install with resource preflight/logs/Ollama pulls, S3 bucket bootstrap/access checks, first project/token provisioning, local asset update, signed remote release update, runtime backup/restore, scheduled local backups with retention/health, local Compose PostgreSQL PITR, encrypted remote backup archives with S3-compatible upload/download verification, external S3 object inventory/streaming backup/restore, guarded uninstall, dependency detection, lock/journal resume/repair, signed bootstrap staging, installer acceptance and public self-host acceptance. |
 | Deployment | Supported local MVP: Compose stack with single-home bind mounts under `MINDORY_HOME`, defaulting to `${HOME}/.mindory` outside demo scripts. Release bundle generation, signed manifest verification, generated release notes, tag-build Docker image publishing to GHCR and signed remote update/rollback are supported; unattended update automation remains outside the current scope. |
 | Observability | Supported baseline: structured log helpers, model operation audit queries, Prometheus API/worker metrics exporters, OpenTelemetry OTLP tracing/log export, in-process job/stage metrics, health snapshots and documented in-process rate-limit strategy. |
-| Web UI | Supported local MVP surface: `@mindory/ui` builds as a workspace package and provides token/API URL entry, API health, project/session navigation, session message inspection, document upload, document list/detail, job progress, retry/reprocess controls, artifact source refs, unified search, context preview, manual memory creation, source-backed memory display, face identity operations and runtime diagnostics through HTTP API calls. |
+| Web UI | Supported local MVP surface: `@mindory/ui` builds as a workspace package and provides token/API URL entry, API health, project/session navigation, session message inspection, document upload, document list/detail, job progress, retry/reprocess controls, artifact source refs, unified search, context preview, manual memory creation, source-backed memory display, face identity operations and runtime diagnostics through HTTP API calls. Docker Compose and installer deployments include the `ui` service on `MINDORY_UI_PORT` with `/api` proxy routing through `MINDORY_UI_API_URL`. |
 
 Public repository files:
 
@@ -99,8 +99,10 @@ pnpm --filter @mindory/ui build
 pnpm --filter @mindory/ui start
 ```
 
-It serves `http://127.0.0.1:3080` by default and proxies `/api` to
-`MINDORY_UI_API_URL` or `http://localhost:3000`.
+It serves `http://127.0.0.1:3080` from the source package by default. In Docker
+and installer deployments the `ui` service is published on
+`http://localhost:3080` and proxies `/api` to the `api` service through
+`MINDORY_UI_API_URL`.
 
 To start and seed the stack without running live acceptance:
 
@@ -209,7 +211,9 @@ source refs, unified search, context preview, manual memory creation,
 source-backed memories, face identity list/rename/merge and runtime diagnostics
 for storage/vector/AV/model settings, provider health, job status, metrics links
 and redacted installer/config summary through the HTTP API. It does not access
-database, queue, storage, vector or worker internals directly.
+database, queue, storage, vector or worker internals directly. `TASK-130` wires
+the UI into Docker Compose, release assets and installer-generated runtime
+configuration.
 
 The CLI package exposes the `mindory` binary, a minimal bootstrap argument
 parser, and commands for project, token, session, message, document, memory,

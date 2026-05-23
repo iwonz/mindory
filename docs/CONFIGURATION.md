@@ -455,7 +455,11 @@ for a real local text embedding runner.
 `MINDORY_UI_HOST` and `MINDORY_UI_PORT` configure the `@mindory/ui` static
 server. `MINDORY_UI_API_URL` configures the upstream Mindory API that the UI
 server proxies under `/api`. The browser app defaults to `/api`, so local UI
-usage does not require cross-origin API requests.
+usage does not require cross-origin API requests. Docker and installer
+deployments default `MINDORY_UI_HOST=0.0.0.0`,
+`MINDORY_UI_PORT=3080` and `MINDORY_UI_API_URL=http://api:3000`; source package
+runs can leave the variable unset to use the package fallback
+`http://localhost:3000`.
 
 ## MVP Acceptance
 
