@@ -338,9 +338,10 @@ coverage, source/image metadata, model files, license/status, ports,
 healthchecks and resource hints. If a supported local runner is selected, the
 wizard applies the matching `@mindory/llm` role provider/model defaults. If the
 runner is declined, roles only covered by that runner are written as disabled
-instead of being left half-configured. Future or experimental LLM roles are
-visible, but they cannot be enabled unless experimental mode is enabled
-explicitly.
+instead of being left half-configured. Supported multimodal roles can be
+enabled without experimental mode, but providers that are not supported for the
+selected role still require experimental mode explicitly when marked
+experimental. Providers marked future cannot be selected.
 
 During `start`, selected local runners are installed after their Compose
 services start and before storage bootstrap or migrations continue. The

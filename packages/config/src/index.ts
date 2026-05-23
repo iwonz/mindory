@@ -730,14 +730,22 @@ function validateLlmConfig(config: MindoryConfig): void {
     if (!capability.enabled) {
       continue;
     }
-    if (llmRoleSupportStatus(envKey) !== "supported" && !config.install.allowExperimental) {
-      throw new Error(`MINDORY_LLM_${envKey}_ENABLED requires MINDORY_INSTALL_ALLOW_EXPERIMENTAL=true because the role is ${llmRoleSupportStatus(envKey)}.`);
+    const roleStatus = llmRoleSupportStatus(envKey);
+    if (roleStatus === "future") {
+      throw new Error(`MINDORY_LLM_${envKey}_ENABLED cannot be enabled because the role is future.`);
+    }
+    if (roleStatus !== "supported" && !config.install.allowExperimental) {
+      throw new Error(`MINDORY_LLM_${envKey}_ENABLED requires MINDORY_INSTALL_ALLOW_EXPERIMENTAL=true because the role is ${roleStatus}.`);
     }
     if (capability.provider === "disabled") {
       throw new Error(`MINDORY_LLM_${envKey}_PROVIDER cannot be disabled when the capability is enabled.`);
     }
-    if (llmRoleProviderSupportStatus(envKey, capability.provider) !== "supported" && !config.install.allowExperimental) {
-      throw new Error(`MINDORY_LLM_${envKey}_PROVIDER=${capability.provider} requires MINDORY_INSTALL_ALLOW_EXPERIMENTAL=true because it is ${llmRoleProviderSupportStatus(envKey, capability.provider)} for this role.`);
+    const providerStatus = llmRoleProviderSupportStatus(envKey, capability.provider);
+    if (providerStatus === "future") {
+      throw new Error(`MINDORY_LLM_${envKey}_PROVIDER=${capability.provider} cannot be enabled because it is future for this role.`);
+    }
+    if (providerStatus !== "supported" && !config.install.allowExperimental) {
+      throw new Error(`MINDORY_LLM_${envKey}_PROVIDER=${capability.provider} requires MINDORY_INSTALL_ALLOW_EXPERIMENTAL=true because it is ${providerStatus} for this role.`);
     }
     if (capability.model.trim() === "") {
       throw new Error(`MINDORY_LLM_${envKey}_MODEL is required when the capability is enabled.`);

@@ -149,7 +149,9 @@ current `master` baseline. The fresh target pre-release is `v0.1.1`; the
 `TASK-133` through `TASK-147` series promotes OCR, ASR, vision captioning,
 object detection, image embeddings, face detection/recognition, image
 generation, audio generation, local-command runners and local-http runners into
-checked supported local/install/runtime paths.
+checked supported local/install/runtime paths. `TASK-134` promotes the central
+role/provider support matrix; the remaining tasks add runner-specific install
+and live acceptance coverage.
 
 Do not implement the remaining non-goals unless a task explicitly scopes them.
 
@@ -1308,10 +1310,12 @@ For MVP:
 
 - text extraction is required for `.txt` and `.md`;
 - PDF extraction should support native text and scanned-PDF OCR through a model adapter;
-- image OCR and vision captioning are optional experimental paths and not
-  required for the default MVP;
+- image OCR, vision captioning, object detection and image embeddings are
+  supported through configured model providers and not required for the default
+  disabled-model MVP;
 - audio ASR, video keyframe extraction and face detection/recognition are
-  optional experimental paths and not required for the default MVP.
+  supported through configured providers and not required for the default
+  disabled-model MVP.
 
 ### 15.2 Session/message pipeline
 

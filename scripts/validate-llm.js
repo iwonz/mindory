@@ -212,9 +212,11 @@ for (const token of [
 ]) {
   assertIncludes(configCatalog, token, "packages/config/src/catalog.ts");
 }
-assertIncludes(configCatalog, "llmRoleSupport(\"IMAGE_GENERATION\", \"experimental\", \"disabled\", \"\", {\n    \"openai-compatible\": \"experimental\"", "packages/config/src/catalog.ts");
-assertIncludes(configCatalog, "llmRoleSupport(\"AUDIO_GENERATION\", \"experimental\", \"disabled\", \"\", {\n    \"openai-compatible\": \"experimental\"", "packages/config/src/catalog.ts");
-assertIncludes(configCatalog, "\"local-http\": \"experimental\",\n    \"local-command\": \"experimental\"", "packages/config/src/catalog.ts");
+assertIncludes(configCatalog, "llmRoleSupport(\"IMAGE_EMBEDDING\", \"supported\", \"local-http\"", "packages/config/src/catalog.ts");
+assertIncludes(configCatalog, "llmRoleSupport(\"OCR\", \"supported\", \"local-http\"", "packages/config/src/catalog.ts");
+assertIncludes(configCatalog, "llmRoleSupport(\"IMAGE_GENERATION\", \"supported\", \"disabled\", \"\", {\n    \"openai-compatible\": \"supported\"", "packages/config/src/catalog.ts");
+assertIncludes(configCatalog, "llmRoleSupport(\"AUDIO_GENERATION\", \"supported\", \"disabled\", \"\", {\n    \"openai-compatible\": \"supported\"", "packages/config/src/catalog.ts");
+assertIncludes(configCatalog, "\"local-http\": \"supported\",\n    \"local-command\": \"supported\"", "packages/config/src/catalog.ts");
 
 for (const token of [
   "MINDORY_LLM_CHAT_ENABLED",
@@ -323,8 +325,8 @@ for (const token of [
   "Support Matrix",
   "`text-embedding` | supported",
   "`chat` | supported",
-  "`image-generation` | experimental",
-  "MINDORY_INSTALL_ALLOW_EXPERIMENTAL=true",
+  "`image-generation` | supported",
+  "`ocr` | supported",
   "/chat/completions",
   "`/embeddings`",
   "`/health`",
@@ -335,6 +337,19 @@ for (const token of [
 
 const { buildMindoryLlm, checkMindoryLlmProviderHealth } = await import("../packages/llm/dist/index.js");
 const { loadMindoryConfig } = await import("../packages/config/dist/index.js");
+let futureProviderBlocked = false;
+try {
+  loadMindoryConfig({
+    MINDORY_INSTALL_ALLOW_EXPERIMENTAL: "true",
+    MINDORY_LLM_IMAGE_EMBEDDING_ENABLED: "true",
+    MINDORY_LLM_IMAGE_EMBEDDING_PROVIDER: "openai-compatible",
+    MINDORY_LLM_IMAGE_EMBEDDING_MODEL: "unsupported-image-embedding",
+    MINDORY_LLM_IMAGE_EMBEDDING_DIMENSIONS: "1536"
+  });
+} catch (error) {
+  futureProviderBlocked = String(error).includes("future for this role");
+}
+assert(futureProviderBlocked, "Config validation must block future LLM provider choices even when experimental mode is enabled.");
 const chatAudits = [];
 const chatRequests = [];
 const chatConfig = loadMindoryConfig({
@@ -377,7 +392,6 @@ assert(chatAudits[0]?.status === "success", "OpenAI-compatible chat provider mus
 const openAiGenerationAudits = [];
 const openAiGenerationRequests = [];
 const openAiGenerationConfig = loadMindoryConfig({
-  MINDORY_INSTALL_ALLOW_EXPERIMENTAL: "true",
   MINDORY_LLM_IMAGE_GENERATION_ENABLED: "true",
   MINDORY_LLM_IMAGE_GENERATION_PROVIDER: "openai-compatible",
   MINDORY_LLM_IMAGE_GENERATION_MODEL: "gpt-image-test",
@@ -474,7 +488,6 @@ const localConfig = loadMindoryConfig({
   MINDORY_LLM_AUDIO_GENERATION_ENABLED: "true",
   MINDORY_LLM_AUDIO_GENERATION_PROVIDER: "local-http",
   MINDORY_LLM_AUDIO_GENERATION_MODEL: "local-audio-generation",
-  MINDORY_INSTALL_ALLOW_EXPERIMENTAL: "true",
   MINDORY_LLM_LOCAL_HTTP_BASE_URL: "http://llm.local:8080",
   MINDORY_LLM_OLLAMA_BASE_URL: "http://ollama.local:11434"
 });
@@ -693,7 +706,6 @@ assert(localAudits.some((audit) => audit.role === "audio-generation" && audit.pr
 
 function localCommandConfig(script, extra = {}) {
   return loadMindoryConfig({
-    MINDORY_INSTALL_ALLOW_EXPERIMENTAL: "true",
     MINDORY_LLM_TEXT_EMBEDDING_ENABLED: "true",
     MINDORY_LLM_TEXT_EMBEDDING_PROVIDER: "local-command",
     MINDORY_LLM_TEXT_EMBEDDING_MODEL: "local-command-embedding",
@@ -796,7 +808,6 @@ switch (request.operation) {
 `;
 const localCommandOperationAudits = [];
 const localCommandOperationConfig = loadMindoryConfig({
-  MINDORY_INSTALL_ALLOW_EXPERIMENTAL: "true",
   MINDORY_LLM_CHAT_ENABLED: "true",
   MINDORY_LLM_CHAT_PROVIDER: "local-command",
   MINDORY_LLM_CHAT_MODEL: "local-command-chat",

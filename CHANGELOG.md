@@ -20,6 +20,10 @@ documentation.
 
 ### Added
 
+- `TASK-134`: promoted OCR, ASR, vision captioning/object detection, image
+  embeddings, face roles, image/audio generation and local HTTP/local-command
+  provider paths to supported in the central `@mindory/llm` and config support
+  matrix, while keeping future provider choices blocked by validation.
 - `TASK-133`: v0.1.1 supported multimodal release contract and task registry,
   including task files for `TASK-133` through `TASK-147`, public docs that mark
   `v0.1.0` as historical/stale and the target support set for OCR, ASR, vision,

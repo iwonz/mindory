@@ -1281,28 +1281,40 @@ assert(capturedSummary !== null, "Wizard must produce a confirmation summary.");
 assert(!JSON.stringify(capturedSummary).includes("wizard-secret"), "Wizard confirmation summary must redact secrets.");
 assert(!JSON.stringify(capturedSummary).includes("wizard-cli-secret"), "Wizard confirmation summary must redact tokens.");
 
-let experimentalBlocked = false;
-try {
-  await installer.runInstallWizard({
-    async prompt(prompt) {
-      if (prompt.id === "llm.OCR.enabled") {
-        return "true";
-      }
-      if (prompt.id.startsWith("llm.")) {
-        return "false";
-      }
-      return scriptedResponses.get(prompt.id) ?? "";
-    },
-    async confirm() {
-      return true;
+const ocrWizardAnswers = await installer.runInstallWizard({
+  async prompt(prompt) {
+    if (prompt.id === "llm.OCR.enabled") {
+      return "true";
     }
-  });
-} catch (error) {
-  experimentalBlocked = String(error).includes("requires experimental mode");
-}
-assert(experimentalBlocked, "Wizard must block future LLM roles unless experimental mode is enabled.");
+    if (prompt.id === "llm.OCR.provider") {
+      return "local-http";
+    }
+    if (prompt.id === "llm.OCR.model") {
+      return "wizard-ocr";
+    }
+    if (prompt.id === "llm.OCR.required") {
+      return "false";
+    }
+    if (prompt.id === "llm.OCR.timeout_ms") {
+      return "60000";
+    }
+    if (prompt.id === "llm.OCR.concurrency") {
+      return "1";
+    }
+    if (prompt.id.startsWith("llm.")) {
+      return "false";
+    }
+    return scriptedResponses.get(prompt.id) ?? "";
+  },
+  async confirm() {
+    return true;
+  }
+});
+assert(ocrWizardAnswers.allowExperimental === false, "Wizard OCR scenario must keep experimental mode disabled.");
+assert(ocrWizardAnswers.llmRoles.OCR.enabled === true, "Wizard must allow promoted OCR without experimental mode.");
+assert(ocrWizardAnswers.llmRoles.OCR.provider === "local-http", "Wizard must keep promoted OCR on local-http.");
 
-const futureProviderAnswers = installer.createDefaultInstallAnswers({
+const supportedLocalCommandAnswers = installer.createDefaultInstallAnswers({
   llmRoles: {
     IMAGE_EMBEDDING: {
       enabled: true,
@@ -1311,22 +1323,29 @@ const futureProviderAnswers = installer.createDefaultInstallAnswers({
       required: false,
       timeoutMs: 60000,
       concurrency: 1,
-      dimensions: 3
+      dimensions: 1536
     }
   }
 });
-const futureProviderErrors = installer.validateInstallAnswers(futureProviderAnswers);
-assert(futureProviderErrors.some((error) => error.includes("provider local-command requires experimental mode") || error.includes("llmRoles.IMAGE_EMBEDDING.enabled requires experimental mode")), "Installer validation must block experimental LLM providers unless experimental mode is enabled.");
-assert(futureProviderErrors.some((error) => error.includes("localCommandHealthcheckCommand is required")), "Installer validation must require local-command healthcheck command when local-command provider is enabled.");
-assert(futureProviderErrors.some((error) => error.includes("localCommandOperationCommand is required")), "Installer validation must require local-command operation command when local-command provider is enabled.");
-const allowedFutureProviderErrors = installer.validateInstallAnswers({
-  ...futureProviderAnswers,
-  allowExperimental: true
-});
-assert(!allowedFutureProviderErrors.some((error) => error.includes("requires experimental mode")), "Installer validation must allow future LLM providers when experimental mode is enabled.");
+const supportedLocalCommandErrors = installer.validateInstallAnswers(supportedLocalCommandAnswers);
+assert(!supportedLocalCommandErrors.some((error) => error.includes("requires experimental mode")), "Installer validation must allow promoted local-command providers without experimental mode.");
+assert(supportedLocalCommandErrors.some((error) => error.includes("localCommandHealthcheckCommand is required")), "Installer validation must require local-command healthcheck command when local-command provider is enabled.");
+assert(supportedLocalCommandErrors.some((error) => error.includes("localCommandOperationCommand is required")), "Installer validation must require local-command operation command when local-command provider is enabled.");
+const unsupportedProviderErrors = installer.validateInstallAnswers(installer.createDefaultInstallAnswers({
+  llmRoles: {
+    VISION_CAPTIONING: {
+      enabled: true,
+      provider: "ollama",
+      model: "unsupported-vision",
+      required: false,
+      timeoutMs: 60000,
+      concurrency: 1
+    }
+  }
+}));
+assert(unsupportedProviderErrors.some((error) => error.includes("provider ollama cannot be enabled because it is future")), "Installer validation must still block unsupported provider choices.");
 const configuredLocalCommandProviderErrors = installer.validateInstallAnswers(installer.createDefaultInstallAnswers({
-  ...futureProviderAnswers,
-  allowExperimental: true,
+  ...supportedLocalCommandAnswers,
   llmProviders: {
     localCommandHealthcheckCommand: "mindory-local-health",
     localCommandHealthcheckArgs: ["healthcheck", "--role", "{role}", "--model", "{model}"],
@@ -1334,6 +1353,6 @@ const configuredLocalCommandProviderErrors = installer.validateInstallAnswers(in
     localCommandOperationArgs: ["operate", "--role", "{role}", "--model", "{model}", "--operation", "{operation}"]
   }
 }));
-assert(configuredLocalCommandProviderErrors.length === 0, "Installer validation must accept configured local-command healthcheck contract when experimental mode is enabled.");
+assert(configuredLocalCommandProviderErrors.length === 0, "Installer validation must accept configured local-command healthcheck contract without experimental mode.");
 
 console.log("Installer core and wizard validated.");

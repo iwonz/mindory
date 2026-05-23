@@ -35,10 +35,10 @@ Processing status must be durable in PostgreSQL, not only in BullMQ.
 | Text and Markdown | Supported local MVP. Extracts text, chunks it, stores spans and can search through full-text or pgvector when embeddings are enabled. |
 | Native-text PDF | Supported local MVP. Extracts page-level native text and source refs. |
 | Scanned PDF OCR | Supported when the OCR role is enabled with a local HTTP OCR provider; disabled by default. |
-| Image | Supported deterministic fallback plus experimental local HTTP/local-command OCR, vision captioning, object detection and image embeddings through `@mindory/llm` when enabled. Stores derived caption, analysis, labels, object observations, image vectors and OCR text. |
-| Face observations | Experimental provider path plus supported deterministic fallback. Local HTTP face detection/recognition runs through `@mindory/llm` when enabled; explicit people-count signals still create fallback observations when providers are disabled. |
-| Audio | Supported WAV metadata and embedded `INFO/ICMT` transcript fallback plus experimental local HTTP ASR through `@mindory/llm` when enabled. |
-| Video | Supported embedded `MINDORY_VIDEO_MANIFEST` fallback plus bundled ffmpeg keyframe extraction. Experimental local-command extraction is also available for custom deployments. Extracted frame bytes can run through OCR/vision roles. |
+| Image | Supported deterministic fallback plus supported local HTTP/local-command OCR, vision captioning, object detection and image embeddings through `@mindory/llm` when enabled. Stores derived caption, analysis, labels, object observations, image vectors and OCR text. |
+| Face observations | Supported provider path plus supported deterministic fallback. Local HTTP or local-command face detection/recognition runs through `@mindory/llm` when enabled; explicit people-count signals still create fallback observations when providers are disabled. |
+| Audio | Supported WAV metadata and embedded `INFO/ICMT` transcript fallback plus supported local HTTP/local-command ASR through `@mindory/llm` when enabled. |
+| Video | Supported embedded `MINDORY_VIDEO_MANIFEST` fallback plus bundled ffmpeg keyframe extraction. Local-command keyframe extraction is available for custom deployments. Extracted frame bytes can run through OCR/vision roles. |
 | Embeddings and vector search | Supported for text chunks and image artifacts through `@mindory/llm` and the selected vector backend when compatible dimensions are configured. Full-text fallback is supported when embeddings are disabled. |
 
 ## Derived Artifact State

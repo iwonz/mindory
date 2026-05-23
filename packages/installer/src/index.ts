@@ -1251,19 +1251,28 @@ export function validateInstallAnswers(answers: MindoryInstallAnswers): string[]
     }
     validateCatalogValue(errors, `MINDORY_LLM_${role}_PROVIDER`, roleAnswers.provider);
     const roleKey = role as InstallerLlmRoleKey;
-    if (roleAnswers.enabled && roleSupportRequiresExperimental(llmRoleSupportStatus(roleKey)) && !answers.allowExperimental) {
-      errors.push(`llmRoles.${role}.enabled requires experimental mode because the role is ${llmRoleSupportStatus(roleKey)}.`);
+    const roleStatus = llmRoleSupportStatus(roleKey);
+    if (roleAnswers.enabled && roleStatus === "future") {
+      errors.push(`llmRoles.${role}.enabled cannot be enabled because the role is future.`);
+    }
+    if (roleAnswers.enabled && roleSupportRequiresExperimental(roleStatus) && !answers.allowExperimental) {
+      errors.push(`llmRoles.${role}.enabled requires experimental mode because the role is ${roleStatus}.`);
     }
     if (roleAnswers.enabled && roleAnswers.provider === "disabled") {
       errors.push(`llmRoles.${role}.provider cannot be disabled when the role is enabled.`);
     }
+    const providerStatus = llmRoleProviderSupportStatus(roleKey, roleAnswers.provider);
+    if (roleAnswers.enabled && roleAnswers.provider !== "disabled" && providerStatus === "future") {
+      errors.push(`llmRoles.${role}.provider ${roleAnswers.provider} cannot be enabled because it is future for this role.`);
+    }
     if (
       roleAnswers.enabled &&
       roleAnswers.provider !== "disabled" &&
-      roleSupportRequiresExperimental(llmRoleProviderSupportStatus(roleKey, roleAnswers.provider)) &&
+      providerStatus !== "future" &&
+      roleSupportRequiresExperimental(providerStatus) &&
       !answers.allowExperimental
     ) {
-      errors.push(`llmRoles.${role}.provider ${roleAnswers.provider} requires experimental mode because it is ${llmRoleProviderSupportStatus(roleKey, roleAnswers.provider)} for this role.`);
+      errors.push(`llmRoles.${role}.provider ${roleAnswers.provider} requires experimental mode because it is ${providerStatus} for this role.`);
     }
     if (roleAnswers.timeoutMs <= 0) {
       errors.push(`llmRoles.${role}.timeoutMs must be greater than zero.`);
@@ -3604,10 +3613,11 @@ export async function runInstallWizard(io: WizardIo, options: WizardOptions = {}
 
   for (const role of LLM_ROLE_KEYS) {
     const experimentalAllowed = answers.allowExperimental || options.allowExperimental === true;
-    const roleAllowed = roleSupportStatus(role) === "supported" || experimentalAllowed;
+    const roleStatus = roleSupportStatus(role);
+    const roleAllowed = roleStatus === "supported" || (roleStatus === "experimental" && experimentalAllowed);
     const enabled = await askBoolean(io, promptFromCatalog(`llm.${role}.enabled`, `MINDORY_LLM_${role}_ENABLED`, "boolean"));
     if (enabled && !roleAllowed) {
-      throw new Error(`MINDORY_LLM_${role} is ${roleSupportStatus(role)} and requires experimental mode.`);
+      throw new Error(roleStatus === "future" ? `MINDORY_LLM_${role} is future and cannot be enabled.` : `MINDORY_LLM_${role} is ${roleStatus} and requires experimental mode.`);
     }
     if (!enabled) {
       answers.llmRoles[role] = {
@@ -3628,12 +3638,17 @@ export async function runInstallWizard(io: WizardIo, options: WizardOptions = {}
       timeoutMs: await askNumber(io, promptFromCatalog(`llm.${role}.timeout_ms`, `MINDORY_LLM_${role}_TIMEOUT_MS`, "number")),
       concurrency: await askNumber(io, promptFromCatalog(`llm.${role}.concurrency`, `MINDORY_LLM_${role}_CONCURRENCY`, "number"))
     };
+    const providerStatus = llmRoleProviderSupportStatus(role, roleAnswers.provider);
+    if (roleAnswers.provider !== "disabled" && providerStatus === "future") {
+      throw new Error(`MINDORY_LLM_${role}_PROVIDER=${roleAnswers.provider} is future and cannot be enabled.`);
+    }
     if (
       roleAnswers.provider !== "disabled" &&
-      roleSupportRequiresExperimental(llmRoleProviderSupportStatus(role, roleAnswers.provider)) &&
+      providerStatus !== "future" &&
+      roleSupportRequiresExperimental(providerStatus) &&
       !experimentalAllowed
     ) {
-      throw new Error(`MINDORY_LLM_${role}_PROVIDER=${roleAnswers.provider} is ${llmRoleProviderSupportStatus(role, roleAnswers.provider)} and requires experimental mode.`);
+      throw new Error(`MINDORY_LLM_${role}_PROVIDER=${roleAnswers.provider} is ${providerStatus} and requires experimental mode.`);
     }
     const dimensionsEntry = maybeCatalogEntry(`MINDORY_LLM_${role}_DIMENSIONS`);
     if (dimensionsEntry !== undefined) {

@@ -43,13 +43,11 @@ embeddings, OCR, ASR, vision captioning, image embeddings and face roles.
 ## v0.1.1 Promotion Target
 
 `v0.1.0` is historical and stale relative to the current `master` baseline.
-The `TASK-133` through `TASK-147` series targets `v0.1.1` as the fresh
-pre-release that promotes OCR, ASR, vision captioning, object detection, image
-embeddings, face detection/recognition, image generation, audio generation,
-local-command runners and local-http runners into checked supported paths.
-
-The support matrix below describes the current baseline until the follow-on
-implementation tasks are accepted.
+`TASK-134` promotes OCR, ASR, vision captioning, object detection through the
+vision role, image embeddings, face detection/recognition, image generation,
+audio generation, local-command providers and local-http providers in the
+central config and SDK support matrix. Runner-specific install/live acceptance
+is completed by the following tasks in the `v0.1.1` series.
 
 ## Support Matrix
 
@@ -60,19 +58,18 @@ uses the same matrix for defaults, env metadata and installer gating.
 | --- | --- | --- | --- | --- |
 | `text-embedding` | supported | `disabled`, `openai-compatible`, `ollama`, `local-http`, `local-command` | none | none |
 | `chat` | supported | `disabled`, `openai-compatible`, `local-http`, `local-command` | none | `ollama` |
-| `image-embedding` | experimental | `disabled` | `local-http`, `local-command` | `openai-compatible`, `ollama` |
-| `vision-captioning` | experimental | `disabled` | `openai-compatible`, `local-http`, `local-command` | `ollama` |
-| `ocr` | experimental | `disabled` | `openai-compatible`, `local-http`, `local-command` | `ollama` |
-| `asr` | experimental | `disabled` | `openai-compatible`, `local-http`, `local-command` | `ollama` |
-| `face-detection` | experimental | `disabled` | `local-http`, `local-command` | `openai-compatible`, `ollama` |
-| `face-recognition` | experimental | `disabled` | `local-http`, `local-command` | `openai-compatible`, `ollama` |
-| `image-generation` | experimental | `disabled` | `openai-compatible`, `local-http`, `local-command` | `ollama` |
-| `audio-generation` | experimental | `disabled` | `openai-compatible`, `local-http`, `local-command` | `ollama` |
+| `image-embedding` | supported | `disabled`, `local-http`, `local-command` | none | `openai-compatible`, `ollama` |
+| `vision-captioning` | supported | `disabled`, `local-http`, `local-command` | `openai-compatible` | `ollama` |
+| `ocr` | supported | `disabled`, `local-http`, `local-command` | `openai-compatible` | `ollama` |
+| `asr` | supported | `disabled`, `local-http`, `local-command` | `openai-compatible` | `ollama` |
+| `face-detection` | supported | `disabled`, `local-http`, `local-command` | none | `openai-compatible`, `ollama` |
+| `face-recognition` | supported | `disabled`, `local-http`, `local-command` | none | `openai-compatible`, `ollama` |
+| `image-generation` | supported | `disabled`, `openai-compatible`, `local-http`, `local-command` | none | `ollama` |
+| `audio-generation` | supported | `disabled`, `openai-compatible`, `local-http`, `local-command` | none | `ollama` |
 
-When a role or selected provider is not `supported`, the installer and config
-validation require `MINDORY_INSTALL_ALLOW_EXPERIMENTAL=true`. A disabled role
-may keep an experimental or future default provider value because no model call
-is made until the role is enabled.
+When a selected provider is `experimental`, the installer and config validation
+require `MINDORY_INSTALL_ALLOW_EXPERIMENTAL=true`. Providers marked `future`
+are not valid runtime selections. A disabled role does not perform model work.
 
 ## Configuration
 
@@ -150,8 +147,9 @@ auth configuration and audit path.
 
 `MINDORY_LLM_LOCAL_HTTP_BASE_URL` configures an unauthenticated local model
 service intended for trusted single-host or private-network deployments. It is
-supported for `chat` and `text-embedding` roles and experimental for OCR,
-vision captioning, ASR and face roles.
+supported for `chat`, `text-embedding`, `image-embedding`, `OCR`, `vision
+captioning`, `ASR`, face detection/recognition, image generation and audio
+generation roles.
 
 The local HTTP contract is intentionally small:
 
@@ -254,9 +252,9 @@ Supported operation names are `chat`, `text_embeddings`, `image_embeddings`,
 `data_base64` with `mime_type`. `MINDORY_LLM_LOCAL_COMMAND_MAX_INPUT_BYTES`
 and `MINDORY_LLM_LOCAL_COMMAND_MAX_OUTPUT_BYTES` bound stdin and stdout/stderr.
 
-OCR, vision captioning, ASR and face roles remain experimental and require
-`MINDORY_INSTALL_ALLOW_EXPERIMENTAL=true` when enabled. The scanned-PDF
-pipeline uses the local HTTP OCR contract for pages without native PDF text.
+OCR, vision captioning, ASR, face, image embedding and generation roles are
+supported when configured with supported providers. The scanned-PDF pipeline
+uses the local HTTP OCR contract for pages without native PDF text.
 The image pipeline uses local HTTP OCR, image embeddings, vision captioning and
 object detection to derive
 searchable OCR text, captions and labels without changing RAW originals.

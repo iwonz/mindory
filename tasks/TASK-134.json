@@ -1,7 +1,7 @@
 {
   "id": "TASK-134",
   "title": "Remove experimental gating for promoted model roles",
-  "status": "draft",
+  "status": "done",
   "type": "config",
   "priority": "high",
   "branch": "task/TASK-134-remove-experimental-gating-promoted-model-roles",

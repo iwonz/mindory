@@ -79,16 +79,16 @@ All model operations must go through `@mindory/llm`.
 | Text embeddings | Supported | OpenAI-compatible, Ollama, local HTTP and local-command provider flows are implemented through `@mindory/llm`; pgvector requires 1536-dimensional vectors. |
 | Chat | Supported SDK adapter | OpenAI-compatible API-key/OAuth modes plus local HTTP and local-command chat are implemented in `@mindory/llm`; product flows do not require chat by default. |
 | Local model installer runners | Supported baseline | Supported `LOCAL_MODEL_RUNNER_CATALOG` entries can be selected in the installer, resource-preflighted, started through Compose, installed with retry/log/report output and health-checked before migrations continue. `pnpm local-model:acceptance` covers the deterministic local HTTP runner and live Docker path. |
-| Local-command provider | Supported/experimental by role | `@mindory/llm` and installer execute configured healthchecks, and runtime operations cover chat, text/image embeddings, OCR, ASR, vision, face detection/recognition, image generation and audio generation through stdin/stdout JSON. |
-| OCR | Experimental role, supported PDF/image paths | Scanned-PDF and image OCR run through `@mindory/llm` local HTTP or local-command OCR when enabled. |
-| Vision captioning, object detection and image embeddings | Experimental | Image vision captioning, object detection and image embeddings run through `@mindory/llm` local HTTP or local-command when enabled; image vectors are indexed through the selected vector backend. |
-| ASR | Experimental | Audio ASR runs through `@mindory/llm` local HTTP or local-command when enabled; embedded WAV transcript fallback remains supported. |
-| Face detection and recognition | Experimental | Local HTTP and local-command face detection/recognition run through `@mindory/llm` when enabled; observations remain workspace-scoped and auto-matched by threshold. |
-| Image/audio generation | Experimental SDK role | OpenAI-compatible, local HTTP and local-command image/audio generation return typed bytes, MIME metadata and model-operation audit records through `@mindory/llm`; CLI `llm generate-image` and `llm generate-audio` provide smoke diagnostics. |
+| Local-command provider | Supported | `@mindory/llm` and installer execute configured healthchecks, and runtime operations cover chat, text/image embeddings, OCR, ASR, vision, face detection/recognition, image generation and audio generation through stdin/stdout JSON. |
+| OCR | Supported role | Scanned-PDF and image OCR run through `@mindory/llm` local HTTP or local-command OCR when enabled. OpenAI-compatible OCR remains a custom provider path that requires explicit experimental mode. |
+| Vision captioning, object detection and image embeddings | Supported roles | Image vision captioning, object detection and image embeddings run through `@mindory/llm` local HTTP or local-command when enabled; image vectors are indexed through the selected vector backend. |
+| ASR | Supported role | Audio ASR runs through `@mindory/llm` local HTTP or local-command when enabled; embedded WAV transcript fallback remains supported. |
+| Face detection and recognition | Supported roles | Local HTTP and local-command face detection/recognition run through `@mindory/llm` when enabled; observations remain workspace-scoped and auto-matched by threshold. |
+| Image/audio generation | Supported SDK roles | OpenAI-compatible, local HTTP and local-command image/audio generation return typed bytes, MIME metadata and model-operation audit records through `@mindory/llm`; CLI `llm generate-image` and `llm generate-audio` provide diagnostics. |
 
 Installer and config validation require
-`MINDORY_INSTALL_ALLOW_EXPERIMENTAL=true` before enabling experimental or future
-model roles, or before selecting a non-supported provider for a supported role.
+`MINDORY_INSTALL_ALLOW_EXPERIMENTAL=true` only before selecting an experimental
+provider. Providers marked future are not valid runtime selections.
 
 ## Security And Operations
 

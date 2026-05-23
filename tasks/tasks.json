@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-133",
+  "current_task_id": "TASK-134",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -971,7 +971,7 @@
     {
       "id": "TASK-134",
       "title": "Remove experimental gating for promoted model roles",
-      "status": "draft",
+      "status": "done",
       "branch": "task/TASK-134-remove-experimental-gating-promoted-model-roles",
       "file": "tasks/TASK-134.json"
     },

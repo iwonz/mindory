@@ -6,7 +6,7 @@ The repository should be described with the support levels in
 
 ## Current Baseline
 
-The repository is complete through `TASK-133`.
+The repository is complete through `TASK-134`.
 
 Release baseline:
 
@@ -16,8 +16,10 @@ Release baseline:
 - The `v0.1.1` target promotes OCR, ASR, vision captioning, object detection,
   image embeddings, face detection/recognition, image generation, audio
   generation, local-command runners and local-http runners into checked
-  supported local/install/runtime paths. `TASK-133` registers this contract;
-  `TASK-134` through `TASK-147` execute and verify it one task at a time.
+  supported local/install/runtime paths. `TASK-133` registered this contract;
+  `TASK-134` promoted the central role/provider support matrix, and
+  `TASK-135` through `TASK-147` execute and verify the runner, installer,
+  acceptance and release work one task at a time.
 
 Supported local MVP path:
 
@@ -69,29 +71,32 @@ Supported local MVP path:
 - Supported local model Compose profiles are resolved from the catalog, use
   healthchecks and persist model state under `$MINDORY_HOME/data/models` and
   `$MINDORY_HOME/data/ollama`.
-- OpenAI-compatible chat and text embedding operations support API-key and
-  OAuth bearer auth through `@mindory/llm`.
-- Local HTTP chat/text embedding adapters and provider health checks for local
-  HTTP and Ollama services are implemented through `@mindory/llm`.
+- OpenAI-compatible chat, text embedding, image generation and audio generation
+  operations support API-key and OAuth bearer auth through `@mindory/llm`.
+- Local HTTP chat/text embedding/image embedding/OCR/vision/ASR/face/generation
+  adapters, local-command adapters and provider health checks for local HTTP,
+  local-command and Ollama services are implemented through `@mindory/llm`.
 - `pnpm mvp:demo --model-profile local --require-indexed` can exercise the
   indexed pgvector path with a deterministic local HTTP embeddings service.
 - `MINDORY_LOCAL_MODEL_ACCEPTANCE_LIVE=true pnpm local-model:acceptance`
   verifies deterministic local OCR, ASR, vision, image embedding, video
   keyframe, face, source-ref, job, unified search and model-operation metric
   coverage in a temporary Docker home.
-- Scanned-PDF OCR can run through `@mindory/llm` local HTTP OCR when the
-  experimental OCR role is enabled.
-- Image OCR and vision captioning can run through `@mindory/llm` local HTTP
-  providers when the experimental OCR and vision-captioning roles are enabled;
-  their derived captions, labels and OCR text are searchable.
-- Audio ASR can run through `@mindory/llm` local HTTP when the experimental ASR
-  role is enabled; derived transcript segments keep time refs for search.
+- Scanned-PDF OCR can run through `@mindory/llm` local HTTP or local-command
+  OCR when the supported OCR role is enabled.
+- Image OCR and vision captioning can run through `@mindory/llm` local HTTP or
+  local-command providers when the supported OCR and vision-captioning roles
+  are enabled; their derived captions, labels and OCR text are searchable.
+- Audio ASR can run through `@mindory/llm` local HTTP or local-command when the
+  supported ASR role is enabled; derived transcript segments keep time refs for
+  search.
 - Video keyframe extraction supports the manifest fallback and an opt-in
   local-command provider. Extracted frame bytes can run through configured OCR
   and vision providers before searchable frame artifacts are written.
-- Face detection and recognition can run through `@mindory/llm` local HTTP when
-  experimental face roles are enabled. Provider boxes and embeddings are stored
-  as workspace-scoped face observations and auto-matched through `FaceService`.
+- Face detection and recognition can run through `@mindory/llm` local HTTP or
+  local-command when supported face roles are enabled. Provider boxes and
+  embeddings are stored as workspace-scoped face observations and auto-matched
+  through `FaceService`.
 - Unified multimodal search is available through `POST /v1/search`, CLI
   `mindory search query` and MCP `unified_search`, combining document chunks,
   artifact spans and face observations with source refs.
@@ -138,7 +143,7 @@ Supported local MVP path:
   self-host live matrix, local-model live acceptance, Web UI Playwright flow,
   CLI/MCP smoke coverage through self-host acceptance, public stale wording
   validation and clean `git status --short`.
-- Public current-state docs are aligned with the TASK-133 runtime baseline and
+- Public current-state docs are aligned with the TASK-134 runtime baseline and
   distinguish checked local-MVP paths from planned release work.
 
 Public GitHub hygiene baseline:
@@ -157,9 +162,9 @@ Public GitHub hygiene baseline:
 
 - Alerting policy is not bundled; route Prometheus and OTLP exports to the
   monitoring stack used by the deployment.
-- Heavy multimodal model adapters are still experimental unless a role is
-  explicitly documented as supported in `docs/SUPPORT_MATRIX.md` or a local
-  model profile is checked by live acceptance.
+- Some heavy local model runner images remain runner-specific work for the
+  v0.1.1 task series; provider and role support levels are defined in
+  `docs/SUPPORT_MATRIX.md`.
 
 ## Public Claims Rule
 

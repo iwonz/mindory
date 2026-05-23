@@ -121,53 +121,53 @@ export const LLM_ROLE_SUPPORT_CATALOG = [
     "local-http": "supported",
     "local-command": "supported"
   }),
-  llmRoleSupport("IMAGE_EMBEDDING", "experimental", "local-http", "CLIP ViT-L-16-SigLIP2-256__webli", {
+  llmRoleSupport("IMAGE_EMBEDDING", "supported", "local-http", "CLIP ViT-L-16-SigLIP2-256__webli", {
     "openai-compatible": "future",
     "ollama": "future",
-    "local-http": "experimental",
-    "local-command": "experimental"
+    "local-http": "supported",
+    "local-command": "supported"
   }),
-  llmRoleSupport("VISION_CAPTIONING", "experimental", "disabled", "", {
+  llmRoleSupport("VISION_CAPTIONING", "supported", "disabled", "", {
     "openai-compatible": "experimental",
     "ollama": "future",
-    "local-http": "experimental",
-    "local-command": "experimental"
+    "local-http": "supported",
+    "local-command": "supported"
   }),
-  llmRoleSupport("OCR", "experimental", "local-http", "ESLAV__PP-OCRv5_mobile", {
+  llmRoleSupport("OCR", "supported", "local-http", "ESLAV__PP-OCRv5_mobile", {
     "openai-compatible": "experimental",
     "ollama": "future",
-    "local-http": "experimental",
-    "local-command": "experimental"
+    "local-http": "supported",
+    "local-command": "supported"
   }),
-  llmRoleSupport("ASR", "experimental", "disabled", "", {
+  llmRoleSupport("ASR", "supported", "disabled", "", {
     "openai-compatible": "experimental",
     "ollama": "future",
-    "local-http": "experimental",
-    "local-command": "experimental"
+    "local-http": "supported",
+    "local-command": "supported"
   }),
-  llmRoleSupport("FACE_DETECTION", "experimental", "local-http", "buffalo_l", {
+  llmRoleSupport("FACE_DETECTION", "supported", "local-http", "buffalo_l", {
     "openai-compatible": "future",
     "ollama": "future",
-    "local-http": "experimental",
-    "local-command": "experimental"
+    "local-http": "supported",
+    "local-command": "supported"
   }),
-  llmRoleSupport("FACE_RECOGNITION", "experimental", "local-http", "buffalo_l", {
+  llmRoleSupport("FACE_RECOGNITION", "supported", "local-http", "buffalo_l", {
     "openai-compatible": "future",
     "ollama": "future",
-    "local-http": "experimental",
-    "local-command": "experimental"
+    "local-http": "supported",
+    "local-command": "supported"
   }),
-  llmRoleSupport("IMAGE_GENERATION", "experimental", "disabled", "", {
-    "openai-compatible": "experimental",
+  llmRoleSupport("IMAGE_GENERATION", "supported", "disabled", "", {
+    "openai-compatible": "supported",
     "ollama": "future",
-    "local-http": "experimental",
-    "local-command": "experimental"
+    "local-http": "supported",
+    "local-command": "supported"
   }),
-  llmRoleSupport("AUDIO_GENERATION", "experimental", "disabled", "", {
-    "openai-compatible": "experimental",
+  llmRoleSupport("AUDIO_GENERATION", "supported", "disabled", "", {
+    "openai-compatible": "supported",
     "ollama": "future",
-    "local-http": "experimental",
-    "local-command": "experimental"
+    "local-http": "supported",
+    "local-command": "supported"
   })
 ] as const satisfies readonly LlmRoleSupportCatalogEntry[];
 
@@ -833,8 +833,8 @@ export const CONFIG_CATALOG = [
   llmRoleEntries("FACE_RECOGNITION", "Face recognition for workspace-scoped face identity matching.", {
     resourceHint: { memory: "4GB+", disk: "1GB+" }
   }),
-  llmRoleEntries("IMAGE_GENERATION", "Image generation for future agent outputs."),
-  llmRoleEntries("AUDIO_GENERATION", "Audio generation for future agent outputs."),
+  llmRoleEntries("IMAGE_GENERATION", "Image generation operations."),
+  llmRoleEntries("AUDIO_GENERATION", "Audio generation operations."),
   entry("MINDORY_LLM_OPENAI_COMPATIBLE_BASE_URL", "llm", "string", "", "OpenAI-compatible base URL.", "both", "supported"),
   entry("MINDORY_LLM_OPENAI_COMPATIBLE_AUTH_MODE", "llm", "enum", "none", "OpenAI-compatible auth mode.", "both", "supported", {
     allowedValues: ["none", "api-key", "oauth-bearer"]
@@ -847,33 +847,33 @@ export const CONFIG_CATALOG = [
   }),
   entry("MINDORY_LLM_OLLAMA_BASE_URL", "llm", "string", "http://ollama:11434", "Ollama base URL.", "both", "supported"),
   entry("MINDORY_LLM_LOCAL_HTTP_BASE_URL", "llm", "string", "http://llm:8080", "Local HTTP model server base URL.", "both", "supported"),
-  entry("MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS", "llm", "number", "120000", "Default timeout for local-command provider healthchecks and operations.", "both", "experimental"),
-  entry("MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND", "llm", "string", "", "Executable used for local-command provider healthchecks.", "both", "experimental", {
+  entry("MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS", "llm", "number", "120000", "Default timeout for local-command provider healthchecks and operations.", "both", "supported"),
+  entry("MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND", "llm", "string", "", "Executable used for local-command provider healthchecks.", "both", "supported", {
     prompt: {
       label: "Local-command healthcheck executable",
       help: "Absolute path or PATH-resolved executable that prints the healthcheck JSON contract to stdout."
     }
   }),
-  entry("MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS", "llm", "string", "[\"healthcheck\",\"--role\",\"{role}\",\"--model\",\"{model}\"]", "JSON array of arguments for local-command provider healthchecks. {role} and {model} are replaced per configured role.", "both", "experimental", {
+  entry("MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS", "llm", "string", "[\"healthcheck\",\"--role\",\"{role}\",\"--model\",\"{model}\"]", "JSON array of arguments for local-command provider healthchecks. {role} and {model} are replaced per configured role.", "both", "supported", {
     prompt: {
       label: "Local-command healthcheck args",
       help: "JSON string array passed to the executable. Use {role} and {model} tokens for per-role validation."
     }
   }),
-  entry("MINDORY_LLM_LOCAL_COMMAND_OPERATION_COMMAND", "llm", "string", "", "Executable used for local-command model operations.", "both", "experimental", {
+  entry("MINDORY_LLM_LOCAL_COMMAND_OPERATION_COMMAND", "llm", "string", "", "Executable used for local-command model operations.", "both", "supported", {
     prompt: {
       label: "Local-command operation executable",
       help: "Absolute path or PATH-resolved executable that reads operation JSON from stdin and prints operation JSON to stdout."
     }
   }),
-  entry("MINDORY_LLM_LOCAL_COMMAND_OPERATION_ARGS", "llm", "string", "[\"operate\",\"--role\",\"{role}\",\"--model\",\"{model}\",\"--operation\",\"{operation}\"]", "JSON array of arguments for local-command model operations. {role}, {model} and {operation} are replaced per call.", "both", "experimental", {
+  entry("MINDORY_LLM_LOCAL_COMMAND_OPERATION_ARGS", "llm", "string", "[\"operate\",\"--role\",\"{role}\",\"--model\",\"{model}\",\"--operation\",\"{operation}\"]", "JSON array of arguments for local-command model operations. {role}, {model} and {operation} are replaced per call.", "both", "supported", {
     prompt: {
       label: "Local-command operation args",
       help: "JSON string array passed to the executable. Use {role}, {model} and {operation} tokens for per-call validation."
     }
   }),
-  entry("MINDORY_LLM_LOCAL_COMMAND_MAX_INPUT_BYTES", "llm", "number", "16777216", "Maximum JSON stdin size for local-command model operations.", "both", "experimental"),
-  entry("MINDORY_LLM_LOCAL_COMMAND_MAX_OUTPUT_BYTES", "llm", "number", "67108864", "Maximum combined stdout/stderr size for local-command healthchecks and operations.", "both", "experimental"),
+  entry("MINDORY_LLM_LOCAL_COMMAND_MAX_INPUT_BYTES", "llm", "number", "16777216", "Maximum JSON stdin size for local-command model operations.", "both", "supported"),
+  entry("MINDORY_LLM_LOCAL_COMMAND_MAX_OUTPUT_BYTES", "llm", "number", "67108864", "Maximum combined stdout/stderr size for local-command healthchecks and operations.", "both", "supported"),
 
   entry("MINDORY_UI_HOST", "ui", "string", "0.0.0.0", "Web UI static server listen host.", "both", "supported"),
   entry("MINDORY_UI_PORT", "ui", "number", "3080", "Web UI static server listen port.", "both", "supported", {
