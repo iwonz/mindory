@@ -247,6 +247,13 @@ button:disabled {
   gap: 14px;
 }
 
+.insights-grid {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(280px, 0.95fr) minmax(340px, 1.2fr) minmax(320px, 1fr);
+  gap: 14px;
+}
+
 .panel {
   min-width: 0;
   min-height: 480px;
@@ -343,14 +350,71 @@ button:disabled {
   border-bottom: 1px solid #e2e7ec;
 }
 
+.control-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border-bottom: 1px solid #e2e7ec;
+}
+
+.control-form.compact {
+  border: 1px solid #e2e7ec;
+  border-radius: 8px;
+  padding: 12px;
+}
+
 .workspace .field {
   color: #3d4a56;
 }
 
-.workspace .field input {
+.workspace .field input,
+.workspace .field select,
+.workspace .field textarea {
+  width: 100%;
   border-color: #c4cdd6;
   background: #ffffff;
   color: #18202a;
+}
+
+.workspace .field textarea {
+  min-height: 84px;
+  resize: vertical;
+  border: 1px solid #c4cdd6;
+  border-radius: 6px;
+  padding: 9px 10px;
+}
+
+.workspace .field select {
+  min-height: 40px;
+  border: 1px solid #c4cdd6;
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.toggle-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #3d4a56;
+  font-size: 13px;
+}
+
+.toggle-field input {
+  width: 16px;
+  height: 16px;
+}
+
+.button-strip {
+  padding: 12px 14px;
+  border-bottom: 1px solid #e2e7ec;
 }
 
 .upload-message {
@@ -431,12 +495,18 @@ button:disabled {
 
 .job-card,
 .run-card,
-.artifact-card {
+.artifact-card,
+.result-card,
+.face-card {
   border-bottom: 1px solid #eef1f4;
   padding: 14px;
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.face-card.selected {
+  background: #eef7f8;
 }
 
 .job-card.failed,
@@ -560,6 +630,10 @@ button:disabled {
   }
 
   .document-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .insights-grid {
     grid-template-columns: 1fr;
   }
 

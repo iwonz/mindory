@@ -25,6 +25,7 @@ const checks = [
   ["local-model:acceptance", "scripts/local-model-acceptance.js"],
   ["ui:validate", "scripts/validate-ui-foundation.js"],
   ["ui:documents:validate", "scripts/validate-ui-document-workspace.js"],
+  ["ui:insights:validate", "scripts/validate-ui-insights-workspace.js"],
   ["db:validate", "scripts/validate-db-schema.js"],
   ["db:repositories:validate", "scripts/validate-db-repositories.js"],
   ["api:validate", "scripts/validate-api-contract.js"],

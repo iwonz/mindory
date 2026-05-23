@@ -8,7 +8,7 @@ The canonical product and engineering specification is `docs/PRD.md`.
 
 ## Repository Status
 
-This repository is complete through `TASK-127`. Mindory can run a local
+This repository is complete through `TASK-128`. Mindory can run a local
 demo-MVP through Docker Compose, seed demo credentials, process uploaded
 documents through the worker pipeline and run live acceptance. `pnpm check`
 passes through the repo validation, typecheck, lint, tests and dry-run
@@ -28,7 +28,7 @@ experimental profile surfaces and documented non-MVP surfaces:
 | Installer | Supported today: wizard, plan/dry-run, prepare execution for `$MINDORY_HOME` directories/config/compose assets, Docker Compose startup through health checks, supported local model auto-install with resource preflight/logs/Ollama pulls, S3 bucket bootstrap/access checks, first project/token provisioning, local asset update, signed remote release update, runtime backup/restore, scheduled local backups with retention/health, local Compose PostgreSQL PITR, encrypted remote backup archives with S3-compatible upload/download verification, external S3 object inventory/streaming backup/restore, guarded uninstall, dependency detection, lock/journal resume/repair, signed bootstrap staging, installer acceptance and public self-host acceptance. |
 | Deployment | Supported local MVP: Compose stack with single-home bind mounts under `MINDORY_HOME`, defaulting to `${HOME}/.mindory` outside demo scripts. Release bundle generation, signed manifest verification, generated release notes, tag-build Docker image publishing to GHCR and signed remote update/rollback are supported; unattended update automation remains outside the current scope. |
 | Observability | Supported baseline: structured log helpers, model operation audit queries, Prometheus API/worker metrics exporters, OpenTelemetry OTLP tracing/log export, in-process job/stage metrics, health snapshots and documented in-process rate-limit strategy. |
-| Web UI | Supported local MVP surface: `@mindory/ui` builds as a workspace package and provides token/API URL entry, API health, project/session navigation, session message inspection, document upload, document list/detail, job progress, retry/reprocess controls and artifact source refs through HTTP API calls. Search/context/memory/faces and diagnostics screens are separate scoped UI tasks. |
+| Web UI | Supported local MVP surface: `@mindory/ui` builds as a workspace package and provides token/API URL entry, API health, project/session navigation, session message inspection, document upload, document list/detail, job progress, retry/reprocess controls, artifact source refs, unified search, context preview, manual memory creation, source-backed memory display and face identity operations through HTTP API calls. Runtime diagnostics screens are a separate scoped UI task. |
 
 Public repository files:
 
@@ -205,8 +205,10 @@ and do not access database, queue, storage or vector internals directly.
 The UI package exposes `@mindory/ui`, a static browser app plus local static/API
 proxy server. It covers token entry, health, project/session navigation,
 messages, document upload, pipeline jobs, retry/reprocess controls and artifact
-source refs through the HTTP API. It does not access database, queue, storage,
-vector or worker internals directly.
+source refs, unified search, context preview, manual memory creation,
+source-backed memories and face identity list/rename/merge through the HTTP
+API. It does not access database, queue, storage, vector or worker internals
+directly.
 
 The CLI package exposes the `mindory` binary, a minimal bootstrap argument
 parser, and commands for project, token, session, message, document, memory,

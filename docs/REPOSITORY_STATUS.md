@@ -6,7 +6,7 @@ The repository should be described with the support levels in
 
 ## Current Baseline
 
-The repository is complete through `TASK-127`.
+The repository is complete through `TASK-128`.
 
 Supported local MVP path:
 
@@ -15,8 +15,9 @@ Supported local MVP path:
   model profile and is included in `pnpm check`; live mode is explicit through
   `MINDORY_LOCAL_MODEL_ACCEPTANCE_LIVE=true`.
 - `pnpm ui:validate` builds and validates the Web UI foundation;
-  `pnpm ui:documents:validate` validates the document pipeline workspace. Both
-  are included in `pnpm check`.
+  `pnpm ui:documents:validate` validates the document pipeline workspace;
+  `pnpm ui:insights:validate` validates search/context/memory/faces. All are
+  included in `pnpm check`.
 - `pnpm test` runs integration tests with PostgreSQL and Redis.
 - `pnpm mvp:demo` starts the local Docker Compose demo and runs live acceptance.
 - `pnpm selfhost:gate` runs the live release-readiness matrix for sync ClamAV,
@@ -81,7 +82,9 @@ Supported local MVP path:
 - Web UI is available as `@mindory/ui`: token/API URL entry, API health,
   project/session navigation, session message inspection, document upload,
   document list/detail, pipeline job progress, retry/reprocess controls and
-  artifact source refs through HTTP API calls only.
+  artifact source refs, unified search, context preview, manual memory
+  creation, source-backed memory display and face identity list/rename/merge
+  through HTTP API calls only.
 - LibreFS and MinIO local S3-compatible profiles include health-gated bucket
   bootstrap, and installer startup validates signed access for external
   S3-compatible buckets.
@@ -108,7 +111,7 @@ Supported local MVP path:
   validation.
 - Public self-host acceptance is the release-readiness gate for local self-host
   users and is required by `docs/RELEASE_CHECKLIST.md` before publication.
-- Public current-state docs are aligned with the TASK-127 runtime baseline and
+- Public current-state docs are aligned with the TASK-128 runtime baseline and
   distinguish checked local-MVP paths from planned release and UI work.
 
 Public GitHub hygiene baseline:
@@ -130,8 +133,8 @@ Public GitHub hygiene baseline:
 - Heavy multimodal model adapters are still experimental unless a role is
   explicitly documented as supported in `docs/SUPPORT_MATRIX.md` or a local
   model profile is checked by live acceptance.
-- The current Web UI does not yet include search/context/memory/faces or
-  runtime diagnostics screens; those are scoped to the remaining UI tasks.
+- The current Web UI does not yet include runtime diagnostics screens; those are
+  scoped to the remaining UI tasks.
 
 ## Public Claims Rule
 

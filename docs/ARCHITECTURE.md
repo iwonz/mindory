@@ -107,14 +107,15 @@ fails fast when required dependencies are missing.
 
 ## Web UI Runtime
 
-`TASK-126` adds `apps/ui` as a browser UI package. The UI is a static TypeScript
-app with a small Node static/proxy server. Browser requests use the HTTP API
-only: the local server serves the app and forwards `/api/*` to the configured
-Mindory API URL from `MINDORY_UI_API_URL`.
+`apps/ui` is the browser UI package. The UI is a static TypeScript app with a
+small Node static/proxy server. Browser requests use the HTTP API only: the
+local server serves the app and forwards `/api/*` to the configured Mindory API
+URL from `MINDORY_UI_API_URL`.
 
-The UI foundation covers connection state, token entry, API health,
-project/session navigation and selected session messages. It does not read
-PostgreSQL, Redis, object storage, vector indexes or worker state directly.
+The UI covers connection state, token entry, API health, project/session
+navigation, selected session messages, document pipeline operations, unified
+search, context preview, manual memory and face identity operations. It does not
+read PostgreSQL, Redis, object storage, vector indexes or worker state directly.
 
 ## Configuration Catalog
 

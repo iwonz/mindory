@@ -36,7 +36,7 @@ writing README, issues, release notes and docs.
 | CLI | Supported local MVP | Calls HTTP API; no direct database access. |
 | MCP stdio | Supported local MVP | Tools call HTTP API; Compose service is a packaging smoke artifact. |
 | Hermes adapter | Supported baseline | Lifecycle helpers, HTTP client, optional tools, runnable example host and conformance harnesses are covered by `pnpm check`; no external Hermes SDK code is vendored. |
-| Web UI | Supported local MVP surface | Web UI in `@mindory/ui` builds and runs as a static/proxy server with token/API URL entry, health banner, project/session navigation, message inspection, document upload, document list/detail, pipeline job progress, retry/reprocess controls and artifact source refs through HTTP API calls. Search/context/memory/faces and diagnostics screens are separate scoped UI surfaces. |
+| Web UI | Supported local MVP surface | Web UI in `@mindory/ui` builds and runs as a static/proxy server with token/API URL entry, health banner, project/session navigation, message inspection, document upload, document list/detail, pipeline job progress, retry/reprocess controls, artifact source refs, unified search, context preview, manual memory creation, source-backed memory display and face identity list/rename/merge through HTTP API calls. Runtime diagnostics screens are a separate scoped UI surface. |
 
 ## Storage And Search
 

@@ -1,21 +1,28 @@
 import { MindoryUiApiClient, MindoryUiApiError } from "./api.js";
 import { clearConnection, loadConnection, maskToken, saveConnection } from "./state.js";
 import type {
+  ContextBuildResult,
   DocumentArtifact,
   DocumentRecord,
+  FaceIdentity,
+  FaceObservation,
   HealthResponse,
   Message,
+  MemorySearchHit,
+  MetadataFilter,
   Peer,
   ProcessingJob,
   ProcessingRun,
   Project,
   Session,
-  StoredConnection
+  SourceRef,
+  StoredConnection,
+  UnifiedSearchHit
 } from "./types.js";
 
 interface ViewState {
   connection: StoredConnection;
-  activeView: "sessions" | "documents";
+  activeView: "sessions" | "documents" | "search";
   health: Loadable<HealthResponse>;
   projects: Loadable<Project[]>;
   peers: Loadable<Peer[]>;
@@ -26,9 +33,16 @@ interface ViewState {
   processingRuns: Loadable<ProcessingRun[]>;
   documentJobs: Loadable<ProcessingJob[]>;
   artifacts: Loadable<DocumentArtifact[]>;
+  searchHits: Loadable<UnifiedSearchHit[]>;
+  contextResult: Loadable<ContextBuildResult | null>;
+  memoryHits: Loadable<MemorySearchHit[]>;
+  faceIdentities: Loadable<FaceIdentity[]>;
+  faceObservations: Loadable<FaceObservation[]>;
   selectedProjectId: string;
   selectedSessionId: string;
   selectedDocumentId: string;
+  selectedFaceIdentityId: string;
+  selectedSourceRef: SourceRef | null;
   upload: {
     state: "idle" | "uploading" | "error";
     message: string;
@@ -64,9 +78,16 @@ const view: ViewState = {
   processingRuns: idle([]),
   documentJobs: idle([]),
   artifacts: idle([]),
+  searchHits: idle([]),
+  contextResult: idle(null),
+  memoryHits: idle([]),
+  faceIdentities: idle([]),
+  faceObservations: idle([]),
   selectedProjectId: "",
   selectedSessionId: "",
   selectedDocumentId: "",
+  selectedFaceIdentityId: "",
+  selectedSourceRef: null,
   upload: {
     state: "idle",
     message: ""
@@ -87,10 +108,20 @@ function render(): void {
       el("main", { className: "workspace" },
         renderHealthBanner(),
         renderWorkspaceHeader(),
-        view.activeView === "sessions" ? renderSessionWorkspace() : renderDocumentWorkspace()
+        renderActiveWorkspace()
       )
     )
   );
+}
+
+function renderActiveWorkspace(): HTMLElement {
+  if (view.activeView === "documents") {
+    return renderDocumentWorkspace();
+  }
+  if (view.activeView === "search") {
+    return renderSearchWorkspace();
+  }
+  return renderSessionWorkspace();
 }
 
 function requireRoot(): HTMLElement {
@@ -185,7 +216,9 @@ function renderWorkspaceHeader(): HTMLElement {
   const selectedDocument = view.selectedDocument.data;
   const title = view.activeView === "documents"
     ? selectedDocument?.title || selectedDocument?.original_filename || selectedProject?.name || "Documents"
-    : selectedSession?.title || selectedProject?.name || "Workspace";
+    : view.activeView === "search"
+      ? selectedProject?.name || "Search"
+      : selectedSession?.title || selectedProject?.name || "Workspace";
   return el("header", { className: "workspace-header" },
     el("div", {},
       el("p", { className: "eyebrow" }, selectedProject ? selectedProject.id : "No project selected"),
@@ -204,6 +237,13 @@ function renderWorkspaceHeader(): HTMLElement {
         render();
         if (view.selectedProjectId.length > 0) {
           void refreshDocuments(view.selectedProjectId);
+        }
+      }),
+      tabButton("Search", view.activeView === "search", () => {
+        view.activeView = "search";
+        render();
+        if (view.selectedProjectId.length > 0) {
+          void refreshFaces(view.selectedProjectId);
         }
       }),
       button("Reload", "secondary", () => {
@@ -232,6 +272,14 @@ function renderDocumentWorkspace(): HTMLElement {
   );
 }
 
+function renderSearchWorkspace(): HTMLElement {
+  return el("section", { className: "insights-grid", "aria-label": "Mindory search context memory faces workspace" },
+    renderUnifiedSearchPanel(),
+    renderContextMemoryPanel(),
+    renderFacesPanel()
+  );
+}
+
 function renderProjectsPanel(): HTMLElement {
   return panel("Projects", view.projects, {
     empty: "No readable projects for this token.",
@@ -245,6 +293,8 @@ function renderProjectsPanel(): HTMLElement {
         void refreshProjectDetail(project.id);
         if (view.activeView === "documents") {
           void refreshDocuments(project.id);
+        } else if (view.activeView === "search") {
+          void refreshFaces(project.id);
         }
       });
     }))
@@ -404,6 +454,316 @@ function renderArtifactPanel(): HTMLElement {
   );
 }
 
+function renderUnifiedSearchPanel(): HTMLElement {
+  const queryInput = input("Search query", "", "search");
+  const limitInput = input("Search limit", "10", "number");
+  limitInput.min = "1";
+  limitInput.max = "100";
+  const documentsTarget = checkbox("Documents", true);
+  const artifactsTarget = checkbox("Artifacts", true);
+  const facesTarget = checkbox("Faces", true);
+  const filterKeyInput = input("Metadata key", "", "text");
+  const filterValueInput = input("Metadata value", "", "text");
+  const runButton = button("Search", "primary", () => {
+    const targets = selectedTargets(documentsTarget, artifactsTarget, facesTarget);
+    const metadataFilters = readMetadataFilters(filterKeyInput.value, filterValueInput.value);
+    void runUnifiedSearch({
+      query: queryInput.value,
+      limit: readPositiveInt(limitInput.value, 10),
+      targets,
+      metadataFilters
+    });
+  });
+
+  return el("section", { className: "panel" },
+    el("div", { className: "panel-heading" },
+      el("h3", {}, "Unified search"),
+      el("span", {}, view.searchHits.state === "ready" ? `${view.searchHits.data.length}` : view.searchHits.state)
+    ),
+    el("form", { className: "control-form" },
+      field("Query", queryInput),
+      field("Limit", limitInput),
+      el("div", { className: "toggle-row" },
+        toggleField(documentsTarget),
+        toggleField(artifactsTarget),
+        toggleField(facesTarget)
+      ),
+      field("Metadata key", filterKeyInput),
+      field("Metadata value", filterValueInput),
+      el("div", { className: "button-row" }, runButton)
+    ),
+    renderSearchResults()
+  );
+}
+
+function renderContextMemoryPanel(): HTMLElement {
+  const contextQueryInput = input("Context query", "", "search");
+  const tokenBudgetInput = input("Token budget", "1200", "number");
+  tokenBudgetInput.min = "1";
+  const includeSummary = checkbox("Summary", true);
+  const includeMessages = checkbox("Messages", true);
+  const includeMemories = checkbox("Memories", true);
+  const includeDocuments = checkbox("Documents", true);
+  const memoryTextInput = textarea("Memory text", "");
+  const memoryTypeSelect = select("Memory type", ["semantic", "episodic", "preference", "decision", "task", "artifact_reference", "derived"], "semantic");
+  const memorySourceTypeSelect = select("Memory source type", sourceRefTypeOptions(), view.selectedSourceRef?.type ?? "document");
+  const memorySourceIdInput = input("Memory source id", view.selectedSourceRef?.id ?? "", "text");
+  const memorySearchInput = input("Memory search query", "", "search");
+
+  return el("section", { className: "panel wide-panel" },
+    el("div", { className: "panel-heading" },
+      el("h3", {}, "Context and memory"),
+      el("span", {}, view.contextResult.state === "ready" ? `${view.contextResult.data?.blocks.length ?? 0}` : view.contextResult.state)
+    ),
+    el("div", { className: "detail-stack" },
+      el("form", { className: "control-form compact" },
+        field("Context query", contextQueryInput),
+        field("Token budget", tokenBudgetInput),
+        el("div", { className: "toggle-row" },
+          toggleField(includeSummary),
+          toggleField(includeMessages),
+          toggleField(includeMemories),
+          toggleField(includeDocuments)
+        ),
+        el("div", { className: "button-row" }, button("Build context", "primary", () => {
+          void buildContextPreview({
+            query: contextQueryInput.value,
+            tokenBudget: readPositiveInt(tokenBudgetInput.value, 1200),
+            include: {
+              sessionSummary: includeSummary.checked,
+              recentMessages: includeMessages.checked,
+              memories: includeMemories.checked,
+              documents: includeDocuments.checked
+            }
+          });
+        }))
+      ),
+      renderContextResult(),
+      el("form", { className: "control-form compact" },
+        field("Memory", memoryTextInput),
+        field("Type", memoryTypeSelect),
+        field("Source type", memorySourceTypeSelect),
+        field("Source id", memorySourceIdInput),
+        el("div", { className: "button-row" }, button("Remember", "primary", () => {
+          void rememberManualMemory({
+            text: memoryTextInput.value,
+            type: memoryTypeSelect.value,
+            sourceRef: {
+              type: memorySourceTypeSelect.value,
+              id: memorySourceIdInput.value.trim()
+            }
+          });
+        }))
+      ),
+      el("form", { className: "control-form compact" },
+        field("Memory search", memorySearchInput),
+        el("div", { className: "button-row" }, button("Search memories", "secondary light", () => {
+          void searchMemories(memorySearchInput.value);
+        }))
+      ),
+      renderMemoryResults()
+    )
+  );
+}
+
+function renderFacesPanel(): HTMLElement {
+  return el("section", { className: "panel" },
+    el("div", { className: "panel-heading" },
+      el("h3", {}, "Faces"),
+      el("span", {}, view.faceIdentities.state === "ready" ? `${view.faceIdentities.data.length}` : view.faceIdentities.state)
+    ),
+    el("div", { className: "button-strip" },
+      button("Refresh", "secondary light", () => {
+        if (view.selectedProjectId.length > 0) {
+          void refreshFaces(view.selectedProjectId);
+        }
+      })
+    ),
+    renderFaceIdentities(),
+    renderFaceObservations()
+  );
+}
+
+function renderSearchResults(): HTMLElement {
+  if (view.searchHits.state === "loading") {
+    return el("div", { className: "state loading" }, "Searching.");
+  }
+  if (view.searchHits.state === "error") {
+    return renderError(view.searchHits.error);
+  }
+  if (view.selectedProjectId.length === 0) {
+    return el("div", { className: "state empty" }, "Choose a project to search.");
+  }
+  if (view.searchHits.data.length === 0) {
+    return el("div", { className: "state empty" }, "No search results loaded.");
+  }
+  return el("div", { className: "card-list" }, ...view.searchHits.data.map((hit) =>
+    el("article", { className: "result-card" },
+      el("div", { className: "card-title-row" },
+        el("strong", {}, hit.kind),
+        el("span", { className: "row-detail" }, `score ${formatScore(hit.score)}`)
+      ),
+      el("p", { className: "artifact-content" }, shortText(hit.content, 320)),
+      el("dl", { className: "compact-list" },
+        detailRow("Document", hit.document_id),
+        detailRow("Artifact", hit.artifact_id ?? "none"),
+        detailRow("Face", hit.face_identity_id ?? "none")
+      ),
+      renderSourceRefs(hit.source_refs, () => {
+        view.selectedSourceRef = hit.source_refs[0] ?? null;
+        render();
+      }),
+      renderDetails({
+        source_position: hit.source_position ?? {},
+        metadata: hit.metadata ?? {}
+      })
+    )
+  ));
+}
+
+function renderContextResult(): HTMLElement {
+  if (view.contextResult.state === "loading") {
+    return el("div", { className: "state loading" }, "Building context.");
+  }
+  if (view.contextResult.state === "error") {
+    return renderError(view.contextResult.error);
+  }
+  if (!view.contextResult.data) {
+    return el("div", { className: "state empty" }, "No context preview loaded.");
+  }
+  return el("section", { className: "subsection" },
+    el("div", { className: "subsection-heading" },
+      el("h4", {}, "Context preview"),
+      el("span", {}, `${view.contextResult.data.debug.usedTokens}/${view.contextResult.data.debug.tokenBudget} tokens`)
+    ),
+    ...view.contextResult.data.blocks.map((block) =>
+      el("article", { className: "result-card" },
+        el("div", { className: "card-title-row" },
+          el("strong", {}, block.type),
+          el("span", { className: "row-detail" }, block.score === null ? "source" : `score ${formatScore(block.score)}`)
+        ),
+        el("p", { className: "artifact-content" }, shortText(block.content, 260)),
+        renderSourceRefs(block.source_refs)
+      )
+    )
+  );
+}
+
+function renderMemoryResults(): HTMLElement {
+  if (view.memoryHits.state === "loading") {
+    return el("div", { className: "state loading" }, "Loading memories.");
+  }
+  if (view.memoryHits.state === "error") {
+    return renderError(view.memoryHits.error);
+  }
+  if (view.memoryHits.data.length === 0) {
+    return el("div", { className: "state empty" }, "No memory results loaded.");
+  }
+  return el("section", { className: "subsection" },
+    el("div", { className: "subsection-heading" },
+      el("h4", {}, "Source-backed memories"),
+      el("span", {}, `${view.memoryHits.data.length}`)
+    ),
+    ...view.memoryHits.data.map((hit) =>
+      el("article", { className: "result-card" },
+        el("div", { className: "card-title-row" },
+          el("strong", {}, hit.memory.type),
+          statusPill(hit.memory.status)
+        ),
+        el("p", { className: "artifact-content" }, shortText(hit.memory.text, 260)),
+        el("dl", { className: "compact-list" },
+          detailRow("Memory", hit.memory.id),
+          detailRow("Score", formatScore(hit.score)),
+          detailRow("Confidence", formatScore(hit.memory.confidence))
+        ),
+        renderSourceRefs(hit.memory.source_refs)
+      )
+    )
+  );
+}
+
+function renderFaceIdentities(): HTMLElement {
+  if (view.faceIdentities.state === "loading") {
+    return el("div", { className: "state loading" }, "Loading face identities.");
+  }
+  if (view.faceIdentities.state === "error") {
+    return renderError(view.faceIdentities.error);
+  }
+  if (view.selectedProjectId.length === 0) {
+    return el("div", { className: "state empty" }, "Choose a project to list face identities.");
+  }
+  if (view.faceIdentities.data.length === 0) {
+    return el("div", { className: "state empty" }, "No face identities found.");
+  }
+  return el("div", { className: "card-list" }, ...view.faceIdentities.data.map((identity) => {
+    const labelInput = input("Face label", identity.label ?? "", "text");
+    const mergeTargetInput = input("Merge target identity", "", "text");
+    const selected = identity.id === view.selectedFaceIdentityId;
+    return el("article", { className: selected ? "face-card selected" : "face-card" },
+      el("div", { className: "card-title-row" },
+        el("strong", {}, identity.label || identity.id),
+        statusPill(identity.status)
+      ),
+      el("dl", { className: "compact-list" },
+        detailRow("Identity", identity.id),
+        detailRow("Representative", identity.representative_artifact_id ?? "none")
+      ),
+      field("Label", labelInput),
+      el("div", { className: "button-row" },
+        button("Observations", "secondary light", () => {
+          view.selectedFaceIdentityId = identity.id;
+          render();
+          void refreshFaceObservations(identity.project_id, identity.id);
+        }),
+        button("Rename", "secondary light", () => {
+          void renameFace(identity.project_id, identity.id, labelInput.value);
+        })
+      ),
+      field("Merge target", mergeTargetInput),
+      el("div", { className: "button-row" },
+        button("Merge", "secondary light", () => {
+          void mergeFace(identity.project_id, identity.id, mergeTargetInput.value);
+        })
+      )
+    );
+  }));
+}
+
+function renderFaceObservations(): HTMLElement {
+  if (view.faceObservations.state === "loading") {
+    return el("div", { className: "state loading" }, "Loading face observations.");
+  }
+  if (view.faceObservations.state === "error") {
+    return renderError(view.faceObservations.error);
+  }
+  if (view.faceObservations.data.length === 0) {
+    return el("div", { className: "state empty" }, "No face observations selected.");
+  }
+  return el("section", { className: "subsection observation-list" },
+    el("div", { className: "subsection-heading" },
+      el("h4", {}, "Observations"),
+      el("span", {}, `${view.faceObservations.data.length}`)
+    ),
+    ...view.faceObservations.data.map((observation) =>
+      el("article", { className: "result-card" },
+        el("div", { className: "card-title-row" },
+          el("strong", {}, observation.id),
+          el("span", { className: "row-detail" }, observation.confidence === null ? "confidence none" : `confidence ${formatScore(observation.confidence)}`)
+        ),
+        el("dl", { className: "compact-list" },
+          detailRow("Document", observation.document_id),
+          detailRow("Artifact", observation.artifact_id),
+          detailRow("Model", observation.model ?? "none")
+        ),
+        renderDetails({
+          bounding_box: observation.bounding_box ?? {},
+          metadata: observation.metadata ?? {}
+        })
+      )
+    )
+  );
+}
+
 function renderDocumentJobs(document: DocumentRecord): HTMLElement {
   if (view.documentJobs.state === "loading") {
     return el("div", { className: "state loading" }, "Loading jobs.");
@@ -538,11 +898,15 @@ async function refreshProjects(): Promise<void> {
       void refreshProjectDetail(projects[0].id);
       if (view.activeView === "documents") {
         void refreshDocuments(projects[0].id);
+      } else if (view.activeView === "search") {
+        void refreshFaces(projects[0].id);
       }
     } else if (view.selectedProjectId.length > 0) {
       void refreshProjectDetail(view.selectedProjectId);
       if (view.activeView === "documents") {
         void refreshDocuments(view.selectedProjectId);
+      } else if (view.activeView === "search") {
+        void refreshFaces(view.selectedProjectId);
       }
     }
   } catch (error) {
@@ -698,6 +1062,193 @@ async function retryDocumentJob(projectId: string, jobId: string): Promise<void>
   }
 }
 
+async function runUnifiedSearch(input: { query: string; limit: number; targets: Array<"documents" | "artifacts" | "faces">; metadataFilters: MetadataFilter[] }): Promise<void> {
+  if (view.selectedProjectId.length === 0) {
+    view.searchHits = failed([], { title: "Project required", message: "Choose a project before searching." });
+    render();
+    return;
+  }
+  view.searchHits = loading(view.searchHits.data);
+  render();
+  try {
+    const client = new MindoryUiApiClient(view.connection);
+    const payload = {
+      projectIds: [view.selectedProjectId],
+      limit: input.limit,
+      targets: input.targets
+    };
+    const query = input.query.trim();
+    if (query.length > 0) {
+      Object.assign(payload, { query });
+    }
+    if (input.metadataFilters.length > 0) {
+      Object.assign(payload, { metadataFilters: input.metadataFilters });
+    }
+    const hits = await client.unifiedSearch(payload);
+    view.searchHits = ready(hits);
+    view.selectedSourceRef = hits[0]?.source_refs[0] ?? view.selectedSourceRef;
+  } catch (error) {
+    view.searchHits = failed([], toDisplayError(error, "Unified search failed"));
+  }
+  render();
+}
+
+async function buildContextPreview(input: {
+  query: string;
+  tokenBudget: number;
+  include: {
+    sessionSummary: boolean;
+    recentMessages: boolean;
+    memories: boolean;
+    documents: boolean;
+  };
+}): Promise<void> {
+  if (view.selectedProjectId.length === 0) {
+    view.contextResult = failed(null, { title: "Project required", message: "Choose a project before building context." });
+    render();
+    return;
+  }
+  view.contextResult = loading(view.contextResult.data);
+  render();
+  try {
+    const client = new MindoryUiApiClient(view.connection);
+    const payload = {
+      projectIds: [view.selectedProjectId],
+      tokenBudget: input.tokenBudget,
+      include: input.include
+    };
+    const query = input.query.trim();
+    if (query.length > 0) {
+      Object.assign(payload, { query });
+    }
+    if (view.selectedSessionId.length > 0) {
+      Object.assign(payload, { sessionId: view.selectedSessionId });
+    }
+    view.contextResult = ready(await client.buildContext(payload));
+  } catch (error) {
+    view.contextResult = failed(null, toDisplayError(error, "Context preview failed"));
+  }
+  render();
+}
+
+async function rememberManualMemory(input: { text: string; type: string; sourceRef: SourceRef }): Promise<void> {
+  if (view.selectedProjectId.length === 0) {
+    view.memoryHits = failed(view.memoryHits.data, { title: "Project required", message: "Choose a project before saving memory." });
+    render();
+    return;
+  }
+  const text = input.text.trim();
+  if (text.length === 0 || input.sourceRef.id.length === 0) {
+    view.memoryHits = failed(view.memoryHits.data, { title: "Memory requires evidence", message: "Memory text and source id are required." });
+    render();
+    return;
+  }
+  view.memoryHits = loading(view.memoryHits.data);
+  render();
+  try {
+    const client = new MindoryUiApiClient(view.connection);
+    const memory = await client.rememberMemory({
+      projectId: view.selectedProjectId,
+      type: input.type,
+      text,
+      status: "active",
+      sourceRefs: [input.sourceRef],
+      metadata: {
+        source: "mindory-ui"
+      }
+    });
+    view.selectedSourceRef = memory.source_refs[0] ?? view.selectedSourceRef;
+    await searchMemories(text);
+  } catch (error) {
+    view.memoryHits = failed(view.memoryHits.data, toDisplayError(error, "Memory could not be saved"));
+    render();
+  }
+}
+
+async function searchMemories(query: string): Promise<void> {
+  if (view.selectedProjectId.length === 0) {
+    view.memoryHits = failed([], { title: "Project required", message: "Choose a project before memory search." });
+    render();
+    return;
+  }
+  view.memoryHits = loading(view.memoryHits.data);
+  render();
+  try {
+    const client = new MindoryUiApiClient(view.connection);
+    const payload = {
+      projectIds: [view.selectedProjectId],
+      statuses: ["active", "candidate"],
+      limit: 20
+    };
+    const normalizedQuery = query.trim();
+    if (normalizedQuery.length > 0) {
+      Object.assign(payload, { query: normalizedQuery });
+    }
+    view.memoryHits = ready(await client.searchMemories(payload));
+  } catch (error) {
+    view.memoryHits = failed([], toDisplayError(error, "Memories could not be loaded"));
+  }
+  render();
+}
+
+async function refreshFaces(projectId: string): Promise<void> {
+  view.faceIdentities = loading(view.faceIdentities.data);
+  view.faceObservations = view.selectedFaceIdentityId ? loading(view.faceObservations.data) : view.faceObservations;
+  render();
+  try {
+    const client = new MindoryUiApiClient(view.connection);
+    const identities = await client.listFaceIdentities(projectId);
+    view.faceIdentities = ready(identities);
+    if (view.selectedFaceIdentityId.length > 0) {
+      await refreshFaceObservations(projectId, view.selectedFaceIdentityId);
+    }
+  } catch (error) {
+    view.faceIdentities = failed([], toDisplayError(error, "Face identities could not be loaded"));
+  }
+  render();
+}
+
+async function refreshFaceObservations(projectId: string, identityId: string): Promise<void> {
+  view.faceObservations = loading(view.faceObservations.data);
+  render();
+  try {
+    const client = new MindoryUiApiClient(view.connection);
+    view.faceObservations = ready(await client.listFaceObservations(projectId, identityId));
+  } catch (error) {
+    view.faceObservations = failed([], toDisplayError(error, "Face observations could not be loaded"));
+  }
+  render();
+}
+
+async function renameFace(projectId: string, identityId: string, label: string): Promise<void> {
+  try {
+    const client = new MindoryUiApiClient(view.connection);
+    await client.renameFaceIdentity(projectId, identityId, label.trim() || null);
+    await refreshFaces(projectId);
+  } catch (error) {
+    view.faceIdentities = failed(view.faceIdentities.data, toDisplayError(error, "Face identity could not be renamed"));
+    render();
+  }
+}
+
+async function mergeFace(projectId: string, sourceIdentityId: string, targetIdentityId: string): Promise<void> {
+  const target = targetIdentityId.trim();
+  if (target.length === 0) {
+    view.faceIdentities = failed(view.faceIdentities.data, { title: "Merge target required", message: "Enter a target face identity id." });
+    render();
+    return;
+  }
+  try {
+    const client = new MindoryUiApiClient(view.connection);
+    await client.mergeFaceIdentity(projectId, sourceIdentityId, target);
+    view.selectedFaceIdentityId = target;
+    await refreshFaces(projectId);
+  } catch (error) {
+    view.faceIdentities = failed(view.faceIdentities.data, toDisplayError(error, "Face identities could not be merged"));
+    render();
+  }
+}
+
 function resetProjectScopedState(): void {
   view.projects = idle([]);
   view.selectedProjectId = "";
@@ -715,6 +1266,13 @@ function resetSelectedProjectState(): void {
   view.processingRuns = idle([]);
   view.documentJobs = idle([]);
   view.artifacts = idle([]);
+  view.searchHits = idle([]);
+  view.contextResult = idle(null);
+  view.memoryHits = idle([]);
+  view.faceIdentities = idle([]);
+  view.faceObservations = idle([]);
+  view.selectedFaceIdentityId = "";
+  view.selectedSourceRef = null;
 }
 
 function currentProject(): Project | undefined {
@@ -786,7 +1344,7 @@ function statusPill(status: string): HTMLElement {
   return el("span", { className: `status-pill ${status}` }, status);
 }
 
-function field(labelText: string, control: HTMLInputElement): HTMLElement {
+function field(labelText: string, control: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement): HTMLElement {
   return el("label", { className: "field" },
     el("span", {}, labelText),
     control
@@ -810,11 +1368,88 @@ function renderDetails(value: Record<string, unknown> | undefined): HTMLElement 
   );
 }
 
+function renderSourceRefs(sourceRefs: SourceRef[], onUse?: () => void): HTMLElement {
+  return el("div", { className: "source-refs" },
+    el("div", { className: "card-title-row" },
+      el("strong", {}, "Source refs"),
+      onUse && sourceRefs.length > 0 ? button("Use source", "secondary light", onUse) : null
+    ),
+    sourceRefs.length > 0
+      ? el("ul", {}, ...sourceRefs.map((ref) => el("li", {}, `${ref.type}:${ref.id}`)))
+      : el("span", { className: "muted" }, "none")
+  );
+}
+
+function selectedTargets(
+  documentsTarget: HTMLInputElement,
+  artifactsTarget: HTMLInputElement,
+  facesTarget: HTMLInputElement
+): Array<"documents" | "artifacts" | "faces"> {
+  const targets: Array<"documents" | "artifacts" | "faces"> = [];
+  if (documentsTarget.checked) {
+    targets.push("documents");
+  }
+  if (artifactsTarget.checked) {
+    targets.push("artifacts");
+  }
+  if (facesTarget.checked) {
+    targets.push("faces");
+  }
+  return targets.length > 0 ? targets : ["documents", "artifacts", "faces"];
+}
+
+function readMetadataFilters(key: string, value: string): MetadataFilter[] {
+  const normalizedKey = key.trim();
+  const normalizedValue = value.trim();
+  if (normalizedKey.length === 0) {
+    return [];
+  }
+  const numericValue = Number(normalizedValue);
+  if (Number.isFinite(numericValue) && normalizedValue.length > 0) {
+    return [{ key: normalizedKey, operator: "eq", valueNumber: numericValue }];
+  }
+  return [{ key: normalizedKey, operator: "eq", valueText: normalizedValue }];
+}
+
 function input(label: string, value: string, type: string): HTMLInputElement {
   const node = document.createElement("input");
   node.type = type;
   node.setAttribute("aria-label", label);
   node.value = value;
+  return node;
+}
+
+function checkbox(label: string, checked: boolean): HTMLInputElement {
+  const node = input(label, "", "checkbox");
+  node.checked = checked;
+  return node;
+}
+
+function toggleField(control: HTMLInputElement): HTMLElement {
+  return el("label", { className: "toggle-field" },
+    control,
+    el("span", {}, control.getAttribute("aria-label") ?? "")
+  );
+}
+
+function textarea(label: string, value: string): HTMLTextAreaElement {
+  const node = document.createElement("textarea");
+  node.setAttribute("aria-label", label);
+  node.value = value;
+  node.rows = 3;
+  return node;
+}
+
+function select(label: string, options: string[], selectedValue: string): HTMLSelectElement {
+  const node = document.createElement("select");
+  node.setAttribute("aria-label", label);
+  for (const option of options) {
+    const optionNode = document.createElement("option");
+    optionNode.value = option;
+    optionNode.textContent = option;
+    optionNode.selected = option === selectedValue;
+    node.append(optionNode);
+  }
   return node;
 }
 
@@ -915,6 +1550,10 @@ function formatDate(value: string | undefined): string {
   }).format(new Date(value));
 }
 
+function formatScore(value: number): string {
+  return Number.isFinite(value) ? value.toFixed(2) : "0.00";
+}
+
 function formatBytes(value: number): string {
   if (value < 1024) {
     return `${value} B`;
@@ -939,4 +1578,13 @@ function shortText(value: string, maxLength: number): string {
 
 function isRetryableJob(job: ProcessingJob): boolean {
   return ["failed", "partial_failed", "blocked_by_scan"].includes(job.status);
+}
+
+function readPositiveInt(value: string, fallback: number): number {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function sourceRefTypeOptions(): string[] {
+  return ["session", "message", "document", "chunk", "artifact", "processing_run", "face_identity", "face_observation", "memory"];
 }

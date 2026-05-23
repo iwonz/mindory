@@ -1,0 +1,61 @@
+{
+  "id": "TASK-128",
+  "title": "Web UI search context memory faces",
+  "status": "done",
+  "type": "feature",
+  "priority": "high",
+  "branch": "task/TASK-128-web-ui-search-context-memory-faces",
+  "created_at": "2026-05-23",
+  "updated_at": "2026-05-23",
+  "context": {
+    "summary": "Add supported Web UI surfaces for unified search, context preview, manual memory creation, source-backed memory display and face identity operations.",
+    "background": "TASK-126 added the UI foundation and TASK-127 added document pipeline operations. The next public-ready UI scope is search/context/memory/faces over the HTTP API."
+  },
+  "scope": {
+    "in": [
+      "Extend the UI API client with /v1/search, /v1/context/build, /v1/memories and /v1/faces calls.",
+      "Add a Search workspace tab with unified search query, target selection, simple metadata filter and source-ref results.",
+      "Add context preview controls and context block display.",
+      "Add manual memory creation with required source refs and source-backed memory search display.",
+      "Add face identity list, observation list, rename and merge controls using HTTP API calls.",
+      "Align memory route source-ref schema with runtime source-ref types returned by search/context/faces.",
+      "Add UI insights validation and include it in pnpm check.",
+      "Update README, API docs, UI docs, support matrix, repository status and changelog."
+    ],
+    "out": [
+      "Runtime settings and diagnostics UI, which is TASK-129.",
+      "Docker image/service and installer routing integration, which is TASK-130.",
+      "Playwright E2E acceptance, which is TASK-131.",
+      "New search, memory, context or face backend algorithms."
+    ]
+  },
+  "acceptance_criteria": [
+    "The UI can call unified search through POST /v1/search and show hits with source refs and source positions.",
+    "The UI can build context through POST /v1/context/build and show context blocks with token debug data.",
+    "The UI can create manual source-backed memories through POST /v1/memories and list memory search results with source refs.",
+    "The UI can list face identities and observations, rename identities and merge identities through HTTP API calls.",
+    "Memory route source-ref schema accepts artifact, processing_run, face_identity and face_observation refs used by current evidence surfaces.",
+    "pnpm check includes an insights workspace validator, and docs describe the new supported UI surface."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm --filter @mindory/ui build",
+      "pnpm ui:insights:validate",
+      "pnpm ui:validate",
+      "pnpm ui:documents:validate",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Open the UI locally and confirm the Search tab renders without browser console errors when the API is unavailable."
+    ]
+  },
+  "dependencies": [
+    "TASK-127"
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is done.",
+    "Branch is committed and merged back into master."
+  ]
+}

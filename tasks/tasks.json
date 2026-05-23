@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-127",
+  "current_task_id": "TASK-128",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -925,6 +925,13 @@
       "status": "done",
       "branch": "task/TASK-127-web-ui-document-pipeline-workspace",
       "file": "tasks/TASK-127.json"
+    },
+    {
+      "id": "TASK-128",
+      "title": "Web UI search context memory faces",
+      "status": "done",
+      "branch": "task/TASK-128-web-ui-search-context-memory-faces",
+      "file": "tasks/TASK-128.json"
     }
   ]
 }

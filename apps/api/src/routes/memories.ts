@@ -36,7 +36,7 @@ const sourceRefSchema = {
   required: ["type", "id"],
   additionalProperties: false,
   properties: {
-    type: { type: "string", enum: ["session", "message", "document", "chunk", "memory"] },
+    type: { type: "string", enum: ["session", "message", "document", "chunk", "artifact", "processing_run", "face_identity", "face_observation", "memory"] },
     id: { type: "string", minLength: 1 }
   }
 } as const;

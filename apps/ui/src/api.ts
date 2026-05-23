@@ -1,9 +1,16 @@
 import type {
+  ContextBuildResult,
   DocumentArtifact,
   DocumentRecord,
+  FaceIdentity,
+  FaceMergeResponse,
+  FaceObservation,
   HealthResponse,
   JobRetryResponse,
   Message,
+  MetadataFilter,
+  MemoryClaim,
+  MemorySearchHit,
   Peer,
   ProcessingJob,
   ProcessingRun,
@@ -11,6 +18,8 @@ import type {
   RecomputeDocumentResponse,
   Session,
   StoredConnection,
+  SourceRef,
+  UnifiedSearchHit,
   UploadDocumentResponse
 } from "./types.js";
 
@@ -106,6 +115,82 @@ export class MindoryUiApiClient {
   retryJob(projectId: string, jobId: string): Promise<JobRetryResponse> {
     return this.request<JobRetryResponse>("POST", `/v1/jobs/${encodeURIComponent(jobId)}/retry`, {
       body: JSON.stringify({ projectId })
+    });
+  }
+
+  async unifiedSearch(input: {
+    projectIds: string[];
+    query?: string;
+    targets?: Array<"documents" | "artifacts" | "faces">;
+    metadataFilters?: MetadataFilter[];
+    limit: number;
+  }): Promise<UnifiedSearchHit[]> {
+    const payload = await this.request<{ hits: UnifiedSearchHit[] }>("POST", "/v1/search", {
+      body: JSON.stringify(input)
+    });
+    return payload.hits;
+  }
+
+  buildContext(input: {
+    projectIds: string[];
+    sessionId?: string;
+    query?: string;
+    tokenBudget: number;
+    include?: {
+      sessionSummary?: boolean;
+      recentMessages?: boolean;
+      memories?: boolean;
+      documents?: boolean;
+    };
+  }): Promise<ContextBuildResult> {
+    return this.request<ContextBuildResult>("POST", "/v1/context/build", {
+      body: JSON.stringify(input)
+    });
+  }
+
+  rememberMemory(input: {
+    projectId: string;
+    type?: string;
+    text: string;
+    status?: string;
+    importance?: number;
+    confidence?: number;
+    sourceRefs: SourceRef[];
+    metadata?: Record<string, unknown>;
+  }): Promise<MemoryClaim> {
+    return this.request<MemoryClaim>("POST", "/v1/memories", {
+      body: JSON.stringify(input)
+    });
+  }
+
+  async searchMemories(input: { projectIds: string[]; query?: string; statuses?: string[]; types?: string[]; limit: number }): Promise<MemorySearchHit[]> {
+    const payload = await this.request<{ hits: MemorySearchHit[] }>("POST", "/v1/memories/search", {
+      body: JSON.stringify(input)
+    });
+    return payload.hits;
+  }
+
+  async listFaceIdentities(projectId: string, status?: string, limit = 100): Promise<FaceIdentity[]> {
+    const statusQuery = status ? `&status=${encodeURIComponent(status)}` : "";
+    const payload = await this.request<{ identities: FaceIdentity[] }>("GET", `/v1/faces/identities?projectId=${encodeURIComponent(projectId)}&limit=${encodeURIComponent(String(limit))}${statusQuery}`);
+    return payload.identities;
+  }
+
+  async listFaceObservations(projectId: string, identityId?: string, limit = 100): Promise<FaceObservation[]> {
+    const identityQuery = identityId ? `&identityId=${encodeURIComponent(identityId)}` : "";
+    const payload = await this.request<{ observations: FaceObservation[] }>("GET", `/v1/faces/observations?projectId=${encodeURIComponent(projectId)}&limit=${encodeURIComponent(String(limit))}${identityQuery}`);
+    return payload.observations;
+  }
+
+  renameFaceIdentity(projectId: string, identityId: string, label: string | null): Promise<FaceIdentity> {
+    return this.request<FaceIdentity>("PATCH", `/v1/faces/identities/${encodeURIComponent(identityId)}`, {
+      body: JSON.stringify({ projectId, label })
+    });
+  }
+
+  mergeFaceIdentity(projectId: string, sourceIdentityId: string, targetIdentityId: string): Promise<FaceMergeResponse> {
+    return this.request<FaceMergeResponse>("POST", `/v1/faces/identities/${encodeURIComponent(sourceIdentityId)}/merge`, {
+      body: JSON.stringify({ projectId, targetIdentityId })
     });
   }
 

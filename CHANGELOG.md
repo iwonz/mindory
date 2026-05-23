@@ -20,6 +20,9 @@ documentation.
 
 ### Added
 
+- `TASK-128`: Web UI search/context/memory/faces workspace with unified search
+  filters, context preview, manual memory creation, source-backed memory display,
+  face identity list/rename/merge and `pnpm ui:insights:validate` coverage.
 - `TASK-127`: Web UI document pipeline workspace with upload, document
   list/detail, processing runs, job progress, retry/reprocess controls,
   artifact source refs and `pnpm ui:documents:validate` coverage.

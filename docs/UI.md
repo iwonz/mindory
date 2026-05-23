@@ -52,6 +52,11 @@ The UI includes:
 - failed job retry;
 - document reprocess request;
 - derived artifact list with source refs;
+- unified search with document/artifact/face targets;
+- context preview;
+- manual memory creation with source refs;
+- source-backed memory search display;
+- face identity list, rename, merge and observation display;
 - loading, empty, `401`, `403` and generic error states.
 
 The UI calls:
@@ -69,6 +74,14 @@ The UI calls:
 - `POST /v1/documents/:id/recompute`
 - `GET /v1/jobs`
 - `POST /v1/jobs/:id/retry`
+- `POST /v1/search`
+- `POST /v1/context/build`
+- `POST /v1/memories`
+- `POST /v1/memories/search`
+- `GET /v1/faces/identities`
+- `GET /v1/faces/observations`
+- `PATCH /v1/faces/identities/:id`
+- `POST /v1/faces/identities/:id/merge`
 
 It does not access PostgreSQL, Redis, object storage, vector backends or worker
 internals directly.
@@ -80,8 +93,10 @@ Run:
 ```bash
 pnpm ui:validate
 pnpm ui:documents:validate
+pnpm ui:insights:validate
 ```
 
-`pnpm check` includes both validators. The validators build the UI, check
+`pnpm check` includes these validators. The validators build the UI, check
 workspace/typecheck registration, verify the API client, document pipeline
-workspace, connection states and confirm the docs/config entries stay in sync.
+workspace, search/context/memory/faces workspace, connection states and confirm
+the docs/config entries stay in sync.

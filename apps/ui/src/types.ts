@@ -179,6 +179,113 @@ export interface SourceRef {
   id: string;
 }
 
+export type UnifiedSearchTarget = "documents" | "artifacts" | "faces";
+
+export interface MetadataFilter {
+  key: string;
+  operator?: "eq" | "lt" | "lte" | "gt" | "gte" | "between";
+  valueText?: string;
+  valueNumber?: number;
+  valueBoolean?: boolean;
+  valueTimestamp?: string;
+  minNumber?: number;
+  maxNumber?: number;
+  unit?: string;
+}
+
+export interface UnifiedSearchHit {
+  kind: string;
+  project_id: string;
+  document_id: string;
+  chunk_id: string | null;
+  artifact_id: string | null;
+  artifact_type: string | null;
+  span_id: string | null;
+  span_type: string | null;
+  face_observation_id: string | null;
+  face_identity_id: string | null;
+  content: string;
+  score: number;
+  source_refs: SourceRef[];
+  source_position?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+}
+
+export interface ContextBlock {
+  type: string;
+  content: string;
+  source_refs: SourceRef[];
+  score: number | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface ContextBuildResult {
+  blocks: ContextBlock[];
+  debug: {
+    searchedProjects: string[];
+    memoryHits: number;
+    documentHits: number;
+    recentMessageHits: number;
+    sessionSummaryIncluded: boolean;
+    tokenBudget: number;
+    usedTokens: number;
+  };
+}
+
+export interface MemoryClaim {
+  id: string;
+  project_id: string;
+  type: string;
+  text: string;
+  status: string;
+  importance: number;
+  confidence: number;
+  source_refs: SourceRef[];
+  created_source?: Record<string, unknown>;
+  created_by_peer_id: string | null;
+  metadata?: Record<string, unknown>;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface MemorySearchHit {
+  memory: MemoryClaim;
+  score: number;
+  match_reason: string | null;
+}
+
+export interface FaceIdentity {
+  id: string;
+  project_id: string;
+  label: string | null;
+  status: string;
+  representative_artifact_id: string | null;
+  metadata?: Record<string, unknown>;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface FaceObservation {
+  id: string;
+  project_id: string;
+  document_id: string;
+  artifact_id: string;
+  processing_run_id: string;
+  face_identity_id: string | null;
+  embedding_id: string | null;
+  model: string | null;
+  bounding_box?: Record<string, unknown>;
+  confidence: number | null;
+  metadata?: Record<string, unknown>;
+  created_at?: string;
+}
+
+export interface FaceMergeResponse {
+  source: FaceIdentity;
+  target: FaceIdentity;
+  reassigned_observations: number;
+}
+
 declare global {
   interface Window {
     __MINDORY_UI_CONFIG__?: UiConfig;

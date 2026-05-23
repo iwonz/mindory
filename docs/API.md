@@ -179,8 +179,10 @@ runtime is built. Product startup requires those dependencies before serving
 traffic.
 
 Manual `POST /v1/memories` still defaults to `active` memory claims and requires
-source refs. Automatic memory derivation is worker-side only and creates
-`candidate` claims for later review.
+source refs. Accepted source ref types match runtime evidence surfaces:
+`session`, `message`, `document`, `chunk`, `artifact`, `processing_run`,
+`face_identity`, `face_observation` and `memory`. Automatic memory derivation
+is worker-side only and creates `candidate` claims for later review.
 
 Registered face route surfaces:
 
