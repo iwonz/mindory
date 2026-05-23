@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-113",
+  "current_task_id": "TASK-114",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -827,6 +827,13 @@
       "status": "done",
       "branch": "task/TASK-113-final-github-public-readiness-gate",
       "file": "tasks/TASK-113.json"
+    },
+    {
+      "id": "TASK-114",
+      "title": "Fix GitHub Actions pnpm setup for release publishing",
+      "status": "done",
+      "branch": "task/TASK-114-fix-github-actions-pnpm-setup",
+      "file": "tasks/TASK-114.json"
     }
   ]
 }
