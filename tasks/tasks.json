@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-112",
+  "current_task_id": "TASK-113",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -824,7 +824,7 @@
     {
       "id": "TASK-113",
       "title": "Run final GitHub public readiness gate",
-      "status": "draft",
+      "status": "done",
       "branch": "task/TASK-113-final-github-public-readiness-gate",
       "file": "tasks/TASK-113.json"
     }

@@ -8,14 +8,14 @@ The canonical product and engineering specification is `docs/PRD.md`.
 
 ## Repository Status
 
-This repository is complete through `TASK-111`. Mindory can run a local
+This repository is complete through `TASK-113`. Mindory can run a local
 demo-MVP through Docker Compose, seed demo credentials, process uploaded
 documents through the worker pipeline and run live acceptance. `pnpm check`
 passes through the repo validation, typecheck, lint, tests and dry-run
 installer and public self-host acceptance paths.
 
 The current state is intentionally split into supported local-MVP surfaces,
-experimental profile surfaces and planned hardening:
+experimental profile surfaces and documented non-MVP surfaces:
 
 | Area | Current state |
 | --- | --- |

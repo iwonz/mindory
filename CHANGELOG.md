@@ -20,6 +20,11 @@ documentation.
 
 ### Added
 
+- `TASK-113`: final public readiness gate updates for repository status,
+  changelog, release checklist and no-marker public-debt validation.
+- `TASK-112`: live self-host release-readiness matrix covering sync ClamAV,
+  pgvector with Docling, Qdrant with deterministic local embeddings, runtime
+  backup, signed remote update and guarded uninstall.
 - `TASK-111`: Hermes host integration package with runnable example host,
   lifecycle hook registration and conformance coverage for attachments, turns
   and later-session recall.
@@ -72,5 +77,12 @@ documentation.
 
 ### Changed
 
+- `TASK-113`: repository status now reflects the completed TASK-113 baseline
+  and release checklist requires the live self-host gate before publication.
 - `TASK-69`: release-style bundle generation and bootstrap checksum/staging
   path are documented and validated.
+
+### Fixed
+
+- `TASK-112`: release bundles now include `.npmrc`, so staged release Docker
+  builds use the same pnpm configuration as the source checkout.

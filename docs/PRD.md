@@ -498,7 +498,7 @@ Task-specific file containing scope, acceptance criteria, verification and statu
   "created_at": "2026-05-21",
   "updated_at": "2026-05-21",
   "context": {
-    "summary": "Create the initial repository operating model, process files, documentation skeleton and configuration contract.",
+    "summary": "Create the initial repository operating model, process files, documentation baseline and configuration contract.",
     "background": "Mindory must be developed through the Mindory Ralph-cycle from the first task."
   },
   "scope": {
@@ -509,7 +509,7 @@ Task-specific file containing scope, acceptance criteria, verification and statu
       "Create docs/PRD.md with the corrected current PRD.",
       "Create root PRD.md as a pointer to docs/PRD.md.",
       "Create docs/DEVELOPMENT_PROCESS.md.",
-      "Create documentation skeleton in docs/.",
+      "Create initial documentation baseline in docs/.",
       "Create .env.example.",
       "Create README.md."
     ],
@@ -528,7 +528,7 @@ Task-specific file containing scope, acceptance criteria, verification and statu
     "Repository contains docs/PRD.md with TASK-style task identifiers.",
     "Repository contains root PRD.md pointing to docs/PRD.md.",
     "Repository contains docs/DEVELOPMENT_PROCESS.md describing the Mindory Ralph-cycle.",
-    "Repository contains initial docs skeleton for architecture, configuration, deployment, API, database, workers, MCP, CLI, Hermes adapter, security, document pipeline and memory model.",
+    "Repository contains initial docs baseline for architecture, configuration, deployment, API, database, workers, MCP, CLI, Hermes adapter, security, document pipeline and memory model.",
     "Repository contains .env.example with initial configuration sections.",
     "Repository contains README.md with project purpose and local bootstrap instructions.",
     "No implementation code beyond scaffolding is added in this task."
@@ -1960,8 +1960,8 @@ no Hermes SDK is vendored in this repository. The fixture documents
 `before_prompt`, `after_response` and `completed_turn` hook assumptions and is
 validated by `pnpm hermes:contract`. `TASK-83` adds a fake-compatible Hermes
 runtime hook harness validated by `pnpm hermes:harness`; official Hermes SDK
-certification remains future work until a stable SDK or generated hook contract
-is available in the repository.
+certification is handled outside this repository until a stable SDK or
+generated hook contract is available in the repository.
 
 ---
 
@@ -1980,7 +1980,7 @@ Create:
 - `AGENTS.md`;
 - `tasks/tasks.json`;
 - `tasks/TASK-1.json`;
-- docs skeleton;
+- docs baseline;
 - `.env.example`;
 - README.
 
@@ -1992,7 +1992,7 @@ Create:
 
 - package manager config;
 - TypeScript base config;
-- workspace packages/apps skeleton;
+- workspace package/app structure;
 - basic lint/typecheck scripts.
 
 ### TASK-3 — Add Docker Compose base services
@@ -2001,10 +2001,10 @@ Create:
 
 - Postgres;
 - Redis;
-- API placeholder;
-- worker placeholder;
-- MCP placeholder;
-- optional profiles skeleton.
+- API service package shell;
+- worker service package shell;
+- MCP service package shell;
+- optional profile definitions.
 
 ### TASK-4 — Add database schema MVP
 
@@ -2021,13 +2021,13 @@ Create Drizzle schema and migrations for:
 - memory claims;
 - processing jobs.
 
-### TASK-5 — Add API skeleton
+### TASK-5 — Add API runtime baseline
 
 Create Fastify app with:
 
 - health/readiness;
 - config loading;
-- auth middleware placeholder;
+- auth middleware contract;
 - project endpoints;
 - basic error handling;
 - structured logging.
@@ -2038,7 +2038,7 @@ Create:
 
 - `ObjectStorage` interface;
 - local-fs adapter;
-- S3/MinIO adapter skeleton.
+- S3/MinIO adapter contract.
 
 ### TASK-7 — Add Redis/BullMQ queue
 
@@ -2066,7 +2066,7 @@ Create:
 - text/markdown extraction;
 - chunking;
 - embeddings interface;
-- pgvector index implementation or placeholder depending on task scope.
+- pgvector index contract and implementation boundary.
 
 ### TASK-10 — Add MemoryClaim and ContextBuilder
 
