@@ -1,0 +1,52 @@
+{
+  "id": "TASK-115",
+  "title": "Harden CI video fixture generation",
+  "status": "done",
+  "type": "test",
+  "priority": "high",
+  "branch": "task/TASK-115-harden-ci-video-fixture",
+  "created_at": "2026-05-23",
+  "updated_at": "2026-05-23",
+  "context": {
+    "summary": "Fix GitHub CI failure in the integration video fixture generator.",
+    "background": "After TASK-114 fixed pnpm setup, GitHub CI reached pnpm check and failed while generating the MP4 fixture with ffmpeg on ubuntu-latest."
+  },
+  "scope": {
+    "in": [
+      "Make the integration video fixture generation tolerate ffmpeg builds without libx264.",
+      "Keep the fixture as a real video consumed by the existing ffmpeg extraction path.",
+      "Validate tasks and repository checks before merge."
+    ],
+    "out": [
+      "Changing product video processing behavior.",
+      "Changing release signing or GitHub repository settings."
+    ]
+  },
+  "acceptance_criteria": [
+    "The video integration fixture can be generated with libx264 or the built-in mpeg4 encoder.",
+    "The worker video ffmpeg extraction path remains covered by pnpm test.",
+    "Task registry includes TASK-115 and validates.",
+    "pnpm check passes locally before merge."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm test",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm the GitHub CI failure was in buildFfmpegVideoFixture."
+    ]
+  },
+  "dependencies": [
+    "TASK-114"
+  ],
+  "risks": [
+    "GitHub release may reveal a later publishing-only issue after CI checks pass."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is done.",
+    "Branch is committed and merged back into master."
+  ]
+}

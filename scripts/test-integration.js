@@ -2219,8 +2219,9 @@ function getFreePort() {
 async function buildFfmpegVideoFixture() {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "mindory-ffmpeg-fixture-"));
   const outputPath = path.join(tempDir, "fixture.mp4");
-  try {
-    runCommand(process.env.MINDORY_TEST_FFMPEG_BIN ?? "ffmpeg", [
+  const ffmpegCommand = process.env.MINDORY_TEST_FFMPEG_BIN ?? "ffmpeg";
+  const attempts = [
+    [
       "-hide_banner",
       "-loglevel",
       "error",
@@ -2229,11 +2230,46 @@ async function buildFfmpegVideoFixture() {
       "lavfi",
       "-i",
       "testsrc=duration=5:size=160x120:rate=1",
+      "-an",
+      "-c:v",
+      "libx264",
+      "-preset",
+      "ultrafast",
       "-pix_fmt",
       "yuv420p",
       outputPath
-    ]);
-    return await readFile(outputPath);
+    ],
+    [
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-y",
+      "-f",
+      "lavfi",
+      "-i",
+      "testsrc=duration=5:size=160x120:rate=1",
+      "-an",
+      "-c:v",
+      "mpeg4",
+      "-q:v",
+      "5",
+      "-pix_fmt",
+      "yuv420p",
+      outputPath
+    ]
+  ];
+  let lastError;
+  try {
+    for (const args of attempts) {
+      try {
+        await rm(outputPath, { force: true });
+        runCommand(ffmpegCommand, args);
+        return await readFile(outputPath);
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw new Error(`Could not build ffmpeg video fixture with libx264 or mpeg4: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
