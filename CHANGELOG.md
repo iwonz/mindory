@@ -20,6 +20,9 @@ documentation.
 
 ### Added
 
+- `TASK-122`: canonical local model runner catalog with role coverage,
+  source/image metadata, model files, healthchecks, resource hints and
+  validation.
 - `TASK-121`: live Docker self-host release gate command with dry-run mode and
   backup/restore smoke coverage in self-host acceptance.
 - `TASK-120`: published GitHub pre-release bootstrap acceptance for public

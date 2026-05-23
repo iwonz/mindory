@@ -27,6 +27,8 @@ function assertExists(relativePath) {
 }
 
 const rootPackage = readJson("package.json");
+const taskRegistry = readJson("tasks/tasks.json");
+const currentTaskId = taskRegistry.current_task_id;
 assert(rootPackage.scripts?.["public:validate"] === "node scripts/validate-public-github-hygiene.js", "Root package must expose public:validate.");
 
 for (const file of [
@@ -68,11 +70,11 @@ for (const token of ["Security Policy", "Supported Versions", "GitHub private vu
   assertIncludes(security, token, "SECURITY.md");
 }
 
-for (const token of ["Release Notes Policy", "Unreleased", "TASK-118", "TASK-117", "TASK-116", "TASK-115", "TASK-114", "TASK-113", "TASK-112", "TASK-111", "TASK-110", "TASK-109", "TASK-108", "TASK-107", "TASK-70", "TASK-69"]) {
+for (const token of ["Release Notes Policy", "Unreleased", currentTaskId, "TASK-118", "TASK-117", "TASK-116", "TASK-115", "TASK-114", "TASK-113", "TASK-112", "TASK-111", "TASK-110", "TASK-109", "TASK-108", "TASK-107", "TASK-70", "TASK-69"]) {
   assertIncludes(changelog, token, "CHANGELOG.md");
 }
 
-for (const token of ["LICENSE", "CONTRIBUTING.md", "SECURITY.md", "CHANGELOG.md", "docs/REPOSITORY_STATUS.md", "docs/SUPPORT_MATRIX.md", "docs/RELEASE_CHECKLIST.md", "TASK-118"]) {
+for (const token of ["LICENSE", "CONTRIBUTING.md", "SECURITY.md", "CHANGELOG.md", "docs/REPOSITORY_STATUS.md", "docs/SUPPORT_MATRIX.md", "docs/RELEASE_CHECKLIST.md", currentTaskId]) {
   assertIncludes(readme, token, "README.md");
 }
 
@@ -80,7 +82,7 @@ for (const token of ["Supported", "Experimental", "Future", "HTTP API", "MCP std
   assertIncludes(supportMatrix, token, "docs/SUPPORT_MATRIX.md");
 }
 
-for (const token of ["complete through `TASK-118`", "Public GitHub hygiene baseline", "Known Limits", "Public Claims Rule"]) {
+for (const token of [`complete through \`${currentTaskId}\``, "Public GitHub hygiene baseline", "Known Limits", "Public Claims Rule"]) {
   assertIncludes(repositoryStatus, token, "docs/REPOSITORY_STATUS.md");
 }
 

@@ -18,7 +18,7 @@ secrets, rate limits, structured logs and observability are maintained in
 | Installer first-run provisioning | Supported. The start step creates the first project/token and writes `config/initial-token.json` under `$MINDORY_HOME`. |
 | Installer lifecycle operations | Supported baseline for local asset update, signed remote release update, runtime backup/restore, scheduled local backup, encrypted remote backup archives, external S3 streaming backups, journal resume/repair and guarded uninstall. |
 | Release images and bundles | Bundle generation is supported with `pnpm release:bundle`. Generated manifests are RSA-SHA256 signed, and bootstrap scripts verify the signature before trusting bundle checksums. Publishing automation pushes versioned Docker images on trusted tag builds and publishes signed release artifacts plus generated release notes to public GitHub pre-releases. |
-| Heavy local models | Experimental. Profiles exist for wiring checks or local experiments, not as a guaranteed default install. |
+| Heavy local models | Experimental. `LOCAL_MODEL_RUNNER_CATALOG` records installable runner metadata, role coverage, source/image details, model files, healthchecks and resource hints; selected heavy profiles require explicit user choice and resource checks. |
 
 The expected local demo flow is:
 

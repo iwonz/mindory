@@ -323,7 +323,10 @@ The wizard prompts for:
 - API/MCP/Hermes interface switches and tokens.
 
 Prompt labels, defaults, enum values, secret flags and resource hints come from
-the config catalog whenever a catalog entry exists. Future or experimental LLM
+the config catalog whenever a catalog entry exists. Local model runner choices
+come from `LOCAL_MODEL_RUNNER_CATALOG`; `docs/LOCAL_MODELS.md` records role
+coverage, source/image metadata, model files, license/status, ports,
+healthchecks and resource hints. Future or experimental LLM
 roles are visible, but they cannot be enabled unless experimental mode is
 enabled explicitly.
 

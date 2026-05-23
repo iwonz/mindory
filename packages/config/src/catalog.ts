@@ -56,6 +56,50 @@ export interface LlmRoleSupportCatalogEntry {
   providerSupport: Record<LlmProviderCatalogValue, ConfigSupportStatus>;
 }
 
+export type LocalModelRunnerStatus = "supported" | "experimental";
+export type LocalModelRunnerProvider = "local-http" | "ollama" | "local-command";
+export type LocalModelRunnerHealthcheckKind = "http" | "ollama-tags" | "command";
+
+export interface LocalModelRunnerPort {
+  name: string;
+  containerPort: number;
+  defaultHostPort: number;
+  envName?: string;
+}
+
+export interface LocalModelFileCatalogEntry {
+  name: string;
+  sourceUrl: string;
+  sizeHint: string;
+  targetPath: string;
+}
+
+export interface LocalModelRunnerHealthcheck {
+  kind: LocalModelRunnerHealthcheckKind;
+  endpoint?: string;
+  command?: readonly string[];
+  timeoutMs: number;
+}
+
+export interface LocalModelRunnerCatalogEntry {
+  id: string;
+  title: string;
+  status: LocalModelRunnerStatus;
+  provider: LocalModelRunnerProvider;
+  roles: readonly LlmRoleCatalogKey[];
+  composeProfile: string;
+  serviceName: string;
+  containerImage?: string;
+  sourceUrl: string;
+  modelNames: readonly string[];
+  modelFiles: readonly LocalModelFileCatalogEntry[];
+  license: string;
+  ports: readonly LocalModelRunnerPort[];
+  healthcheck: LocalModelRunnerHealthcheck;
+  resourceHint: Required<ConfigResourceHint>;
+  notes: string;
+}
+
 export const LLM_PROVIDER_VALUES = [
   "disabled",
   "openai-compatible",
@@ -127,6 +171,313 @@ export const LLM_ROLE_SUPPORT_CATALOG = [
   })
 ] as const satisfies readonly LlmRoleSupportCatalogEntry[];
 
+export const LOCAL_MODEL_RUNNER_CATALOG = [
+  localModelRunner({
+    id: "mindory-deterministic-local-http",
+    title: "Mindory deterministic local HTTP runner",
+    status: "supported",
+    provider: "local-http",
+    roles: [
+      "TEXT_EMBEDDING",
+      "IMAGE_EMBEDDING",
+      "OCR",
+      "ASR",
+      "VISION_CAPTIONING",
+      "FACE_DETECTION",
+      "FACE_RECOGNITION"
+    ],
+    composeProfile: "local-models",
+    serviceName: "llm",
+    containerImage: "mindory release image",
+    sourceUrl: "repo://scripts/local-model-server.mjs",
+    modelNames: [
+      "mindory-local-text-embedding",
+      "mindory-local-image-embedding",
+      "mindory-local-ocr",
+      "mindory-local-asr",
+      "mindory-local-vision",
+      "mindory-local-face"
+    ],
+    modelFiles: [
+      {
+        name: "local-model-server.mjs",
+        sourceUrl: "repo://scripts/local-model-server.mjs",
+        sizeHint: "<1MB",
+        targetPath: "$MINDORY_HOME/install/current/scripts/local-model-server.mjs"
+      }
+    ],
+    license: "Apache-2.0, same as the Mindory repository",
+    ports: [
+      {
+        name: "http",
+        containerPort: 8080,
+        defaultHostPort: 8080,
+        envName: "MINDORY_LLM_LOCAL_HTTP_BASE_URL"
+      }
+    ],
+    healthcheck: {
+      kind: "http",
+      endpoint: "GET /health",
+      timeoutMs: 30000
+    },
+    resourceHint: {
+      cpu: "1 core",
+      memory: "256MB",
+      disk: "<100MB",
+      gpu: "not required"
+    },
+    notes: "Deterministic runner used for local acceptance and self-contained indexed search checks."
+  }),
+  localModelRunner({
+    id: "ollama-nomic-embed-text",
+    title: "Ollama Nomic text embeddings",
+    status: "supported",
+    provider: "ollama",
+    roles: ["TEXT_EMBEDDING"],
+    composeProfile: "ollama",
+    serviceName: "ollama",
+    containerImage: "ollama/ollama:latest",
+    sourceUrl: "https://ollama.com/library/nomic-embed-text",
+    modelNames: ["nomic-embed-text"],
+    modelFiles: [
+      {
+        name: "nomic-embed-text",
+        sourceUrl: "ollama://nomic-embed-text",
+        sizeHint: "300MB-1GB",
+        targetPath: "$MINDORY_HOME/data/ollama"
+      }
+    ],
+    license: "Apache-2.0 model family; verify upstream model card before redistribution",
+    ports: [
+      {
+        name: "http",
+        containerPort: 11434,
+        defaultHostPort: 11434,
+        envName: "MINDORY_LLM_OLLAMA_BASE_URL"
+      }
+    ],
+    healthcheck: {
+      kind: "ollama-tags",
+      endpoint: "GET /api/tags",
+      timeoutMs: 60000
+    },
+    resourceHint: {
+      cpu: "2+ cores",
+      memory: "4GB+",
+      disk: "1GB+",
+      gpu: "optional"
+    },
+    notes: "Local text embedding runner for users who already operate Ollama or choose the Ollama profile."
+  }),
+  localModelRunner({
+    id: "openclip-siglip2-image-embedding",
+    title: "OpenCLIP SigLIP2 image embeddings",
+    status: "experimental",
+    provider: "local-http",
+    roles: ["IMAGE_EMBEDDING"],
+    composeProfile: "local-models-vision",
+    serviceName: "clip",
+    sourceUrl: "https://github.com/mlfoundations/open_clip",
+    modelNames: ["ViT-L-16-SigLIP2-256__webli"],
+    modelFiles: [
+      {
+        name: "ViT-L-16-SigLIP2-256__webli",
+        sourceUrl: "https://huggingface.co/timm/ViT-L-16-SigLIP2-256",
+        sizeHint: "2GB-4GB",
+        targetPath: "$MINDORY_HOME/data/models/openclip"
+      }
+    ],
+    license: "MIT runtime; verify upstream model card before redistribution",
+    ports: [
+      {
+        name: "http",
+        containerPort: 8082,
+        defaultHostPort: 8082,
+        envName: "MINDORY_LLM_LOCAL_HTTP_BASE_URL"
+      }
+    ],
+    healthcheck: {
+      kind: "http",
+      endpoint: "GET /health",
+      timeoutMs: 120000
+    },
+    resourceHint: {
+      cpu: "4+ cores",
+      memory: "8GB+",
+      disk: "5GB+",
+      gpu: "recommended"
+    },
+    notes: "Image embedding runner aligned with the default CLIP/SigLIP2 model name in the LLM role catalog."
+  }),
+  localModelRunner({
+    id: "paddleocr-pp-ocrv5-mobile",
+    title: "PaddleOCR PP-OCRv5 mobile OCR",
+    status: "experimental",
+    provider: "local-http",
+    roles: ["OCR"],
+    composeProfile: "local-models-ocr",
+    serviceName: "ocr",
+    sourceUrl: "https://github.com/PaddlePaddle/PaddleOCR",
+    modelNames: ["ESLAV__PP-OCRv5_mobile"],
+    modelFiles: [
+      {
+        name: "PP-OCRv5_mobile_det",
+        sourceUrl: "https://github.com/PaddlePaddle/PaddleOCR",
+        sizeHint: "50MB-200MB",
+        targetPath: "$MINDORY_HOME/data/models/paddleocr"
+      },
+      {
+        name: "PP-OCRv5_mobile_rec",
+        sourceUrl: "https://github.com/PaddlePaddle/PaddleOCR",
+        sizeHint: "50MB-200MB",
+        targetPath: "$MINDORY_HOME/data/models/paddleocr"
+      }
+    ],
+    license: "Apache-2.0",
+    ports: [
+      {
+        name: "http",
+        containerPort: 8083,
+        defaultHostPort: 8083,
+        envName: "MINDORY_LLM_LOCAL_HTTP_BASE_URL"
+      }
+    ],
+    healthcheck: {
+      kind: "http",
+      endpoint: "GET /health",
+      timeoutMs: 120000
+    },
+    resourceHint: {
+      cpu: "2+ cores",
+      memory: "4GB+",
+      disk: "1GB+",
+      gpu: "optional"
+    },
+    notes: "OCR runner for image and scanned-PDF page artifacts."
+  }),
+  localModelRunner({
+    id: "faster-whisper-small-asr",
+    title: "Faster Whisper small ASR",
+    status: "experimental",
+    provider: "local-http",
+    roles: ["ASR"],
+    composeProfile: "local-models-asr",
+    serviceName: "asr",
+    sourceUrl: "https://github.com/SYSTRAN/faster-whisper",
+    modelNames: ["whisper-small"],
+    modelFiles: [
+      {
+        name: "openai/whisper-small",
+        sourceUrl: "https://huggingface.co/openai/whisper-small",
+        sizeHint: "1GB-2GB",
+        targetPath: "$MINDORY_HOME/data/models/whisper"
+      }
+    ],
+    license: "MIT",
+    ports: [
+      {
+        name: "http",
+        containerPort: 8084,
+        defaultHostPort: 8084,
+        envName: "MINDORY_LLM_LOCAL_HTTP_BASE_URL"
+      }
+    ],
+    healthcheck: {
+      kind: "http",
+      endpoint: "GET /health",
+      timeoutMs: 120000
+    },
+    resourceHint: {
+      cpu: "4+ cores",
+      memory: "6GB+",
+      disk: "3GB+",
+      gpu: "recommended for long audio"
+    },
+    notes: "ASR runner for time-coded audio and video transcript artifacts."
+  }),
+  localModelRunner({
+    id: "moondream2-vision-captioning",
+    title: "Moondream2 vision captioning",
+    status: "experimental",
+    provider: "local-http",
+    roles: ["VISION_CAPTIONING"],
+    composeProfile: "local-models-vision",
+    serviceName: "vision",
+    sourceUrl: "https://huggingface.co/vikhyatk/moondream2",
+    modelNames: ["moondream2"],
+    modelFiles: [
+      {
+        name: "vikhyatk/moondream2",
+        sourceUrl: "https://huggingface.co/vikhyatk/moondream2",
+        sizeHint: "4GB-6GB",
+        targetPath: "$MINDORY_HOME/data/models/moondream2"
+      }
+    ],
+    license: "Apache-2.0",
+    ports: [
+      {
+        name: "http",
+        containerPort: 8085,
+        defaultHostPort: 8085,
+        envName: "MINDORY_LLM_LOCAL_HTTP_BASE_URL"
+      }
+    ],
+    healthcheck: {
+      kind: "http",
+      endpoint: "GET /health",
+      timeoutMs: 120000
+    },
+    resourceHint: {
+      cpu: "4+ cores",
+      memory: "8GB+",
+      disk: "8GB+",
+      gpu: "recommended"
+    },
+    notes: "Vision captioning runner for image and keyframe descriptions, labels and object hints."
+  }),
+  localModelRunner({
+    id: "compreface-face-services",
+    title: "CompreFace face detection and recognition",
+    status: "experimental",
+    provider: "local-http",
+    roles: ["FACE_DETECTION", "FACE_RECOGNITION"],
+    composeProfile: "local-models-face",
+    serviceName: "faces",
+    containerImage: "exadel/compreface:latest",
+    sourceUrl: "https://github.com/exadel-inc/CompreFace",
+    modelNames: ["buffalo_l"],
+    modelFiles: [
+      {
+        name: "CompreFace recognition bundle",
+        sourceUrl: "https://github.com/exadel-inc/CompreFace",
+        sizeHint: "2GB-4GB",
+        targetPath: "$MINDORY_HOME/data/models/compreface"
+      }
+    ],
+    license: "Apache-2.0 runtime; verify bundled model licenses before redistribution",
+    ports: [
+      {
+        name: "http",
+        containerPort: 8086,
+        defaultHostPort: 8086,
+        envName: "MINDORY_LLM_LOCAL_HTTP_BASE_URL"
+      }
+    ],
+    healthcheck: {
+      kind: "http",
+      endpoint: "GET /health",
+      timeoutMs: 180000
+    },
+    resourceHint: {
+      cpu: "4+ cores",
+      memory: "8GB+",
+      disk: "8GB+",
+      gpu: "optional"
+    },
+    notes: "Workspace-scoped face observation and identity matching runner."
+  })
+] as const satisfies readonly LocalModelRunnerCatalogEntry[];
+
 const llmRoleSupportByKey = new Map(LLM_ROLE_SUPPORT_CATALOG.map((entry) => [entry.key, entry]));
 
 export function requireLlmRoleSupportCatalogEntry(key: string): LlmRoleSupportCatalogEntry {
@@ -167,6 +518,10 @@ function llmRoleSupport(
       ...providerSupport
     }
   };
+}
+
+function localModelRunner(entry: LocalModelRunnerCatalogEntry): LocalModelRunnerCatalogEntry {
+  return entry;
 }
 
 export const CONFIG_CATALOG_SECTIONS = [

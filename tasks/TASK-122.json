@@ -1,0 +1,57 @@
+{
+  "id": "TASK-122",
+  "title": "Local model install catalog",
+  "status": "done",
+  "type": "configuration",
+  "priority": "high",
+  "branch": "task/TASK-122-local-model-install-catalog",
+  "created_at": "2026-05-23",
+  "updated_at": "2026-05-23",
+  "context": {
+    "summary": "Add a canonical catalog for local model runners used by installer and model-profile work.",
+    "background": "TASK-121 made the self-host gate explicit. The next release-readiness block needs structured metadata for installable local model runners before Compose profiles and installer auto-install flows can consume it."
+  },
+  "scope": {
+    "in": [
+      "Add LOCAL_MODEL_RUNNER_CATALOG to @mindory/config.",
+      "Cover text embeddings, OCR, ASR, vision captioning, image embeddings, face detection and face recognition.",
+      "Record image/source, model files, license/status, ports, healthchecks and CPU/RAM/disk/GPU hints for each runner.",
+      "Add validation that the catalog covers required roles and public docs.",
+      "Document the local model catalog and link it from LLM/installer docs."
+    ],
+    "out": [
+      "Starting new model containers.",
+      "Downloading model weights.",
+      "Changing document processing behavior.",
+      "Implementing installer auto-install prompts."
+    ]
+  },
+  "acceptance_criteria": [
+    "@mindory/config exports a typed LOCAL_MODEL_RUNNER_CATALOG.",
+    "The catalog covers TEXT_EMBEDDING, IMAGE_EMBEDDING, OCR, ASR, VISION_CAPTIONING, FACE_DETECTION and FACE_RECOGNITION.",
+    "Every catalog entry includes source or image metadata, model file metadata, license/status, ports, healthcheck and resource hints.",
+    "docs/LOCAL_MODELS.md documents every catalog entry and required role coverage.",
+    "pnpm local-models:validate, pnpm tasks:validate and pnpm check pass before merge."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm local-models:validate",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm docs/LOCAL_MODELS.md does not claim model containers are started by default."
+    ]
+  },
+  "dependencies": [
+    "TASK-121"
+  ],
+  "risks": [
+    "Upstream model licenses and resource needs vary by deployment and must stay visible in the catalog."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is done.",
+    "Branch is committed and merged back into master."
+  ]
+}

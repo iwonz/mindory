@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-121",
+  "current_task_id": "TASK-122",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -883,6 +883,13 @@
       "status": "done",
       "branch": "task/TASK-121-live-docker-selfhost-acceptance-gate",
       "file": "tasks/TASK-121.json"
+    },
+    {
+      "id": "TASK-122",
+      "title": "Local model install catalog",
+      "status": "done",
+      "branch": "task/TASK-122-local-model-install-catalog",
+      "file": "tasks/TASK-122.json"
     }
   ]
 }

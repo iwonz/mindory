@@ -34,6 +34,12 @@ disabled/non-blocking model capabilities and deterministic embedded fixtures.
 Use the `local-models` profile for a lightweight deterministic local HTTP model
 service or the `ollama` profile for a real Ollama service.
 
+The local install catalog lives in `LOCAL_MODEL_RUNNER_CATALOG` from
+`@mindory/config` and is documented in `docs/LOCAL_MODELS.md`. It records the
+runner id, model role coverage, provider contract, image or source, model
+files, license/status, ports, healthcheck and CPU/RAM/disk/GPU hints for text
+embeddings, OCR, ASR, vision captioning, image embeddings and face roles.
+
 ## Support Matrix
 
 `@mindory/llm` exports the role/provider support matrix, and the config catalog

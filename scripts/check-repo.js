@@ -20,6 +20,7 @@ const checks = [
   ["published-release:acceptance", "scripts/published-release-acceptance.js"],
   ["observability:validate", "scripts/validate-observability.js"],
   ["llm:validate", "scripts/validate-llm.js"],
+  ["local-models:validate", "scripts/validate-local-model-catalog.js"],
   ["db:validate", "scripts/validate-db-schema.js"],
   ["db:repositories:validate", "scripts/validate-db-repositories.js"],
   ["api:validate", "scripts/validate-api-contract.js"],
