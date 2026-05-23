@@ -1,7 +1,7 @@
 {
   "id": "TASK-137",
   "title": "Real local vision object image embedding runners",
-  "status": "draft",
+  "status": "done",
   "type": "feature",
   "priority": "high",
   "branch": "task/TASK-137-real-local-vision-object-image-embedding-runners",

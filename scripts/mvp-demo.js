@@ -120,6 +120,9 @@ async function waitForComposeServices(timeoutMs) {
   if (profiles.includes("local-models")) {
     required.push("llm");
   }
+  if (profiles.includes("local-models-vision")) {
+    required.push("vision");
+  }
   if (profiles.includes("local-models-ocr")) {
     required.push("ocr");
   }

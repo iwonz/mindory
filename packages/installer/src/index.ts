@@ -171,6 +171,8 @@ export interface LlmProviderAnswers {
   openaiOAuthAccessToken: string;
   ollamaBaseUrl: string;
   localHttpBaseUrl: string;
+  localHttpImageEmbeddingBaseUrl: string;
+  localHttpVisionCaptioningBaseUrl: string;
   localHttpOcrBaseUrl: string;
   localHttpAsrBaseUrl: string;
   localCommandTimeoutMs: number;
@@ -968,6 +970,8 @@ export function createDefaultInstallAnswers(overrides: Partial<MindoryInstallAns
       openaiOAuthAccessToken: catalogDefault("MINDORY_LLM_OPENAI_OAUTH_ACCESS_TOKEN"),
       ollamaBaseUrl: catalogDefault("MINDORY_LLM_OLLAMA_BASE_URL"),
       localHttpBaseUrl: catalogDefault("MINDORY_LLM_LOCAL_HTTP_BASE_URL"),
+      localHttpImageEmbeddingBaseUrl: catalogDefault("MINDORY_LLM_IMAGE_EMBEDDING_LOCAL_HTTP_BASE_URL"),
+      localHttpVisionCaptioningBaseUrl: catalogDefault("MINDORY_LLM_VISION_CAPTIONING_LOCAL_HTTP_BASE_URL"),
       localHttpOcrBaseUrl: catalogDefault("MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL"),
       localHttpAsrBaseUrl: catalogDefault("MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL"),
       localCommandTimeoutMs: Number.parseInt(catalogDefault("MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS"), 10),
@@ -1080,6 +1084,8 @@ export function createInstallAnswersFromHome(mindoryHome: string): MindoryInstal
       openaiOAuthAccessToken: envValue(env, "MINDORY_LLM_OPENAI_OAUTH_ACCESS_TOKEN"),
       ollamaBaseUrl: envValue(env, "MINDORY_LLM_OLLAMA_BASE_URL"),
       localHttpBaseUrl: envValue(env, "MINDORY_LLM_LOCAL_HTTP_BASE_URL"),
+      localHttpImageEmbeddingBaseUrl: envValue(env, "MINDORY_LLM_IMAGE_EMBEDDING_LOCAL_HTTP_BASE_URL"),
+      localHttpVisionCaptioningBaseUrl: envValue(env, "MINDORY_LLM_VISION_CAPTIONING_LOCAL_HTTP_BASE_URL"),
       localHttpOcrBaseUrl: envValue(env, "MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL"),
       localHttpAsrBaseUrl: envValue(env, "MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL"),
       localCommandTimeoutMs: envNumber(env, "MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS"),
@@ -3297,6 +3303,8 @@ export function answersToEnvMap(answers: MindoryInstallAnswers): Record<string, 
   assign(env, "MINDORY_LLM_OPENAI_OAUTH_ACCESS_TOKEN", answers.llmProviders.openaiOAuthAccessToken);
   assign(env, "MINDORY_LLM_OLLAMA_BASE_URL", answers.llmProviders.ollamaBaseUrl);
   assign(env, "MINDORY_LLM_LOCAL_HTTP_BASE_URL", answers.llmProviders.localHttpBaseUrl);
+  assign(env, "MINDORY_LLM_IMAGE_EMBEDDING_LOCAL_HTTP_BASE_URL", answers.llmProviders.localHttpImageEmbeddingBaseUrl);
+  assign(env, "MINDORY_LLM_VISION_CAPTIONING_LOCAL_HTTP_BASE_URL", answers.llmProviders.localHttpVisionCaptioningBaseUrl);
   assign(env, "MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL", answers.llmProviders.localHttpOcrBaseUrl);
   assign(env, "MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL", answers.llmProviders.localHttpAsrBaseUrl);
   assign(env, "MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS", String(answers.llmProviders.localCommandTimeoutMs));
@@ -3808,6 +3816,14 @@ function applyLocalHttpRunnerEndpoint(
     return;
   }
   const serviceBaseUrl = `http://${runner.serviceName}:${port.containerPort}`;
+  if (role === "IMAGE_EMBEDDING") {
+    answers.llmProviders.localHttpImageEmbeddingBaseUrl = serviceBaseUrl;
+    return;
+  }
+  if (role === "VISION_CAPTIONING") {
+    answers.llmProviders.localHttpVisionCaptioningBaseUrl = serviceBaseUrl;
+    return;
+  }
   if (role === "OCR") {
     answers.llmProviders.localHttpOcrBaseUrl = serviceBaseUrl;
     return;
@@ -3870,7 +3886,7 @@ function localModelDimensionsForRole(runner: LocalModelRunnerCatalogEntry, role:
   if (role !== "TEXT_EMBEDDING" && role !== "IMAGE_EMBEDDING") {
     return undefined;
   }
-  if (runner.id === "mindory-deterministic-local-http") {
+  if (runner.id === "mindory-deterministic-local-http" || runner.id === "mindory-image-semantics-v1") {
     return 1536;
   }
   return null;

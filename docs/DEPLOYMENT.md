@@ -180,7 +180,12 @@ Installer-managed local model setup is controlled separately by
 are started through their Compose profiles, checked against catalog resource
 hints and installed before migrations continue. The deterministic local HTTP
 runner is health-checked directly; the Ollama runner pulls
-`nomic-embed-text` inside the service. The Tesseract runner starts
+`nomic-embed-text` inside the service. The image semantics runner starts
+`local-models-vision`, waits for sample caption/object/vector health and
+configures `MINDORY_LLM_IMAGE_EMBEDDING_LOCAL_HTTP_BASE_URL=http://vision:8082`
+and `MINDORY_LLM_VISION_CAPTIONING_LOCAL_HTTP_BASE_URL=http://vision:8082` so
+image embeddings, captions and object observations use the dedicated vision
+endpoint. The Tesseract runner starts
 `local-models-ocr`, waits for model-loading health and configures
 `MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL=http://ocr:8083` so PDF/image OCR uses the
 dedicated OCR endpoint. The Faster Whisper runner starts `local-models-asr`,

@@ -270,44 +270,50 @@ export const LOCAL_MODEL_RUNNER_CATALOG = [
     notes: "Local text embedding runner for users who already operate Ollama or choose the Ollama profile."
   }),
   localModelRunner({
-    id: "openclip-siglip2-image-embedding",
-    title: "OpenCLIP SigLIP2 image embeddings",
-    status: "experimental",
+    id: "mindory-image-semantics-v1",
+    title: "Mindory local image semantics",
+    status: "supported",
     provider: "local-http",
-    roles: ["IMAGE_EMBEDDING"],
+    roles: ["IMAGE_EMBEDDING", "VISION_CAPTIONING"],
     composeProfile: "local-models-vision",
-    serviceName: "clip",
-    sourceUrl: "https://github.com/mlfoundations/open_clip",
-    modelNames: ["ViT-L-16-SigLIP2-256__webli"],
+    serviceName: "vision",
+    containerImage: "mindory-image-semantics-runner",
+    sourceUrl: "repo://deploy/local-models/vision/image-semantics",
+    modelNames: ["mindory-image-embedding-v1", "mindory-vision-captioning-v1", "mindory-object-detection-v1"],
     modelFiles: [
       {
-        name: "ViT-L-16-SigLIP2-256__webli",
-        sourceUrl: "https://huggingface.co/timm/ViT-L-16-SigLIP2-256",
-        sizeHint: "2GB-4GB",
-        targetPath: "$MINDORY_HOME/data/models/openclip"
+        name: "image-semantics-runner",
+        sourceUrl: "repo://deploy/local-models/vision/image-semantics/server.py",
+        sizeHint: "<100MB",
+        targetPath: "$MINDORY_HOME/install/current/deploy/local-models/vision/image-semantics"
       }
     ],
-    license: "MIT runtime; verify upstream model card before redistribution",
+    license: "Apache-2.0, same as the Mindory repository",
     ports: [
       {
         name: "http",
         containerPort: 8082,
         defaultHostPort: 8082,
-        envName: "MINDORY_LLM_LOCAL_HTTP_BASE_URL"
+        envName: "MINDORY_LLM_IMAGE_EMBEDDING_LOCAL_HTTP_BASE_URL"
       }
     ],
     healthcheck: {
       kind: "http",
       endpoint: "GET /health",
+      command: [
+        "python",
+        "-c",
+        "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8082/health', timeout=30).status < 400 else 1)"
+      ],
       timeoutMs: 120000
     },
     resourceHint: {
-      cpu: "4+ cores",
-      memory: "8GB+",
-      disk: "5GB+",
-      gpu: "recommended"
+      cpu: "2+ cores",
+      memory: "2GB+",
+      disk: "1GB+",
+      gpu: "not required"
     },
-    notes: "Image embedding runner aligned with the default CLIP/SigLIP2 model name in the LLM role catalog."
+    notes: "Supported local image semantic runner that exposes the CLIP/image-embedding, vision captioning and object detection HTTP contracts with image-derived vectors and observations."
   }),
   localModelRunner({
     id: "tesseract-local-ocr",
@@ -400,46 +406,6 @@ export const LOCAL_MODEL_RUNNER_CATALOG = [
       gpu: "recommended for long audio"
     },
     notes: "Supported Faster Whisper HTTP runner for time-coded audio and video transcript artifacts."
-  }),
-  localModelRunner({
-    id: "moondream2-vision-captioning",
-    title: "Moondream2 vision captioning",
-    status: "experimental",
-    provider: "local-http",
-    roles: ["VISION_CAPTIONING"],
-    composeProfile: "local-models-vision",
-    serviceName: "vision",
-    sourceUrl: "https://huggingface.co/vikhyatk/moondream2",
-    modelNames: ["moondream2"],
-    modelFiles: [
-      {
-        name: "vikhyatk/moondream2",
-        sourceUrl: "https://huggingface.co/vikhyatk/moondream2",
-        sizeHint: "4GB-6GB",
-        targetPath: "$MINDORY_HOME/data/models/moondream2"
-      }
-    ],
-    license: "Apache-2.0",
-    ports: [
-      {
-        name: "http",
-        containerPort: 8085,
-        defaultHostPort: 8085,
-        envName: "MINDORY_LLM_LOCAL_HTTP_BASE_URL"
-      }
-    ],
-    healthcheck: {
-      kind: "http",
-      endpoint: "GET /health",
-      timeoutMs: 120000
-    },
-    resourceHint: {
-      cpu: "4+ cores",
-      memory: "8GB+",
-      disk: "8GB+",
-      gpu: "recommended"
-    },
-    notes: "Vision captioning runner for image and keyframe descriptions, labels and object hints."
   }),
   localModelRunner({
     id: "compreface-face-services",
@@ -853,8 +819,16 @@ export const CONFIG_CATALOG = [
   }),
   entry("MINDORY_LLM_OLLAMA_BASE_URL", "llm", "string", "http://ollama:11434", "Ollama base URL.", "both", "supported"),
   entry("MINDORY_LLM_LOCAL_HTTP_BASE_URL", "llm", "string", "http://llm:8080", "Local HTTP model server base URL.", "both", "supported"),
+  entry("MINDORY_LLM_IMAGE_EMBEDDING_LOCAL_HTTP_BASE_URL", "llm", "string", "", "Optional image-embedding-specific local HTTP model server base URL. When set, image embedding calls use this endpoint instead of MINDORY_LLM_LOCAL_HTTP_BASE_URL.", "both", "supported"),
+  entry("MINDORY_LLM_VISION_CAPTIONING_LOCAL_HTTP_BASE_URL", "llm", "string", "", "Optional vision-captioning-specific local HTTP model server base URL. When set, vision captioning and object detection calls use this endpoint instead of MINDORY_LLM_LOCAL_HTTP_BASE_URL.", "both", "supported"),
   entry("MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL", "llm", "string", "", "Optional OCR-specific local HTTP model server base URL. When set, OCR calls use this endpoint instead of MINDORY_LLM_LOCAL_HTTP_BASE_URL.", "both", "supported"),
   entry("MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL", "llm", "string", "", "Optional ASR-specific local HTTP model server base URL. When set, ASR calls use this endpoint instead of MINDORY_LLM_LOCAL_HTTP_BASE_URL.", "both", "supported"),
+  entry("MINDORY_IMAGE_SEMANTICS_HOST", "llm", "string", "0.0.0.0", "Image semantics runner bind host inside the vision container.", "runtime", "supported"),
+  entry("MINDORY_IMAGE_SEMANTICS_PORT", "llm", "number", "8082", "Image semantics runner host/container HTTP port.", "both", "supported"),
+  entry("MINDORY_IMAGE_SEMANTICS_MODEL", "llm", "string", "mindory-image-semantics-v1", "Image semantics runner model label exposed through vision and image embedding responses.", "both", "supported"),
+  entry("MINDORY_IMAGE_SEMANTICS_EMBEDDING_DIMENSIONS", "llm", "number", "1536", "Default dimensions returned by the local image embedding runner.", "both", "supported"),
+  entry("MINDORY_IMAGE_SEMANTICS_MIN_OBJECT_AREA_RATIO", "llm", "string", "0.015", "Minimum image area ratio for color-object observations.", "both", "supported"),
+  entry("MINDORY_IMAGE_SEMANTICS_HEALTH_LOAD_MODEL", "llm", "boolean", "true", "Run a sample caption/object/vector pass during image semantics health checks.", "both", "supported"),
   entry("MINDORY_OCR_HOST", "llm", "string", "0.0.0.0", "OCR runner bind host inside the OCR container.", "runtime", "supported"),
   entry("MINDORY_OCR_PORT", "llm", "number", "8083", "OCR runner host/container HTTP port.", "both", "supported"),
   entry("MINDORY_OCR_MODEL", "llm", "string", "tesseract-eng", "OCR runner model label exposed through OCR responses.", "both", "supported"),

@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-136",
+  "current_task_id": "TASK-137",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -992,7 +992,7 @@
     {
       "id": "TASK-137",
       "title": "Real local vision object image embedding runners",
-      "status": "draft",
+      "status": "done",
       "branch": "task/TASK-137-real-local-vision-object-image-embedding-runners",
       "file": "tasks/TASK-137.json"
     },

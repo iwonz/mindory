@@ -285,8 +285,10 @@ Text embeddings, scanned-PDF OCR, image OCR, image vision captioning, audio
 ASR and image face detection/recognition can perform live model calls through
 `@mindory/llm` when their roles are enabled.
 The image pipeline stores provider OCR text, captions and labels as derived
-artifacts, and falls back to deterministic metadata plus embedded PNG text when
-OCR or vision captioning is disabled. When
+artifacts. The supported `mindory-image-semantics-v1` local runner also writes
+object observations and image vectors through
+`MINDORY_LLM_IMAGE_EMBEDDING_LOCAL_HTTP_BASE_URL` and
+`MINDORY_LLM_VISION_CAPTIONING_LOCAL_HTTP_BASE_URL` when selected. When
 `MINDORY_LLM_FACE_DETECTION_ENABLED=true`, the image extractor can call the
 local HTTP face provider for boxes and embeddings. If no provider is enabled,
 the fallback image extractor can derive face observations from explicit
@@ -323,10 +325,11 @@ pgvector schema stores `vector(1536)`, so text and image embedding dimensions
 must be empty or `1536` while
 `MINDORY_VECTOR_PROVIDER=pgvector`.
 
-The default local/free model names are examples for future processors:
+The default local/free model names are examples for provider configuration:
 `CLIP ViT-L-16-SigLIP2-256__webli` for image embeddings,
-`tesseract-eng` for OCR and `buffalo_l` for face detection and
-recognition. They remain disabled until the corresponding handlers are enabled.
+`mindory-image-semantics-v1` for the supported local image semantic runner,
+`tesseract-eng` for OCR and `buffalo_l` for face detection and recognition.
+They remain disabled until the corresponding handlers are enabled.
 
 `MINDORY_LLM_OPENAI_COMPATIBLE_BASE_URL` configures the
 OpenAI-compatible adapter. `MINDORY_LLM_OPENAI_COMPATIBLE_AUTH_MODE`
@@ -376,13 +379,35 @@ MINDORY_LLM_OLLAMA_BASE_URL=http://ollama:11434
 `MINDORY_LLM_LOCAL_HTTP_BASE_URL` configures the optional local HTTP model
 service used by supported `chat`, text/image embedding, PDF/image OCR, image
 vision captioning/object detection, audio ASR, image face and generation paths.
-`MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL` is an OCR-specific override used by the
+`MINDORY_LLM_IMAGE_EMBEDDING_LOCAL_HTTP_BASE_URL` and
+`MINDORY_LLM_VISION_CAPTIONING_LOCAL_HTTP_BASE_URL` are image-specific
+overrides used by the supported image semantics runner; when they are set,
+image vector calls, caption calls and object detection calls use the dedicated
+vision endpoint. `MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL` is an OCR-specific override used by the
 supported Tesseract runner; when it is set, `@mindory/llm` sends only OCR calls
 to that endpoint and keeps other local HTTP roles on
 `MINDORY_LLM_LOCAL_HTTP_BASE_URL`.
 `MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL` is the equivalent ASR-specific override
 used by the supported Faster Whisper runner; when it is set, only ASR calls use
 that endpoint.
+
+Image semantics runner example:
+
+```env
+MINDORY_LLM_IMAGE_EMBEDDING_ENABLED=true
+MINDORY_LLM_IMAGE_EMBEDDING_PROVIDER=local-http
+MINDORY_LLM_IMAGE_EMBEDDING_MODEL=mindory-image-embedding-v1
+MINDORY_LLM_IMAGE_EMBEDDING_DIMENSIONS=1536
+MINDORY_LLM_VISION_CAPTIONING_ENABLED=true
+MINDORY_LLM_VISION_CAPTIONING_PROVIDER=local-http
+MINDORY_LLM_VISION_CAPTIONING_MODEL=mindory-vision-captioning-v1
+MINDORY_LLM_IMAGE_EMBEDDING_LOCAL_HTTP_BASE_URL=http://vision:8082
+MINDORY_LLM_VISION_CAPTIONING_LOCAL_HTTP_BASE_URL=http://vision:8082
+MINDORY_IMAGE_SEMANTICS_PORT=8082
+MINDORY_IMAGE_SEMANTICS_MODEL=mindory-image-semantics-v1
+MINDORY_IMAGE_SEMANTICS_EMBEDDING_DIMENSIONS=1536
+```
+
 The service must answer `GET /health`, `POST /chat/completions`,
 `POST /embeddings`, `POST /embeddings/images`, `POST /ocr`,
 `POST /vision/caption`, `POST /vision/objects`, `POST /asr`,

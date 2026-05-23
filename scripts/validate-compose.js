@@ -24,11 +24,11 @@ const dockerignore = fs.readFileSync(dockerignorePath, "utf8");
 const releaseManifest = JSON.parse(fs.readFileSync(releaseManifestPath, "utf8"));
 const legacyServiceScript = "scripts/docker-" + "place" + "holder-service.mjs";
 
-for (const service of ["postgres", "redis", "migrate", "api", "ui", "mcp", "worker", "librefs", "librefs-bucket", "minio", "minio-bucket", "docling", "ocr"]) {
+for (const service of ["postgres", "redis", "migrate", "api", "ui", "mcp", "worker", "librefs", "librefs-bucket", "minio", "minio-bucket", "docling", "vision", "ocr"]) {
   assert(compose.includes(`\n  ${service}:`), `docker-compose.yml must define ${service}.`);
 }
 
-for (const profile of ["librefs", "minio", "clamav", "qdrant", "docling", "ollama", "local-models", "local-models-ocr"]) {
+for (const profile of ["librefs", "minio", "clamav", "qdrant", "docling", "ollama", "local-models", "local-models-vision", "local-models-ocr", "local-models-asr"]) {
   assert(compose.includes(`profiles: [\"${profile}\"]`), `docker-compose.yml must define the ${profile} profile.`);
 }
 
@@ -107,6 +107,10 @@ assert(compose.includes("MINDORY_OCR_HEALTH_LOAD_MODEL"), "Compose must health-c
 assert(compose.includes("deploy/local-models/asr/faster-whisper/Dockerfile"), "Compose must build the supported Faster Whisper runner image.");
 assert(compose.includes("MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL"), "Compose must expose the ASR-specific local HTTP endpoint override.");
 assert(compose.includes("MINDORY_ASR_HEALTH_LOAD_MODEL"), "Compose must health-check Faster Whisper model loading.");
+assert(compose.includes("deploy/local-models/vision/image-semantics/Dockerfile"), "Compose must build the supported image semantics runner image.");
+assert(compose.includes("MINDORY_LLM_IMAGE_EMBEDDING_LOCAL_HTTP_BASE_URL"), "Compose must expose the image-embedding-specific local HTTP endpoint override.");
+assert(compose.includes("MINDORY_LLM_VISION_CAPTIONING_LOCAL_HTTP_BASE_URL"), "Compose must expose the vision-captioning-specific local HTTP endpoint override.");
+assert(compose.includes("MINDORY_IMAGE_SEMANTICS_HEALTH_LOAD_MODEL"), "Compose must health-check image semantics model operations.");
 for (const envName of [
   "MINDORY_DOCUMENT_PROCESSING_PDF_ENABLED: ${MINDORY_DOCUMENT_PROCESSING_PDF_ENABLED:-true}",
   "MINDORY_DOCUMENT_PROCESSING_IMAGE_ENABLED: ${MINDORY_DOCUMENT_PROCESSING_IMAGE_ENABLED:-true}",
@@ -126,7 +130,7 @@ assert(override.includes("NODE_ENV: development"), "docker-compose.override.yml 
 assert(testCompose.includes("name: mindory-test"), "docker-compose.test.yml must isolate the integration test project.");
 assert(testCompose.includes("MINDORY_TEST_POSTGRES_PORT"), "docker-compose.test.yml must expose configurable PostgreSQL test port.");
 assert(testCompose.includes("MINDORY_TEST_REDIS_PORT"), "docker-compose.test.yml must expose configurable Redis test port.");
-for (const assetPath of ["docker-compose.yml", "Dockerfile", ".env.example", "deploy/local-models/ocr/tesseract/Dockerfile", "deploy/local-models/ocr/tesseract/server.py", "deploy/local-models/asr/faster-whisper/Dockerfile", "deploy/local-models/asr/faster-whisper/server.py"]) {
+for (const assetPath of ["docker-compose.yml", "Dockerfile", ".env.example", "deploy/local-models/ocr/tesseract/Dockerfile", "deploy/local-models/ocr/tesseract/server.py", "deploy/local-models/asr/faster-whisper/Dockerfile", "deploy/local-models/asr/faster-whisper/server.py", "deploy/local-models/vision/image-semantics/Dockerfile", "deploy/local-models/vision/image-semantics/server.py"]) {
   assert(releaseManifest.assets?.some((asset) => asset.path === assetPath && asset.required === true), `Release Compose manifest must include ${assetPath}.`);
 }
 for (const homeDirectory of ["config", "data/postgres", "data/redis", "data/objects", "data/librefs", "data/models", "data/ollama", "logs", "backups", "install"]) {

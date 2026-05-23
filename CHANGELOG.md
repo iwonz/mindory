@@ -20,6 +20,12 @@ documentation.
 
 ### Added
 
+- `TASK-137`: supported local image semantics runner with `local-models-vision`
+  Compose profile, installer selection/healthcheck wiring,
+  `MINDORY_LLM_IMAGE_EMBEDDING_LOCAL_HTTP_BASE_URL`,
+  `MINDORY_LLM_VISION_CAPTIONING_LOCAL_HTTP_BASE_URL`, image
+  caption/object/vector live acceptance and release-bundle assets for the
+  runner.
 - `TASK-136`: supported Faster Whisper local ASR runner with
   `local-models-asr` Compose profile, installer selection/healthcheck wiring,
   `MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL`, live ASR transcript/time-ref acceptance

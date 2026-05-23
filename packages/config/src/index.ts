@@ -197,6 +197,8 @@ export interface MindoryConfig {
     };
     localHttp: {
       baseUrl: string;
+      imageEmbeddingBaseUrl: string;
+      visionCaptioningBaseUrl: string;
       ocrBaseUrl: string;
       asrBaseUrl: string;
     };
@@ -511,6 +513,8 @@ export function loadMindoryConfig(env: EnvSource = process.env): MindoryConfig {
       },
       localHttp: {
         baseUrl: readString(env, "MINDORY_LLM_LOCAL_HTTP_BASE_URL", catalogString("MINDORY_LLM_LOCAL_HTTP_BASE_URL")),
+        imageEmbeddingBaseUrl: readString(env, "MINDORY_LLM_IMAGE_EMBEDDING_LOCAL_HTTP_BASE_URL", catalogString("MINDORY_LLM_IMAGE_EMBEDDING_LOCAL_HTTP_BASE_URL")),
+        visionCaptioningBaseUrl: readString(env, "MINDORY_LLM_VISION_CAPTIONING_LOCAL_HTTP_BASE_URL", catalogString("MINDORY_LLM_VISION_CAPTIONING_LOCAL_HTTP_BASE_URL")),
         ocrBaseUrl: readString(env, "MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL", catalogString("MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL")),
         asrBaseUrl: readString(env, "MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL", catalogString("MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL"))
       },
@@ -838,8 +842,6 @@ function localHttpUsesRoleOverrideOnly(config: MindoryConfig): boolean {
   const nonOverriddenCapabilities = [
     config.llm.chat,
     config.llm.textEmbedding,
-    config.llm.imageEmbedding,
-    config.llm.visionCaptioning,
     config.llm.faceDetection,
     config.llm.faceRecognition,
     config.llm.imageGeneration,
@@ -849,9 +851,17 @@ function localHttpUsesRoleOverrideOnly(config: MindoryConfig): boolean {
   if (otherUsesLocalHttp) {
     return false;
   }
+  const imageEmbeddingUsesOverride = config.llm.imageEmbedding.enabled && config.llm.imageEmbedding.provider === "local-http" && config.llm.localHttp.imageEmbeddingBaseUrl.trim() !== "";
+  const visionUsesOverride = config.llm.visionCaptioning.enabled && config.llm.visionCaptioning.provider === "local-http" && config.llm.localHttp.visionCaptioningBaseUrl.trim() !== "";
   const ocrUsesOverride = config.llm.ocr.enabled && config.llm.ocr.provider === "local-http" && config.llm.localHttp.ocrBaseUrl.trim() !== "";
   const asrUsesOverride = config.llm.asr.enabled && config.llm.asr.provider === "local-http" && config.llm.localHttp.asrBaseUrl.trim() !== "";
+  const imageEmbeddingMissingOverride = config.llm.imageEmbedding.enabled && config.llm.imageEmbedding.provider === "local-http" && config.llm.localHttp.imageEmbeddingBaseUrl.trim() === "";
+  const visionMissingOverride = config.llm.visionCaptioning.enabled && config.llm.visionCaptioning.provider === "local-http" && config.llm.localHttp.visionCaptioningBaseUrl.trim() === "";
   const ocrMissingOverride = config.llm.ocr.enabled && config.llm.ocr.provider === "local-http" && config.llm.localHttp.ocrBaseUrl.trim() === "";
   const asrMissingOverride = config.llm.asr.enabled && config.llm.asr.provider === "local-http" && config.llm.localHttp.asrBaseUrl.trim() === "";
-  return (ocrUsesOverride || asrUsesOverride) && !ocrMissingOverride && !asrMissingOverride;
+  return (imageEmbeddingUsesOverride || visionUsesOverride || ocrUsesOverride || asrUsesOverride)
+    && !imageEmbeddingMissingOverride
+    && !visionMissingOverride
+    && !ocrMissingOverride
+    && !asrMissingOverride;
 }
