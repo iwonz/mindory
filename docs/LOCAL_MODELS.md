@@ -45,6 +45,25 @@ hints and documentation coverage. `pnpm local-model-profiles:validate` checks
 that supported catalog runners have matching Compose profiles, installer
 profile resolution and runtime healthchecks.
 
+`pnpm local-model:acceptance` is the CI-safe local-model acceptance gate. By
+default it dry-runs the supported deterministic profile wiring: MVP scenario
+coverage, local HTTP role environment, `@mindory/llm` audit coverage, worker
+audit sinks and this documentation.
+
+To run the live multimodal gate with Docker:
+
+```bash
+MINDORY_LOCAL_MODEL_ACCEPTANCE_LIVE=true pnpm local-model:acceptance
+```
+
+Live mode uses a temporary `MINDORY_HOME` and starts
+`pnpm mvp:demo --model-profile local --require-indexed`. It verifies text
+embedding/indexing, PDF and image OCR, image caption/search, audio ASR,
+video keyframe artifacts, face observations/identities, source refs, jobs,
+unified face search and worker model-operation metrics. Use
+`MINDORY_LOCAL_MODEL_ACCEPTANCE_TIMEOUT_MS=<milliseconds>` when image builds or
+Docker startup need more than the default timeout.
+
 ## Installer Auto-Install
 
 The wizard records local model setup in these generated settings:

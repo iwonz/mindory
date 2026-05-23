@@ -363,3 +363,9 @@ the Jobs API `details` response.
 `pnpm mvp:demo --model-profile local --require-indexed` starts the deterministic
 local HTTP embedding service, waits for `indexed` document status and verifies
 document search returns source-backed chunk hits.
+
+`TASK-125` adds `pnpm local-model:acceptance` for the supported deterministic
+local HTTP profile. Dry-run mode is part of `pnpm check`; live mode is enabled
+with `MINDORY_LOCAL_MODEL_ACCEPTANCE_LIVE=true` and verifies text, PDF OCR,
+image OCR/caption, audio ASR, video keyframe, face, source-ref, job, unified
+search and model-operation metric coverage.

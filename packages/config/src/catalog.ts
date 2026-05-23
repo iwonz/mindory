@@ -913,6 +913,7 @@ export const CONFIG_CATALOG = [
   entry("MINDORY_E2E_LIVE", "mvp-acceptance", "boolean", "false", "Run MVP acceptance against a live API.", "test", "supported"),
   entry("MINDORY_E2E_API_URL", "mvp-acceptance", "string", "http://localhost:3000", "MVP acceptance API URL.", "test", "supported"),
   entry("MINDORY_E2E_REQUIRE_INDEXED", "mvp-acceptance", "boolean", "false", "Require indexed document status in MVP acceptance.", "test", "supported"),
+  entry("MINDORY_E2E_EXPECT_MODEL_AUDIT_METRICS", "mvp-acceptance", "boolean", "false", "Require worker model-operation metrics during live local-model MVP acceptance.", "test", "supported"),
   entry("MINDORY_E2E_MODEL_PROFILE", "mvp-acceptance", "enum", "disabled", "MVP demo model profile.", "test", "supported", {
     allowedValues: ["disabled", "local", "ollama"]
   }),

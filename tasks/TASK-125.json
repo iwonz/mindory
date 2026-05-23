@@ -1,0 +1,58 @@
+{
+  "id": "TASK-125",
+  "title": "Multimodal local-model live acceptance",
+  "status": "done",
+  "type": "acceptance",
+  "priority": "high",
+  "branch": "task/TASK-125-multimodal-local-model-live-acceptance",
+  "created_at": "2026-05-23",
+  "updated_at": "2026-05-23",
+  "context": {
+    "summary": "Add acceptance coverage for the supported local model profile across text, PDF OCR, image OCR/caption, audio ASR, video keyframes, face detection, search, source refs, jobs and audit logs.",
+    "background": "TASK-123 wired local model Compose profiles and TASK-124 added installer auto-install. The supported deterministic local HTTP runner must now have a checked multimodal acceptance gate."
+  },
+  "scope": {
+    "in": [
+      "Add multimodal fixtures or fixture generation for local-model acceptance.",
+      "Add a local-model acceptance command that can run as dry-run in pnpm check and live when explicitly enabled.",
+      "Verify text, PDF OCR, image OCR/caption, audio ASR, video keyframe and face-detection paths through the local model profile.",
+      "Verify artifacts, source refs, jobs, model audit records and search results.",
+      "Document how to run the local-model acceptance gate."
+    ],
+    "out": [
+      "Adding heavy third-party local model runner images.",
+      "Changing model SDK provider behavior.",
+      "Adding Web UI surfaces."
+    ]
+  },
+  "acceptance_criteria": [
+    "A `pnpm local-model:acceptance` command exists and is included in repository checks.",
+    "Default acceptance mode is deterministic and safe for CI; live Docker mode is enabled only by an explicit environment variable.",
+    "Live mode uses the supported local model profile and verifies multimodal processing artifacts for text, PDF, image, audio, video and faces.",
+    "The gate verifies source refs, job completion, search results and model operation audit records.",
+    "Docs describe the command, required Docker/local profile settings and expected outputs.",
+    "pnpm local-model:acceptance, pnpm tasks:validate and pnpm check pass before merge."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm local-model:acceptance",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Live Docker mode remains opt-in and does not download heavy third-party model images in default CI."
+    ]
+  },
+  "dependencies": [
+    "TASK-123",
+    "TASK-124"
+  ],
+  "risks": [
+    "Full live multimodal checks depend on Docker and can take longer than default CI, so the default gate validates the flow shape and live mode is explicit."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is done.",
+    "Branch is committed and merged back into master."
+  ]
+}

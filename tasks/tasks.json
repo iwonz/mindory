@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-124",
+  "current_task_id": "TASK-125",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -904,6 +904,13 @@
       "status": "done",
       "branch": "task/TASK-124-installer-local-auto-install-flow",
       "file": "tasks/TASK-124.json"
+    },
+    {
+      "id": "TASK-125",
+      "title": "Multimodal local-model live acceptance",
+      "status": "done",
+      "branch": "task/TASK-125-multimodal-local-model-live-acceptance",
+      "file": "tasks/TASK-125.json"
     }
   ]
 }

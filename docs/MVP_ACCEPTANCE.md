@@ -5,7 +5,8 @@ wrapper around the live path. `TASK-51` extends the demo to cover multimodal
 derived artifacts and model profiles. `TASK-86` adds the public self-host
 acceptance gate. `TASK-112` extends that gate into the release-readiness live
 matrix for sync antivirus, pgvector, Qdrant, Docling, backup, signed remote
-update and uninstall.
+update and uninstall. `TASK-125` adds the checked local-model multimodal gate
+for the supported deterministic local HTTP profile.
 
 One-command live demo:
 
@@ -40,6 +41,28 @@ Dry-run coverage check:
 ```bash
 pnpm mvp:acceptance
 ```
+
+Local-model multimodal dry-run gate:
+
+```bash
+pnpm local-model:acceptance
+```
+
+The dry-run gate is part of `pnpm check`. It validates that the local profile,
+MVP acceptance scenario, LLM audit coverage, worker audit sinks and local-model
+docs stay wired. It does not start Docker or download model artifacts.
+
+Live local-model multimodal gate:
+
+```bash
+MINDORY_LOCAL_MODEL_ACCEPTANCE_LIVE=true pnpm local-model:acceptance
+```
+
+Live mode creates a temporary `MINDORY_HOME`, starts
+`pnpm mvp:demo --model-profile local --require-indexed`, uploads text, PDF,
+image, audio and video fixtures, verifies deterministic OCR, ASR, vision,
+image embedding, face observations, source refs, jobs, unified search and
+worker model-operation metrics, then runs `pnpm mvp:reset`.
 
 Public self-host release-readiness gate:
 

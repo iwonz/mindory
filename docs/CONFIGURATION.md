@@ -457,7 +457,9 @@ for a real local text embedding runner.
 accepts either `chunked` or `indexed` document status so disabled embeddings
 remain usable. Set `MINDORY_E2E_REQUIRE_INDEXED=true` when a text embedding provider is
 configured and the acceptance run must prove pgvector indexing and semantic
-document search.
+document search. Set `MINDORY_E2E_EXPECT_MODEL_AUDIT_METRICS=true` only for the
+live local-model acceptance gate when worker metrics are enabled and the run
+must prove model-operation audit counters were exported.
 
 ## MCP
 

@@ -19,7 +19,7 @@ writing README, issues, release notes and docs.
 | Package manager | Supported | pnpm 10 with committed lockfile. |
 | Linux/macOS source development | Supported | Primary contributor path. |
 | Windows source development | Experimental | PowerShell bootstrap exists; full native matrix is dry-run validated. |
-| Docker Compose local demo | Supported | `pnpm mvp:demo` is the local MVP demo path; `--model-profile local --require-indexed` proves indexed pgvector search with deterministic local embeddings. |
+| Docker Compose local demo | Supported | `pnpm mvp:demo` is the local MVP demo path; `--model-profile local --require-indexed` proves indexed pgvector search with deterministic local embeddings. `pnpm local-model:acceptance` dry-runs the local-model gate in CI and live mode verifies deterministic multimodal artifacts and worker model-operation metrics. |
 | Public self-host acceptance | Supported gate | `pnpm selfhost:gate` runs the live Docker self-host gate with sync ClamAV, pgvector with Docling, Qdrant with deterministic local embeddings, MVP acceptance, backup, restore smoke, signed remote update, reset and uninstall in temporary homes. `pnpm selfhost:gate -- --dry-run` runs the non-Docker rehearsal path. |
 | One-home installer layout | Supported baseline | `$MINDORY_HOME` config, logs, data, install and backups layout is implemented. |
 | Installer resume and repair | Supported baseline | `mindory-installer resume` continues recoverable interrupted runs from journal/run-state; `repair` clears confirmed stale locks and continues interrupted rollback inside `$MINDORY_HOME`. |
@@ -65,7 +65,7 @@ All model operations must go through `@mindory/llm`.
 | Disabled model roles | Supported | Disabled attempts are handled and audited. |
 | Text embeddings | Supported | OpenAI-compatible, Ollama, local HTTP and local-command provider flows are implemented through `@mindory/llm`; pgvector requires 1536-dimensional vectors. |
 | Chat | Supported SDK adapter | OpenAI-compatible API-key/OAuth modes plus local HTTP and local-command chat are implemented in `@mindory/llm`; product flows do not require chat by default. |
-| Local model installer runners | Supported baseline | Supported `LOCAL_MODEL_RUNNER_CATALOG` entries can be selected in the installer, resource-preflighted, started through Compose, installed with retry/log/report output and health-checked before migrations continue. |
+| Local model installer runners | Supported baseline | Supported `LOCAL_MODEL_RUNNER_CATALOG` entries can be selected in the installer, resource-preflighted, started through Compose, installed with retry/log/report output and health-checked before migrations continue. `pnpm local-model:acceptance` covers the deterministic local HTTP runner and live Docker path. |
 | Local-command provider | Supported/experimental by role | `@mindory/llm` and installer execute configured healthchecks, and runtime operations cover chat, text/image embeddings, OCR, ASR, vision, face detection/recognition, image generation and audio generation through stdin/stdout JSON. |
 | OCR | Experimental role, supported PDF/image paths | Scanned-PDF and image OCR run through `@mindory/llm` local HTTP or local-command OCR when enabled. |
 | Vision captioning, object detection and image embeddings | Experimental | Image vision captioning, object detection and image embeddings run through `@mindory/llm` local HTTP or local-command when enabled; image vectors are indexed through the selected vector backend. |

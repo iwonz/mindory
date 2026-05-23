@@ -183,6 +183,17 @@ runner is health-checked directly; the Ollama runner pulls
 `nomic-embed-text` inside the service. Logs are written to
 `$MINDORY_HOME/logs/local-model-install.log`.
 
+The local-model acceptance gate is:
+
+```bash
+pnpm local-model:acceptance
+```
+
+This is a dry-run check in `pnpm check`. Set
+`MINDORY_LOCAL_MODEL_ACCEPTANCE_LIVE=true` to start the live local profile in a
+temporary `MINDORY_HOME` and verify deterministic multimodal artifacts, source
+refs, jobs, unified search and worker model-operation metrics.
+
 ## Base Services
 
 - `postgres`

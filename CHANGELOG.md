@@ -20,6 +20,9 @@ documentation.
 
 ### Added
 
+- `TASK-125`: local-model multimodal acceptance gate with dry-run repository
+  checks and opt-in live Docker verification for deterministic OCR, ASR,
+  vision, face, source refs, jobs, unified search and model-operation metrics.
 - `TASK-124`: installer local model auto-install flow with catalog runner
   prompts, resource preflight, Compose service health checks, Ollama model
   pulls, diagnostic logs and rollback journal coverage.

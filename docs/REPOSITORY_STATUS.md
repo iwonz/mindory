@@ -6,11 +6,14 @@ The repository should be described with the support levels in
 
 ## Current Baseline
 
-The repository is complete through `TASK-124`.
+The repository is complete through `TASK-125`.
 
 Supported local MVP path:
 
 - `pnpm check` passes from a clean checkout with dependencies installed.
+- `pnpm local-model:acceptance` runs a CI-safe dry-run of the supported local
+  model profile and is included in `pnpm check`; live mode is explicit through
+  `MINDORY_LOCAL_MODEL_ACCEPTANCE_LIVE=true`.
 - `pnpm test` runs integration tests with PostgreSQL and Redis.
 - `pnpm mvp:demo` starts the local Docker Compose demo and runs live acceptance.
 - `pnpm selfhost:gate` runs the live release-readiness matrix for sync ClamAV,
@@ -52,6 +55,10 @@ Supported local MVP path:
   HTTP and Ollama services are implemented through `@mindory/llm`.
 - `pnpm mvp:demo --model-profile local --require-indexed` can exercise the
   indexed pgvector path with a deterministic local HTTP embeddings service.
+- `MINDORY_LOCAL_MODEL_ACCEPTANCE_LIVE=true pnpm local-model:acceptance`
+  verifies deterministic local OCR, ASR, vision, image embedding, video
+  keyframe, face, source-ref, job, unified search and model-operation metric
+  coverage in a temporary Docker home.
 - Scanned-PDF OCR can run through `@mindory/llm` local HTTP OCR when the
   experimental OCR role is enabled.
 - Image OCR and vision captioning can run through `@mindory/llm` local HTTP
@@ -94,7 +101,7 @@ Supported local MVP path:
   validation.
 - Public self-host acceptance is the release-readiness gate for local self-host
   users and is required by `docs/RELEASE_CHECKLIST.md` before publication.
-- Public current-state docs are aligned with the TASK-123 runtime baseline and
+- Public current-state docs are aligned with the TASK-125 runtime baseline and
   distinguish checked local-MVP paths from planned release and UI work.
 
 Public GitHub hygiene baseline:

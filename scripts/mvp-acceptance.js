@@ -12,6 +12,7 @@ const scenario = [
   "api upload document and poll processing jobs",
   "api upload PDF image audio and video documents",
   "artifact search with metadata filters",
+  "local model OCR ASR vision face artifacts and audit wiring",
   "document reprocess and job status details",
   "disabled and non-blocking model modes",
   "strict indexed document search when embeddings are enabled",
@@ -23,7 +24,7 @@ const scenario = [
 ];
 
 if (process.env.MINDORY_E2E_LIVE !== "true") {
-  for (const required of ["api", "cli", "mcp", "hermes", "upload document", "PDF", "image", "audio", "video", "artifact search", "metadata filters", "reprocess", "job status details", "disabled and non-blocking", "source-backed memory", "poll processing jobs", "indexed", "document search"]) {
+  for (const required of ["api", "cli", "mcp", "hermes", "upload document", "PDF", "image", "audio", "video", "artifact search", "metadata filters", "local model", "face", "audit", "reprocess", "job status details", "disabled and non-blocking", "source-backed memory", "poll processing jobs", "indexed", "document search"]) {
     assert(scenario.some((step) => step.includes(required)), `Dry-run scenario must include ${required}.`);
   }
   console.log("MVP acceptance dry-run validated. Set MINDORY_E2E_LIVE=true to run against a live API.");
@@ -32,8 +33,10 @@ if (process.env.MINDORY_E2E_LIVE !== "true") {
 
 const apiUrl = (process.env.MINDORY_E2E_API_URL ?? "http://localhost:3000").replace(/\/$/, "");
 const requireIndexed = process.env.MINDORY_E2E_REQUIRE_INDEXED === "true";
+const expectModelAuditMetrics = process.env.MINDORY_E2E_EXPECT_MODEL_AUDIT_METRICS === "true";
 const projectId = process.env.MINDORY_DEMO_PROJECT_ID ?? "mindory-demo";
 const token = process.env.MINDORY_DEMO_TOKEN ?? "mindory-demo-token";
+const modelProfile = process.env.MINDORY_E2E_MODEL_PROFILE ?? "disabled";
 const userPeerId = "peer_demo_user";
 const agentPeerId = "peer_demo_agent";
 const sessionId = `sess_demo_${Date.now()}`;
@@ -79,6 +82,9 @@ await waitForDocument(documentId);
 await assertDocumentSearch(documentId);
 const multimodal = await uploadMultimodalDocuments();
 await assertMultimodalSearch(multimodal);
+if (modelProfile === "local") {
+  await assertLocalModelMultimodalArtifacts(multimodal);
+}
 await assertDocumentReprocess(multimodal.image);
 
 const memory = await requestJson("POST", "/v1/memories", {
@@ -325,6 +331,87 @@ async function assertMultimodalSearch(documents) {
     limit: 5
   });
   assert(videoArtifacts.hits.some((hit) => hit.document_id === documents.video), "Artifact search should return video keyframe hits.");
+}
+
+async function assertLocalModelMultimodalArtifacts(documents) {
+  const localOcr = await requestJson("POST", "/v1/artifacts/search", {
+    projectIds: [projectId],
+    query: "Local deterministic OCR text",
+    artifactTypes: ["ocr_text"],
+    limit: 10
+  });
+  assert(localOcr.hits.some((hit) => [documents.pdf, documents.image].includes(hit.document_id)), "Local model acceptance should find deterministic OCR artifacts.");
+  assert(localOcr.hits.some((hit) => Array.isArray(hit.source_refs) && hit.source_refs.some((ref) => ref.type === "artifact")), "Local OCR hits should include artifact source refs.");
+
+  const localVision = await requestJson("POST", "/v1/artifacts/search", {
+    projectIds: [projectId],
+    query: "Local deterministic vision caption",
+    artifactTypes: ["image_caption", "image_analysis"],
+    limit: 10
+  });
+  assert(localVision.hits.some((hit) => hit.document_id === documents.image), "Local model acceptance should find deterministic image caption artifacts.");
+
+  const localAsr = await requestJson("POST", "/v1/artifacts/search", {
+    projectIds: [projectId],
+    query: "Local deterministic ASR transcript",
+    artifactTypes: ["transcript"],
+    spanTypes: ["transcript_segment"],
+    limit: 10
+  });
+  assert(localAsr.hits.some((hit) => hit.document_id === documents.audio), "Local model acceptance should find deterministic ASR transcript artifacts.");
+
+  const observations = await requestJson("GET", `/v1/faces/observations?projectId=${encodeURIComponent(projectId)}&documentId=${encodeURIComponent(documents.image)}&limit=20`);
+  assert(Array.isArray(observations.observations) && observations.observations.length > 0, "Local model acceptance should create face observations for the image.");
+  assert(observations.observations.some((observation) => observation.model === "mindory-local-face"), "Face observations should record the configured local face model.");
+
+  const identities = await requestJson("GET", `/v1/faces/identities?projectId=${encodeURIComponent(projectId)}&limit=20`);
+  assert(Array.isArray(identities.identities) && identities.identities.length > 0, "Local model acceptance should create workspace face identities.");
+
+  const unifiedFaces = await requestJson("POST", "/v1/search", {
+    projectIds: [projectId],
+    targets: ["faces"],
+    query: "local-face",
+    limit: 10
+  });
+  assert(unifiedFaces.hits.some((hit) => hit.kind === "face_observation" && hit.documentId === documents.image), "Unified search should return local face observations.");
+  assert(unifiedFaces.hits.some((hit) => Array.isArray(hit.sourceRefs) && hit.sourceRefs.some((ref) => ref.type === "face_observation")), "Face search hits should include face source refs.");
+
+  const jobs = await requestJson("GET", `/v1/jobs?projectId=${encodeURIComponent(projectId)}&limit=50`);
+  assert(Array.isArray(jobs.jobs) && jobs.jobs.some((job) => job.status === "succeeded"), "Local model acceptance should expose succeeded processing jobs.");
+
+  if (expectModelAuditMetrics) {
+    await assertLocalModelAuditMetrics();
+  }
+}
+
+async function assertLocalModelAuditMetrics() {
+  const metricsPort = process.env.MINDORY_METRICS_WORKER_PORT ?? "3001";
+  const metricsPath = process.env.MINDORY_METRICS_PATH ?? "/metrics";
+  const url = `http://127.0.0.1:${metricsPort}${metricsPath}`;
+  let lastError = "";
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    try {
+      const response = await fetch(url, { headers: { accept: "text/plain" } });
+      const metrics = await response.text();
+      if (response.ok && localModelAuditMetricsPresent(metrics)) {
+        return;
+      }
+      lastError = response.ok ? "model operation metrics were not present yet" : `metrics endpoint returned ${response.status}`;
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+  throw new Error(`Local model audit metrics were not exported from worker metrics endpoint ${url}: ${lastError}`);
+}
+
+function localModelAuditMetricsPresent(metrics) {
+  for (const role of ["text-embedding", "image-embedding", "ocr", "asr", "vision-captioning", "face-detection", "face-recognition"]) {
+    if (!metrics.includes("mindory_model_operations_total") || !metrics.includes(`role="${role}"`) || !metrics.includes('provider="local-http"') || !metrics.includes('status="success"')) {
+      return false;
+    }
+  }
+  return true;
 }
 
 async function assertDocumentReprocess(documentId) {
