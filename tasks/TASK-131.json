@@ -1,0 +1,57 @@
+{
+  "id": "TASK-131",
+  "title": "Web UI E2E acceptance",
+  "status": "done",
+  "type": "test",
+  "priority": "high",
+  "branch": "task/TASK-131-web-ui-e2e-acceptance",
+  "created_at": "2026-05-23",
+  "updated_at": "2026-05-23",
+  "context": {
+    "summary": "Add the Web UI Playwright acceptance gate for the supported local MVP browser flow.",
+    "background": "TASK-126 through TASK-130 implemented the UI package, feature workspaces and Docker/installer runtime integration. The remaining UI scope is an explicit browser acceptance command that can run safely in CI as a dry-run and live against a started API/UI stack."
+  },
+  "scope": {
+    "in": [
+      "Add a root ui:e2e command with CI-safe dry-run coverage validation.",
+      "Add live Playwright coverage for bearer-token login, project selection, text fixture upload and document pipeline observation.",
+      "Verify jobs, artifacts and source refs in the document workspace.",
+      "Verify unified search, manual source-backed memory creation and context preview in the search workspace.",
+      "Verify desktop and mobile layouts do not overflow horizontally.",
+      "Include the dry-run Web UI E2E gate in pnpm check.",
+      "Update README, UI, MVP acceptance, deployment, configuration, support matrix, repository status, PRD and changelog docs."
+    ],
+    "out": [
+      "Changing Web UI product features beyond selectors and supported flows already implemented in TASK-126 through TASK-130.",
+      "Starting Docker automatically from the UI E2E command.",
+      "Adding visual screenshot baselines."
+    ]
+  },
+  "acceptance_criteria": [
+    "pnpm ui:e2e validates dry-run coverage and is included in pnpm check.",
+    "Live mode uses Playwright to verify login/token entry, document upload, jobs, artifacts/source refs, search, memory, context and desktop/mobile layout against a running stack.",
+    "The live script documents MINDORY_UI_E2E_LIVE, MINDORY_UI_E2E_URL, MINDORY_E2E_API_URL and MINDORY_UI_E2E_BROWSER_EXECUTABLE.",
+    "README, docs/UI.md, docs/MVP_ACCEPTANCE.md, docs/DEPLOYMENT.md, docs/CONFIGURATION.md, docs/SUPPORT_MATRIX.md, docs/REPOSITORY_STATUS.md, docs/PRD.md and CHANGELOG.md describe the supported Web UI E2E gate.",
+    "Task registry marks TASK-131 as current and done."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm ui:e2e",
+      "pnpm tasks:validate",
+      "pnpm typecheck",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm the live Web UI E2E command is documented for an already-started stack.",
+      "Confirm the UI E2E script does not start Docker by itself."
+    ]
+  },
+  "dependencies": [
+    "TASK-130"
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is done.",
+    "Branch is committed and merged back into master."
+  ]
+}

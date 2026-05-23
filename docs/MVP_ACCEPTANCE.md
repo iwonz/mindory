@@ -7,7 +7,9 @@ acceptance gate. `TASK-112` extends that gate into the release-readiness live
 matrix for sync antivirus, pgvector, Qdrant, Docling, backup, signed remote
 update and uninstall. `TASK-125` adds the checked local-model multimodal gate
 for the supported deterministic local HTTP profile. `TASK-130` adds the Web UI
-service to the Docker and installer paths.
+service to the Docker and installer paths. `TASK-131` adds Web UI Playwright
+acceptance for login, upload, jobs, artifacts/source refs, search, memory,
+context and desktop/mobile layout.
 
 One-command live demo:
 
@@ -53,6 +55,29 @@ pnpm local-model:acceptance
 The dry-run gate is part of `pnpm check`. It validates that the local profile,
 MVP acceptance scenario, LLM audit coverage, worker audit sinks and local-model
 docs stay wired. It does not start Docker or download model artifacts.
+
+Web UI E2E dry-run gate:
+
+```bash
+pnpm ui:e2e
+```
+
+Live Web UI E2E against a running stack:
+
+```bash
+MINDORY_UI_E2E_LIVE=true \
+MINDORY_UI_E2E_URL=http://localhost:3080 \
+MINDORY_E2E_API_URL=http://localhost:3000 \
+pnpm ui:e2e
+```
+
+The live UI flow uses Playwright with `MINDORY_DEMO_TOKEN` and
+`MINDORY_DEMO_PROJECT_ID`, uploads a text fixture through the browser, waits for
+jobs/artifacts through the HTTP API, verifies source refs in the UI, runs
+unified search, saves a source-backed memory, builds context and checks desktop
+and mobile layouts for horizontal overflow. Use
+`MINDORY_UI_E2E_BROWSER_EXECUTABLE` when Chromium is installed outside the
+Playwright browser cache.
 
 Live local-model multimodal gate:
 

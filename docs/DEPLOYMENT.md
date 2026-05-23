@@ -209,6 +209,24 @@ the `ui` service from the release image, publish `MINDORY_UI_PORT` on the host
 and proxy `/api` to `MINDORY_UI_API_URL`, defaulting to `http://api:3000` inside
 the Compose network. The package is part of workspace typecheck and `pnpm check`.
 
+Web UI Playwright acceptance is dry-run checked by:
+
+```bash
+pnpm ui:e2e
+```
+
+Run the live browser flow after starting the stack:
+
+```bash
+MINDORY_UI_E2E_LIVE=true \
+MINDORY_UI_E2E_URL=http://localhost:3080 \
+MINDORY_E2E_API_URL=http://localhost:3000 \
+pnpm ui:e2e
+```
+
+Set `MINDORY_UI_E2E_BROWSER_EXECUTABLE` to a local Chrome/Chromium binary when
+the Playwright browser cache is not installed on the host.
+
 ## Base Services
 
 - `postgres`

@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-130",
+  "current_task_id": "TASK-131",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -946,6 +946,13 @@
       "status": "done",
       "branch": "task/TASK-130-web-ui-docker-installer-integration",
       "file": "tasks/TASK-130.json"
+    },
+    {
+      "id": "TASK-131",
+      "title": "Web UI E2E acceptance",
+      "status": "done",
+      "branch": "task/TASK-131-web-ui-e2e-acceptance",
+      "file": "tasks/TASK-131.json"
     }
   ]
 }

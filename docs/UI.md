@@ -109,9 +109,42 @@ pnpm ui:validate
 pnpm ui:documents:validate
 pnpm ui:insights:validate
 pnpm ui:diagnostics:validate
+pnpm ui:docker:validate
+pnpm ui:e2e
 ```
 
-`pnpm check` includes these validators. The validators build the UI, check
-workspace/typecheck registration, verify the API client, document pipeline
-workspace, search/context/memory/faces workspace, runtime diagnostics workspace,
-connection states and confirm the docs/config entries stay in sync.
+`pnpm check` includes these validators and the Web UI E2E dry-run. The
+validators build the UI, check workspace/typecheck registration, verify the API
+client, document pipeline workspace, search/context/memory/faces workspace,
+runtime diagnostics workspace, Docker/installer service wiring, connection
+states and confirm the docs/config entries stay in sync.
+
+## E2E Acceptance
+
+`pnpm ui:e2e` runs a dry-run coverage check by default. It validates that the
+Playwright acceptance script, docs and `pnpm check` registration cover:
+
+- login with API URL and bearer token;
+- text fixture upload through the document workspace;
+- document jobs, pipeline state, artifacts and source refs;
+- unified search;
+- source-backed memory creation;
+- context preview;
+- desktop and mobile layout checks.
+
+Run live against an already-started API/UI stack:
+
+```bash
+MINDORY_UI_E2E_LIVE=true \
+MINDORY_UI_E2E_URL=http://localhost:3080 \
+MINDORY_E2E_API_URL=http://localhost:3000 \
+pnpm ui:e2e
+```
+
+Live mode uses `MINDORY_DEMO_TOKEN` and `MINDORY_DEMO_PROJECT_ID`, defaulting
+to `mindory-demo-token` and `mindory-demo`. The browser app connects through
+`MINDORY_UI_E2E_BROWSER_API_URL`, defaulting to `/api`, so Docker/installer
+runs exercise the UI server proxy. Set `MINDORY_UI_E2E_HEADLESS=false` to watch
+the browser. If Playwright browsers are not installed, run
+`pnpm exec playwright install chromium` or set
+`MINDORY_UI_E2E_BROWSER_EXECUTABLE` to a local Chrome/Chromium binary.

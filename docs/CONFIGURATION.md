@@ -472,6 +472,15 @@ document search. Set `MINDORY_E2E_EXPECT_MODEL_AUDIT_METRICS=true` only for the
 live local-model acceptance gate when worker metrics are enabled and the run
 must prove model-operation audit counters were exported.
 
+`MINDORY_UI_E2E_LIVE=true` makes `pnpm ui:e2e` run a live Playwright browser
+flow against `MINDORY_UI_E2E_URL` or `http://127.0.0.1:3080`. The flow seeds
+the API through `MINDORY_E2E_API_URL`, defaulting to `http://127.0.0.1:3000`,
+and uses `MINDORY_DEMO_TOKEN`/`MINDORY_DEMO_PROJECT_ID` for browser login. The
+browser connects through `MINDORY_UI_E2E_BROWSER_API_URL`, defaulting to `/api`
+so the UI proxy path is exercised. Set `MINDORY_UI_E2E_HEADLESS=false` for a
+visible browser and `MINDORY_UI_E2E_BROWSER_EXECUTABLE` when Chromium is
+installed outside Playwright's browser cache.
+
 ## MCP
 
 `MINDORY_MCP_ENABLED` enables the MCP app. `MINDORY_MCP_TRANSPORT` is currently

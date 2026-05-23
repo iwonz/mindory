@@ -6,7 +6,7 @@ The repository should be described with the support levels in
 
 ## Current Baseline
 
-The repository is complete through `TASK-130`.
+The repository is complete through `TASK-131`.
 
 Supported local MVP path:
 
@@ -19,7 +19,8 @@ Supported local MVP path:
   `pnpm ui:insights:validate` validates search/context/memory/faces;
   `pnpm ui:diagnostics:validate` validates runtime diagnostics; and
   `pnpm ui:docker:validate` validates Docker Compose and installer integration.
-  All are included in `pnpm check`.
+  `pnpm ui:e2e` validates the Web UI Playwright acceptance coverage in dry-run
+  mode. All are included in `pnpm check`.
 - `pnpm test` runs integration tests with PostgreSQL and Redis.
 - `pnpm mvp:demo` starts the local Docker Compose demo and runs live acceptance.
 - `pnpm selfhost:gate` runs the live release-readiness matrix for sync ClamAV,
@@ -90,7 +91,10 @@ Supported local MVP path:
   health, recent job status, metrics links and redacted installer/config summary
   through HTTP API calls only. Docker Compose and installer deployments include
   the `ui` service, host port wiring and `/api` proxy routing through
-  `MINDORY_UI_API_URL`.
+  `MINDORY_UI_API_URL`; this Docker/installer wiring was completed in
+  `TASK-130`. Playwright acceptance covers login/token, upload, jobs,
+  artifacts/source refs, unified search, manual memory, context preview and
+  desktop/mobile layout in live mode.
 - LibreFS and MinIO local S3-compatible profiles include health-gated bucket
   bootstrap, and installer startup validates signed access for external
   S3-compatible buckets.
@@ -117,8 +121,8 @@ Supported local MVP path:
   validation.
 - Public self-host acceptance is the release-readiness gate for local self-host
   users and is required by `docs/RELEASE_CHECKLIST.md` before publication.
-- Public current-state docs are aligned with the TASK-130 runtime baseline and
-  distinguish checked local-MVP paths from planned release and E2E work.
+- Public current-state docs are aligned with the TASK-131 runtime baseline and
+  distinguish checked local-MVP paths from planned release work.
 
 Public GitHub hygiene baseline:
 
@@ -139,7 +143,6 @@ Public GitHub hygiene baseline:
 - Heavy multimodal model adapters are still experimental unless a role is
   explicitly documented as supported in `docs/SUPPORT_MATRIX.md` or a local
   model profile is checked by live acceptance.
-- Playwright E2E coverage for the Web UI remains scoped to the next UI task.
 
 ## Public Claims Rule
 

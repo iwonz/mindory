@@ -122,6 +122,7 @@ pnpm hermes:contract
 pnpm hermes:harness
 pnpm production:validate
 pnpm mvp:demo:validate
+pnpm ui:e2e
 pnpm selfhost:acceptance
 pnpm selfhost:gate -- --dry-run
 ```

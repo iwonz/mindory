@@ -137,8 +137,8 @@ the limits described in the support matrix. The Web UI is implemented for
 connection, health, project/session navigation, the document pipeline workspace,
 unified search, context preview, manual memory, face identity operations and
 runtime diagnostics. Docker/installer service wiring is included in the local
-MVP path; Playwright E2E coverage is scoped in the remaining public-ready UI
-task series.
+MVP path, and Playwright E2E acceptance covers login, upload, jobs,
+artifacts/source refs, search, memory, context and desktop/mobile layout.
 
 Do not implement the remaining non-goals unless a task explicitly scopes them.
 

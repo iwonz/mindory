@@ -20,6 +20,10 @@ documentation.
 
 ### Added
 
+- `TASK-131`: Web UI Playwright E2E acceptance with dry-run repository coverage
+  in `pnpm check` and opt-in live browser verification for login, upload,
+  pipeline jobs, artifacts/source refs, search, memory, context and
+  desktop/mobile layout.
 - `TASK-130`: Web UI Docker and installer integration with Compose `ui`
   service, release image UI asset build, installer UI port/env wiring, MVP demo
   UI output and `pnpm ui:docker:validate` coverage.

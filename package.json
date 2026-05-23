@@ -69,11 +69,13 @@
     "ui:insights:validate": "node scripts/validate-ui-insights-workspace.js",
     "ui:diagnostics:validate": "node scripts/validate-ui-diagnostics-workspace.js",
     "ui:docker:validate": "node scripts/validate-ui-docker-installer-integration.js",
+    "ui:e2e": "node scripts/ui-e2e-acceptance.js",
     "workspace:validate": "node scripts/validate-workspace.js"
   },
   "devDependencies": {
-    "@types/pg": "^8.11.0",
+    "@playwright/test": "^1.53.0",
     "@types/node": "^24.0.0",
+    "@types/pg": "^8.11.0",
     "drizzle-kit": "^0.31.5",
     "typescript": "^5.8.0"
   }
