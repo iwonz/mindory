@@ -1,0 +1,54 @@
+{
+  "id": "TASK-116",
+  "title": "Embed deterministic CI video fixture",
+  "status": "done",
+  "type": "test",
+  "priority": "high",
+  "branch": "task/TASK-116-embed-ci-video-fixture",
+  "created_at": "2026-05-23",
+  "updated_at": "2026-05-23",
+  "context": {
+    "summary": "Fix GitHub CI and release checks by removing ffmpeg encoder dependency from the integration video input fixture.",
+    "background": "TASK-115 added encoder fallback, but the GitHub runner still failed while creating the MP4 test input. The product ffmpeg extraction path should remain covered without requiring CI to encode video."
+  },
+  "scope": {
+    "in": [
+      "Store a small deterministic MP4 test fixture as an ASCII base64 fixture file.",
+      "Load the embedded fixture in the video integration test instead of generating it with ffmpeg encoders.",
+      "Keep product ffmpeg keyframe extraction covered by the existing video processing assertions.",
+      "Validate tasks and repository checks before merge."
+    ],
+    "out": [
+      "Changing product video processing behavior.",
+      "Changing release signing or GitHub repository settings.",
+      "Changing the public release version number."
+    ]
+  },
+  "acceptance_criteria": [
+    "The integration test no longer depends on ffmpeg video encoders to create its input fixture.",
+    "The video processing integration path still uploads a real MP4 and verifies ffmpeg keyframe extraction.",
+    "Task registry includes TASK-116 and validates.",
+    "pnpm check passes locally before merge."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm test",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm the GitHub release failure was in buildFfmpegVideoFixture before this change."
+    ]
+  },
+  "dependencies": [
+    "TASK-115"
+  ],
+  "risks": [
+    "GitHub release may reveal a later publishing-only issue after repository checks pass."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is done.",
+    "Branch is committed and merged back into master."
+  ]
+}

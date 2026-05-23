@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-115",
+  "current_task_id": "TASK-116",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -841,6 +841,13 @@
       "status": "done",
       "branch": "task/TASK-115-harden-ci-video-fixture",
       "file": "tasks/TASK-115.json"
+    },
+    {
+      "id": "TASK-116",
+      "title": "Embed deterministic CI video fixture",
+      "status": "done",
+      "branch": "task/TASK-116-embed-ci-video-fixture",
+      "file": "tasks/TASK-116.json"
     }
   ]
 }

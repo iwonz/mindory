@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import http from "node:http";
 import net from "node:net";
 import os from "node:os";
@@ -27,6 +27,7 @@ const storagePath = path.join(os.tmpdir(), `mindory-integration-${testRunId}`);
 const queuePrefix = `mindory:test:${testRunId}`;
 const nativePdfFixture = JSON.parse(await readFile(path.join(root, "fixtures/docling/native-pdf.json"), "utf8"));
 const scannedPdfFixture = JSON.parse(await readFile(path.join(root, "fixtures/docling/scanned-pdf.json"), "utf8"));
+const ffmpegVideoFixturePath = path.join(root, "fixtures/video/ffmpeg-keyframe-fixture.mp4.base64");
 const testEnv = {
   ...process.env,
   MINDORY_LOG_LEVEL: "error",
@@ -2217,62 +2218,8 @@ function getFreePort() {
 }
 
 async function buildFfmpegVideoFixture() {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "mindory-ffmpeg-fixture-"));
-  const outputPath = path.join(tempDir, "fixture.mp4");
-  const ffmpegCommand = process.env.MINDORY_TEST_FFMPEG_BIN ?? "ffmpeg";
-  const attempts = [
-    [
-      "-hide_banner",
-      "-loglevel",
-      "error",
-      "-y",
-      "-f",
-      "lavfi",
-      "-i",
-      "testsrc=duration=5:size=160x120:rate=1",
-      "-an",
-      "-c:v",
-      "libx264",
-      "-preset",
-      "ultrafast",
-      "-pix_fmt",
-      "yuv420p",
-      outputPath
-    ],
-    [
-      "-hide_banner",
-      "-loglevel",
-      "error",
-      "-y",
-      "-f",
-      "lavfi",
-      "-i",
-      "testsrc=duration=5:size=160x120:rate=1",
-      "-an",
-      "-c:v",
-      "mpeg4",
-      "-q:v",
-      "5",
-      "-pix_fmt",
-      "yuv420p",
-      outputPath
-    ]
-  ];
-  let lastError;
-  try {
-    for (const args of attempts) {
-      try {
-        await rm(outputPath, { force: true });
-        runCommand(ffmpegCommand, args);
-        return await readFile(outputPath);
-      } catch (error) {
-        lastError = error;
-      }
-    }
-    throw new Error(`Could not build ffmpeg video fixture with libx264 or mpeg4: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
-  } finally {
-    await rm(tempDir, { recursive: true, force: true });
-  }
+  const fixture = await readFile(ffmpegVideoFixturePath, "utf8");
+  return Buffer.from(fixture.replace(/\s+/g, ""), "base64");
 }
 
 function decodeBase64Text(value) {
