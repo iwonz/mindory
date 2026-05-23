@@ -1,0 +1,58 @@
+{
+  "id": "TASK-123",
+  "title": "Local model Compose profiles",
+  "status": "done",
+  "type": "deployment",
+  "priority": "high",
+  "branch": "task/TASK-123-local-model-compose-profiles",
+  "created_at": "2026-05-23",
+  "updated_at": "2026-05-23",
+  "context": {
+    "summary": "Wire supported local model catalog entries into Compose profiles and installer profile resolution.",
+    "background": "TASK-122 added the local model runner catalog. The next step is to make supported local runner profiles healthchecked and driven by installer-generated config."
+  },
+  "scope": {
+    "in": [
+      "Resolve supported local model Compose profiles from LOCAL_MODEL_RUNNER_CATALOG.",
+      "Add model data directories to the single-home layout and release manifest.",
+      "Add/strengthen healthchecks for local-models and Ollama profiles.",
+      "Make the local MVP model profile enable text/image embeddings, OCR, ASR, vision and face roles through @mindory/llm.",
+      "Add validation and docs for the supported local model Compose profiles."
+    ],
+    "out": [
+      "Downloading model weights.",
+      "Adding installer auto-install prompts.",
+      "Adding heavy runner images for experimental catalog entries.",
+      "Changing API or worker document behavior."
+    ]
+  },
+  "acceptance_criteria": [
+    "Installer composeProfilesForAnswers resolves local-http and ollama profiles from LOCAL_MODEL_RUNNER_CATALOG.",
+    "Installer health wait maps supported local model profiles to their Compose services from the catalog.",
+    "MINDORY_HOME includes data/models and data/ollama in installer and release manifests.",
+    "local-models and ollama Compose services have healthchecks and persistent bind mounts under MINDORY_HOME.",
+    "The local MVP model profile routes text/image embeddings, OCR, ASR, vision captioning and face roles through local-http @mindory/llm settings.",
+    "pnpm local-model-profiles:validate, pnpm tasks:validate and pnpm check pass before merge."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm local-model-profiles:validate",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm docker-compose.yml does not add direct model calls outside @mindory/llm runtime configuration."
+    ]
+  },
+  "dependencies": [
+    "TASK-122"
+  ],
+  "risks": [
+    "Ollama model pulls remain explicit; the Compose service healthcheck validates the runner, not a specific model download."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is done.",
+    "Branch is committed and merged back into master."
+  ]
+}

@@ -20,6 +20,9 @@ documentation.
 
 ### Added
 
+- `TASK-123`: supported local model Compose profiles now resolve from the
+  local runner catalog, persist model data under `MINDORY_HOME` and validate
+  healthchecks for local HTTP and Ollama runners.
 - `TASK-122`: canonical local model runner catalog with role coverage,
   source/image metadata, model files, healthchecks, resource hints and
   validation.

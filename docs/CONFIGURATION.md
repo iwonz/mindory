@@ -51,6 +51,8 @@ bound under this root:
 - `data/redis`
 - `data/objects`
 - `data/librefs`
+- `data/models`
+- `data/ollama`
 - `logs`
 - `backups`
 - `install`
@@ -434,8 +436,10 @@ selecting Qdrant; the installer adds that profile automatically when
 when `--model-profile` is not passed. Supported values are `disabled`, `local`
 and `ollama`. `disabled` is the default and starts no heavy model services.
 `local` adds the lightweight `local-models` Compose service and configures
-local HTTP text embeddings with 1536 dimensions. `ollama` adds the Ollama
-profile for a real local model runner.
+local HTTP text embeddings, image embeddings, OCR, ASR, vision captioning and
+face roles through `@mindory/llm`. Text and image embeddings use 1536
+dimensions for the current pgvector schema. `ollama` adds the Ollama profile
+for a real local text embedding runner.
 
 ## MVP Acceptance
 

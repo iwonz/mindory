@@ -6,7 +6,7 @@ The repository should be described with the support levels in
 
 ## Current Baseline
 
-The repository is complete through `TASK-122`.
+The repository is complete through `TASK-123`.
 
 Supported local MVP path:
 
@@ -40,6 +40,9 @@ Supported local MVP path:
 - Local model runner metadata is centralized in `LOCAL_MODEL_RUNNER_CATALOG`
   with source/image, model file, license/status, port, healthcheck and resource
   hints documented in `docs/LOCAL_MODELS.md`.
+- Supported local model Compose profiles are resolved from the catalog, use
+  healthchecks and persist model state under `$MINDORY_HOME/data/models` and
+  `$MINDORY_HOME/data/ollama`.
 - OpenAI-compatible chat and text embedding operations support API-key and
   OAuth bearer auth through `@mindory/llm`.
 - Local HTTP chat/text embedding adapters and provider health checks for local
@@ -88,7 +91,7 @@ Supported local MVP path:
   validation.
 - Public self-host acceptance is the release-readiness gate for local self-host
   users and is required by `docs/RELEASE_CHECKLIST.md` before publication.
-- Public current-state docs are aligned with the TASK-122 runtime baseline and
+- Public current-state docs are aligned with the TASK-123 runtime baseline and
   distinguish checked local-MVP paths from planned release and UI work.
 
 Public GitHub hygiene baseline:

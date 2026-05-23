@@ -28,6 +28,7 @@ import { fileURLToPath } from "node:url";
 import { createGunzip, createGzip, gunzipSync, gzipSync } from "node:zlib";
 import {
   CONFIG_CATALOG,
+  LOCAL_MODEL_RUNNER_CATALOG,
   loadMindoryConfig,
   llmRoleProviderSupportStatus,
   llmRoleSupportStatus,
@@ -59,6 +60,8 @@ export const MINDORY_HOME_DIRECTORIES = [
   "data/redis",
   "data/objects",
   "data/librefs",
+  "data/models",
+  "data/ollama",
   "logs",
   "backups",
   "install"
@@ -3296,14 +3299,19 @@ export function composeProfilesForAnswers(answers: MindoryInstallAnswers): strin
     profiles.add("docling");
   }
   for (const roleAnswers of Object.values(answers.llmRoles)) {
-    if (roleAnswers?.enabled && roleAnswers.provider === "ollama") {
-      profiles.add("ollama");
-    }
-    if (roleAnswers?.enabled && roleAnswers.provider === "local-http") {
-      profiles.add("local-models");
+    if (roleAnswers?.enabled) {
+      for (const profile of composeProfilesForLlmProvider(roleAnswers.provider)) {
+        profiles.add(profile);
+      }
     }
   }
   return Array.from(profiles).sort();
+}
+
+function composeProfilesForLlmProvider(provider: LlmProvider): string[] {
+  return LOCAL_MODEL_RUNNER_CATALOG
+    .filter((entry) => entry.status === "supported" && entry.provider === provider)
+    .map((entry) => entry.composeProfile);
 }
 
 function answersUsesLocalCommandProvider(answers: MindoryInstallAnswers): boolean {
@@ -4248,10 +4256,13 @@ function infrastructureServices(plan: InstallPlan): string[] {
     librefs: "librefs",
     minio: "minio",
     qdrant: "qdrant",
-    docling: "docling",
-    ollama: "ollama",
-    "local-models": "llm"
+    docling: "docling"
   };
+  for (const entry of LOCAL_MODEL_RUNNER_CATALOG) {
+    if (entry.status === "supported") {
+      profileServices[entry.composeProfile] = entry.serviceName;
+    }
+  }
   for (const profile of plan.composeProfiles) {
     const service = profileServices[profile];
     if (service !== undefined) {

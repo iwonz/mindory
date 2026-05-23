@@ -1,8 +1,9 @@
 # Local Model Install Catalog
 
 `LOCAL_MODEL_RUNNER_CATALOG` in `@mindory/config` is the canonical metadata
-source for local model runner choices. The installer, Docker profiles and docs
-must use this catalog instead of hardcoded role/model lists.
+source for local model runner choices. The installer resolves supported
+local model Compose profiles from this catalog instead of hardcoded role/model
+lists.
 
 Each catalog entry records:
 
@@ -39,4 +40,6 @@ The catalog covers all local-model roles needed by the document pipeline:
 
 `pnpm local-models:validate` verifies this coverage, checks each runner has
 source or image metadata, model files, port and healthcheck details, resource
-hints and documentation coverage.
+hints and documentation coverage. `pnpm local-model-profiles:validate` checks
+that supported catalog runners have matching Compose profiles, installer
+profile resolution and runtime healthchecks.

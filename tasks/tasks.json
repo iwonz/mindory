@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-122",
+  "current_task_id": "TASK-123",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -890,6 +890,13 @@
       "status": "done",
       "branch": "task/TASK-122-local-model-install-catalog",
       "file": "tasks/TASK-122.json"
+    },
+    {
+      "id": "TASK-123",
+      "title": "Local model Compose profiles",
+      "status": "done",
+      "branch": "task/TASK-123-local-model-compose-profiles",
+      "file": "tasks/TASK-123.json"
     }
   ]
 }

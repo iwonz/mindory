@@ -290,14 +290,42 @@ function dockerEnv() {
   };
 
   if (options.modelProfile === "local") {
-    env.MINDORY_LLM_TEXT_EMBEDDING_ENABLED = process.env.MINDORY_LLM_TEXT_EMBEDDING_ENABLED ?? "true";
-    env.MINDORY_LLM_TEXT_EMBEDDING_PROVIDER = process.env.MINDORY_LLM_TEXT_EMBEDDING_PROVIDER ?? "local-http";
-    env.MINDORY_LLM_TEXT_EMBEDDING_MODEL = process.env.MINDORY_LLM_TEXT_EMBEDDING_MODEL ?? "mindory-local-embedding";
-    env.MINDORY_LLM_TEXT_EMBEDDING_DIMENSIONS = process.env.MINDORY_LLM_TEXT_EMBEDDING_DIMENSIONS ?? "1536";
-    env.MINDORY_LLM_LOCAL_HTTP_BASE_URL = process.env.MINDORY_LLM_LOCAL_HTTP_BASE_URL ?? "http://llm:8080";
+    applyLocalHttpModelProfile(env);
   }
 
   return env;
+}
+
+function applyLocalHttpModelProfile(env) {
+  setDefault(env, "MINDORY_INSTALL_ALLOW_EXPERIMENTAL", "true");
+  setDefault(env, "MINDORY_LLM_LOCAL_HTTP_BASE_URL", "http://llm:8080");
+  setDefault(env, "MINDORY_LLM_TEXT_EMBEDDING_ENABLED", "true");
+  setDefault(env, "MINDORY_LLM_TEXT_EMBEDDING_PROVIDER", "local-http");
+  setDefault(env, "MINDORY_LLM_TEXT_EMBEDDING_MODEL", "mindory-local-embedding");
+  setDefault(env, "MINDORY_LLM_TEXT_EMBEDDING_DIMENSIONS", "1536");
+  setDefault(env, "MINDORY_LLM_IMAGE_EMBEDDING_ENABLED", "true");
+  setDefault(env, "MINDORY_LLM_IMAGE_EMBEDDING_PROVIDER", "local-http");
+  setDefault(env, "MINDORY_LLM_IMAGE_EMBEDDING_MODEL", "mindory-local-image-embedding");
+  setDefault(env, "MINDORY_LLM_IMAGE_EMBEDDING_DIMENSIONS", "1536");
+  setDefault(env, "MINDORY_LLM_OCR_ENABLED", "true");
+  setDefault(env, "MINDORY_LLM_OCR_PROVIDER", "local-http");
+  setDefault(env, "MINDORY_LLM_OCR_MODEL", "mindory-local-ocr");
+  setDefault(env, "MINDORY_LLM_ASR_ENABLED", "true");
+  setDefault(env, "MINDORY_LLM_ASR_PROVIDER", "local-http");
+  setDefault(env, "MINDORY_LLM_ASR_MODEL", "mindory-local-asr");
+  setDefault(env, "MINDORY_LLM_VISION_CAPTIONING_ENABLED", "true");
+  setDefault(env, "MINDORY_LLM_VISION_CAPTIONING_PROVIDER", "local-http");
+  setDefault(env, "MINDORY_LLM_VISION_CAPTIONING_MODEL", "mindory-local-vision");
+  setDefault(env, "MINDORY_LLM_FACE_DETECTION_ENABLED", "true");
+  setDefault(env, "MINDORY_LLM_FACE_DETECTION_PROVIDER", "local-http");
+  setDefault(env, "MINDORY_LLM_FACE_DETECTION_MODEL", "mindory-local-face");
+  setDefault(env, "MINDORY_LLM_FACE_RECOGNITION_ENABLED", "true");
+  setDefault(env, "MINDORY_LLM_FACE_RECOGNITION_PROVIDER", "local-http");
+  setDefault(env, "MINDORY_LLM_FACE_RECOGNITION_MODEL", "mindory-local-face");
+}
+
+function setDefault(env, key, value) {
+  env[key] = process.env[key] ?? value;
 }
 
 function removeDemoHome() {

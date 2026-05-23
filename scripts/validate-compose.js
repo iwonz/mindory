@@ -117,7 +117,7 @@ assert(testCompose.includes("MINDORY_TEST_REDIS_PORT"), "docker-compose.test.yml
 for (const assetPath of ["docker-compose.yml", "Dockerfile", ".env.example"]) {
   assert(releaseManifest.assets?.some((asset) => asset.path === assetPath && asset.required === true), `Release Compose manifest must include ${assetPath}.`);
 }
-for (const homeDirectory of ["config", "data/postgres", "data/redis", "data/objects", "data/librefs", "logs", "backups", "install"]) {
+for (const homeDirectory of ["config", "data/postgres", "data/redis", "data/objects", "data/librefs", "data/models", "data/ollama", "logs", "backups", "install"]) {
   assert(releaseManifest.mindory_home_directories?.includes(homeDirectory), `Release Compose manifest must include MINDORY_HOME directory ${homeDirectory}.`);
 }
 

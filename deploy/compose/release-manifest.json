@@ -29,6 +29,8 @@
     "data/redis",
     "data/objects",
     "data/librefs",
+    "data/models",
+    "data/ollama",
     "logs",
     "backups",
     "install"

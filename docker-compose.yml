@@ -457,6 +457,11 @@ services:
     restart: unless-stopped
     ports:
       - "11434:11434"
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
     volumes:
       - ${MINDORY_HOME:-${HOME}/.mindory}/data/ollama:/root/.ollama
 
@@ -480,3 +485,4 @@ services:
       retries: 5
     volumes:
       - ${MINDORY_HOME:-${HOME}/.mindory}/logs:/data/mindory/logs
+      - ${MINDORY_HOME:-${HOME}/.mindory}/data/models:/data/mindory/models

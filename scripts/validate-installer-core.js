@@ -53,7 +53,7 @@ function createSignedRemoteReleaseFixture(version) {
       { path: "docker-compose.yml", required: true },
       { path: "docker-compose.override.yml", required: false }
     ],
-    mindory_home_directories: ["config", "data/postgres", "data/redis", "data/objects", "logs", "backups", "install"]
+    mindory_home_directories: ["config", "data/postgres", "data/redis", "data/objects", "data/models", "data/ollama", "logs", "backups", "install"]
   }, null, 2)}\n`);
   fs.writeFileSync(path.join(releaseRoot, "docker-compose.yml"), "services:\n  postgres:\n    image: postgres:16\n");
   fs.writeFileSync(path.join(releaseRoot, "docker-compose.override.yml"), "services: {}\n");
@@ -308,7 +308,7 @@ const plan = installer.createInstallPlan(answers);
 assert(plan.composeProfiles.includes("librefs"), "S3 LibreFS answers must add the librefs profile.");
 assert(plan.composeProfiles.includes("clamav"), "Default antivirus answers must add the clamav profile.");
 assert(plan.composeProfiles.includes("ollama"), "Ollama LLM answers must add the ollama profile.");
-for (const directory of ["config", "data/postgres", "data/redis", "data/objects", "data/librefs", "logs", "backups", "install"]) {
+for (const directory of ["config", "data/postgres", "data/redis", "data/objects", "data/librefs", "data/models", "data/ollama", "logs", "backups", "install"]) {
   assert(plan.homeDirectories.includes(directory), `Install plan must include ${directory}.`);
 }
 for (const stepId of ["ensure-home", "write-config", "write-env", "write-compose-assets", "bootstrap-storage", "health-check"]) {

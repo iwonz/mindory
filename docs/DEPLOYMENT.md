@@ -83,6 +83,8 @@ not set it:
 - `data/redis`
 - `data/objects`
 - `data/librefs`
+- `data/models`
+- `data/ollama`
 - `logs`
 - `backups`
 - `install`
@@ -165,10 +167,12 @@ pnpm mvp:demo --model-profile local
 pnpm mvp:demo --model-profile ollama
 ```
 
-`disabled` is the default and starts no heavy model containers. `local` adds the
+`disabled` is the default and starts no model containers. `local` adds the
 `local-models` profile, which runs a lightweight deterministic local HTTP model
-service for embeddings acceptance. `ollama` adds the real Ollama service for
-local model experiments.
+service for text embeddings, image embeddings, OCR, ASR, vision captioning and
+face roles through `@mindory/llm`. `ollama` adds the real Ollama service for
+local text embeddings and uses a Compose healthcheck before installer startup
+accepts the profile.
 
 ## Base Services
 
