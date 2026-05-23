@@ -1,0 +1,53 @@
+{
+  "id": "TASK-140",
+  "title": "Installer multimodal supported-mode wizard",
+  "status": "draft",
+  "type": "feature",
+  "priority": "high",
+  "branch": "task/TASK-140-installer-multimodal-supported-mode-wizard",
+  "created_at": "2026-05-23",
+  "updated_at": "2026-05-23",
+  "context": {
+    "summary": "Add installer wizard support for the v0.1.1 multimodal supported preset.",
+    "background": "Once the promoted runners exist, the installer needs a clear supported-mode path with resource preflight, retries, rollback and logs."
+  },
+  "scope": {
+    "in": [
+      "Add supported multimodal preset prompts and answer-file fields.",
+      "Allow per-role enablement and runner selection with resource confirmation.",
+      "Install selected runners, retry downloads/pulls, rollback failed installation steps and write diagnostics.",
+      "Require successful runner health checks before reporting selected functions ready."
+    ],
+    "out": [
+      "Adding new model runner implementations.",
+      "Publishing a release."
+    ]
+  },
+  "acceptance_criteria": [
+    "Wizard can configure a supported multimodal preset from an answer file and interactive prompts.",
+    "Resource preflight is shown for every selected heavy runner.",
+    "Failed runner startup rolls back Mindory-created installation state.",
+    "Healthchecked selected functions are reflected in generated config and redacted summary."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm installer:validate",
+      "pnpm installer:matrix:validate",
+      "pnpm local-model-profiles:validate",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Run the installer dry-run with the supported multimodal answer file.",
+      "Run one live install with selected local runners on Docker."
+    ]
+  },
+  "dependencies": [
+    "TASK-139"
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is done.",
+    "Branch is committed and merged back into master."
+  ]
+}

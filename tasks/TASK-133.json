@@ -1,0 +1,55 @@
+{
+  "id": "TASK-133",
+  "title": "Supported multimodal contract and task registry",
+  "status": "done",
+  "type": "docs",
+  "priority": "high",
+  "branch": "task/TASK-133-supported-multimodal-contract-task-registry",
+  "created_at": "2026-05-23",
+  "updated_at": "2026-05-23",
+  "context": {
+    "summary": "Register the v0.1.1 supported multimodal release series and document its public target.",
+    "background": "TASK-132 completed the public-ready pre-release gate for the v0.1.0-era baseline. The next release must keep v0.1.0 immutable while moving multimodal model roles from opt-in validation to checked supported local/install/runtime profiles in v0.1.1."
+  },
+  "scope": {
+    "in": [
+      "Add task files and registry entries for TASK-133 through TASK-147.",
+      "Set TASK-133 as the current completed task.",
+      "Document that v0.1.0 is historical and stale relative to the v0.1.1 target series.",
+      "Document the v0.1.1 support target for OCR, ASR, vision captioning, object detection, image embeddings, face detection, face recognition, image generation, audio generation, local-command runners and local-http runners.",
+      "Keep implementation changes for promoted model roles in their dedicated follow-up tasks."
+    ],
+    "out": [
+      "Changing runtime model role gating.",
+      "Adding real model runner images or services.",
+      "Publishing v0.1.1.",
+      "Running live multimodal acceptance."
+    ]
+  },
+  "acceptance_criteria": [
+    "tasks/tasks.json registers TASK-133 through TASK-147 and points current_task_id at TASK-133.",
+    "Every registered task has a dedicated JSON task file with scope, acceptance criteria and verification commands.",
+    "Public docs state that v0.1.0 is historical and v0.1.1 is the fresh target pre-release.",
+    "Public docs define the promoted multimodal roles and runner contracts targeted by the v0.1.1 series without claiming those follow-up tasks are already complete.",
+    "pnpm tasks:validate and pnpm check pass."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm tasks:validate",
+      "pnpm public-ready:gate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm TASK-134 through TASK-147 remain draft.",
+      "Confirm runtime implementation remains unchanged in TASK-133."
+    ]
+  },
+  "dependencies": [
+    "TASK-132"
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is done.",
+    "Branch is committed and merged back into master."
+  ]
+}

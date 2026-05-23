@@ -1,0 +1,54 @@
+{
+  "id": "TASK-137",
+  "title": "Real local vision object image embedding runners",
+  "status": "draft",
+  "type": "feature",
+  "priority": "high",
+  "branch": "task/TASK-137-real-local-vision-object-image-embedding-runners",
+  "created_at": "2026-05-23",
+  "updated_at": "2026-05-23",
+  "context": {
+    "summary": "Add supported local image semantic runners for captioning, object detection and image embeddings.",
+    "background": "Image search in v0.1.1 must have real local profiles for visual semantics and vector persistence."
+  },
+  "scope": {
+    "in": [
+      "Add real local CLIP/openCLIP image embedding runner wiring.",
+      "Add real local vision captioning and object detection runner wiring.",
+      "Add Compose services, healthchecks, installer selection, resource hints and diagnostics.",
+      "Persist captions, labels, object observations, image vectors and source refs.",
+      "Add live image search acceptance for captions, objects and image vectors."
+    ],
+    "out": [
+      "Face recognition runner implementation.",
+      "Image generation."
+    ]
+  },
+  "acceptance_criteria": [
+    "Installer can select, start and healthcheck image semantic runners.",
+    "Worker image semantic calls use @mindory/llm only.",
+    "Image uploads produce searchable captions, objects and vector records.",
+    "Vector search works with the selected backend for image artifacts."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm local-models:validate",
+      "pnpm local-model-profiles:validate",
+      "pnpm test",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Run live image semantic acceptance with Docker.",
+      "Confirm object and caption source refs are returned from search."
+    ]
+  },
+  "dependencies": [
+    "TASK-136"
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is done.",
+    "Branch is committed and merged back into master."
+  ]
+}

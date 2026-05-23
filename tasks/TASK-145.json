@@ -1,0 +1,52 @@
+{
+  "id": "TASK-145",
+  "title": "Published v0.1.1 bootstrap acceptance",
+  "status": "draft",
+  "type": "test",
+  "priority": "high",
+  "branch": "task/TASK-145-published-v0-1-1-bootstrap-acceptance",
+  "created_at": "2026-05-23",
+  "updated_at": "2026-05-23",
+  "context": {
+    "summary": "Verify installation bootstrap from public v0.1.1 release URLs.",
+    "background": "After publishing, the signed manifest and release assets must be consumable from a clean temporary MINDORY_HOME."
+  },
+  "scope": {
+    "in": [
+      "Point published-release acceptance at v0.1.1 assets.",
+      "Run live public download verification with signed manifest, checksum validation and staging.",
+      "Verify packaged installer dry-run from the downloaded bundle.",
+      "Document failure output and recovery hints."
+    ],
+    "out": [
+      "Publishing release assets.",
+      "Full Docker self-host acceptance."
+    ]
+  },
+  "acceptance_criteria": [
+    "MINDORY_PUBLISHED_RELEASE_ACCEPTANCE_LIVE=true pnpm published-release:acceptance downloads public v0.1.1 assets.",
+    "Signature and checksum verification pass for untampered assets.",
+    "Downloaded bundle stages into a temporary MINDORY_HOME and packaged installer dry-run succeeds.",
+    "Failed download or verification messages identify the broken asset."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm published-release:acceptance",
+      "MINDORY_PUBLISHED_RELEASE_ACCEPTANCE_LIVE=true pnpm published-release:acceptance",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm acceptance URLs point to v0.1.1.",
+      "Confirm v0.1.0 is still available as historical release."
+    ]
+  },
+  "dependencies": [
+    "TASK-144"
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is done.",
+    "Branch is committed and merged back into master."
+  ]
+}

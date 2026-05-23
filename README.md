@@ -8,12 +8,24 @@ The canonical product and engineering specification is `docs/PRD.md`.
 
 ## Repository Status
 
-This repository is complete through `TASK-132`. Mindory can run a local
+This repository is complete through `TASK-133`. Mindory can run a local
 demo-MVP through Docker Compose, seed demo credentials, process uploaded
 documents through the worker pipeline and run live acceptance. `pnpm check`
 passes through the repo validation, typecheck, lint, tests and dry-run
 installer, public self-host, local-model, Web UI E2E and final public-ready
 acceptance paths.
+
+Release status:
+
+- `v0.1.0` is a historical pre-release and is stale relative to the current
+  `master` baseline.
+- `v0.1.1` is the fresh target pre-release for the `TASK-133` through
+  `TASK-147` series.
+- The `v0.1.1` target promotes OCR, ASR, vision captioning, object detection,
+  image embeddings, face detection/recognition, image generation, audio
+  generation, local-command runners and local-http runners into checked
+  supported local/install/runtime paths. `TASK-133` registers that contract;
+  each implementation step remains its own task, branch, commit and merge.
 
 The current state is intentionally split into supported local-MVP surfaces,
 experimental profile surfaces and documented non-MVP surfaces:

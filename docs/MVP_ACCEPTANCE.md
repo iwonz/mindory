@@ -121,6 +121,16 @@ pnpm selfhost:gate -- --local-model
 Use `MINDORY_SELFHOST_ACCEPTANCE_TIMEOUT_MS=<milliseconds>` when local Docker
 image pulls, ClamAV startup or rebuilds need more than the default timeout.
 
+v0.1.1 supported multimodal target:
+
+- `v0.1.0` is historical and stale relative to current `master`.
+- `v0.1.1` is the fresh target pre-release for the `TASK-133` through
+  `TASK-147` series.
+- The target live gate covers OCR, ASR, vision captioning, object detection,
+  image embeddings, face detection/recognition, image generation, audio
+  generation, local-command runners and local-http runners through checked
+  local/install/runtime profiles.
+
 Final public-ready pre-release gate:
 
 ```bash

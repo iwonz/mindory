@@ -1,0 +1,54 @@
+{
+  "id": "TASK-147",
+  "title": "Post-release public status lock",
+  "status": "draft",
+  "type": "docs",
+  "priority": "high",
+  "branch": "task/TASK-147-post-release-public-status-lock",
+  "created_at": "2026-05-23",
+  "updated_at": "2026-05-23",
+  "context": {
+    "summary": "Lock public status after a successful v0.1.1 release and final gate.",
+    "background": "Once v0.1.1 is live and accepted, repository docs must point users at the exact release URL and supported commands."
+  },
+  "scope": {
+    "in": [
+      "Update repository status, README, support matrix and release checklist with the exact v0.1.1 release URL.",
+      "Document known limits and supported multimodal status after final gate success.",
+      "Document user commands for install, local run, UI, CLI, MCP and uninstall.",
+      "Verify CI and local checks are green."
+    ],
+    "out": [
+      "Changing runtime behavior.",
+      "Creating a new release tag."
+    ]
+  },
+  "acceptance_criteria": [
+    "Public docs identify v0.1.1 as the current usable pre-release.",
+    "No public doc claims v0.1.0 is the current release.",
+    "Known limits are explicit and do not downgrade supported v0.1.1 paths.",
+    "pnpm check and CI are green."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm public:validate",
+      "pnpm public-debt:validate",
+      "pnpm tasks:validate",
+      "pnpm check",
+      "gh run list --limit 5",
+      "gh release view v0.1.1"
+    ],
+    "manual_checks": [
+      "Confirm the release URL resolves publicly.",
+      "Confirm git status is clean before final response."
+    ]
+  },
+  "dependencies": [
+    "TASK-146"
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is done.",
+    "Branch is committed and merged back into master."
+  ]
+}

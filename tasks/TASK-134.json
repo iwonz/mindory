@@ -1,0 +1,53 @@
+{
+  "id": "TASK-134",
+  "title": "Remove experimental gating for promoted model roles",
+  "status": "draft",
+  "type": "config",
+  "priority": "high",
+  "branch": "task/TASK-134-remove-experimental-gating-promoted-model-roles",
+  "created_at": "2026-05-23",
+  "updated_at": "2026-05-23",
+  "context": {
+    "summary": "Promote the selected multimodal roles in config and @mindory/llm support metadata.",
+    "background": "TASK-133 registered the v0.1.1 support target. The first implementation step is changing the central support matrix so selected roles can be enabled without the install experimental flag while still requiring explicit user choice for heavy local runners."
+  },
+  "scope": {
+    "in": [
+      "Promote OCR, ASR, vision captioning, object detection, image embeddings, face detection, face recognition, image generation, audio generation, local-command and local-http provider paths in the config catalog and @mindory/llm support matrix.",
+      "Update installer validation so promoted roles are selectable without MINDORY_INSTALL_ALLOW_EXPERIMENTAL.",
+      "Keep heavy runner selection explicit with resource confirmation.",
+      "Update generated env/docs validation for the promoted support statuses."
+    ],
+    "out": [
+      "Adding new local model services.",
+      "Publishing a release."
+    ]
+  },
+  "acceptance_criteria": [
+    "Promoted roles validate as supported without MINDORY_INSTALL_ALLOW_EXPERIMENTAL.",
+    "Unsupported provider choices remain blocked by validation.",
+    "Installer prompts still require explicit selection for heavy local runners.",
+    "Docs and tests reflect the promoted support matrix."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm config:validate",
+      "pnpm installer:validate",
+      "pnpm llm:validate",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm default disabled roles do not trigger model calls.",
+      "Confirm promoted role enablement no longer depends on the experimental flag."
+    ]
+  },
+  "dependencies": [
+    "TASK-133"
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is done.",
+    "Branch is committed and merged back into master."
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "id": "TASK-144",
+  "title": "Publish v0.1.1 pre-release",
+  "status": "draft",
+  "type": "release",
+  "priority": "high",
+  "branch": "task/TASK-144-publish-v0-1-1-prerelease",
+  "created_at": "2026-05-23",
+  "updated_at": "2026-05-23",
+  "context": {
+    "summary": "Tag the current green master and publish v0.1.1 as a public pre-release.",
+    "background": "v0.1.1 must be a new immutable pre-release while v0.1.0 remains historical."
+  },
+  "scope": {
+    "in": [
+      "Create tag v0.1.1 from the current green master.",
+      "Trigger and verify the release workflow.",
+      "Verify GHCR image tags, signed release assets, checksums, manifest public key and release notes.",
+      "Document the published release URL."
+    ],
+    "out": [
+      "Retagging or modifying v0.1.0.",
+      "Changing product runtime behavior."
+    ]
+  },
+  "acceptance_criteria": [
+    "Tag v0.1.1 exists on the intended master commit.",
+    "GitHub release v0.1.1 is public and marked as a pre-release.",
+    "Signed manifest, public key, checksum, bundle and release notes assets are attached.",
+    "GHCR version and commit image tags are visible."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm check",
+      "git tag --list v0.1.1",
+      "gh run list --limit 5",
+      "gh release view v0.1.1",
+      "pnpm tasks:validate"
+    ],
+    "manual_checks": [
+      "Confirm v0.1.0 remains unchanged.",
+      "Confirm release workflow finished successfully."
+    ]
+  },
+  "dependencies": [
+    "TASK-143"
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is done.",
+    "Branch is committed and merged back into master."
+  ]
+}

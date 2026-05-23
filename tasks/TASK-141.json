@@ -1,0 +1,52 @@
+{
+  "id": "TASK-141",
+  "title": "Full multimodal live acceptance upgrade",
+  "status": "draft",
+  "type": "test",
+  "priority": "high",
+  "branch": "task/TASK-141-full-multimodal-live-acceptance-upgrade",
+  "created_at": "2026-05-23",
+  "updated_at": "2026-05-23",
+  "context": {
+    "summary": "Upgrade local-model acceptance to cover all v0.1.1 supported multimodal paths.",
+    "background": "The supported multimodal release must be gated by live fixture processing, search, source refs, job status and audit verification."
+  },
+  "scope": {
+    "in": [
+      "Extend pnpm local-model:acceptance for text, scanned PDF OCR, image OCR, image captioning, object detection, image vectors, audio ASR, video keyframes through image handlers, face matching, image generation and audio generation.",
+      "Verify artifacts, source refs, jobs, audit logs, metrics and search results.",
+      "Keep dry-run mode CI-safe and live mode explicit.",
+      "Document required resources and timeout controls."
+    ],
+    "out": [
+      "Publishing v0.1.1.",
+      "Changing provider implementations beyond acceptance fixes."
+    ]
+  },
+  "acceptance_criteria": [
+    "Dry-run acceptance verifies the full scenario wiring without Docker side effects.",
+    "Live acceptance processes all supported fixtures through selected local profiles.",
+    "Search returns expected metadata, source refs, vector-backed results and face matches.",
+    "Model-operation audit and metrics include every exercised role."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm local-model:acceptance",
+      "pnpm test",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Run MINDORY_LOCAL_MODEL_ACCEPTANCE_LIVE=true pnpm local-model:acceptance on Docker.",
+      "Confirm live logs show every promoted role executed."
+    ]
+  },
+  "dependencies": [
+    "TASK-140"
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is done.",
+    "Branch is committed and merged back into master."
+  ]
+}

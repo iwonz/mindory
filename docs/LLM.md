@@ -40,6 +40,17 @@ runner id, model role coverage, provider contract, image or source, model
 files, license/status, ports, healthcheck and CPU/RAM/disk/GPU hints for text
 embeddings, OCR, ASR, vision captioning, image embeddings and face roles.
 
+## v0.1.1 Promotion Target
+
+`v0.1.0` is historical and stale relative to the current `master` baseline.
+The `TASK-133` through `TASK-147` series targets `v0.1.1` as the fresh
+pre-release that promotes OCR, ASR, vision captioning, object detection, image
+embeddings, face detection/recognition, image generation, audio generation,
+local-command runners and local-http runners into checked supported paths.
+
+The support matrix below describes the current baseline until the follow-on
+implementation tasks are accepted.
+
 ## Support Matrix
 
 `@mindory/llm` exports the role/provider support matrix, and the config catalog

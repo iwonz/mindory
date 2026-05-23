@@ -139,7 +139,7 @@ left in place when present.
 Provide the trusted signing public key with one of:
 
 ```bash
-./install.sh --manifest-url https://github.com/iwonz/mindory/releases/download/v0.1.0/mindory-0.1.0.manifest.env --public-key-path ./mindory-0.1.0.manifest.env.public.pem
+./install.sh --manifest-url https://github.com/iwonz/mindory/releases/download/v0.1.1/mindory-0.1.1.manifest.env --public-key-path ./mindory-0.1.1.manifest.env.public.pem
 ./install.sh --manifest-url https://example.com/mindory.manifest.env --public-key-path ./mindory-release.public.pem
 MINDORY_RELEASE_PUBLIC_KEY_PATH=./mindory-release.public.pem ./install.sh --manifest-path ./mindory.manifest.env
 MINDORY_RELEASE_PUBLIC_KEY_PEM="$(cat ./mindory-release.public.pem)" ./install.sh --manifest-path ./mindory.manifest.env
@@ -148,6 +148,10 @@ MINDORY_RELEASE_PUBLIC_KEY_PEM="$(cat ./mindory-release.public.pem)" ./install.s
 ```powershell
 ./install.ps1 -ManifestUrl https://example.com/mindory.manifest.env -PublicKeyPath .\mindory-release.public.pem
 ```
+
+Historical reference: the stale `v0.1.0` pre-release manifest remains at
+`https://github.com/iwonz/mindory/releases/download/v0.1.0/mindory-0.1.0.manifest.env`
+for archive verification. The fresh target release line is `v0.1.1`.
 
 For local dev/test bundles, `pnpm release:bundle` also writes
 `<manifest>.public.pem` next to the manifest, and the bootstrap can use that
@@ -159,7 +163,7 @@ Use verify-only mode to test downloads, signatures and checksums without
 extracting or launching the wizard:
 
 ```bash
-./install.sh --manifest-path dist/releases/mindory-0.1.0.manifest.env --verify-only
+./install.sh --manifest-path dist/releases/mindory-0.1.1.manifest.env --verify-only
 MINDORY_PUBLISHED_RELEASE_ACCEPTANCE_LIVE=true pnpm published-release:acceptance
 ```
 
@@ -172,23 +176,23 @@ temporary `MINDORY_HOME` and runs the packaged installer `plan` command.
 Create a local release-style bundle and matching manifest with:
 
 ```bash
-pnpm release:bundle -- --version 0.1.0
+pnpm release:bundle -- --version 0.1.1
 ```
 
 By default this writes:
 
 ```text
-dist/releases/mindory-0.1.0.tar.gz
-dist/releases/mindory-0.1.0.manifest.env
-dist/releases/mindory-0.1.0.manifest.env.public.pem
+dist/releases/mindory-0.1.1.tar.gz
+dist/releases/mindory-0.1.1.manifest.env
+dist/releases/mindory-0.1.1.manifest.env.public.pem
 ```
 
 When `--url-base` is omitted, the generated manifest points at the bundle with a
 local `file://` URL for dev/test installs. For hosted releases, pass a base URL:
 
 ```bash
-pnpm release:bundle -- --version 0.1.0 --url-base https://downloads.example.com/mindory
-pnpm release:bundle -- --version 0.1.0 --url-base https://github.com/iwonz/mindory/releases/download/v0.1.0
+pnpm release:bundle -- --version 0.1.1 --url-base https://downloads.example.com/mindory
+pnpm release:bundle -- --version 0.1.1 --url-base https://github.com/iwonz/mindory/releases/download/v0.1.1
 ```
 
 Production release publishing should pass a real RSA private key through

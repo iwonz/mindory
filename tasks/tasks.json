@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-132",
+  "current_task_id": "TASK-133",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -960,6 +960,111 @@
       "status": "done",
       "branch": "task/TASK-132-final-public-pre-release-readiness-gate",
       "file": "tasks/TASK-132.json"
+    },
+    {
+      "id": "TASK-133",
+      "title": "Supported multimodal contract and task registry",
+      "status": "done",
+      "branch": "task/TASK-133-supported-multimodal-contract-task-registry",
+      "file": "tasks/TASK-133.json"
+    },
+    {
+      "id": "TASK-134",
+      "title": "Remove experimental gating for promoted model roles",
+      "status": "draft",
+      "branch": "task/TASK-134-remove-experimental-gating-promoted-model-roles",
+      "file": "tasks/TASK-134.json"
+    },
+    {
+      "id": "TASK-135",
+      "title": "Real local OCR runner profile",
+      "status": "draft",
+      "branch": "task/TASK-135-real-local-ocr-runner-profile",
+      "file": "tasks/TASK-135.json"
+    },
+    {
+      "id": "TASK-136",
+      "title": "Real local ASR runner profile",
+      "status": "draft",
+      "branch": "task/TASK-136-real-local-asr-runner-profile",
+      "file": "tasks/TASK-136.json"
+    },
+    {
+      "id": "TASK-137",
+      "title": "Real local vision object image embedding runners",
+      "status": "draft",
+      "branch": "task/TASK-137-real-local-vision-object-image-embedding-runners",
+      "file": "tasks/TASK-137.json"
+    },
+    {
+      "id": "TASK-138",
+      "title": "Real local face runner profile",
+      "status": "draft",
+      "branch": "task/TASK-138-real-local-face-runner-profile",
+      "file": "tasks/TASK-138.json"
+    },
+    {
+      "id": "TASK-139",
+      "title": "Supported image audio generation providers",
+      "status": "draft",
+      "branch": "task/TASK-139-supported-image-audio-generation-providers",
+      "file": "tasks/TASK-139.json"
+    },
+    {
+      "id": "TASK-140",
+      "title": "Installer multimodal supported-mode wizard",
+      "status": "draft",
+      "branch": "task/TASK-140-installer-multimodal-supported-mode-wizard",
+      "file": "tasks/TASK-140.json"
+    },
+    {
+      "id": "TASK-141",
+      "title": "Full multimodal live acceptance upgrade",
+      "status": "draft",
+      "branch": "task/TASK-141-full-multimodal-live-acceptance-upgrade",
+      "file": "tasks/TASK-141.json"
+    },
+    {
+      "id": "TASK-142",
+      "title": "Public docs no-experimental cleanup for supported path",
+      "status": "draft",
+      "branch": "task/TASK-142-public-docs-no-experimental-cleanup-supported-path",
+      "file": "tasks/TASK-142.json"
+    },
+    {
+      "id": "TASK-143",
+      "title": "Release notes and version preflight for v0.1.1",
+      "status": "draft",
+      "branch": "task/TASK-143-release-notes-version-preflight-v0-1-1",
+      "file": "tasks/TASK-143.json"
+    },
+    {
+      "id": "TASK-144",
+      "title": "Publish v0.1.1 pre-release",
+      "status": "draft",
+      "branch": "task/TASK-144-publish-v0-1-1-prerelease",
+      "file": "tasks/TASK-144.json"
+    },
+    {
+      "id": "TASK-145",
+      "title": "Published v0.1.1 bootstrap acceptance",
+      "status": "draft",
+      "branch": "task/TASK-145-published-v0-1-1-bootstrap-acceptance",
+      "file": "tasks/TASK-145.json"
+    },
+    {
+      "id": "TASK-146",
+      "title": "Final public-ready live gate",
+      "status": "draft",
+      "branch": "task/TASK-146-final-public-ready-live-gate",
+      "file": "tasks/TASK-146.json"
+    },
+    {
+      "id": "TASK-147",
+      "title": "Post-release public status lock",
+      "status": "draft",
+      "branch": "task/TASK-147-post-release-public-status-lock",
+      "file": "tasks/TASK-147.json"
     }
   ]
 }

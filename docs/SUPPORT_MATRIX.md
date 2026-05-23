@@ -3,6 +3,18 @@
 This matrix defines public wording for Mindory capabilities. Use it when
 writing README, issues, release notes and docs.
 
+## Release Track
+
+`v0.1.0` is a historical pre-release and is stale relative to current
+`master`. The fresh target pre-release is `v0.1.1`.
+
+The `v0.1.1` task series promotes the following model/runtime capabilities into
+checked supported local/install/runtime paths: OCR, ASR, vision captioning,
+object detection, image embeddings, face detection, face recognition, image
+generation, audio generation, local-command runners and local-http runners.
+Current support rows below remain authoritative until each implementation task
+is accepted.
+
 ## Status Terms
 
 | Term | Meaning |

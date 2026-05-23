@@ -2,6 +2,15 @@
 
 This checklist is the public release gate for Mindory tag builds.
 
+## Current Release Target
+
+`v0.1.0` is a historical pre-release and is stale relative to current
+`master`. The fresh public target is `v0.1.1`.
+
+`v0.1.1` must not overwrite or retag `v0.1.0`. It must be published as a new
+public pre-release after the `TASK-133` through `TASK-147` series promotes and
+verifies supported multimodal local/install/runtime paths.
+
 ## Required Repository Secrets
 
 - `MINDORY_RELEASE_SIGNING_PRIVATE_KEY_PEM`: RSA private key used only by the

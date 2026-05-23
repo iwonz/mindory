@@ -1,0 +1,52 @@
+{
+  "id": "TASK-142",
+  "title": "Public docs no-experimental cleanup for supported path",
+  "status": "draft",
+  "type": "docs",
+  "priority": "high",
+  "branch": "task/TASK-142-public-docs-no-experimental-cleanup-supported-path",
+  "created_at": "2026-05-23",
+  "updated_at": "2026-05-23",
+  "context": {
+    "summary": "Update public docs after the supported multimodal runtime is checked.",
+    "background": "After implementation and acceptance, public docs must stop describing promoted supported paths as experimental and must keep any remaining custom provider caveats precise."
+  },
+  "scope": {
+    "in": [
+      "Update README, support matrix, LLM docs, installer docs, document pipeline docs and release checklist for the promoted supported paths.",
+      "Keep custom external profiles separate from checked supported local profiles.",
+      "Update configuration docs and .env.example wording where support status changed.",
+      "Run public wording validation."
+    ],
+    "out": [
+      "Runtime behavior changes.",
+      "Publishing a release."
+    ]
+  },
+  "acceptance_criteria": [
+    "Promoted local multimodal paths are documented as supported where live acceptance covers them.",
+    "Docs do not overstate unchecked custom provider paths.",
+    "Release checklist includes the v0.1.1 multimodal gate.",
+    "Public wording validation and pnpm check pass."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm public-debt:validate",
+      "pnpm public:validate",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Review README and support matrix for v0.1.1 wording.",
+      "Confirm v0.1.0 is still described as historical."
+    ]
+  },
+  "dependencies": [
+    "TASK-141"
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is done.",
+    "Branch is committed and merged back into master."
+  ]
+}

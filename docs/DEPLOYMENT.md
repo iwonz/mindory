@@ -119,7 +119,7 @@ bundles must carry until the installer can render host-specific assets. The
 baseline bundle builder is:
 
 ```bash
-pnpm release:bundle -- --version 0.1.0
+pnpm release:bundle -- --version 0.1.1
 ```
 
 It writes `dist/releases/mindory-<version>.tar.gz`, a matching env-style

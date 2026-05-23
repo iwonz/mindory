@@ -1,0 +1,52 @@
+{
+  "id": "TASK-146",
+  "title": "Final public-ready live gate",
+  "status": "draft",
+  "type": "test",
+  "priority": "high",
+  "branch": "task/TASK-146-final-public-ready-live-gate",
+  "created_at": "2026-05-23",
+  "updated_at": "2026-05-23",
+  "context": {
+    "summary": "Run the final public-ready gate against published v0.1.1 and the supported multimodal profiles.",
+    "background": "The repository is only v0.1.1 public-ready after fresh clone, bootstrap, self-host, supported multimodal, Web UI, CLI/MCP and wording checks all pass."
+  },
+  "scope": {
+    "in": [
+      "Run MINDORY_PUBLIC_READY_LIVE=true pnpm public-ready:gate against v0.1.1 assets.",
+      "Verify fresh clone, pnpm check, published bootstrap, self-host matrix, supported multimodal local-model acceptance, Web UI E2E, CLI/MCP smoke and public wording validation.",
+      "Confirm clean git status after the gate.",
+      "Document exact live gate result."
+    ],
+    "out": [
+      "Changing product code unless needed to fix gate failures.",
+      "Publishing another release tag."
+    ]
+  },
+  "acceptance_criteria": [
+    "The live public-ready gate passes against published v0.1.1.",
+    "All delegated live acceptance commands complete successfully.",
+    "The gate verifies clean git status before completion.",
+    "Any gate fixes are committed in the TASK-146 branch before merge."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm public-ready:gate",
+      "MINDORY_PUBLIC_READY_LIVE=true pnpm public-ready:gate",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Review final gate logs for each delegated acceptance step.",
+      "Confirm no uncommitted files remain after live gate execution."
+    ]
+  },
+  "dependencies": [
+    "TASK-145"
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is done.",
+    "Branch is committed and merged back into master."
+  ]
+}

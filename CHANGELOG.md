@@ -20,6 +20,11 @@ documentation.
 
 ### Added
 
+- `TASK-133`: v0.1.1 supported multimodal release contract and task registry,
+  including task files for `TASK-133` through `TASK-147`, public docs that mark
+  `v0.1.0` as historical/stale and the target support set for OCR, ASR, vision,
+  object detection, image embeddings, face roles, generation roles and
+  local-command/local-http runners.
 - `TASK-132`: final public-ready pre-release gate with `pnpm public-ready:gate`,
   dry-run coverage in `pnpm check` and opt-in live orchestration for fresh
   clone, published release bootstrap, self-host gate, local-model acceptance,

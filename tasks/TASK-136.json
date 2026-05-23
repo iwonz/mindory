@@ -1,0 +1,53 @@
+{
+  "id": "TASK-136",
+  "title": "Real local ASR runner profile",
+  "status": "draft",
+  "type": "feature",
+  "priority": "high",
+  "branch": "task/TASK-136-real-local-asr-runner-profile",
+  "created_at": "2026-05-23",
+  "updated_at": "2026-05-23",
+  "context": {
+    "summary": "Add a supported local ASR runner with transcript artifacts and search acceptance.",
+    "background": "Audio processing needs a real local runner profile and checked worker path for v0.1.1."
+  },
+  "scope": {
+    "in": [
+      "Add a real local ASR runner profile such as faster-whisper.",
+      "Add Compose service, healthcheck, installer auto-install wiring, resource hints and diagnostics.",
+      "Persist transcript artifacts with time-coded source refs.",
+      "Index transcript chunks for full-text and semantic search when embeddings are enabled."
+    ],
+    "out": [
+      "Image, face or generation runners.",
+      "Publishing a release."
+    ]
+  },
+  "acceptance_criteria": [
+    "Installer can select, start and healthcheck the ASR runner.",
+    "Worker ASR calls use @mindory/llm only.",
+    "Audio uploads produce transcript segments with time refs and searchable text.",
+    "Live acceptance covers successful ASR and failed-runner diagnostics."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm local-models:validate",
+      "pnpm local-model-profiles:validate",
+      "pnpm test",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Run the ASR live profile on a Docker-capable machine.",
+      "Confirm transcript search returns time refs."
+    ]
+  },
+  "dependencies": [
+    "TASK-135"
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is done.",
+    "Branch is committed and merged back into master."
+  ]
+}

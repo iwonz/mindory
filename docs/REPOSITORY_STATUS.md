@@ -6,7 +6,18 @@ The repository should be described with the support levels in
 
 ## Current Baseline
 
-The repository is complete through `TASK-132`.
+The repository is complete through `TASK-133`.
+
+Release baseline:
+
+- `v0.1.0` is a historical pre-release and is stale relative to the current
+  `master` baseline.
+- `v0.1.1` is the fresh target pre-release for `TASK-133` through `TASK-147`.
+- The `v0.1.1` target promotes OCR, ASR, vision captioning, object detection,
+  image embeddings, face detection/recognition, image generation, audio
+  generation, local-command runners and local-http runners into checked
+  supported local/install/runtime paths. `TASK-133` registers this contract;
+  `TASK-134` through `TASK-147` execute and verify it one task at a time.
 
 Supported local MVP path:
 
@@ -127,7 +138,7 @@ Supported local MVP path:
   self-host live matrix, local-model live acceptance, Web UI Playwright flow,
   CLI/MCP smoke coverage through self-host acceptance, public stale wording
   validation and clean `git status --short`.
-- Public current-state docs are aligned with the TASK-132 runtime baseline and
+- Public current-state docs are aligned with the TASK-133 runtime baseline and
   distinguish checked local-MVP paths from planned release work.
 
 Public GitHub hygiene baseline:

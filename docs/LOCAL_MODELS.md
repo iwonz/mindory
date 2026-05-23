@@ -15,6 +15,15 @@ Each catalog entry records:
 - model files and target storage path under `MINDORY_HOME`;
 - license/status, ports, healthcheck and resource hints.
 
+## v0.1.1 Supported Runtime Target
+
+`v0.1.0` is historical and stale relative to the current `master` baseline.
+The `TASK-133` through `TASK-147` series targets `v0.1.1` with checked local
+runner paths for OCR, ASR, vision captioning, object detection, image
+embeddings, face detection, face recognition, image generation and audio
+generation. Existing status values in the catalog table remain current until
+the runner-specific implementation and live acceptance tasks are accepted.
+
 ## Catalog Entries
 
 | ID | Roles | Provider | Status | Image or source | Ports | Healthcheck | Resource hint | License |

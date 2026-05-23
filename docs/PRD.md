@@ -144,6 +144,13 @@ self-host live matrix, local-model acceptance, Web UI E2E, public wording
 validation and clean git status before announcing a pre-release as usable by
 others.
 
+Release note: `v0.1.0` is a historical pre-release and is stale relative to the
+current `master` baseline. The fresh target pre-release is `v0.1.1`; the
+`TASK-133` through `TASK-147` series promotes OCR, ASR, vision captioning,
+object detection, image embeddings, face detection/recognition, image
+generation, audio generation, local-command runners and local-http runners into
+checked supported local/install/runtime paths.
+
 Do not implement the remaining non-goals unless a task explicitly scopes them.
 
 ---
