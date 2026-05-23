@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-137",
+  "current_task_id": "TASK-138",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -999,7 +999,7 @@
     {
       "id": "TASK-138",
       "title": "Real local face runner profile",
-      "status": "draft",
+      "status": "done",
       "branch": "task/TASK-138-real-local-face-runner-profile",
       "file": "tasks/TASK-138.json"
     },

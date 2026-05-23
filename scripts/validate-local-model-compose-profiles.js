@@ -54,6 +54,11 @@ for (const token of [
   "MINDORY_LLM_IMAGE_EMBEDDING_LOCAL_HTTP_BASE_URL",
   "MINDORY_LLM_VISION_CAPTIONING_LOCAL_HTTP_BASE_URL",
   "MINDORY_IMAGE_SEMANTICS_HEALTH_LOAD_MODEL",
+  "profiles: [\"local-models-face\"]",
+  "deploy/local-models/face/local-face/Dockerfile",
+  "MINDORY_LLM_FACE_DETECTION_LOCAL_HTTP_BASE_URL",
+  "MINDORY_LLM_FACE_RECOGNITION_LOCAL_HTTP_BASE_URL",
+  "MINDORY_FACE_HEALTH_LOAD_MODEL",
   "profiles: [\"ollama\"]",
   "ollama/ollama:latest",
   "test: [\"CMD\", \"ollama\", \"list\"]",
@@ -72,6 +77,8 @@ for (const token of [
   "MINDORY_LLM_VISION_CAPTIONING_PROVIDER",
   "MINDORY_LLM_FACE_DETECTION_PROVIDER",
   "MINDORY_LLM_FACE_RECOGNITION_PROVIDER",
+  "MINDORY_LLM_FACE_DETECTION_LOCAL_HTTP_BASE_URL",
+  "MINDORY_LLM_FACE_RECOGNITION_LOCAL_HTTP_BASE_URL",
   "MINDORY_LLM_LOCAL_HTTP_BASE_URL"
 ]) {
   assert(mvpDemo.includes(token), `scripts/mvp-demo.js must include ${token}.`);
@@ -97,12 +104,14 @@ for (const assetPath of [
   "deploy/local-models/asr/faster-whisper/Dockerfile",
   "deploy/local-models/asr/faster-whisper/server.py",
   "deploy/local-models/vision/image-semantics/Dockerfile",
-  "deploy/local-models/vision/image-semantics/server.py"
+  "deploy/local-models/vision/image-semantics/server.py",
+  "deploy/local-models/face/local-face/Dockerfile",
+  "deploy/local-models/face/local-face/server.py"
 ]) {
   assert(releaseManifest.assets?.some((asset) => asset.path === assetPath && asset.required === true), `Release manifest must include local model runner asset ${assetPath}.`);
 }
 
-for (const token of ["MINDORY_LOCAL_OCR_ACCEPTANCE_LIVE", "createTextPngWithDocker", "createTextPdfBuffer", "/ocr", "MINDORY_LOCAL_ASR_ACCEPTANCE_LIVE", "createAsrFixtureWithDocker", "/asr", "MINDORY_LOCAL_VISION_ACCEPTANCE_LIVE", "createVisionFixtureWithDocker", "/embeddings/images", "/vision/caption", "/vision/objects"]) {
+for (const token of ["MINDORY_LOCAL_OCR_ACCEPTANCE_LIVE", "createTextPngWithDocker", "createTextPdfBuffer", "/ocr", "MINDORY_LOCAL_ASR_ACCEPTANCE_LIVE", "createAsrFixtureWithDocker", "/asr", "MINDORY_LOCAL_VISION_ACCEPTANCE_LIVE", "createVisionFixtureWithDocker", "/embeddings/images", "/vision/caption", "/vision/objects", "MINDORY_LOCAL_FACE_ACCEPTANCE_LIVE", "createFaceFixtureWithDocker", "/faces/detect", "/faces/recognize"]) {
   assert(localModelAcceptance.includes(token), `Local model acceptance must include live runner token ${token}.`);
 }
 

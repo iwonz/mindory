@@ -175,6 +175,8 @@ export interface LlmProviderAnswers {
   localHttpVisionCaptioningBaseUrl: string;
   localHttpOcrBaseUrl: string;
   localHttpAsrBaseUrl: string;
+  localHttpFaceDetectionBaseUrl: string;
+  localHttpFaceRecognitionBaseUrl: string;
   localCommandTimeoutMs: number;
   localCommandHealthcheckCommand: string;
   localCommandHealthcheckArgs: string[];
@@ -974,6 +976,8 @@ export function createDefaultInstallAnswers(overrides: Partial<MindoryInstallAns
       localHttpVisionCaptioningBaseUrl: catalogDefault("MINDORY_LLM_VISION_CAPTIONING_LOCAL_HTTP_BASE_URL"),
       localHttpOcrBaseUrl: catalogDefault("MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL"),
       localHttpAsrBaseUrl: catalogDefault("MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL"),
+      localHttpFaceDetectionBaseUrl: catalogDefault("MINDORY_LLM_FACE_DETECTION_LOCAL_HTTP_BASE_URL"),
+      localHttpFaceRecognitionBaseUrl: catalogDefault("MINDORY_LLM_FACE_RECOGNITION_LOCAL_HTTP_BASE_URL"),
       localCommandTimeoutMs: Number.parseInt(catalogDefault("MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS"), 10),
       localCommandHealthcheckCommand: catalogDefault("MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND"),
       localCommandHealthcheckArgs: parseJsonStringArray(catalogDefault("MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS"), "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS"),
@@ -1088,6 +1092,8 @@ export function createInstallAnswersFromHome(mindoryHome: string): MindoryInstal
       localHttpVisionCaptioningBaseUrl: envValue(env, "MINDORY_LLM_VISION_CAPTIONING_LOCAL_HTTP_BASE_URL"),
       localHttpOcrBaseUrl: envValue(env, "MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL"),
       localHttpAsrBaseUrl: envValue(env, "MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL"),
+      localHttpFaceDetectionBaseUrl: envValue(env, "MINDORY_LLM_FACE_DETECTION_LOCAL_HTTP_BASE_URL"),
+      localHttpFaceRecognitionBaseUrl: envValue(env, "MINDORY_LLM_FACE_RECOGNITION_LOCAL_HTTP_BASE_URL"),
       localCommandTimeoutMs: envNumber(env, "MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS"),
       localCommandHealthcheckCommand: envValue(env, "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND"),
       localCommandHealthcheckArgs: parseJsonStringArray(envValue(env, "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS"), "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS"),
@@ -3307,6 +3313,8 @@ export function answersToEnvMap(answers: MindoryInstallAnswers): Record<string, 
   assign(env, "MINDORY_LLM_VISION_CAPTIONING_LOCAL_HTTP_BASE_URL", answers.llmProviders.localHttpVisionCaptioningBaseUrl);
   assign(env, "MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL", answers.llmProviders.localHttpOcrBaseUrl);
   assign(env, "MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL", answers.llmProviders.localHttpAsrBaseUrl);
+  assign(env, "MINDORY_LLM_FACE_DETECTION_LOCAL_HTTP_BASE_URL", answers.llmProviders.localHttpFaceDetectionBaseUrl);
+  assign(env, "MINDORY_LLM_FACE_RECOGNITION_LOCAL_HTTP_BASE_URL", answers.llmProviders.localHttpFaceRecognitionBaseUrl);
   assign(env, "MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS", String(answers.llmProviders.localCommandTimeoutMs));
   assign(env, "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND", answers.llmProviders.localCommandHealthcheckCommand);
   assign(env, "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS", JSON.stringify(answers.llmProviders.localCommandHealthcheckArgs));
@@ -3830,6 +3838,14 @@ function applyLocalHttpRunnerEndpoint(
   }
   if (role === "ASR") {
     answers.llmProviders.localHttpAsrBaseUrl = serviceBaseUrl;
+    return;
+  }
+  if (role === "FACE_DETECTION") {
+    answers.llmProviders.localHttpFaceDetectionBaseUrl = serviceBaseUrl;
+    return;
+  }
+  if (role === "FACE_RECOGNITION") {
+    answers.llmProviders.localHttpFaceRecognitionBaseUrl = serviceBaseUrl;
     return;
   }
   answers.llmProviders.localHttpBaseUrl = serviceBaseUrl;

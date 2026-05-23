@@ -10,6 +10,7 @@ const live = process.env.MINDORY_LOCAL_MODEL_ACCEPTANCE_LIVE === "true";
 const ocrLive = process.env.MINDORY_LOCAL_OCR_ACCEPTANCE_LIVE === "true";
 const asrLive = process.env.MINDORY_LOCAL_ASR_ACCEPTANCE_LIVE === "true";
 const visionLive = process.env.MINDORY_LOCAL_VISION_ACCEPTANCE_LIVE === "true";
+const faceLive = process.env.MINDORY_LOCAL_FACE_ACCEPTANCE_LIVE === "true";
 const timeoutMs = parsePositiveInteger(process.env.MINDORY_LOCAL_MODEL_ACCEPTANCE_TIMEOUT_MS ?? "300000", "MINDORY_LOCAL_MODEL_ACCEPTANCE_TIMEOUT_MS");
 
 const FONT = {
@@ -59,7 +60,10 @@ if (asrLive) {
 if (visionLive) {
   await runVisionRunnerLiveAcceptance();
 }
-if (!live && !ocrLive && !asrLive && !visionLive) {
+if (faceLive) {
+  await runFaceRunnerLiveAcceptance();
+}
+if (!live && !ocrLive && !asrLive && !visionLive && !faceLive) {
   runDryRunAcceptance();
 }
 
@@ -75,6 +79,7 @@ function runDryRunAcceptance() {
   const tesseractServer = fs.readFileSync(path.join(root, "deploy", "local-models", "ocr", "tesseract", "server.py"), "utf8");
   const asrServer = fs.readFileSync(path.join(root, "deploy", "local-models", "asr", "faster-whisper", "server.py"), "utf8");
   const visionServer = fs.readFileSync(path.join(root, "deploy", "local-models", "vision", "image-semantics", "server.py"), "utf8");
+  const faceServer = fs.readFileSync(path.join(root, "deploy", "local-models", "face", "local-face", "server.py"), "utf8");
 
   assert(packageJson.scripts?.["local-model:acceptance"] === "node scripts/local-model-acceptance.js", "Root package must expose local-model:acceptance.");
   assert(checkRepo.includes("local-model:acceptance"), "Repository checks must include local-model:acceptance.");
@@ -121,7 +126,12 @@ function runDryRunAcceptance() {
     "deploy/local-models/vision/image-semantics/Dockerfile",
     "MINDORY_LLM_IMAGE_EMBEDDING_LOCAL_HTTP_BASE_URL",
     "MINDORY_LLM_VISION_CAPTIONING_LOCAL_HTTP_BASE_URL",
-    "MINDORY_IMAGE_SEMANTICS_HEALTH_LOAD_MODEL"
+    "MINDORY_IMAGE_SEMANTICS_HEALTH_LOAD_MODEL",
+    "local-models-face",
+    "deploy/local-models/face/local-face/Dockerfile",
+    "MINDORY_LLM_FACE_DETECTION_LOCAL_HTTP_BASE_URL",
+    "MINDORY_LLM_FACE_RECOGNITION_LOCAL_HTTP_BASE_URL",
+    "MINDORY_FACE_HEALTH_LOAD_MODEL"
   ]) {
     assert(compose.includes(token), `Local model Compose profile must include ${token}.`);
   }
@@ -134,9 +144,13 @@ function runDryRunAcceptance() {
   for (const token of ["numpy", "PIL", "POST", "/embeddings/images", "/vision/caption", "/vision/objects", "bounding_box", "image_embedding_failed"]) {
     assert(visionServer.includes(token), `Image semantics runner server must include ${token}.`);
   }
+  for (const token of ["cv2", "PIL", "POST", "/faces/detect", "/faces/recognize", "bounding_box", "face_detection_failed"]) {
+    assert(faceServer.includes(token), `Local face runner server must include ${token}.`);
+  }
   assert(localModelsDocs.includes("MINDORY_LOCAL_OCR_ACCEPTANCE_LIVE=true"), "Local model docs must document live Tesseract acceptance.");
   assert(localModelsDocs.includes("MINDORY_LOCAL_ASR_ACCEPTANCE_LIVE=true"), "Local model docs must document live Faster Whisper acceptance.");
   assert(localModelsDocs.includes("MINDORY_LOCAL_VISION_ACCEPTANCE_LIVE=true"), "Local model docs must document live image semantics acceptance.");
+  assert(localModelsDocs.includes("MINDORY_LOCAL_FACE_ACCEPTANCE_LIVE=true"), "Local model docs must document live face runner acceptance.");
   console.log("Local model acceptance dry-run passed. Set MINDORY_LOCAL_MODEL_ACCEPTANCE_LIVE=true to run the Docker local-model path.");
 }
 
@@ -284,6 +298,48 @@ async function runVisionRunnerLiveAcceptance() {
   }
 }
 
+async function runFaceRunnerLiveAcceptance() {
+  const facePort = await findFreePort(8086 + Math.floor(Math.random() * 1000));
+  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-local-face-acceptance-"));
+  const env = {
+    ...process.env,
+    MINDORY_HOME: tempHome,
+    MINDORY_FACE_PORT: String(facePort),
+    MINDORY_LLM_FACE_DETECTION_LOCAL_HTTP_BASE_URL: `http://faces:8086`,
+    MINDORY_LLM_FACE_RECOGNITION_LOCAL_HTTP_BASE_URL: `http://faces:8086`,
+    MINDORY_LLM_FACE_DETECTION_MODEL: "mindory-local-face-v1",
+    MINDORY_LLM_FACE_RECOGNITION_MODEL: "mindory-local-face-v1"
+  };
+  try {
+    run("docker", ["compose", "--profile", "local-models-face", "up", "--build", "-d", "faces"], env);
+    const baseUrl = `http://127.0.0.1:${facePort}`;
+    await waitForHttpOk(`${baseUrl}/health`, timeoutMs);
+    const fixture = createFaceFixtureWithDocker(env);
+    const detected = await postFaceDetect(baseUrl, fixture, "image/png");
+    assert(Array.isArray(detected.faces) && detected.faces.length > 0, "Local face live detection must return at least one face.");
+    assert(Array.isArray(detected.faces[0].embedding) && detected.faces[0].embedding.length === 512, "Local face live detection must return 512-dimensional embeddings.");
+    assert(detected.faces[0].bounding_box && Number(detected.faces[0].bounding_box.width) > 0, "Local face live detection must include bounding boxes.");
+    const recognized = await postFaceRecognize(baseUrl, fixture, "image/png");
+    assert(Array.isArray(recognized.faces) && recognized.faces.length > 0, "Local face live recognition must return recognized face observations.");
+    assert(Array.isArray(recognized.identity_ids) && recognized.identity_ids.length > 0, "Local face live recognition must return deterministic identity ids.");
+    await assertFaceFailureDiagnostics(baseUrl);
+    console.log("Local face runner live acceptance passed.");
+  } catch (error) {
+    try {
+      run("docker", ["compose", "--profile", "local-models-face", "logs", "faces"], env);
+    } catch {
+      // Keep the original acceptance error when log collection itself fails.
+    }
+    throw error;
+  } finally {
+    try {
+      run("docker", ["compose", "--profile", "local-models-face", "down", "--remove-orphans"], env);
+    } finally {
+      removeIfSafeTempPath(tempHome);
+    }
+  }
+}
+
 async function waitForHttpOk(url, timeout) {
   const deadline = Date.now() + timeout;
   let lastError = "";
@@ -356,6 +412,40 @@ async function postImageEmbeddings(baseUrl, bytes, mimeType, dimensions) {
   return JSON.parse(text);
 }
 
+async function postFaceDetect(baseUrl, bytes, mimeType) {
+  const response = await fetch(`${baseUrl}/faces/detect`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      model: "mindory-local-face-v1",
+      mime_type: mimeType,
+      data_base64: bytes.toString("base64")
+    })
+  });
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(`Face detection request failed with ${response.status}: ${text}`);
+  }
+  return JSON.parse(text);
+}
+
+async function postFaceRecognize(baseUrl, bytes, mimeType) {
+  const response = await fetch(`${baseUrl}/faces/recognize`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      model: "mindory-local-face-v1",
+      mime_type: mimeType,
+      data_base64: bytes.toString("base64")
+    })
+  });
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(`Face recognition request failed with ${response.status}: ${text}`);
+  }
+  return JSON.parse(text);
+}
+
 async function postOcr(baseUrl, bytes, mimeType) {
   const response = await fetch(`${baseUrl}/ocr`, {
     method: "POST",
@@ -403,6 +493,21 @@ async function assertVisionFailureDiagnostics(baseUrl) {
   const text = await response.text();
   assert(!response.ok, "Image semantics live caption must reject invalid image bytes.");
   assert(text.includes("vision_failed"), "Image semantics live failure response must include vision_failed diagnostics.");
+}
+
+async function assertFaceFailureDiagnostics(baseUrl) {
+  const response = await fetch(`${baseUrl}/faces/detect`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      model: "mindory-local-face-v1",
+      mime_type: "image/png",
+      data_base64: Buffer.from("not an image").toString("base64")
+    })
+  });
+  const text = await response.text();
+  assert(!response.ok, "Local face live detection must reject invalid image bytes.");
+  assert(text.includes("face_detection_failed"), "Local face live failure response must include face_detection_failed diagnostics.");
 }
 
 async function assertAsrFailureDiagnostics(baseUrl) {
@@ -455,6 +560,34 @@ sys.stdout.write(base64.b64encode(buffer.getvalue()).decode("ascii"))
   });
   if ((result.status ?? 1) !== 0) {
     throw new Error(`Could not create vision image fixture: ${(result.stderr || result.stdout).trim()}`);
+  }
+  return Buffer.from(result.stdout.trim(), "base64");
+}
+
+function createFaceFixtureWithDocker(env) {
+  const script = `
+import base64
+import io
+import sys
+from PIL import Image, ImageDraw
+
+image = Image.new("RGB", (320, 320), "white")
+draw = ImageDraw.Draw(image)
+draw.ellipse((68, 38, 252, 250), fill=(238, 190, 150), outline=(90, 55, 35), width=4)
+draw.ellipse((118, 104, 142, 128), fill=(20, 20, 20))
+draw.ellipse((178, 104, 202, 128), fill=(20, 20, 20))
+draw.arc((118, 145, 202, 205), 20, 160, fill=(120, 40, 40), width=5)
+buffer = io.BytesIO()
+image.save(buffer, format="PNG")
+sys.stdout.write(base64.b64encode(buffer.getvalue()).decode("ascii"))
+`;
+  const result = spawnSync("docker", ["compose", "--profile", "local-models-face", "exec", "-T", "faces", "python", "-c", script], {
+    cwd: root,
+    env,
+    encoding: "utf8"
+  });
+  if ((result.status ?? 1) !== 0) {
+    throw new Error(`Could not create face image fixture: ${(result.stderr || result.stdout).trim()}`);
   }
   return Buffer.from(result.stdout.trim(), "base64");
 }

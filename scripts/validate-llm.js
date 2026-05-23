@@ -175,6 +175,8 @@ for (const token of [
   "MINDORY_LLM_VISION_CAPTIONING_LOCAL_HTTP_BASE_URL",
   "MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL",
   "MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL",
+  "MINDORY_LLM_FACE_DETECTION_LOCAL_HTTP_BASE_URL",
+  "MINDORY_LLM_FACE_RECOGNITION_LOCAL_HTTP_BASE_URL",
   "MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS",
   "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND",
   "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS",
@@ -208,6 +210,10 @@ for (const token of [
   "MINDORY_LLM_LOCAL_HTTP_BASE_URL",
   "MINDORY_LLM_IMAGE_EMBEDDING_LOCAL_HTTP_BASE_URL",
   "MINDORY_LLM_VISION_CAPTIONING_LOCAL_HTTP_BASE_URL",
+  "MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL",
+  "MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL",
+  "MINDORY_LLM_FACE_DETECTION_LOCAL_HTTP_BASE_URL",
+  "MINDORY_LLM_FACE_RECOGNITION_LOCAL_HTTP_BASE_URL",
   "MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS",
   "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND",
   "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS",
@@ -240,6 +246,10 @@ for (const token of [
   "MINDORY_LLM_LOCAL_HTTP_BASE_URL",
   "MINDORY_LLM_IMAGE_EMBEDDING_LOCAL_HTTP_BASE_URL",
   "MINDORY_LLM_VISION_CAPTIONING_LOCAL_HTTP_BASE_URL",
+  "MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL",
+  "MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL",
+  "MINDORY_LLM_FACE_DETECTION_LOCAL_HTTP_BASE_URL",
+  "MINDORY_LLM_FACE_RECOGNITION_LOCAL_HTTP_BASE_URL",
   "MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS",
   "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND",
   "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS",
@@ -501,6 +511,8 @@ const localConfig = loadMindoryConfig({
   MINDORY_LLM_VISION_CAPTIONING_LOCAL_HTTP_BASE_URL: "http://vision.local:8082",
   MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL: "http://ocr.local:8083",
   MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL: "http://asr.local:8084",
+  MINDORY_LLM_FACE_DETECTION_LOCAL_HTTP_BASE_URL: "http://faces.local:8086",
+  MINDORY_LLM_FACE_RECOGNITION_LOCAL_HTTP_BASE_URL: "http://faces.local:8086",
   MINDORY_LLM_OLLAMA_BASE_URL: "http://ollama.local:11434"
 });
 const localRuntime = buildMindoryLlm(localConfig, {
@@ -695,8 +707,8 @@ assert(localRequests.some((request) => request.url === "http://ocr.local:8083/oc
 assert(localRequests.some((request) => request.url === "http://asr.local:8084/asr"), "Local HTTP ASR provider must use the ASR-specific base URL override.");
 assert(localRequests.some((request) => request.url === "http://vision.local:8082/vision/caption"), "Local HTTP vision provider must use the vision-captioning-specific base URL override.");
 assert(localRequests.some((request) => request.url === "http://vision.local:8082/vision/objects"), "Local HTTP object detection provider must use the vision-captioning-specific base URL override.");
-assert(localRequests.some((request) => request.url === "http://llm.local:8080/faces/detect"), "Local HTTP face detection provider must call /faces/detect.");
-assert(localRequests.some((request) => request.url === "http://llm.local:8080/faces/recognize"), "Local HTTP face recognition provider must call /faces/recognize.");
+assert(localRequests.some((request) => request.url === "http://faces.local:8086/faces/detect"), "Local HTTP face detection provider must use the face-detection-specific base URL override.");
+assert(localRequests.some((request) => request.url === "http://faces.local:8086/faces/recognize"), "Local HTTP face recognition provider must use the face-recognition-specific base URL override.");
 assert(localRequests.some((request) => request.url === "http://llm.local:8080/generation/image"), "Local HTTP image generation provider must call /generation/image.");
 assert(localRequests.some((request) => request.url === "http://llm.local:8080/generation/audio"), "Local HTTP audio generation provider must call /generation/audio.");
 const localHealth = await localRuntime.healthCheck("local-http");

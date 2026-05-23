@@ -164,6 +164,8 @@ x-mindory-env: &mindory-env
   MINDORY_LLM_VISION_CAPTIONING_LOCAL_HTTP_BASE_URL: ${MINDORY_LLM_VISION_CAPTIONING_LOCAL_HTTP_BASE_URL:-}
   MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL: ${MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL:-}
   MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL: ${MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL:-}
+  MINDORY_LLM_FACE_DETECTION_LOCAL_HTTP_BASE_URL: ${MINDORY_LLM_FACE_DETECTION_LOCAL_HTTP_BASE_URL:-}
+  MINDORY_LLM_FACE_RECOGNITION_LOCAL_HTTP_BASE_URL: ${MINDORY_LLM_FACE_RECOGNITION_LOCAL_HTTP_BASE_URL:-}
   MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS: ${MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS:-120000}
   MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND: ${MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND:-}
   MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS: ${MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS:-["healthcheck","--role","{role}","--model","{model}"]}
@@ -616,4 +618,35 @@ services:
       start_period: 120s
     volumes:
       - ${MINDORY_HOME:-${HOME}/.mindory}/data/models/whisper:/data/mindory/models/whisper
+      - ${MINDORY_HOME:-${HOME}/.mindory}/logs:/data/mindory/logs
+
+  faces:
+    build:
+      context: .
+      dockerfile: deploy/local-models/face/local-face/Dockerfile
+    profiles: ["local-models-face"]
+    restart: unless-stopped
+    environment:
+      MINDORY_FACE_HOST: 0.0.0.0
+      MINDORY_FACE_PORT: "8086"
+      MINDORY_FACE_MODEL: ${MINDORY_FACE_MODEL:-mindory-local-face-v1}
+      MINDORY_FACE_EMBEDDING_DIMENSIONS: ${MINDORY_FACE_EMBEDDING_DIMENSIONS:-512}
+      MINDORY_FACE_MIN_AREA_RATIO: ${MINDORY_FACE_MIN_AREA_RATIO:-0.01}
+      MINDORY_FACE_HEALTH_LOAD_MODEL: ${MINDORY_FACE_HEALTH_LOAD_MODEL:-true}
+    ports:
+      - "${MINDORY_FACE_PORT:-8086}:8086"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8086/health', timeout=30).status < 400 else 1)"
+        ]
+      interval: 15s
+      timeout: 30s
+      retries: 20
+      start_period: 30s
+    volumes:
+      - ${MINDORY_HOME:-${HOME}/.mindory}/data/models/face:/data/mindory/models/face
       - ${MINDORY_HOME:-${HOME}/.mindory}/logs:/data/mindory/logs

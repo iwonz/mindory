@@ -24,11 +24,11 @@ const dockerignore = fs.readFileSync(dockerignorePath, "utf8");
 const releaseManifest = JSON.parse(fs.readFileSync(releaseManifestPath, "utf8"));
 const legacyServiceScript = "scripts/docker-" + "place" + "holder-service.mjs";
 
-for (const service of ["postgres", "redis", "migrate", "api", "ui", "mcp", "worker", "librefs", "librefs-bucket", "minio", "minio-bucket", "docling", "vision", "ocr"]) {
+for (const service of ["postgres", "redis", "migrate", "api", "ui", "mcp", "worker", "librefs", "librefs-bucket", "minio", "minio-bucket", "docling", "vision", "ocr", "asr", "faces"]) {
   assert(compose.includes(`\n  ${service}:`), `docker-compose.yml must define ${service}.`);
 }
 
-for (const profile of ["librefs", "minio", "clamav", "qdrant", "docling", "ollama", "local-models", "local-models-vision", "local-models-ocr", "local-models-asr"]) {
+for (const profile of ["librefs", "minio", "clamav", "qdrant", "docling", "ollama", "local-models", "local-models-vision", "local-models-ocr", "local-models-asr", "local-models-face"]) {
   assert(compose.includes(`profiles: [\"${profile}\"]`), `docker-compose.yml must define the ${profile} profile.`);
 }
 
@@ -111,6 +111,10 @@ assert(compose.includes("deploy/local-models/vision/image-semantics/Dockerfile")
 assert(compose.includes("MINDORY_LLM_IMAGE_EMBEDDING_LOCAL_HTTP_BASE_URL"), "Compose must expose the image-embedding-specific local HTTP endpoint override.");
 assert(compose.includes("MINDORY_LLM_VISION_CAPTIONING_LOCAL_HTTP_BASE_URL"), "Compose must expose the vision-captioning-specific local HTTP endpoint override.");
 assert(compose.includes("MINDORY_IMAGE_SEMANTICS_HEALTH_LOAD_MODEL"), "Compose must health-check image semantics model operations.");
+assert(compose.includes("deploy/local-models/face/local-face/Dockerfile"), "Compose must build the supported local face runner image.");
+assert(compose.includes("MINDORY_LLM_FACE_DETECTION_LOCAL_HTTP_BASE_URL"), "Compose must expose the face-detection-specific local HTTP endpoint override.");
+assert(compose.includes("MINDORY_LLM_FACE_RECOGNITION_LOCAL_HTTP_BASE_URL"), "Compose must expose the face-recognition-specific local HTTP endpoint override.");
+assert(compose.includes("MINDORY_FACE_HEALTH_LOAD_MODEL"), "Compose must health-check local face model operations.");
 for (const envName of [
   "MINDORY_DOCUMENT_PROCESSING_PDF_ENABLED: ${MINDORY_DOCUMENT_PROCESSING_PDF_ENABLED:-true}",
   "MINDORY_DOCUMENT_PROCESSING_IMAGE_ENABLED: ${MINDORY_DOCUMENT_PROCESSING_IMAGE_ENABLED:-true}",
@@ -130,7 +134,7 @@ assert(override.includes("NODE_ENV: development"), "docker-compose.override.yml 
 assert(testCompose.includes("name: mindory-test"), "docker-compose.test.yml must isolate the integration test project.");
 assert(testCompose.includes("MINDORY_TEST_POSTGRES_PORT"), "docker-compose.test.yml must expose configurable PostgreSQL test port.");
 assert(testCompose.includes("MINDORY_TEST_REDIS_PORT"), "docker-compose.test.yml must expose configurable Redis test port.");
-for (const assetPath of ["docker-compose.yml", "Dockerfile", ".env.example", "deploy/local-models/ocr/tesseract/Dockerfile", "deploy/local-models/ocr/tesseract/server.py", "deploy/local-models/asr/faster-whisper/Dockerfile", "deploy/local-models/asr/faster-whisper/server.py", "deploy/local-models/vision/image-semantics/Dockerfile", "deploy/local-models/vision/image-semantics/server.py"]) {
+for (const assetPath of ["docker-compose.yml", "Dockerfile", ".env.example", "deploy/local-models/ocr/tesseract/Dockerfile", "deploy/local-models/ocr/tesseract/server.py", "deploy/local-models/asr/faster-whisper/Dockerfile", "deploy/local-models/asr/faster-whisper/server.py", "deploy/local-models/vision/image-semantics/Dockerfile", "deploy/local-models/vision/image-semantics/server.py", "deploy/local-models/face/local-face/Dockerfile", "deploy/local-models/face/local-face/server.py"]) {
   assert(releaseManifest.assets?.some((asset) => asset.path === assetPath && asset.required === true), `Release Compose manifest must include ${assetPath}.`);
 }
 for (const homeDirectory of ["config", "data/postgres", "data/redis", "data/objects", "data/librefs", "data/models", "data/ollama", "logs", "backups", "install"]) {

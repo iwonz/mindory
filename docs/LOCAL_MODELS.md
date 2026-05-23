@@ -22,10 +22,11 @@ The `TASK-133` through `TASK-147` series targets `v0.1.1` with checked local
 runner paths for OCR, ASR, vision captioning, object detection, image
 embeddings, face detection, face recognition, image generation and audio
 generation. OCR is supported through Tesseract, ASR is supported through Faster
-Whisper, and image caption/object/vector processing is supported through the
-Mindory local image semantics runner. The remaining runner-specific rows keep
-their catalog status until their implementation and live acceptance tasks are
-accepted.
+Whisper, image caption/object/vector processing is supported through the
+Mindory local image semantics runner, and face detection/recognition is
+supported through the Mindory local face runner. Image/audio generation runner
+profiles are tracked by their own implementation tasks before they appear in
+the install catalog.
 
 ## Catalog Entries
 
@@ -36,7 +37,7 @@ accepted.
 | `mindory-image-semantics-v1` | image embeddings, vision captioning | `local-http` | supported | Mindory image semantics adapter image built from `deploy/local-models/vision/image-semantics/Dockerfile` | `8082` | `GET /health` with sample caption/object/vector pass | 2+ CPU, 2GB+ RAM, 1GB+ disk, no GPU | Apache-2.0 |
 | `tesseract-local-ocr` | OCR | `local-http` | supported | Mindory Tesseract adapter image built from `deploy/local-models/ocr/tesseract/Dockerfile`, `tesseract-ocr-eng` language data | `8083` | `GET /health` with language verification | 2+ CPU, 4GB+ RAM, 1GB+ disk, optional GPU | Apache-2.0 |
 | `faster-whisper-tiny-asr` | ASR | `local-http` | supported | Mindory Faster Whisper adapter image built from `deploy/local-models/asr/faster-whisper/Dockerfile`, `Systran/faster-whisper-tiny.en` | `8084` | `GET /health` with model loading | 4+ CPU, 4GB+ RAM, 1GB+ disk, GPU recommended for long audio | MIT runtime; verify upstream model card before redistribution |
-| `compreface-face-services` | face detection, face recognition | `local-http` | experimental | `exadel/compreface:latest`, `https://github.com/exadel-inc/CompreFace` | `8086` | `GET /health` | 4+ CPU, 8GB+ RAM, 8GB+ disk, optional GPU | Apache-2.0 runtime; verify bundled model licenses before redistribution |
+| `mindory-local-face-v1` | face detection, face recognition | `local-http` | supported | Mindory local face adapter image built from `deploy/local-models/face/local-face/Dockerfile` | `8086` | `GET /health` with sample detection/recognition pass | 2+ CPU, 2GB+ RAM, 1GB+ disk, no GPU | Apache-2.0 for Mindory runner; OpenCV Apache-2.0 runtime cascade |
 
 ## Role Coverage
 
@@ -113,6 +114,19 @@ fixture inside the runner container, posts it to `POST /vision/caption`,
 object bounding boxes and a 1536-dimensional image vector, and verifies invalid
 image bytes produce a `vision_failed` diagnostic.
 
+The local face runner has a focused live gate for detection and recognition:
+
+```bash
+MINDORY_LOCAL_FACE_ACCEPTANCE_LIVE=true pnpm local-model:acceptance
+```
+
+That gate starts the `local-models-face` Compose profile, waits for the local
+face `/health` response, creates a generated face fixture inside the runner
+container, posts it to `POST /faces/detect` and `POST /faces/recognize`,
+requires bounding boxes, 512-dimensional face embeddings and deterministic
+identity ids, and verifies invalid image bytes produce a
+`face_detection_failed` diagnostic.
+
 ## Installer Auto-Install
 
 The wizard records local model setup in these generated settings:
@@ -138,6 +152,11 @@ for image semantics health and routes image vectors, captions and object
 observations through `@mindory/llm`. Selecting `ollama-nomic-embed-text` enables the `ollama`
 profile, waits for service health, runs `ollama pull nomic-embed-text`, then
 verifies the model runner with `ollama list`.
+Selecting `mindory-local-face-v1` enables `local-models-face`, sets
+`MINDORY_LLM_FACE_DETECTION_LOCAL_HTTP_BASE_URL=http://faces:8086` and
+`MINDORY_LLM_FACE_RECOGNITION_LOCAL_HTTP_BASE_URL=http://faces:8086`, waits for
+local face health and routes face boxes, embeddings and recognition ids through
+`@mindory/llm`.
 
 Installer diagnostics are written under `$MINDORY_HOME/logs/local-model-install.log`
 and the structured report lives at

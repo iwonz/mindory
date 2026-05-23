@@ -6,7 +6,7 @@ The repository should be described with the support levels in
 
 ## Current Baseline
 
-The repository is complete through `TASK-137`.
+The repository is complete through `TASK-138`.
 
 Release baseline:
 
@@ -19,9 +19,10 @@ Release baseline:
   supported local/install/runtime paths. `TASK-133` registered this contract;
   `TASK-134` promoted the central role/provider support matrix,
   `TASK-135` added the supported Tesseract OCR runner, `TASK-136` added
-  the supported Faster Whisper ASR runner and `TASK-137` added the supported
-  image semantics runner. `TASK-138` through `TASK-147` execute and verify the remaining runner, installer,
-  acceptance and release work one task at a time.
+  the supported Faster Whisper ASR runner, `TASK-137` added the supported
+  image semantics runner and `TASK-138` added the supported local face runner.
+  `TASK-139` through `TASK-147` execute and verify the remaining generation,
+  installer, acceptance and release work one task at a time.
 
 Supported local MVP path:
 
@@ -50,7 +51,7 @@ Supported local MVP path:
   runtime backups and uninstall with confirmation.
 - Installer local model auto-install can select supported catalog runners,
   preflight resource needs, start the required Compose profiles, pull/verify
-  Ollama models, health-check the Tesseract OCR runner, log diagnostics and
+  Ollama models, health-check the Tesseract OCR and local face runners, log diagnostics and
   stop safely before migrations on failure.
 - Release-style bundles can be generated with `pnpm release:bundle`; generated
   manifests are RSA-SHA256 signed and bootstrap scripts verify signatures
@@ -82,6 +83,10 @@ Supported local MVP path:
   `MINDORY_LLM_IMAGE_EMBEDDING_LOCAL_HTTP_BASE_URL` and
   `MINDORY_LLM_VISION_CAPTIONING_LOCAL_HTTP_BASE_URL` for image vectors,
   captions and object observations through `@mindory/llm`.
+- The supported local face runner uses the `local-models-face` profile,
+  `MINDORY_LLM_FACE_DETECTION_LOCAL_HTTP_BASE_URL` and
+  `MINDORY_LLM_FACE_RECOGNITION_LOCAL_HTTP_BASE_URL` for face boxes,
+  embeddings and deterministic recognition ids through `@mindory/llm`.
 - OpenAI-compatible chat, text embedding, image generation and audio generation
   operations support API-key and OAuth bearer auth through `@mindory/llm`.
 - Local HTTP chat/text embedding/image embedding/OCR/vision/ASR/face/generation
@@ -156,7 +161,7 @@ Supported local MVP path:
   self-host live matrix, local-model live acceptance, Web UI Playwright flow,
   CLI/MCP smoke coverage through self-host acceptance, public stale wording
   validation and clean `git status --short`.
-- Public current-state docs are aligned with the TASK-137 runtime baseline and
+- Public current-state docs are aligned with the TASK-138 runtime baseline and
   distinguish checked local-MVP paths from planned release work.
 
 Public GitHub hygiene baseline:
@@ -175,9 +180,9 @@ Public GitHub hygiene baseline:
 
 - Alerting policy is not bundled; route Prometheus and OTLP exports to the
   monitoring stack used by the deployment.
-- Vision/image-embedding, face and generation runner images remain
-  runner-specific work for the v0.1.1 task series; provider and role support
-  levels are defined in `docs/SUPPORT_MATRIX.md`.
+- Generation runner images remain runner-specific work for the v0.1.1 task
+  series; provider and role support levels are defined in
+  `docs/SUPPORT_MATRIX.md`.
 
 ## Public Claims Rule
 

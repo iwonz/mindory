@@ -220,6 +220,11 @@ export interface LocalHttpModelOptions {
   fetchImpl?: typeof fetch;
 }
 
+export interface LocalHttpFaceModelOptions extends LocalHttpModelOptions {
+  detectionBaseUrl?: string;
+  recognitionBaseUrl?: string;
+}
+
 export interface LocalCommandModelOptions {
   command: string;
   args: readonly string[];
@@ -762,8 +767,10 @@ export function buildMindoryFaceProvider(
   }
   const provider = providers.values().next().value;
   if (provider === "local-http") {
-    const providerOptions: LocalHttpModelOptions = {
-      baseUrl: config.llm.localHttp.baseUrl,
+    const providerOptions: LocalHttpFaceModelOptions = {
+      baseUrl: localHttpBaseUrlForRole(config, detectionEnabled ? "face-detection" : "face-recognition"),
+      detectionBaseUrl: localHttpBaseUrlForRole(config, "face-detection"),
+      recognitionBaseUrl: localHttpBaseUrlForRole(config, "face-recognition"),
       model: recognition.model || detection.model
     };
     if (options.fetchImpl !== undefined) {
@@ -2089,7 +2096,7 @@ export class LocalHttpFaceProvider implements LlmFaceProvider {
   private readonly fetchImpl: typeof fetch;
 
   constructor(
-    private readonly options: LocalHttpModelOptions,
+    private readonly options: LocalHttpFaceModelOptions,
     private readonly auditSink: LlmAuditSink | undefined,
     private readonly refs: LlmOperationRefs
   ) {
@@ -2134,7 +2141,10 @@ export class LocalHttpFaceProvider implements LlmFaceProvider {
       if (context.signal !== undefined) {
         requestInit.signal = context.signal;
       }
-      const response = await this.fetchImpl(`${trimTrailingSlash(this.options.baseUrl)}${endpoint}`, requestInit);
+      const baseUrl = endpoint === "/faces/recognize"
+        ? (this.options.recognitionBaseUrl ?? this.options.baseUrl)
+        : (this.options.detectionBaseUrl ?? this.options.baseUrl);
+      const response = await this.fetchImpl(`${trimTrailingSlash(baseUrl)}${endpoint}`, requestInit);
       const responseText = await response.text();
       if (!response.ok) {
         throw new Error(`Local HTTP face request failed with ${response.status}: ${responseText}`);
@@ -2507,6 +2517,12 @@ function localHttpBaseUrlForRole(config: MindoryConfig, role: LlmRole): string {
   }
   if (role === "asr" && config.llm.localHttp.asrBaseUrl.trim() !== "") {
     return config.llm.localHttp.asrBaseUrl;
+  }
+  if (role === "face-detection" && config.llm.localHttp.faceDetectionBaseUrl.trim() !== "") {
+    return config.llm.localHttp.faceDetectionBaseUrl;
+  }
+  if (role === "face-recognition" && config.llm.localHttp.faceRecognitionBaseUrl.trim() !== "") {
+    return config.llm.localHttp.faceRecognitionBaseUrl;
   }
   return config.llm.localHttp.baseUrl;
 }

@@ -343,7 +343,11 @@ through the `local-models-asr` Compose profile. The supported image semantics
 runner sets `MINDORY_LLM_IMAGE_EMBEDDING_LOCAL_HTTP_BASE_URL=http://vision:8082`
 and `MINDORY_LLM_VISION_CAPTIONING_LOCAL_HTTP_BASE_URL=http://vision:8082`,
 then routes image vectors, captions and object observations through the
-`local-models-vision` Compose profile. If a supported local runner is selected,
+`local-models-vision` Compose profile. The supported local face runner sets
+`MINDORY_LLM_FACE_DETECTION_LOCAL_HTTP_BASE_URL=http://faces:8086` and
+`MINDORY_LLM_FACE_RECOGNITION_LOCAL_HTTP_BASE_URL=http://faces:8086`, then
+routes face boxes, embeddings and recognition ids through the
+`local-models-face` Compose profile. If a supported local runner is selected,
 the wizard applies the matching `@mindory/llm` role provider/model defaults. If the
 runner is declined, roles only covered by that runner are written as disabled
 instead of being left half-configured. Supported multimodal roles can be
@@ -360,9 +364,9 @@ operations according to `MINDORY_INSTALL_LOCAL_MODEL_PULL_RETRIES`. The
 supported deterministic local HTTP runner is verified through its `/health`
 endpoint; the supported Ollama runner executes `ollama pull nomic-embed-text`
 and `ollama list` inside the `ollama` service; the supported Tesseract and
-Faster Whisper runners are verified through their model-loading `/health`
-endpoints; the image semantics runner is verified through a sample
-caption/object/vector `/health` pass. Failures stop installation with
+Faster Whisper and local face runners are verified through their
+model-loading `/health` endpoints; the image semantics runner is verified
+through a sample caption/object/vector `/health` pass. Failures stop installation with
 the log path in the diagnostic and leave rollback journal state for repair.
 
 For LibreFS or MinIO local S3 choices, installer startup enables the matching

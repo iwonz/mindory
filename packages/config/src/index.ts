@@ -201,6 +201,8 @@ export interface MindoryConfig {
       visionCaptioningBaseUrl: string;
       ocrBaseUrl: string;
       asrBaseUrl: string;
+      faceDetectionBaseUrl: string;
+      faceRecognitionBaseUrl: string;
     };
     localCommand: {
       timeoutMs: number;
@@ -516,7 +518,9 @@ export function loadMindoryConfig(env: EnvSource = process.env): MindoryConfig {
         imageEmbeddingBaseUrl: readString(env, "MINDORY_LLM_IMAGE_EMBEDDING_LOCAL_HTTP_BASE_URL", catalogString("MINDORY_LLM_IMAGE_EMBEDDING_LOCAL_HTTP_BASE_URL")),
         visionCaptioningBaseUrl: readString(env, "MINDORY_LLM_VISION_CAPTIONING_LOCAL_HTTP_BASE_URL", catalogString("MINDORY_LLM_VISION_CAPTIONING_LOCAL_HTTP_BASE_URL")),
         ocrBaseUrl: readString(env, "MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL", catalogString("MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL")),
-        asrBaseUrl: readString(env, "MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL", catalogString("MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL"))
+        asrBaseUrl: readString(env, "MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL", catalogString("MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL")),
+        faceDetectionBaseUrl: readString(env, "MINDORY_LLM_FACE_DETECTION_LOCAL_HTTP_BASE_URL", catalogString("MINDORY_LLM_FACE_DETECTION_LOCAL_HTTP_BASE_URL")),
+        faceRecognitionBaseUrl: readString(env, "MINDORY_LLM_FACE_RECOGNITION_LOCAL_HTTP_BASE_URL", catalogString("MINDORY_LLM_FACE_RECOGNITION_LOCAL_HTTP_BASE_URL"))
       },
       localCommand: {
         timeoutMs: readNumber(env, "MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS", catalogNumber("MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS")),
@@ -842,8 +846,6 @@ function localHttpUsesRoleOverrideOnly(config: MindoryConfig): boolean {
   const nonOverriddenCapabilities = [
     config.llm.chat,
     config.llm.textEmbedding,
-    config.llm.faceDetection,
-    config.llm.faceRecognition,
     config.llm.imageGeneration,
     config.llm.audioGeneration
   ];
@@ -855,13 +857,19 @@ function localHttpUsesRoleOverrideOnly(config: MindoryConfig): boolean {
   const visionUsesOverride = config.llm.visionCaptioning.enabled && config.llm.visionCaptioning.provider === "local-http" && config.llm.localHttp.visionCaptioningBaseUrl.trim() !== "";
   const ocrUsesOverride = config.llm.ocr.enabled && config.llm.ocr.provider === "local-http" && config.llm.localHttp.ocrBaseUrl.trim() !== "";
   const asrUsesOverride = config.llm.asr.enabled && config.llm.asr.provider === "local-http" && config.llm.localHttp.asrBaseUrl.trim() !== "";
+  const faceDetectionUsesOverride = config.llm.faceDetection.enabled && config.llm.faceDetection.provider === "local-http" && config.llm.localHttp.faceDetectionBaseUrl.trim() !== "";
+  const faceRecognitionUsesOverride = config.llm.faceRecognition.enabled && config.llm.faceRecognition.provider === "local-http" && config.llm.localHttp.faceRecognitionBaseUrl.trim() !== "";
   const imageEmbeddingMissingOverride = config.llm.imageEmbedding.enabled && config.llm.imageEmbedding.provider === "local-http" && config.llm.localHttp.imageEmbeddingBaseUrl.trim() === "";
   const visionMissingOverride = config.llm.visionCaptioning.enabled && config.llm.visionCaptioning.provider === "local-http" && config.llm.localHttp.visionCaptioningBaseUrl.trim() === "";
   const ocrMissingOverride = config.llm.ocr.enabled && config.llm.ocr.provider === "local-http" && config.llm.localHttp.ocrBaseUrl.trim() === "";
   const asrMissingOverride = config.llm.asr.enabled && config.llm.asr.provider === "local-http" && config.llm.localHttp.asrBaseUrl.trim() === "";
-  return (imageEmbeddingUsesOverride || visionUsesOverride || ocrUsesOverride || asrUsesOverride)
+  const faceDetectionMissingOverride = config.llm.faceDetection.enabled && config.llm.faceDetection.provider === "local-http" && config.llm.localHttp.faceDetectionBaseUrl.trim() === "";
+  const faceRecognitionMissingOverride = config.llm.faceRecognition.enabled && config.llm.faceRecognition.provider === "local-http" && config.llm.localHttp.faceRecognitionBaseUrl.trim() === "";
+  return (imageEmbeddingUsesOverride || visionUsesOverride || ocrUsesOverride || asrUsesOverride || faceDetectionUsesOverride || faceRecognitionUsesOverride)
     && !imageEmbeddingMissingOverride
     && !visionMissingOverride
     && !ocrMissingOverride
-    && !asrMissingOverride;
+    && !asrMissingOverride
+    && !faceDetectionMissingOverride
+    && !faceRecognitionMissingOverride;
 }
