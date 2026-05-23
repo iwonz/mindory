@@ -24,7 +24,7 @@ repository.
 
 - `pnpm check`.
 - `pnpm release:validate`.
-- `pnpm selfhost:acceptance`.
+- `MINDORY_SELFHOST_ACCEPTANCE_LIVE=true pnpm selfhost:acceptance`.
 - Signed manifest verification through `install.sh` or `install.ps1`
   verify-only mode for the generated manifest.
 

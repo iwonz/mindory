@@ -33,15 +33,20 @@ pnpm selfhost:acceptance
 ```
 
 This default path is a dry-run and is included in `pnpm check`. The opt-in live
-path runs installer startup, live MVP acceptance, backup, reset and uninstall
-inside a temporary `MINDORY_HOME`:
+path runs installer startup inside temporary `MINDORY_HOME` directories, then
+proves sync ClamAV upload gating, pgvector search, Qdrant search with the
+deterministic local embedding service, Docling extraction, live MVP acceptance,
+runtime backup, signed remote update, reset and guarded uninstall:
 
 ```bash
 MINDORY_SELFHOST_ACCEPTANCE_LIVE=true pnpm selfhost:acceptance
 ```
 
-Add `MINDORY_SELFHOST_ACCEPTANCE_LOCAL=true` to also run the deterministic local
-model profile with strict indexed pgvector acceptance.
+Add `MINDORY_SELFHOST_ACCEPTANCE_LOCAL=true` to also run the standalone
+`pnpm mvp:demo --model-profile local --require-indexed` path after the
+installer-driven live matrix. Increase
+`MINDORY_SELFHOST_ACCEPTANCE_TIMEOUT_MS` on machines that need more time for
+ClamAV, Qdrant, Docling or image rebuilds.
 
 `pnpm mvp:demo` starts Docker Compose with the `clamav` profile, enables the
 local multimodal document routers, waits for Postgres, Redis, migration

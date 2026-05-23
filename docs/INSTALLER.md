@@ -289,8 +289,10 @@ pnpm selfhost:acceptance
 ```
 
 The default path is non-destructive and uses a temporary `MINDORY_HOME`.
-Opt-in live mode runs installer `start`, live MVP acceptance, backup, stack
-reset and guarded uninstall:
+Opt-in live mode runs installer `start` for sync ClamAV, pgvector and Docling,
+executes live MVP acceptance, creates a runtime backup, applies a signed remote
+update, resets the stack, runs guarded uninstall, then repeats the live path for
+Qdrant with deterministic local embeddings:
 
 ```bash
 MINDORY_SELFHOST_ACCEPTANCE_LIVE=true pnpm selfhost:acceptance

@@ -254,6 +254,7 @@ const releaseEntries = [
   "PRD.md",
   "README.md",
   ".env.example",
+  ".npmrc",
   "Dockerfile",
   "docker-compose.yml",
   "docker-compose.override.yml",

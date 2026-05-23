@@ -3,8 +3,9 @@
 `TASK-27` adds local acceptance paths. `TASK-35` adds a one-command Docker demo
 wrapper around the live path. `TASK-51` extends the demo to cover multimodal
 derived artifacts and model profiles. `TASK-86` adds the public self-host
-acceptance gate that ties installer startup, runtime acceptance, backup and
-uninstall together.
+acceptance gate. `TASK-112` extends that gate into the release-readiness live
+matrix for sync antivirus, pgvector, Qdrant, Docling, backup, signed remote
+update and uninstall.
 
 One-command live demo:
 
@@ -57,14 +58,20 @@ Opt-in live self-host flow:
 MINDORY_SELFHOST_ACCEPTANCE_LIVE=true pnpm selfhost:acceptance
 ```
 
-Live mode uses a temporary `MINDORY_HOME`, runs installer `start`, executes the
-live MVP acceptance against the provisioned API token, creates a runtime backup,
-stops the stack and runs guarded uninstall. To additionally prove the
-deterministic local model profile and strict indexed search:
+Live mode uses temporary `MINDORY_HOME` directories. It runs installer `start`
+with sync ClamAV and pgvector plus Docling, executes live MVP acceptance against
+the provisioned API token, creates a runtime backup, applies a signed remote
+update from a generated release bundle, resets the stack and runs guarded
+uninstall. It also runs a Qdrant profile with the deterministic local embedding
+service and strict indexed search. To additionally prove the standalone
+`pnpm mvp:demo --model-profile local --require-indexed` path:
 
 ```bash
 MINDORY_SELFHOST_ACCEPTANCE_LIVE=true MINDORY_SELFHOST_ACCEPTANCE_LOCAL=true pnpm selfhost:acceptance
 ```
+
+Use `MINDORY_SELFHOST_ACCEPTANCE_TIMEOUT_MS=<milliseconds>` when local Docker
+image pulls, ClamAV startup or rebuilds need more than the default timeout.
 
 Manual live Docker flow:
 
