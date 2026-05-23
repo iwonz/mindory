@@ -20,6 +20,10 @@ documentation.
 
 ### Added
 
+- `TASK-135`: supported PaddleOCR local OCR runner with `local-models-ocr`
+  Compose profile, installer selection/healthcheck wiring,
+  `MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL`, PDF/image OCR live acceptance coverage
+  and release-bundle assets for the runner.
 - `TASK-134`: promoted OCR, ASR, vision captioning/object detection, image
   embeddings, face roles, image/audio generation and local HTTP/local-command
   provider paths to supported in the central `@mindory/llm` and config support

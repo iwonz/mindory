@@ -645,7 +645,7 @@ export function buildMindoryOcrProvider(
 
   if (ocr.provider === "local-http") {
     const providerOptions: LocalHttpModelOptions = {
-      baseUrl: config.llm.localHttp.baseUrl,
+      baseUrl: localHttpBaseUrlForRole(config, "ocr"),
       model: ocr.model
     };
     if (options.fetchImpl !== undefined) {
@@ -2493,6 +2493,13 @@ function localCommandModelOptions(config: MindoryConfig, options: MindoryLlmOpti
     localCommandOptions.commandRunner = options.commandRunner;
   }
   return localCommandOptions;
+}
+
+function localHttpBaseUrlForRole(config: MindoryConfig, role: LlmRole): string {
+  if (role === "ocr" && config.llm.localHttp.ocrBaseUrl.trim() !== "") {
+    return config.llm.localHttp.ocrBaseUrl;
+  }
+  return config.llm.localHttp.baseUrl;
 }
 
 function llmRoleToCatalogKey(role: LlmRole): LlmRoleCatalogKey {

@@ -14,6 +14,7 @@ const checkRepo = read("scripts/check-repo.js");
 const releaseManifest = readJson("deploy/compose/release-manifest.json");
 const deployment = read("docs/DEPLOYMENT.md");
 const localModels = read("docs/LOCAL_MODELS.md");
+const localModelAcceptance = read("scripts/local-model-acceptance.js");
 
 assert(packageJson.scripts?.["local-model-profiles:validate"] === "pnpm --filter @mindory/installer typecheck && node scripts/validate-local-model-compose-profiles.js", "package.json must expose local-model-profiles:validate.");
 assert(checkRepo.includes("\"local-model-profiles:validate\""), "pnpm check must include local-model-profiles:validate.");
@@ -40,6 +41,10 @@ for (const token of [
   "scripts/local-model-server.mjs",
   "fetch('http://127.0.0.1:8080/health')",
   "data/models:/data/mindory/models",
+  "profiles: [\"local-models-ocr\"]",
+  "deploy/local-models/ocr/paddleocr/Dockerfile",
+  "MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL",
+  "MINDORY_OCR_HEALTH_LOAD_MODEL",
   "profiles: [\"ollama\"]",
   "ollama/ollama:latest",
   "test: [\"CMD\", \"ollama\", \"list\"]",
@@ -75,6 +80,14 @@ for (const token of [
   "`@mindory/llm`"
 ]) {
   assert(`${localModels}\n${deployment}`.includes(token), `local model profile docs must include ${token}.`);
+}
+
+for (const assetPath of ["deploy/local-models/ocr/paddleocr/Dockerfile", "deploy/local-models/ocr/paddleocr/server.py"]) {
+  assert(releaseManifest.assets?.some((asset) => asset.path === assetPath && asset.required === true), `Release manifest must include OCR runner asset ${assetPath}.`);
+}
+
+for (const token of ["MINDORY_LOCAL_OCR_ACCEPTANCE_LIVE", "createTextBmpBuffer", "createTextPdfBuffer", "/ocr"]) {
+  assert(localModelAcceptance.includes(token), `Local model acceptance must include OCR live token ${token}.`);
 }
 
 console.log("Local model Compose profiles validated.");

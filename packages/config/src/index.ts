@@ -197,6 +197,7 @@ export interface MindoryConfig {
     };
     localHttp: {
       baseUrl: string;
+      ocrBaseUrl: string;
     };
     localCommand: {
       timeoutMs: number;
@@ -508,7 +509,8 @@ export function loadMindoryConfig(env: EnvSource = process.env): MindoryConfig {
         baseUrl: readString(env, "MINDORY_LLM_OLLAMA_BASE_URL", catalogString("MINDORY_LLM_OLLAMA_BASE_URL"))
       },
       localHttp: {
-        baseUrl: readString(env, "MINDORY_LLM_LOCAL_HTTP_BASE_URL", catalogString("MINDORY_LLM_LOCAL_HTTP_BASE_URL"))
+        baseUrl: readString(env, "MINDORY_LLM_LOCAL_HTTP_BASE_URL", catalogString("MINDORY_LLM_LOCAL_HTTP_BASE_URL")),
+        ocrBaseUrl: readString(env, "MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL", catalogString("MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL"))
       },
       localCommand: {
         timeoutMs: readNumber(env, "MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS", catalogNumber("MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS")),
@@ -794,8 +796,8 @@ function validateLlmConfig(config: MindoryConfig): void {
     throw new Error("MINDORY_LLM_OLLAMA_BASE_URL is required when an Ollama capability is enabled.");
   }
 
-  if (usesLlmProvider(config, "local-http") && config.llm.localHttp.baseUrl.trim() === "") {
-    throw new Error("MINDORY_LLM_LOCAL_HTTP_BASE_URL is required when a local HTTP capability is enabled.");
+  if (usesLlmProvider(config, "local-http") && config.llm.localHttp.baseUrl.trim() === "" && !localHttpUsesOcrOverrideOnly(config)) {
+    throw new Error("MINDORY_LLM_LOCAL_HTTP_BASE_URL is required when a local HTTP capability is enabled without a role-specific endpoint override.");
   }
 
   if (config.llm.localCommand.timeoutMs <= 0) {
@@ -828,4 +830,20 @@ function usesLlmProvider(config: MindoryConfig, provider: LlmProvider): boolean 
     config.llm.imageGeneration,
     config.llm.audioGeneration
   ].some((capability) => capability.enabled && capability.provider === provider);
+}
+
+function localHttpUsesOcrOverrideOnly(config: MindoryConfig): boolean {
+  const nonOcrCapabilities = [
+    config.llm.chat,
+    config.llm.textEmbedding,
+    config.llm.imageEmbedding,
+    config.llm.visionCaptioning,
+    config.llm.asr,
+    config.llm.faceDetection,
+    config.llm.faceRecognition,
+    config.llm.imageGeneration,
+    config.llm.audioGeneration
+  ];
+  const nonOcrUsesLocalHttp = nonOcrCapabilities.some((capability) => capability.enabled && capability.provider === "local-http");
+  return !nonOcrUsesLocalHttp && config.llm.ocr.enabled && config.llm.ocr.provider === "local-http" && config.llm.localHttp.ocrBaseUrl.trim() !== "";
 }

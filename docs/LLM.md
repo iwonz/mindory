@@ -151,6 +151,15 @@ supported for `chat`, `text-embedding`, `image-embedding`, `OCR`, `vision
 captioning`, `ASR`, face detection/recognition, image generation and audio
 generation roles.
 
+`MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL` is a supported OCR-only endpoint override.
+The installer sets it to `http://ocr:8083` when
+`paddleocr-pp-ocrv5-mobile` is selected, so PaddleOCR handles PDF/image OCR
+while other local HTTP roles can continue using the general
+`MINDORY_LLM_LOCAL_HTTP_BASE_URL` service.
+The PaddleOCR container also honors `MINDORY_OCR_PORT`, `MINDORY_OCR_MODEL`,
+`MINDORY_OCR_LANG`, `MINDORY_OCR_MAX_PDF_PAGES` and
+`MINDORY_OCR_HEALTH_LOAD_MODEL`.
+
 The local HTTP contract is intentionally small:
 
 - `GET /health` returns any 2xx response when the model service is ready.

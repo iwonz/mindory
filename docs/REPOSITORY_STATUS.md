@@ -6,7 +6,7 @@ The repository should be described with the support levels in
 
 ## Current Baseline
 
-The repository is complete through `TASK-134`.
+The repository is complete through `TASK-135`.
 
 Release baseline:
 
@@ -18,7 +18,8 @@ Release baseline:
   generation, local-command runners and local-http runners into checked
   supported local/install/runtime paths. `TASK-133` registered this contract;
   `TASK-134` promoted the central role/provider support matrix, and
-  `TASK-135` through `TASK-147` execute and verify the runner, installer,
+  `TASK-135` added the supported PaddleOCR OCR runner. `TASK-136` through
+  `TASK-147` execute and verify the remaining runner, installer,
   acceptance and release work one task at a time.
 
 Supported local MVP path:
@@ -48,7 +49,8 @@ Supported local MVP path:
   runtime backups and uninstall with confirmation.
 - Installer local model auto-install can select supported catalog runners,
   preflight resource needs, start the required Compose profiles, pull/verify
-  Ollama models, log diagnostics and stop safely before migrations on failure.
+  Ollama models, health-check the PaddleOCR OCR runner, log diagnostics and
+  stop safely before migrations on failure.
 - Release-style bundles can be generated with `pnpm release:bundle`; generated
   manifests are RSA-SHA256 signed and bootstrap scripts verify signatures
   before trusting bundle checksums.
@@ -71,6 +73,8 @@ Supported local MVP path:
 - Supported local model Compose profiles are resolved from the catalog, use
   healthchecks and persist model state under `$MINDORY_HOME/data/models` and
   `$MINDORY_HOME/data/ollama`.
+- The supported PaddleOCR runner uses the `local-models-ocr` profile and
+  `MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL` for PDF/image OCR through `@mindory/llm`.
 - OpenAI-compatible chat, text embedding, image generation and audio generation
   operations support API-key and OAuth bearer auth through `@mindory/llm`.
 - Local HTTP chat/text embedding/image embedding/OCR/vision/ASR/face/generation
@@ -162,9 +166,9 @@ Public GitHub hygiene baseline:
 
 - Alerting policy is not bundled; route Prometheus and OTLP exports to the
   monitoring stack used by the deployment.
-- Some heavy local model runner images remain runner-specific work for the
-  v0.1.1 task series; provider and role support levels are defined in
-  `docs/SUPPORT_MATRIX.md`.
+- ASR, vision/image-embedding, face and generation runner images remain
+  runner-specific work for the v0.1.1 task series; provider and role support
+  levels are defined in `docs/SUPPORT_MATRIX.md`.
 
 ## Public Claims Rule
 
