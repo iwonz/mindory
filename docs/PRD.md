@@ -133,10 +133,10 @@ The remaining non-goals are:
 - multi-region deployment.
 
 Audio, video, OCR and multimodal processing now have checked runtime paths with
-the limits described in the support matrix. The Web UI foundation is
-implemented for connection, health and project/session navigation; full document
-pipeline, search/context/memory/faces and diagnostics screens are scoped in the
-public-ready UI task series.
+the limits described in the support matrix. The Web UI is implemented for
+connection, health, project/session navigation and the document pipeline
+workspace; search/context/memory/faces and diagnostics screens are scoped in
+the public-ready UI task series.
 
 Do not implement the remaining non-goals unless a task explicitly scopes them.
 

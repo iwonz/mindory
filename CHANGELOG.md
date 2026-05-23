@@ -20,6 +20,9 @@ documentation.
 
 ### Added
 
+- `TASK-127`: Web UI document pipeline workspace with upload, document
+  list/detail, processing runs, job progress, retry/reprocess controls,
+  artifact source refs and `pnpm ui:documents:validate` coverage.
 - `TASK-126`: Web UI foundation package with static/proxy server, token/API URL
   entry, health banner, project/session navigation, message inspection and
   `pnpm ui:validate` coverage.

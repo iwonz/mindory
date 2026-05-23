@@ -21,6 +21,11 @@ input {
   letter-spacing: 0;
 }
 
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 .app-shell {
   display: grid;
   grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
@@ -125,6 +130,23 @@ input {
   color: #18202a;
 }
 
+.workspace .button.secondary.light {
+  background: #ffffff;
+}
+
+.button.tab {
+  min-height: 36px;
+  border-color: #b9c3cc;
+  background: #ffffff;
+  color: #18202a;
+}
+
+.button.tab.selected {
+  border-color: #111820;
+  background: #111820;
+  color: #ffffff;
+}
+
 .connection-summary {
   display: grid;
   gap: 10px;
@@ -218,6 +240,13 @@ input {
   gap: 14px;
 }
 
+.document-grid {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(260px, 0.9fr) minmax(320px, 1.15fr) minmax(320px, 1.25fr);
+  gap: 14px;
+}
+
 .panel {
   min-width: 0;
   min-height: 480px;
@@ -248,7 +277,8 @@ input {
 }
 
 .list,
-.message-list {
+.message-list,
+.artifact-list {
   overflow: auto;
 }
 
@@ -305,6 +335,197 @@ input {
   background: #fff3f1;
 }
 
+.upload-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border-bottom: 1px solid #e2e7ec;
+}
+
+.workspace .field {
+  color: #3d4a56;
+}
+
+.workspace .field input {
+  border-color: #c4cdd6;
+  background: #ffffff;
+  color: #18202a;
+}
+
+.upload-message {
+  margin: 0;
+  color: #3d4a56;
+  font-size: 13px;
+}
+
+.error-text {
+  color: #8b2f21;
+}
+
+.detail-stack {
+  overflow: auto;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.detail-list,
+.compact-list {
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.detail-list div,
+.compact-list div {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(88px, 0.32fr) minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.detail-list dt,
+.compact-list dt {
+  color: #637384;
+}
+
+.detail-list dd,
+.compact-list dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.subsection {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.subsection-heading,
+.card-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.subsection-heading h4 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.subsection-heading span {
+  color: #637384;
+  font-size: 12px;
+}
+
+.card-list,
+.artifact-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.job-card,
+.run-card,
+.artifact-card {
+  border-bottom: 1px solid #eef1f4;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.job-card.failed,
+.run-card.failed,
+.job-card.partial_failed,
+.job-card.blocked_by_scan {
+  background: #fff8f6;
+}
+
+.artifact-content {
+  margin: 0;
+  color: #3d4a56;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.source-refs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.source-refs ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.source-refs li {
+  overflow-wrap: anywhere;
+}
+
+.json-details {
+  border: 1px solid #e2e7ec;
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: #fafbfc;
+}
+
+.json-details summary {
+  cursor: pointer;
+  color: #3d4a56;
+  font-size: 13px;
+}
+
+.json-details pre {
+  margin: 10px 0 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
+.status-pill {
+  max-width: 100%;
+  border: 1px solid #c4cdd6;
+  border-radius: 999px;
+  padding: 3px 8px;
+  color: #3d4a56;
+  background: #f7f9fb;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.status-pill.indexed,
+.status-pill.succeeded,
+.status-pill.clean {
+  border-color: #78b48b;
+  color: #27643a;
+  background: #f1faf3;
+}
+
+.status-pill.failed,
+.status-pill.quarantined,
+.status-pill.partial_failed,
+.status-pill.blocked_by_scan {
+  border-color: #c66a5a;
+  color: #783529;
+  background: #fff3f1;
+}
+
+.status-pill.running,
+.status-pill.processing,
+.status-pill.scanning {
+  border-color: #c4a15a;
+  color: #69501d;
+  background: #fff8e6;
+}
+
 .message {
   padding: 14px;
   border-bottom: 1px solid #eef1f4;
@@ -335,6 +556,10 @@ input {
   }
 
   .workspace-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .document-grid {
     grid-template-columns: 1fr;
   }
 

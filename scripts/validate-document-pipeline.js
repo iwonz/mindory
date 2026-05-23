@@ -110,6 +110,7 @@ assert(routes.includes('"/v1/documents/:id/status"'), "Document routes must regi
 assert(routes.includes("route_job"), "Document upload response must expose route_job.");
 assert(routes.includes('"/v1/documents/:id/recompute"'), "Document routes must register recompute endpoint.");
 assert(routes.includes('"/v1/documents/:id/processing-runs"'), "Document routes must register processing run listing endpoint.");
+assert(routes.includes('"/v1/documents/:id/artifacts"'), "Document routes must register artifact listing endpoint.");
 assert(routes.includes("assertRouteDependencies"), "Document routes must validate runtime dependencies during registration.");
 assert(routes.includes("requireRouteDependency"), "Document route handlers must guard dependency-free tests.");
 assert(routes.includes("DocumentUploadService"), "Document route dependencies must accept DocumentUploadService.");

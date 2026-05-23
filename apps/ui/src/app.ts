@@ -1,16 +1,38 @@
 import { MindoryUiApiClient, MindoryUiApiError } from "./api.js";
 import { clearConnection, loadConnection, maskToken, saveConnection } from "./state.js";
-import type { HealthResponse, Message, Peer, Project, Session, StoredConnection } from "./types.js";
+import type {
+  DocumentArtifact,
+  DocumentRecord,
+  HealthResponse,
+  Message,
+  Peer,
+  ProcessingJob,
+  ProcessingRun,
+  Project,
+  Session,
+  StoredConnection
+} from "./types.js";
 
 interface ViewState {
   connection: StoredConnection;
+  activeView: "sessions" | "documents";
   health: Loadable<HealthResponse>;
   projects: Loadable<Project[]>;
   peers: Loadable<Peer[]>;
   sessions: Loadable<Session[]>;
   messages: Loadable<Message[]>;
+  documents: Loadable<DocumentRecord[]>;
+  selectedDocument: Loadable<DocumentRecord | null>;
+  processingRuns: Loadable<ProcessingRun[]>;
+  documentJobs: Loadable<ProcessingJob[]>;
+  artifacts: Loadable<DocumentArtifact[]>;
   selectedProjectId: string;
   selectedSessionId: string;
+  selectedDocumentId: string;
+  upload: {
+    state: "idle" | "uploading" | "error";
+    message: string;
+  };
   notice: string;
 }
 
@@ -31,13 +53,24 @@ const appRoot = requireRoot();
 
 const view: ViewState = {
   connection: loadConnection(),
+  activeView: "sessions",
   health: idle(emptyHealth),
   projects: idle([]),
   peers: idle([]),
   sessions: idle([]),
   messages: idle([]),
+  documents: idle([]),
+  selectedDocument: idle(null),
+  processingRuns: idle([]),
+  documentJobs: idle([]),
+  artifacts: idle([]),
   selectedProjectId: "",
   selectedSessionId: "",
+  selectedDocumentId: "",
+  upload: {
+    state: "idle",
+    message: ""
+  },
   notice: ""
 };
 
@@ -54,11 +87,7 @@ function render(): void {
       el("main", { className: "workspace" },
         renderHealthBanner(),
         renderWorkspaceHeader(),
-        el("section", { className: "workspace-grid", "aria-label": "Mindory workspace" },
-          renderProjectsPanel(),
-          renderSessionsPanel(),
-          renderMessagesPanel()
-        )
+        view.activeView === "sessions" ? renderSessionWorkspace() : renderDocumentWorkspace()
       )
     )
   );
@@ -85,12 +114,7 @@ function renderSidebar(): HTMLElement {
     };
     saveConnection(view.connection);
     view.notice = `Connection saved (${maskToken(view.connection.token)}).`;
-    view.projects = idle([]);
-    view.sessions = idle([]);
-    view.messages = idle([]);
-    view.peers = idle([]);
-    view.selectedProjectId = "";
-    view.selectedSessionId = "";
+    resetProjectScopedState();
     render();
     void refreshHealth();
     if (view.connection.token.length > 0) {
@@ -101,12 +125,7 @@ function renderSidebar(): HTMLElement {
   const clearButton = button("Clear", "secondary", () => {
     view.connection = clearConnection();
     view.notice = "Connection cleared.";
-    view.projects = idle([]);
-    view.sessions = idle([]);
-    view.messages = idle([]);
-    view.peers = idle([]);
-    view.selectedProjectId = "";
-    view.selectedSessionId = "";
+    resetProjectScopedState();
     render();
     void refreshHealth();
   });
@@ -137,6 +156,7 @@ function renderSidebar(): HTMLElement {
     el("dl", { className: "connection-summary" },
       el("div", {}, el("dt", {}, "Token"), el("dd", {}, maskToken(view.connection.token))),
       el("div", {}, el("dt", {}, "Projects"), el("dd", {}, countLabel(view.projects))),
+      el("div", {}, el("dt", {}, "Documents"), el("dd", {}, countLabel(view.documents))),
       el("div", {}, el("dt", {}, "Sessions"), el("dd", {}, countLabel(view.sessions)))
     ),
     view.notice ? el("p", { className: "notice" }, view.notice) : el("p", { className: "notice muted" }, "Ready")
@@ -160,14 +180,32 @@ function renderHealthBanner(): HTMLElement {
 }
 
 function renderWorkspaceHeader(): HTMLElement {
-  const selectedProject = view.projects.data.find((project) => project.id === view.selectedProjectId);
+  const selectedProject = currentProject();
   const selectedSession = view.sessions.data.find((session) => session.id === view.selectedSessionId);
+  const selectedDocument = view.selectedDocument.data;
+  const title = view.activeView === "documents"
+    ? selectedDocument?.title || selectedDocument?.original_filename || selectedProject?.name || "Documents"
+    : selectedSession?.title || selectedProject?.name || "Workspace";
   return el("header", { className: "workspace-header" },
     el("div", {},
       el("p", { className: "eyebrow" }, selectedProject ? selectedProject.id : "No project selected"),
-      el("h2", {}, selectedSession?.title || selectedProject?.name || "Workspace")
+      el("h2", {}, title)
     ),
     el("div", { className: "header-actions" },
+      tabButton("Sessions", view.activeView === "sessions", () => {
+        view.activeView = "sessions";
+        render();
+        if (view.selectedProjectId.length > 0 && view.sessions.state === "idle") {
+          void refreshProjectDetail(view.selectedProjectId);
+        }
+      }),
+      tabButton("Documents", view.activeView === "documents", () => {
+        view.activeView = "documents";
+        render();
+        if (view.selectedProjectId.length > 0) {
+          void refreshDocuments(view.selectedProjectId);
+        }
+      }),
       button("Reload", "secondary", () => {
         void refreshHealth();
         if (view.connection.token.length > 0) {
@@ -175,6 +213,22 @@ function renderWorkspaceHeader(): HTMLElement {
         }
       })
     )
+  );
+}
+
+function renderSessionWorkspace(): HTMLElement {
+  return el("section", { className: "workspace-grid", "aria-label": "Mindory session workspace" },
+    renderProjectsPanel(),
+    renderSessionsPanel(),
+    renderMessagesPanel()
+  );
+}
+
+function renderDocumentWorkspace(): HTMLElement {
+  return el("section", { className: "document-grid", "aria-label": "Mindory document pipeline workspace" },
+    renderDocumentListPanel(),
+    renderDocumentDetailPanel(),
+    renderArtifactPanel()
   );
 }
 
@@ -186,12 +240,12 @@ function renderProjectsPanel(): HTMLElement {
       const selected = project.id === view.selectedProjectId;
       return rowButton(project.name, project.id, selected, () => {
         view.selectedProjectId = project.id;
-        view.selectedSessionId = "";
-        view.sessions = idle([]);
-        view.messages = idle([]);
-        view.peers = idle([]);
+        resetSelectedProjectState();
         render();
         void refreshProjectDetail(project.id);
+        if (view.activeView === "documents") {
+          void refreshDocuments(project.id);
+        }
       });
     }))
   });
@@ -220,6 +274,220 @@ function renderMessagesPanel(): HTMLElement {
     loading: "Loading messages.",
     render: (messages) => el("div", { className: "message-list" }, ...messages.map(renderMessage))
   });
+}
+
+function renderDocumentListPanel(): HTMLElement {
+  const fileInput = input("Document file", "", "file");
+  const titleInput = input("Document title", "", "text");
+  const uploadButton = button(view.upload.state === "uploading" ? "Uploading" : "Upload", "primary", () => {
+    const file = fileInput.files?.[0];
+    void uploadSelectedDocument(file, titleInput.value);
+  }, view.upload.state === "uploading");
+
+  let listBody: HTMLElement;
+  if (view.documents.state === "loading") {
+    listBody = el("div", { className: "state loading" }, "Loading documents.");
+  } else if (view.documents.state === "error") {
+    listBody = renderError(view.documents.error);
+  } else if (view.selectedProjectId.length === 0) {
+    listBody = el("div", { className: "state empty" }, "Choose a project to list documents.");
+  } else if (view.documents.data.length === 0) {
+    listBody = el("div", { className: "state empty" }, "No documents uploaded for this project.");
+  } else {
+    listBody = el("div", { className: "list" }, ...view.documents.data.map((document) => {
+      const selected = document.id === view.selectedDocumentId;
+      return rowButton(document.title || document.original_filename, `${document.status} · ${formatBytes(document.size_bytes)}`, selected, () => {
+        view.selectedDocumentId = document.id;
+        view.selectedDocument = ready(document);
+        view.processingRuns = idle([]);
+        view.documentJobs = idle([]);
+        view.artifacts = idle([]);
+        render();
+        void refreshSelectedDocument(document.project_id, document.id);
+      });
+    }));
+  }
+
+  return el("section", { className: "panel" },
+    el("div", { className: "panel-heading" },
+      el("h3", {}, "Documents"),
+      el("span", {}, view.documents.state === "ready" ? `${view.documents.data.length}` : view.documents.state)
+    ),
+    el("form", { className: "upload-form" },
+      field("File", fileInput),
+      field("Title", titleInput),
+      el("div", { className: "button-row" }, uploadButton, button("Refresh", "secondary light", () => {
+        if (view.selectedProjectId.length > 0) {
+          void refreshDocuments(view.selectedProjectId);
+        }
+      })),
+      view.upload.message ? el("p", { className: view.upload.state === "error" ? "upload-message error-text" : "upload-message" }, view.upload.message) : null
+    ),
+    listBody
+  );
+}
+
+function renderDocumentDetailPanel(): HTMLElement {
+  const document = view.selectedDocument.data;
+  if (view.selectedDocument.state === "loading") {
+    return staticPanel("Pipeline", el("div", { className: "state loading" }, "Loading document pipeline."));
+  }
+  if (view.selectedDocument.state === "error") {
+    return staticPanel("Pipeline", renderError(view.selectedDocument.error));
+  }
+  if (!document) {
+    return staticPanel("Pipeline", el("div", { className: "state empty" }, "Choose a document to inspect processing state."));
+  }
+
+  const jobsBody = renderDocumentJobs(document);
+  const runsBody = renderProcessingRuns();
+
+  return el("section", { className: "panel wide-panel" },
+    el("div", { className: "panel-heading" },
+      el("h3", {}, "Pipeline"),
+      statusPill(document.status)
+    ),
+    el("div", { className: "detail-stack" },
+      el("dl", { className: "detail-list" },
+        detailRow("Filename", document.original_filename),
+        detailRow("MIME", document.mime_type),
+        detailRow("Size", formatBytes(document.size_bytes)),
+        detailRow("Storage", document.storage_key),
+        detailRow("Updated", formatDate(document.updated_at))
+      ),
+      el("div", { className: "button-row" },
+        button("Reprocess", "primary", () => {
+          void recomputeSelectedDocument(document);
+        }),
+        button("Refresh", "secondary light", () => {
+          void refreshSelectedDocument(document.project_id, document.id);
+        })
+      ),
+      el("section", { className: "subsection" },
+        el("div", { className: "subsection-heading" },
+          el("h4", {}, "Jobs"),
+          el("span", {}, view.documentJobs.state === "ready" ? `${view.documentJobs.data.length}` : view.documentJobs.state)
+        ),
+        jobsBody
+      ),
+      el("section", { className: "subsection" },
+        el("div", { className: "subsection-heading" },
+          el("h4", {}, "Processing runs"),
+          el("span", {}, view.processingRuns.state === "ready" ? `${view.processingRuns.data.length}` : view.processingRuns.state)
+        ),
+        runsBody
+      )
+    )
+  );
+}
+
+function renderArtifactPanel(): HTMLElement {
+  if (view.artifacts.state === "loading") {
+    return staticPanel("Artifacts", el("div", { className: "state loading" }, "Loading artifacts."));
+  }
+  if (view.artifacts.state === "error") {
+    return staticPanel("Artifacts", renderError(view.artifacts.error));
+  }
+  if (!view.selectedDocument.data) {
+    return staticPanel("Artifacts", el("div", { className: "state empty" }, "Choose a document to list derived artifacts."));
+  }
+  if (view.artifacts.data.length === 0) {
+    return staticPanel("Artifacts", el("div", { className: "state empty" }, "No derived artifacts available yet."));
+  }
+
+  return el("section", { className: "panel" },
+    el("div", { className: "panel-heading" },
+      el("h3", {}, "Artifacts"),
+      el("span", {}, `${view.artifacts.data.length}`)
+    ),
+    el("div", { className: "artifact-list" }, ...view.artifacts.data.map(renderArtifact))
+  );
+}
+
+function renderDocumentJobs(document: DocumentRecord): HTMLElement {
+  if (view.documentJobs.state === "loading") {
+    return el("div", { className: "state loading" }, "Loading jobs.");
+  }
+  if (view.documentJobs.state === "error") {
+    return renderError(view.documentJobs.error);
+  }
+  if (view.documentJobs.data.length === 0) {
+    return el("div", { className: "state empty" }, "No document jobs found in the recent job window.");
+  }
+  return el("div", { className: "card-list" }, ...view.documentJobs.data.map((job) => {
+    const retry = isRetryableJob(job)
+      ? button("Retry", "secondary light", () => {
+        void retryDocumentJob(document.project_id, job.id);
+      })
+      : null;
+    return el("article", { className: `job-card ${job.status}` },
+      el("div", { className: "card-title-row" },
+        el("strong", {}, job.type),
+        statusPill(job.status)
+      ),
+      el("dl", { className: "compact-list" },
+        detailRow("Attempts", `${job.attempts}/${job.max_attempts}`),
+        detailRow("Target", `${job.target_type}:${job.target_id}`),
+        detailRow("Updated", formatDate(job.updated_at))
+      ),
+      job.last_error ? el("p", { className: "error-text" }, job.last_error) : null,
+      renderDetails(job.details),
+      retry
+    );
+  }));
+}
+
+function renderProcessingRuns(): HTMLElement {
+  if (view.processingRuns.state === "loading") {
+    return el("div", { className: "state loading" }, "Loading processing runs.");
+  }
+  if (view.processingRuns.state === "error") {
+    return renderError(view.processingRuns.error);
+  }
+  if (view.processingRuns.data.length === 0) {
+    return el("div", { className: "state empty" }, "No processing runs recorded.");
+  }
+  return el("div", { className: "card-list" }, ...view.processingRuns.data.map((run) =>
+    el("article", { className: `run-card ${run.status}` },
+      el("div", { className: "card-title-row" },
+        el("strong", {}, run.reason),
+        statusPill(run.status)
+      ),
+      el("dl", { className: "compact-list" },
+        detailRow("Run", run.id),
+        detailRow("Processor", run.processor_version),
+        detailRow("Started", formatDate(run.started_at)),
+        detailRow("Finished", formatDate(run.finished_at ?? undefined))
+      ),
+      renderDetails(run.metadata)
+    )
+  ));
+}
+
+function renderArtifact(artifact: DocumentArtifact): HTMLElement {
+  return el("article", { className: "artifact-card" },
+    el("div", { className: "card-title-row" },
+      el("strong", {}, artifact.artifact_type),
+      el("span", { className: "row-detail" }, `#${artifact.artifact_index}`)
+    ),
+    artifact.content ? el("p", { className: "artifact-content" }, shortText(artifact.content, 280)) : null,
+    el("dl", { className: "compact-list" },
+      detailRow("Artifact", artifact.id),
+      detailRow("Run", artifact.processing_run_id),
+      detailRow("Model", [artifact.model_provider, artifact.model_name].filter(Boolean).join(" / ") || "none"),
+      detailRow("Storage", artifact.storage_key ?? "none")
+    ),
+    el("div", { className: "source-refs" },
+      el("strong", {}, "Source refs"),
+      artifact.source_refs.length > 0
+        ? el("ul", {}, ...artifact.source_refs.map((ref) => el("li", {}, `${ref.type}:${ref.id}`)))
+        : el("span", { className: "muted" }, "none")
+    ),
+    renderDetails({
+      source_position: artifact.source_position ?? {},
+      metadata: artifact.metadata ?? {}
+    })
+  );
 }
 
 function renderMessage(message: Message): HTMLElement {
@@ -268,6 +536,14 @@ async function refreshProjects(): Promise<void> {
     if (projects.length > 0 && view.selectedProjectId.length === 0) {
       view.selectedProjectId = projects[0].id;
       void refreshProjectDetail(projects[0].id);
+      if (view.activeView === "documents") {
+        void refreshDocuments(projects[0].id);
+      }
+    } else if (view.selectedProjectId.length > 0) {
+      void refreshProjectDetail(view.selectedProjectId);
+      if (view.activeView === "documents") {
+        void refreshDocuments(view.selectedProjectId);
+      }
     }
   } catch (error) {
     view.projects = failed([], toDisplayError(error, "Projects could not be loaded"));
@@ -287,7 +563,7 @@ async function refreshProjectDetail(projectId: string): Promise<void> {
     ]);
     view.peers = ready(peers);
     view.sessions = ready(sessions);
-    if (sessions.length > 0) {
+    if (sessions.length > 0 && view.selectedSessionId.length === 0) {
       view.selectedSessionId = sessions[0].id;
       void refreshMessages(projectId, sessions[0].id);
     }
@@ -311,6 +587,140 @@ async function refreshMessages(projectId: string, sessionId: string): Promise<vo
   render();
 }
 
+async function refreshDocuments(projectId: string): Promise<void> {
+  view.documents = loading(view.documents.data);
+  render();
+  try {
+    const client = new MindoryUiApiClient(view.connection);
+    const documents = await client.listDocuments(projectId);
+    view.documents = ready(documents);
+    if (documents.length > 0 && view.selectedDocumentId.length === 0) {
+      view.selectedDocumentId = documents[0].id;
+      view.selectedDocument = ready(documents[0]);
+      void refreshSelectedDocument(projectId, documents[0].id);
+    } else if (view.selectedDocumentId.length > 0) {
+      void refreshSelectedDocument(projectId, view.selectedDocumentId);
+    }
+  } catch (error) {
+    view.documents = failed([], toDisplayError(error, "Documents could not be loaded"));
+  }
+  render();
+}
+
+async function refreshSelectedDocument(projectId: string, documentId: string): Promise<void> {
+  view.selectedDocument = loading(view.selectedDocument.data);
+  view.processingRuns = loading(view.processingRuns.data);
+  view.documentJobs = loading(view.documentJobs.data);
+  view.artifacts = loading(view.artifacts.data);
+  render();
+  try {
+    const client = new MindoryUiApiClient(view.connection);
+    const [document, processingRuns, artifacts, jobs] = await Promise.all([
+      client.getDocument(projectId, documentId),
+      client.listProcessingRuns(projectId, documentId),
+      client.listDocumentArtifacts(projectId, documentId),
+      client.listJobs(projectId, 100)
+    ]);
+    view.selectedDocument = ready(document);
+    view.processingRuns = ready(processingRuns);
+    view.artifacts = ready(artifacts);
+    view.documentJobs = ready(jobs.filter((job) => job.target_id === documentId || job.metadata?.document_id === documentId));
+  } catch (error) {
+    const displayError = toDisplayError(error, "Document pipeline could not be loaded");
+    view.selectedDocument = failed(null, displayError);
+    view.processingRuns = failed([], displayError);
+    view.documentJobs = failed([], displayError);
+    view.artifacts = failed([], displayError);
+  }
+  render();
+}
+
+async function uploadSelectedDocument(file: File | undefined, title: string): Promise<void> {
+  if (view.selectedProjectId.length === 0) {
+    view.upload = { state: "error", message: "Choose a project before upload." };
+    render();
+    return;
+  }
+  if (!file) {
+    view.upload = { state: "error", message: "Choose a file to upload." };
+    render();
+    return;
+  }
+
+  view.upload = { state: "uploading", message: file.name };
+  render();
+  try {
+    const client = new MindoryUiApiClient(view.connection);
+    const result = await client.uploadDocument({
+      projectId: view.selectedProjectId,
+      file,
+      title
+    });
+    view.upload = { state: "idle", message: `Uploaded ${result.document.original_filename}.` };
+    view.selectedDocumentId = result.document.id;
+    view.selectedDocument = ready(result.document);
+    await refreshDocuments(view.selectedProjectId);
+    await refreshSelectedDocument(view.selectedProjectId, result.document.id);
+  } catch (error) {
+    view.upload = {
+      state: "error",
+      message: toDisplayError(error, "Upload failed").message
+    };
+    render();
+  }
+}
+
+async function recomputeSelectedDocument(document: DocumentRecord): Promise<void> {
+  view.notice = `Reprocess requested for ${document.original_filename}.`;
+  render();
+  try {
+    const client = new MindoryUiApiClient(view.connection);
+    await client.recomputeDocument(document.project_id, document.id);
+    await refreshSelectedDocument(document.project_id, document.id);
+  } catch (error) {
+    view.selectedDocument = failed(document, toDisplayError(error, "Reprocess could not be started"));
+    render();
+  }
+}
+
+async function retryDocumentJob(projectId: string, jobId: string): Promise<void> {
+  view.notice = `Retry requested for ${jobId}.`;
+  render();
+  try {
+    const client = new MindoryUiApiClient(view.connection);
+    await client.retryJob(projectId, jobId);
+    if (view.selectedDocumentId.length > 0) {
+      await refreshSelectedDocument(projectId, view.selectedDocumentId);
+    }
+  } catch (error) {
+    view.documentJobs = failed(view.documentJobs.data, toDisplayError(error, "Job retry could not be started"));
+    render();
+  }
+}
+
+function resetProjectScopedState(): void {
+  view.projects = idle([]);
+  view.selectedProjectId = "";
+  resetSelectedProjectState();
+}
+
+function resetSelectedProjectState(): void {
+  view.peers = idle([]);
+  view.sessions = idle([]);
+  view.messages = idle([]);
+  view.documents = idle([]);
+  view.selectedSessionId = "";
+  view.selectedDocumentId = "";
+  view.selectedDocument = idle(null);
+  view.processingRuns = idle([]);
+  view.documentJobs = idle([]);
+  view.artifacts = idle([]);
+}
+
+function currentProject(): Project | undefined {
+  return view.projects.data.find((project) => project.id === view.selectedProjectId);
+}
+
 function panel<T>(title: string, loadable: Loadable<T[]>, options: { empty: string; loading: string; render: (items: T[]) => HTMLElement }): HTMLElement {
   let body: HTMLElement;
   if (loadable.state === "loading") {
@@ -326,6 +736,16 @@ function panel<T>(title: string, loadable: Loadable<T[]>, options: { empty: stri
     el("div", { className: "panel-heading" },
       el("h3", {}, title),
       el("span", {}, loadable.state === "ready" ? `${loadable.data.length}` : loadable.state)
+    ),
+    body
+  );
+}
+
+function staticPanel(title: string, body: HTMLElement): HTMLElement {
+  return el("section", { className: "panel" },
+    el("div", { className: "panel-heading" },
+      el("h3", {}, title),
+      el("span", {}, "idle")
     ),
     body
   );
@@ -347,6 +767,12 @@ function banner(tone: "ok" | "error" | "idle" | "checking", title: string, messa
   );
 }
 
+function tabButton(label: string, selected: boolean, onClick: () => void): HTMLButtonElement {
+  const item = button(label, selected ? "tab selected" : "tab", onClick);
+  item.setAttribute("aria-pressed", selected ? "true" : "false");
+  return item;
+}
+
 function rowButton(title: string, detail: string, selected: boolean, onClick: () => void): HTMLButtonElement {
   const item = button("", selected ? "row selected" : "row", onClick);
   item.replaceChildren(
@@ -356,10 +782,31 @@ function rowButton(title: string, detail: string, selected: boolean, onClick: ()
   return item;
 }
 
+function statusPill(status: string): HTMLElement {
+  return el("span", { className: `status-pill ${status}` }, status);
+}
+
 function field(labelText: string, control: HTMLInputElement): HTMLElement {
   return el("label", { className: "field" },
     el("span", {}, labelText),
     control
+  );
+}
+
+function detailRow(label: string, value: string): HTMLElement {
+  return el("div", {},
+    el("dt", {}, label),
+    el("dd", {}, value || "none")
+  );
+}
+
+function renderDetails(value: Record<string, unknown> | undefined): HTMLElement | null {
+  if (!value || Object.keys(value).length === 0) {
+    return null;
+  }
+  return el("details", { className: "json-details" },
+    el("summary", {}, "Details"),
+    el("pre", {}, JSON.stringify(value, null, 2))
   );
 }
 
@@ -381,11 +828,12 @@ function hiddenInput(name: string, value: string): HTMLInputElement {
   return node;
 }
 
-function button(label: string, className: string, onClick: () => void): HTMLButtonElement {
+function button(label: string, className: string, onClick: () => void, disabled = false): HTMLButtonElement {
   const node = document.createElement("button");
   node.type = "button";
   node.className = `button ${className}`;
   node.textContent = label;
+  node.disabled = disabled;
   node.addEventListener("click", onClick);
   return node;
 }
@@ -465,4 +913,30 @@ function formatDate(value: string | undefined): string {
     dateStyle: "short",
     timeStyle: "short"
   }).format(new Date(value));
+}
+
+function formatBytes(value: number): string {
+  if (value < 1024) {
+    return `${value} B`;
+  }
+  const units = ["KB", "MB", "GB", "TB"];
+  let current = value / 1024;
+  for (const unit of units) {
+    if (current < 1024) {
+      return `${current.toFixed(current >= 10 ? 1 : 2)} ${unit}`;
+    }
+    current /= 1024;
+  }
+  return `${current.toFixed(1)} PB`;
+}
+
+function shortText(value: string, maxLength: number): string {
+  if (value.length <= maxLength) {
+    return value;
+  }
+  return `${value.slice(0, maxLength - 1)}...`;
+}
+
+function isRetryableJob(job: ProcessingJob): boolean {
+  return ["failed", "partial_failed", "blocked_by_scan"].includes(job.status);
 }

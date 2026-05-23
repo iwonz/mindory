@@ -78,6 +78,7 @@ GET  /v1/documents
 GET  /v1/documents/:id
 GET  /v1/documents/:id/status
 GET  /v1/documents/:id/processing-runs
+GET  /v1/documents/:id/artifacts
 POST /v1/documents/:id/recompute
 POST /v1/documents/search
 ```
@@ -114,6 +115,10 @@ Example document search request:
   ]
 }
 ```
+
+`GET /v1/documents/:id/artifacts` lists derived artifacts for a document with
+source refs, source positions, model metadata and derived content/storage
+references. The Web UI uses this route for its document pipeline workspace.
 
 `POST /v1/documents/:id/recompute` enqueues a `document.recompute` job. The
 worker creates a new `processing_run`, supersedes older derived runs for the

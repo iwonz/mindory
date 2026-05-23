@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-126",
+  "current_task_id": "TASK-127",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -918,6 +918,13 @@
       "status": "done",
       "branch": "task/TASK-126-web-ui-foundation",
       "file": "tasks/TASK-126.json"
+    },
+    {
+      "id": "TASK-127",
+      "title": "Web UI document pipeline workspace",
+      "status": "done",
+      "branch": "task/TASK-127-web-ui-document-pipeline-workspace",
+      "file": "tasks/TASK-127.json"
     }
   ]
 }

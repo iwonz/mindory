@@ -1,6 +1,6 @@
 import fastifyMultipart, { type MultipartFile } from "@fastify/multipart";
 import type { FastifyInstance } from "fastify";
-import type { DerivedArtifactRepository, DocumentMetadataFilter, ProcessingRunRecord } from "@mindory/core/artifacts";
+import type { DerivedArtifactRepository, DocumentArtifactRecord, DocumentMetadataFilter, ProcessingRunRecord } from "@mindory/core/artifacts";
 import { DocumentUploadService, type DocumentRecord, type DocumentRepository, type DocumentStatus, type ListDocumentsInput, type UploadDocumentInput, type UploadDocumentResult } from "@mindory/core/documents";
 import type { DocumentChunkSearchRepository } from "@mindory/core/memory";
 import { DocumentRecomputeError, DocumentRecomputeService } from "@mindory/core/recompute";
@@ -165,6 +165,25 @@ export async function registerDocumentRoutes(app: FastifyInstance, dependencies:
     };
   });
 
+  app.get<{ Params: { id: string }; Querystring: { projectId: string } }>("/v1/documents/:id/artifacts", {
+    schema: {
+      params: {
+        type: "object",
+        required: ["id"],
+        properties: {
+          id: { type: "string", minLength: 1 }
+        }
+      }
+    }
+  }, async (request) => {
+    const artifactRepository = requireRouteDependency(dependencies.artifactRepository, "artifactRepository");
+    requireProjectPermission(request, request.query.projectId, "document:read");
+
+    return {
+      artifacts: (await artifactRepository.listDocumentArtifacts(request.query.projectId, request.params.id)).map(toDocumentArtifactResponse)
+    };
+  });
+
   app.post<{ Params: { id: string }; Body: RecomputeDocumentBody }>("/v1/documents/:id/recompute", {
     schema: {
       params: {
@@ -278,6 +297,31 @@ function toDocumentResponse(document: DocumentRecord): Record<string, unknown> {
     metadata: document.metadata,
     created_at: document.createdAt.toISOString(),
     updated_at: document.updatedAt.toISOString()
+  };
+}
+
+function toDocumentArtifactResponse(artifact: DocumentArtifactRecord): Record<string, unknown> {
+  return {
+    id: artifact.id,
+    project_id: artifact.projectId,
+    document_id: artifact.documentId,
+    processing_run_id: artifact.processingRunId,
+    parent_artifact_id: artifact.parentArtifactId,
+    artifact_type: artifact.artifactType,
+    artifact_index: artifact.artifactIndex,
+    storage_key: artifact.storageKey,
+    content: artifact.content,
+    content_hash: artifact.contentHash,
+    source_refs: artifact.sourceRefs,
+    source: artifact.source,
+    source_position: artifact.sourcePosition,
+    model_provider: artifact.modelProvider,
+    model_name: artifact.modelName,
+    model_version: artifact.modelVersion,
+    config_fingerprint: artifact.configFingerprint,
+    metadata: artifact.metadata,
+    created_at: artifact.createdAt.toISOString(),
+    updated_at: artifact.updatedAt.toISOString()
   };
 }
 

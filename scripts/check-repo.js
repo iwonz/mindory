@@ -24,6 +24,7 @@ const checks = [
   ["local-model-profiles:validate", "scripts/validate-local-model-compose-profiles.js"],
   ["local-model:acceptance", "scripts/local-model-acceptance.js"],
   ["ui:validate", "scripts/validate-ui-foundation.js"],
+  ["ui:documents:validate", "scripts/validate-ui-document-workspace.js"],
   ["db:validate", "scripts/validate-db-schema.js"],
   ["db:repositories:validate", "scripts/validate-db-repositories.js"],
   ["api:validate", "scripts/validate-api-contract.js"],

@@ -65,6 +65,7 @@
     "test": "node scripts/test-integration.js",
     "tasks:validate": "node scripts/validate-tasks.js",
     "ui:validate": "node scripts/validate-ui-foundation.js",
+    "ui:documents:validate": "node scripts/validate-ui-document-workspace.js",
     "workspace:validate": "node scripts/validate-workspace.js"
   },
   "devDependencies": {

@@ -1,0 +1,59 @@
+{
+  "id": "TASK-127",
+  "title": "Web UI document pipeline workspace",
+  "status": "done",
+  "type": "feature",
+  "priority": "high",
+  "branch": "task/TASK-127-web-ui-document-pipeline-workspace",
+  "created_at": "2026-05-23",
+  "updated_at": "2026-05-23",
+  "context": {
+    "summary": "Add the supported Web UI workspace for document upload, pipeline observation, retry/reprocess actions and artifact source refs.",
+    "background": "TASK-126 created the browser UI foundation with connection, health and project/session navigation. The public-ready plan requires document pipeline operations before search/context/memory/faces and diagnostics UI work."
+  },
+  "scope": {
+    "in": [
+      "Add HTTP API support needed by the UI to list derived artifacts for a document.",
+      "Extend the UI API client with document upload/list/detail, processing run list, artifact list, job list/retry and document recompute calls.",
+      "Add a Documents workspace tab with upload, document list/detail, job progress, retry/reprocess controls and artifact/source-ref inspection.",
+      "Add loading, empty, authentication, authorization and generic error states for document pipeline operations.",
+      "Add UI document workspace validation and include it in pnpm check.",
+      "Update README, API docs, UI docs, support matrix, repository status and changelog."
+    ],
+    "out": [
+      "Unified search, context, memory and faces UI, which is TASK-128.",
+      "Runtime settings and diagnostics UI, which is TASK-129.",
+      "Docker image/service and installer routing integration, which is TASK-130.",
+      "New document pipeline backend processors or schema changes."
+    ]
+  },
+  "acceptance_criteria": [
+    "The UI can upload a document through POST /v1/documents using multipart FormData.",
+    "The UI can list documents, select a document and show document metadata, processing runs, recent document jobs and derived artifacts.",
+    "The UI exposes retry for failed document jobs and reprocess for a selected document through HTTP API calls only.",
+    "Derived artifacts show artifact type, run id, model metadata, content/storage summary and source refs.",
+    "The API exposes GET /v1/documents/:id/artifacts with project-scoped access control.",
+    "pnpm check includes a document workspace validator, and docs describe the new supported UI surface."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm --filter @mindory/ui build",
+      "pnpm ui:documents:validate",
+      "pnpm api:runtime:validate",
+      "pnpm documents:validate",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Open the UI locally and confirm the Documents tab renders without browser console errors when the API is unavailable."
+    ]
+  },
+  "dependencies": [
+    "TASK-126"
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is done.",
+    "Branch is committed and merged back into master."
+  ]
+}

@@ -143,7 +143,7 @@ for (const token of ["sessionRepository", "createSession", "appendMessage", "lis
   assert(sessionRoutes.includes(token), `Session routes must use ${token}.`);
 }
 
-for (const route of ['"/v1/documents"', '"/v1/documents/:id"', '"/v1/documents/:id/status"', '"/v1/documents/:id/processing-runs"', '"/v1/documents/:id/recompute"', '"/v1/documents/search"']) {
+for (const route of ['"/v1/documents"', '"/v1/documents/:id"', '"/v1/documents/:id/status"', '"/v1/documents/:id/processing-runs"', '"/v1/documents/:id/artifacts"', '"/v1/documents/:id/recompute"', '"/v1/documents/search"']) {
   assert(documentRoutes.includes(route), `Document routes must include ${route}.`);
 }
 for (const token of ["documentRepository", "chunkSearchRepository", "artifactRepository", "recomputeService", "listDocuments", "searchDocumentChunks", "listProcessingRuns", "requestRecompute"]) {
