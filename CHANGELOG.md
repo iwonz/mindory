@@ -20,6 +20,16 @@ documentation.
 
 ### Added
 
+- `TASK-118`: current-state public documentation cleanup for the TASK-117+
+  baseline, including README, repository status, architecture and CLI wording.
+- `TASK-117`: video fixture extraction preflight so integration coverage uses
+  ffmpeg when the host can process the embedded fixture and deterministic
+  manifest fallback when it cannot.
+- `TASK-116`: embedded deterministic video fixture for CI-safe video processing
+  coverage without relying on host-side video encoding.
+- `TASK-115`: hardened CI video fixture generation path for worker video
+  integration coverage.
+- `TASK-114`: GitHub Actions pnpm setup fix for release publishing and CI.
 - `TASK-113`: final public readiness gate updates for repository status,
   changelog, release checklist and no-marker public-debt validation.
 - `TASK-112`: live self-host release-readiness matrix covering sync ClamAV,
@@ -44,8 +54,8 @@ documentation.
   metadata, PostgreSQL dumps and local object storage state.
 - `TASK-84`: observability baseline with structured log helpers, model audit
   queries, in-process job/stage metrics, health snapshots and rate-limit docs.
-- `TASK-83`: Hermes-like runtime hook registration plus fake-compatible harness
-  for context-before-prompt, attachment upload, saved turns and later recall.
+- `TASK-83`: Hermes-like runtime hook registration plus conformance harness for
+  context-before-prompt, attachment upload, saved turns and later recall.
 - `TASK-82`: LibreFS/MinIO local S3 bucket bootstrap and signed external
   S3-compatible access checks in storage and installer startup flows.
 - `TASK-81`: unified multimodal search through `POST /v1/search`, CLI
@@ -77,6 +87,8 @@ documentation.
 
 ### Changed
 
+- `TASK-118`: repository status now reflects the completed TASK-117 runtime
+  baseline and the current public-ready work still ahead.
 - `TASK-113`: repository status now reflects the completed TASK-113 baseline
   and release checklist requires the live self-host gate before publication.
 - `TASK-69`: release-style bundle generation and bootstrap checksum/staging

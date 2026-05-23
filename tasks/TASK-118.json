@@ -1,0 +1,60 @@
+{
+  "id": "TASK-118",
+  "title": "Clean up public current-state documentation",
+  "status": "done",
+  "type": "docs",
+  "priority": "high",
+  "branch": "task/TASK-118-public-docs-current-state-cleanup",
+  "created_at": "2026-05-23",
+  "updated_at": "2026-05-23",
+  "context": {
+    "summary": "Bring public documentation in line with the actual TASK-117 baseline before continuing public-ready release work.",
+    "background": "After TASK-117, repository checks and CI are green, but public docs still mention TASK-113, old task-era wording and the previous Web UI/MVP positioning."
+  },
+  "scope": {
+    "in": [
+      "Update README and current-state public docs to describe the TASK-117+ baseline.",
+      "Remove stale TASK-113 completion claims from supported public paths.",
+      "Replace stale 'later task' and fake-compatible wording in public docs with current implementation or conformance-harness wording.",
+      "Clarify current API, CLI, MCP, runtime, local demo and known-limit status.",
+      "Update documentation validators that assert outdated public wording."
+    ],
+    "out": [
+      "Publishing or changing the GitHub release state.",
+      "Adding Web UI implementation.",
+      "Adding local model auto-install implementation.",
+      "Changing runtime behavior or configuration defaults."
+    ]
+  },
+  "acceptance_criteria": [
+    "README describes the current TASK-117+ baseline and local demo path without stale TASK-113 wording.",
+    "docs/REPOSITORY_STATUS.md describes the current baseline, known limits and public claims rule without stale TASK-113 wording.",
+    "docs/ARCHITECTURE.md no longer claims implemented repositories or processors are future work.",
+    "docs/CLI.md describes smoke and conformance providers without fake-compatible public wording.",
+    "docs/SUPPORT_MATRIX.md accurately states that Web UI is planned for the public-ready MVP but not yet implemented in the current baseline.",
+    "Public documentation validation expects current wording.",
+    "pnpm tasks:validate and pnpm check pass before merge."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm tasks:validate",
+      "pnpm public:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Search public docs for stale TASK-113 completion claims.",
+      "Confirm no release publishing behavior changed in this task."
+    ]
+  },
+  "dependencies": [
+    "TASK-117"
+  ],
+  "risks": [
+    "Updating public wording too far ahead of TASK-119+ could imply release, Web UI or local model installer behavior that is not implemented yet."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is done.",
+    "Branch is committed and merged back into master."
+  ]
+}

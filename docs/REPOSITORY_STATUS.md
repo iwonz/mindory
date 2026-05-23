@@ -6,7 +6,7 @@ The repository should be described with the support levels in
 
 ## Current Baseline
 
-The repository is complete through `TASK-113`.
+The repository is complete through `TASK-118`.
 
 Supported local MVP path:
 
@@ -85,6 +85,9 @@ Supported local MVP path:
   validation.
 - Public self-host acceptance is the release-readiness gate for local self-host
   users and is required by `docs/RELEASE_CHECKLIST.md` before publication.
+- Public current-state docs are aligned with the TASK-117 runtime baseline and
+  distinguish checked local-MVP paths from planned release, local-model and UI
+  work.
 
 Public GitHub hygiene baseline:
 
@@ -103,8 +106,10 @@ Public GitHub hygiene baseline:
 - Alerting policy is not bundled; route Prometheus and OTLP exports to the
   monitoring stack used by the deployment.
 - Heavy multimodal model adapters are still experimental unless a role is
-  explicitly documented as supported in `docs/SUPPORT_MATRIX.md`.
-- A web UI is not part of the MVP.
+  explicitly documented as supported in `docs/SUPPORT_MATRIX.md` or a local
+  model profile is checked by live acceptance.
+- A full MVP web UI is planned for the public-ready release path but is not
+  implemented in the current baseline.
 
 ## Public Claims Rule
 

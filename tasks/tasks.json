@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-117",
+  "current_task_id": "TASK-118",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -855,6 +855,13 @@
       "status": "done",
       "branch": "task/TASK-117-video-fixture-preflight",
       "file": "tasks/TASK-117.json"
+    },
+    {
+      "id": "TASK-118",
+      "title": "Clean up public current-state documentation",
+      "status": "done",
+      "branch": "task/TASK-118-public-docs-current-state-cleanup",
+      "file": "tasks/TASK-118.json"
     }
   ]
 }

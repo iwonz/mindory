@@ -60,8 +60,9 @@ with Drizzle and mirrored by the initial SQL migration. PostgreSQL remains the
 canonical state store for projects, tokens, peers, sessions, messages,
 documents, chunks, memory claims and processing jobs.
 
-Runtime repositories and API handlers are implemented in later task-scoped
-layers over the schema package.
+Runtime repositories and API handlers live in task-scoped layers over the
+schema package and are wired by the production API runtime before the server
+accepts traffic.
 
 `TASK-14` adds the first database repository layer in `@mindory/db`:
 
@@ -158,7 +159,9 @@ The boundary is deliberate:
 - The base runner marks jobs running, succeeded and failed through an injected
   store interface.
 
-Concrete PostgreSQL repositories and document processors are later tasks.
+Concrete PostgreSQL repositories and document processors are implemented in
+the database, API runtime and worker packages; tests exercise them against
+PostgreSQL, Redis and the configured vector backend.
 
 ## Document Upload And Scan
 
@@ -193,7 +196,7 @@ route factories are test-only.
 - `@mindory/core/document-routing` classifies uploads by MIME, extension and
   magic bytes, then plans only enabled downstream jobs.
 - `@mindory/llm` is the runtime adapter entrypoint for text embeddings,
-  scanned-PDF OCR and future ASR, vision and face capabilities, including
+  scanned-PDF OCR, ASR, vision and face capabilities, including
   OpenAI-compatible API key or OAuth bearer auth.
 - `@mindory/vector-pgvector` implements the default PostgreSQL vector index.
 - `@mindory/vector-qdrant` implements the optional Qdrant vector backend with

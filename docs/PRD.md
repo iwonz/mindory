@@ -105,9 +105,14 @@ The MVP must demonstrate that:
 
 ---
 
-## 5. Non-goals for MVP
+## 5. Non-goals And Later Scope
 
-The following are not MVP requirements, but the architecture must not prevent them later:
+The initial MVP did not require the surfaces below, but the architecture must
+not prevent them. Later task series may promote individual items into the
+public-ready scope; current support status is defined by
+`docs/SUPPORT_MATRIX.md`.
+
+The remaining non-goals are:
 
 - full provenance graph;
 - SourceEvent / SourceConnector / ProvenanceChain model;
@@ -119,19 +124,19 @@ The following are not MVP requirements, but the architecture must not prevent th
 - Telegram adapter;
 - n8n adapter;
 - OpenClaw adapter;
-- audio transcription;
-- video processing;
-- full OCR pipeline for images;
 - knowledge graph;
 - memory decay;
 - memory conflict resolution;
 - automatic contradiction handling;
 - Kafka/NATS event bus;
 - billing;
-- web UI;
 - multi-region deployment.
 
-Do not implement these in MVP unless a later task explicitly requests them.
+Audio, video, OCR and multimodal processing now have checked runtime paths with
+the limits described in the support matrix. A full web UI is planned for the
+public-ready MVP path but is not implemented in the current baseline.
+
+Do not implement the remaining non-goals unless a task explicitly scopes them.
 
 ---
 
@@ -1958,9 +1963,9 @@ Why do you remember this?
 `TASK-33` adds a local Hermes runtime contract fixture dated 2026-05-21 because
 no Hermes SDK is vendored in this repository. The fixture documents
 `before_prompt`, `after_response` and `completed_turn` hook assumptions and is
-validated by `pnpm hermes:contract`. `TASK-83` adds a fake-compatible Hermes
-runtime hook harness validated by `pnpm hermes:harness`; official Hermes SDK
-certification is handled outside this repository until a stable SDK or
+validated by `pnpm hermes:contract`. `TASK-83` adds a Hermes-compatible runtime
+hook conformance harness validated by `pnpm hermes:harness`; official Hermes
+SDK certification is handled outside this repository until a stable SDK or
 generated hook contract is available in the repository.
 
 ---

@@ -105,4 +105,4 @@ Exit codes:
 - `4`: CLI could not reach the configured API.
 
 `pnpm cli:smoke` runs a route-mapping smoke scenario with the injectable API
-client and fake-compatible LLM generation providers.
+client and deterministic LLM generation conformance providers.

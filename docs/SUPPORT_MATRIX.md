@@ -36,7 +36,7 @@ writing README, issues, release notes and docs.
 | CLI | Supported local MVP | Calls HTTP API; no direct database access. |
 | MCP stdio | Supported local MVP | Tools call HTTP API; Compose service is a packaging smoke artifact. |
 | Hermes adapter | Supported baseline | Lifecycle helpers, HTTP client, optional tools, runnable example host and conformance harnesses are covered by `pnpm check`; no external Hermes SDK code is vendored. |
-| Web UI | Future | Not part of the MVP. |
+| Web UI | Future | Planned public-ready MVP surface. It is not implemented in the current baseline; HTTP API, CLI and MCP are the supported surfaces until the UI task series lands. |
 
 ## Storage And Search
 

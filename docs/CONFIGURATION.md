@@ -39,7 +39,7 @@ rollback-on-failure behavior and dev-mode flag.
 
 The default installation root is `~/.mindory`. `@mindory/installer` uses the
 catalog for answer validation, generated `.env` output and redacted summaries.
-Future wizard tasks must use the same catalog for prompts rather than hardcoding
+The installer wizard uses the same catalog for prompts rather than hardcoding
 choices in installer code.
 
 Docker Compose uses `MINDORY_HOME` on the host as the single Mindory-owned root.
