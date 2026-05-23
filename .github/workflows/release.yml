@@ -136,8 +136,8 @@ jobs:
           TAG="${{ steps.version.outputs.tag }}"
           NOTES="dist/releases/mindory-${{ steps.version.outputs.version }}.release-notes.md"
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release edit "$TAG" --draft=true --title "$TAG" --notes-file "$NOTES"
+            gh release edit "$TAG" --draft=false --prerelease --title "$TAG" --notes-file "$NOTES"
           else
-            gh release create "$TAG" --draft --title "$TAG" --notes-file "$NOTES"
+            gh release create "$TAG" --prerelease --title "$TAG" --notes-file "$NOTES"
           fi
           gh release upload "$TAG" dist/releases/mindory-${{ steps.version.outputs.version }}.tar.gz dist/releases/mindory-${{ steps.version.outputs.version }}.manifest.env dist/releases/mindory-${{ steps.version.outputs.version }}.manifest.env.public.pem dist/releases/mindory-${{ steps.version.outputs.version }}.sha256 "$NOTES" --clobber

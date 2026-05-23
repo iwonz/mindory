@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-118",
+  "current_task_id": "TASK-119",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -862,6 +862,13 @@
       "status": "done",
       "branch": "task/TASK-118-public-docs-current-state-cleanup",
       "file": "tasks/TASK-118.json"
+    },
+    {
+      "id": "TASK-119",
+      "title": "Add GitHub pre-release publication flow",
+      "status": "done",
+      "branch": "task/TASK-119-github-pre-release-publication-flow",
+      "file": "tasks/TASK-119.json"
     }
   ]
 }

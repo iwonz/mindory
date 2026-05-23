@@ -107,6 +107,13 @@ Generated at: ${generatedAt}
 - Bootstrap gate: signed manifest verification and bundle checksum validation
 - Self-host gate: \`pnpm selfhost:acceptance\`
 
+## GitHub Pre-release
+
+Trusted tag builds publish these artifacts as a public GitHub pre-release. A
+draft release may be used only as a manual staging checkpoint before the final
+tag build; the automated tag path publishes with the pre-release marker so
+bootstrap URLs resolve under \`/releases/download/${tag}/\`.
+
 ## Release Artifacts
 
 - \`${bundleName}\`
@@ -145,6 +152,7 @@ ${supportMatrix}
 
 - [ ] \`pnpm check\` passed on the release commit.
 - [ ] \`pnpm release:validate\` passed and tampered manifest/artifact checks failed as expected.
+- [ ] GitHub Release is public and marked as a pre-release, not left as a draft.
 - [ ] Release manifest, public key sidecar and checksum files are attached.
 - [ ] Docker version and commit tags are published from a trusted tag build.
 - [ ] Release notes mention support level changes and upgrade notes.

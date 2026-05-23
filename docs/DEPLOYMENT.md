@@ -17,7 +17,7 @@ secrets, rate limits, structured logs and observability are maintained in
 | Installer Compose startup | Supported as an explicit start step. It can pull/build, start infrastructure, run migrations, start API/worker/MCP and wait for health checks. |
 | Installer first-run provisioning | Supported. The start step creates the first project/token and writes `config/initial-token.json` under `$MINDORY_HOME`. |
 | Installer lifecycle operations | Supported baseline for local asset update, signed remote release update, runtime backup/restore, scheduled local backup, encrypted remote backup archives, external S3 streaming backups, journal resume/repair and guarded uninstall. |
-| Release images and bundles | Bundle generation is supported with `pnpm release:bundle`. Generated manifests are RSA-SHA256 signed, and bootstrap scripts verify the signature before trusting bundle checksums. Publishing automation pushes versioned Docker images on tag builds and uploads signed release artifacts plus generated release notes to draft GitHub Releases. |
+| Release images and bundles | Bundle generation is supported with `pnpm release:bundle`. Generated manifests are RSA-SHA256 signed, and bootstrap scripts verify the signature before trusting bundle checksums. Publishing automation pushes versioned Docker images on trusted tag builds and publishes signed release artifacts plus generated release notes to public GitHub pre-releases. |
 | Heavy local models | Experimental. Profiles exist for wiring checks or local experiments, not as a guaranteed default install. |
 
 The expected local demo flow is:
@@ -188,9 +188,11 @@ Postgres uses a pgvector-capable image and the initial migration enables the
 `pnpm check`, builds the Docker image, generates the release bundle with
 `pnpm release:bundle`, writes a `.sha256` checksum file, runs
 `scripts/smoke-release-install.js` against the generated signed manifest and
-uploads the release artifacts to the workflow run. For tag builds, it also
-creates or updates a draft GitHub Release with the bundle, signed manifest,
-public key sidecar and checksum.
+uploads the release artifacts to the workflow run. For trusted tag builds, it
+also creates or updates a public GitHub pre-release with the bundle, signed
+manifest, public key sidecar and checksum. Manual draft releases are staging
+checkpoints only; the automated tag path publishes with the pre-release marker
+and clears draft status.
 
 Tag and manual release publishing require the GitHub secret
 `MINDORY_RELEASE_SIGNING_PRIVATE_KEY_PEM`. The bundle builder signs the
@@ -207,8 +209,8 @@ The release workflow publishes Docker images only from trusted tag builds:
 
 It intentionally does not publish a mutable `latest` tag. Pull request and
 local validation paths build or validate artifacts without pushing images.
-The generated draft notes come from `scripts/generate-release-notes.js` and
-include the support matrix reference, upgrade notes, artifact list, Docker
+The generated pre-release notes come from `scripts/generate-release-notes.js`
+and include the support matrix reference, upgrade notes, artifact list, Docker
 image tags and public release checklist. The checklist is maintained in
 `docs/RELEASE_CHECKLIST.md`.
 

@@ -25,7 +25,7 @@ writing README, issues, release notes and docs.
 | Installer resume and repair | Supported baseline | `mindory-installer resume` continues recoverable interrupted runs from journal/run-state; `repair` clears confirmed stale locks and continues interrupted rollback inside `$MINDORY_HOME`. |
 | Backup and restore | Supported MVP | `mindory-installer backup`, `backup-schedule`, `pitr-backup`, `pitr-restore`, `backup-archive`, `backup-upload`, `backup-download`, `backup-restore-archive`, `s3-inventory`, `s3-backup`, `s3-restore` and `restore` cover config, installer metadata, PostgreSQL dumps, local object storage state, scheduled retention/health, local Compose PostgreSQL PITR, encrypted S3-compatible remote backup archives and external S3 object inventory/streaming backup/restore. |
 | Remote release update | Supported baseline | Installer `update --manifest-url` and `update --manifest-path` verify signed manifests and bundle checksums, create pre-update backups, stage release assets, run migrations/startup/health checks and rollback release/config assets on failure. |
-| Release artifact publishing | Supported baseline | Release workflow generates bundle, signed manifest, public key sidecar, checksum and release notes artifacts; tag builds push versioned Docker images and upload artifacts to a draft GitHub Release. |
+| Release artifact publishing | Supported baseline | Release workflow generates bundle, signed manifest, public key sidecar, checksum and release notes artifacts; trusted tag builds push versioned Docker images and publish artifacts to a public GitHub pre-release. Draft releases are manual staging only. |
 
 ## Product Surfaces
 

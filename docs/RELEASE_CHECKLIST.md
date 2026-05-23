@@ -6,7 +6,7 @@ This checklist is the public release gate for Mindory tag builds.
 
 - `MINDORY_RELEASE_SIGNING_PRIVATE_KEY_PEM`: RSA private key used only by the
   release workflow to sign release manifests.
-- `GITHUB_TOKEN`: GitHub-provided token used by Actions for draft release
+- `GITHUB_TOKEN`: GitHub-provided token used by Actions for pre-release
   artifacts and GitHub Container Registry pushes.
 
 Do not commit signing keys, registry tokens or generated secrets to the
@@ -30,13 +30,17 @@ repository.
 - Signed manifest verification through `install.sh` or `install.ps1`
   verify-only mode for the generated manifest.
 
-## Draft Release Contents
+## Pre-release Contents
 
 - `mindory-<version>.tar.gz`.
 - `mindory-<version>.manifest.env`.
 - `mindory-<version>.manifest.env.public.pem`.
 - `mindory-<version>.sha256`.
 - `mindory-<version>.release-notes.md`.
+
+The automated tag workflow must leave the GitHub Release public and marked as a
+pre-release. A draft release is allowed only as a manual staging checkpoint
+before the trusted tag build updates and publishes the same tag.
 
 ## Release Notes Requirements
 

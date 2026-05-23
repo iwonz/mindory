@@ -20,6 +20,8 @@ documentation.
 
 ### Added
 
+- `TASK-119`: GitHub release workflow and public docs now describe trusted tag
+  artifacts as public pre-releases instead of draft-only releases.
 - `TASK-118`: current-state public documentation cleanup for the TASK-117+
   baseline, including README, repository status, architecture and CLI wording.
 - `TASK-117`: video fixture extraction preflight so integration coverage uses

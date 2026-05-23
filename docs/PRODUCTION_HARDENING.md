@@ -51,11 +51,11 @@ The release workflow:
 - runs `pnpm release:bundle -- --require-signing-key`;
 - publishes a `.sha256` checksum file next to the bundle, signed manifest and
   public key sidecar;
-- generates draft release notes with support matrix and upgrade notes;
+- generates pre-release notes with support matrix and upgrade notes;
 - runs `scripts/smoke-release-install.js` as a dry-run install smoke;
 - uploads release artifacts to the workflow run;
 - uploads bundle, signed manifest, public key sidecar, checksum and generated
-  release notes to a draft GitHub Release for tag builds.
+  release notes to a public GitHub pre-release for trusted tag builds.
 
 Validate the release path locally without publishing:
 

@@ -27,7 +27,7 @@ Supported local MVP path:
 - Release validation can be run locally with `pnpm release:validate`.
 - Tag release publishing builds and pushes versioned GHCR images, generates
   release notes with support matrix and upgrade notes, and attaches signed
-  release artifacts to draft GitHub Releases.
+  release artifacts to public GitHub pre-releases.
 - Signed remote installer update can download/copy release manifests and
   bundles, verify signatures/checksums, stage releases, run migrations/startup
   health checks and rollback release/config assets on failure.

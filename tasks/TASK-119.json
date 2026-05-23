@@ -1,0 +1,60 @@
+{
+  "id": "TASK-119",
+  "title": "Add GitHub pre-release publication flow",
+  "status": "done",
+  "type": "release",
+  "priority": "high",
+  "branch": "task/TASK-119-github-pre-release-publication-flow",
+  "created_at": "2026-05-23",
+  "updated_at": "2026-05-23",
+  "context": {
+    "summary": "Publish tag-built release artifacts as public GitHub pre-releases instead of draft-only releases.",
+    "background": "TASK-118 aligned public docs with the current runtime baseline. The next release-readiness step is making the release workflow and docs describe a public pre-release flow while keeping the final full-public gate for later tasks."
+  },
+  "scope": {
+    "in": [
+      "Update the GitHub release workflow so tag builds create or update public pre-releases.",
+      "Keep release artifacts signed and checksummed with release download URLs under the version tag.",
+      "Update release checklist, deployment, production hardening, support matrix and release notes wording from draft release to pre-release.",
+      "Update release validation so it asserts pre-release publication behavior.",
+      "Document that draft is only an optional manual staging state before tag publication."
+    ],
+    "out": [
+      "Publishing the existing v0.1.0 draft release manually.",
+      "Changing release signing keys or secrets.",
+      "Changing bootstrap download verification logic.",
+      "Adding published-release bootstrap acceptance; that is TASK-120."
+    ]
+  },
+  "acceptance_criteria": [
+    "Release workflow uses public pre-release flags for tag-built GitHub releases.",
+    "Release workflow no longer creates or updates tag-built GitHub releases as drafts.",
+    "Release docs and checklist describe pre-release contents and pre-release publication behavior.",
+    "Generated release notes mention that the workflow publishes a GitHub pre-release for trusted tag builds.",
+    "Release workflow validation checks the pre-release behavior.",
+    "pnpm release:validate, pnpm public:validate, pnpm tasks:validate and pnpm check pass before merge."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm release:validate",
+      "pnpm public:validate",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm no task publishes or edits the live GitHub release directly.",
+      "Confirm public docs do not still describe tag-built artifacts as draft releases."
+    ]
+  },
+  "dependencies": [
+    "TASK-118"
+  ],
+  "risks": [
+    "Changing release publication flags incorrectly could leave a tag release as draft or omit the pre-release marker."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is done.",
+    "Branch is committed and merged back into master."
+  ]
+}

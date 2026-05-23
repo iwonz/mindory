@@ -135,6 +135,7 @@ left in place when present.
 Provide the trusted signing public key with one of:
 
 ```bash
+./install.sh --manifest-url https://github.com/iwonz/mindory/releases/download/v0.1.0/mindory-0.1.0.manifest.env --public-key-path ./mindory-0.1.0.manifest.env.public.pem
 ./install.sh --manifest-url https://example.com/mindory.manifest.env --public-key-path ./mindory-release.public.pem
 MINDORY_RELEASE_PUBLIC_KEY_PATH=./mindory-release.public.pem ./install.sh --manifest-path ./mindory.manifest.env
 MINDORY_RELEASE_PUBLIC_KEY_PEM="$(cat ./mindory-release.public.pem)" ./install.sh --manifest-path ./mindory.manifest.env
@@ -176,6 +177,7 @@ local `file://` URL for dev/test installs. For hosted releases, pass a base URL:
 
 ```bash
 pnpm release:bundle -- --version 0.1.0 --url-base https://downloads.example.com/mindory
+pnpm release:bundle -- --version 0.1.0 --url-base https://github.com/iwonz/mindory/releases/download/v0.1.0
 ```
 
 Production release publishing should pass a real RSA private key through

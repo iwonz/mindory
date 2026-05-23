@@ -25,6 +25,10 @@ function assertIncludes(content, token, label) {
   assert(content.includes(token), `${label} must include ${token}.`);
 }
 
+function assertNotIncludes(content, token, label) {
+  assert(!content.includes(token), `${label} must not include ${token}.`);
+}
+
 function runNode(args, label) {
   const result = spawnSync(process.execPath, args, {
     cwd: root,
@@ -75,10 +79,14 @@ for (const token of [
   "smoke-release-install.js",
   "actions/upload-artifact@v4",
   "gh release edit",
+  "--draft=false",
+  "--prerelease",
   "gh release upload"
 ]) {
   assertIncludes(releaseWorkflow, token, ".github/workflows/release.yml");
 }
+assertNotIncludes(releaseWorkflow, "gh release create \"$TAG\" --draft", ".github/workflows/release.yml");
+assertNotIncludes(releaseWorkflow, "gh release edit \"$TAG\" --draft=true", ".github/workflows/release.yml");
 
 for (const token of [
   "MINDORY_RELEASE_VERSION",
@@ -97,7 +105,7 @@ for (const token of ["Support Matrix", "Upgrade Notes", "Public Release Checklis
   assertIncludes(releaseNotesScript, token, "scripts/generate-release-notes.js");
 }
 
-for (const token of ["Release Workflow", "release:bundle", "release:validate", "smoke-release-install"]) {
+for (const token of ["Release Workflow", "release:bundle", "release:validate", "smoke-release-install", "pre-release"]) {
   assertIncludes(deployment, token, "docs/DEPLOYMENT.md");
   assertIncludes(production, token, "docs/PRODUCTION_HARDENING.md");
 }
@@ -150,7 +158,7 @@ try {
     releaseNotesPath
   ], "release notes generation");
   const releaseNotes = fs.readFileSync(releaseNotesPath, "utf8");
-  for (const token of ["Support Matrix", "Upgrade Notes", "Public Release Checklist", "ghcr.io/example/mindory:0.0.0-release-validate", "mindory-0.0.0-release-validate.manifest.env.public.pem"]) {
+  for (const token of ["Support Matrix", "Upgrade Notes", "Public Release Checklist", "GitHub Pre-release", "ghcr.io/example/mindory:0.0.0-release-validate", "mindory-0.0.0-release-validate.manifest.env.public.pem"]) {
     assertIncludes(releaseNotes, token, "generated release notes");
   }
 
