@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-123",
+  "current_task_id": "TASK-124",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -897,6 +897,13 @@
       "status": "done",
       "branch": "task/TASK-123-local-model-compose-profiles",
       "file": "tasks/TASK-123.json"
+    },
+    {
+      "id": "TASK-124",
+      "title": "Installer local auto-install flow",
+      "status": "done",
+      "branch": "task/TASK-124-installer-local-auto-install-flow",
+      "file": "tasks/TASK-124.json"
     }
   ]
 }

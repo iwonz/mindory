@@ -643,6 +643,14 @@ export const CONFIG_CATALOG = [
   }),
   entry("MINDORY_INSTALL_ROLLBACK_ON_FAILURE", "installer", "boolean", "true", "Rollback Mindory-created state when install fails.", "installer", "supported"),
   entry("MINDORY_INSTALL_DEV_MODE", "installer", "boolean", "false", "Enable installer dev/test matrix behavior.", "installer", "supported"),
+  entry("MINDORY_INSTALL_LOCAL_MODEL_AUTO_INSTALL", "installer", "boolean", "false", "Enable installer-managed local model runner installation.", "installer", "supported", {
+    prompt: {
+      label: "Install local model runners",
+      help: "When enabled, the installer starts selected local model profiles, pulls required models where needed and verifies runner health."
+    }
+  }),
+  entry("MINDORY_INSTALL_LOCAL_MODEL_RUNNERS", "installer", "string", "", "Comma-separated LOCAL_MODEL_RUNNER_CATALOG ids selected for installer-managed setup.", "installer", "supported"),
+  entry("MINDORY_INSTALL_LOCAL_MODEL_PULL_RETRIES", "installer", "number", "2", "Retry attempts for installer-managed local model pulls/downloads.", "installer", "supported"),
 
   entry("MINDORY_LOG_LEVEL", "api", "string", "info", "Structured log level.", "runtime", "supported"),
   entry("MINDORY_API_HOST", "api", "string", "0.0.0.0", "API listen host.", "runtime", "supported"),

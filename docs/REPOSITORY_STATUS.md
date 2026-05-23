@@ -6,7 +6,7 @@ The repository should be described with the support levels in
 
 ## Current Baseline
 
-The repository is complete through `TASK-123`.
+The repository is complete through `TASK-124`.
 
 Supported local MVP path:
 
@@ -21,6 +21,9 @@ Supported local MVP path:
 - The installer can plan, prepare, start through health checks, provision the
   first project/token, update local assets, create runtime backups, restore
   runtime backups and uninstall with confirmation.
+- Installer local model auto-install can select supported catalog runners,
+  preflight resource needs, start the required Compose profiles, pull/verify
+  Ollama models, log diagnostics and stop safely before migrations on failure.
 - Release-style bundles can be generated with `pnpm release:bundle`; generated
   manifests are RSA-SHA256 signed and bootstrap scripts verify signatures
   before trusting bundle checksums.

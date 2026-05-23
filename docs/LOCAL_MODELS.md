@@ -3,7 +3,8 @@
 `LOCAL_MODEL_RUNNER_CATALOG` in `@mindory/config` is the canonical metadata
 source for local model runner choices. The installer resolves supported
 local model Compose profiles from this catalog instead of hardcoded role/model
-lists.
+lists, and the installer auto-install flow uses the same catalog for prompts,
+resource preflight, service health checks and model pulls.
 
 Each catalog entry records:
 
@@ -43,3 +44,24 @@ source or image metadata, model files, port and healthcheck details, resource
 hints and documentation coverage. `pnpm local-model-profiles:validate` checks
 that supported catalog runners have matching Compose profiles, installer
 profile resolution and runtime healthchecks.
+
+## Installer Auto-Install
+
+The wizard records local model setup in these generated settings:
+
+- `MINDORY_INSTALL_LOCAL_MODEL_AUTO_INSTALL`
+- `MINDORY_INSTALL_LOCAL_MODEL_RUNNERS`
+- `MINDORY_INSTALL_LOCAL_MODEL_PULL_RETRIES`
+
+When auto-install is enabled, supported runner choices are shown with catalog
+resource hints. Selecting `mindory-deterministic-local-http` enables the
+`local-models` Compose profile and verifies the local HTTP service through
+`GET /health`. Selecting `ollama-nomic-embed-text` enables the `ollama` profile,
+waits for service health, runs `ollama pull nomic-embed-text`, then verifies
+the model runner with `ollama list`.
+
+Installer diagnostics are written under `$MINDORY_HOME/logs/local-model-install.log`
+and the structured report lives at
+`$MINDORY_HOME/install/local-models/install-report.json`. If a selected runner
+fails preflight, pull/download or healthcheck, installation stops before
+storage bootstrap and migrations continue.

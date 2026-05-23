@@ -174,6 +174,15 @@ face roles through `@mindory/llm`. `ollama` adds the real Ollama service for
 local text embeddings and uses a Compose healthcheck before installer startup
 accepts the profile.
 
+Installer-managed local model setup is controlled separately by
+`MINDORY_INSTALL_LOCAL_MODEL_AUTO_INSTALL` and
+`MINDORY_INSTALL_LOCAL_MODEL_RUNNERS`. When selected, supported local runners
+are started through their Compose profiles, checked against catalog resource
+hints and installed before migrations continue. The deterministic local HTTP
+runner is health-checked directly; the Ollama runner pulls
+`nomic-embed-text` inside the service. Logs are written to
+`$MINDORY_HOME/logs/local-model-install.log`.
+
 ## Base Services
 
 - `postgres`

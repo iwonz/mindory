@@ -318,6 +318,7 @@ The wizard prompts for:
 - storage choice: local filesystem, LibreFS local S3 or external S3-compatible;
 - document modality switches, video keyframe limit, keyframe provider and
   ffmpeg/ffprobe commands when the bundled ffmpeg provider is selected;
+- local model auto-install, selected supported runner ids and pull retry count;
 - independent LLM role enablement, provider, model, required mode, timeout,
   concurrency and embedding dimensions where applicable;
 - API/MCP/Hermes interface switches and tokens.
@@ -326,9 +327,23 @@ Prompt labels, defaults, enum values, secret flags and resource hints come from
 the config catalog whenever a catalog entry exists. Local model runner choices
 come from `LOCAL_MODEL_RUNNER_CATALOG`; `docs/LOCAL_MODELS.md` records role
 coverage, source/image metadata, model files, license/status, ports,
-healthchecks and resource hints. Future or experimental LLM
-roles are visible, but they cannot be enabled unless experimental mode is
-enabled explicitly.
+healthchecks and resource hints. If a supported local runner is selected, the
+wizard applies the matching `@mindory/llm` role provider/model defaults. If the
+runner is declined, roles only covered by that runner are written as disabled
+instead of being left half-configured. Future or experimental LLM roles are
+visible, but they cannot be enabled unless experimental mode is enabled
+explicitly.
+
+During `start`, selected local runners are installed after their Compose
+services start and before storage bootstrap or migrations continue. The
+installer writes `$MINDORY_HOME/logs/local-model-install.log` plus
+`$MINDORY_HOME/install/local-models/install-report.json`, checks disk
+requirements, waits for runner service health and retries pull/download
+operations according to `MINDORY_INSTALL_LOCAL_MODEL_PULL_RETRIES`. The
+supported deterministic local HTTP runner is verified through its `/health`
+endpoint; the supported Ollama runner executes `ollama pull nomic-embed-text`
+and `ollama list` inside the `ollama` service. Failures stop installation with
+the log path in the diagnostic and leave rollback journal state for repair.
 
 For LibreFS or MinIO local S3 choices, installer startup enables the matching
 Compose profile and runs the one-shot bucket bootstrap service. For external

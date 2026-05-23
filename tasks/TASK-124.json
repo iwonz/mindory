@@ -1,0 +1,60 @@
+{
+  "id": "TASK-124",
+  "title": "Installer local auto-install flow",
+  "status": "done",
+  "type": "installer",
+  "priority": "high",
+  "branch": "task/TASK-124-installer-local-auto-install-flow",
+  "created_at": "2026-05-23",
+  "updated_at": "2026-05-23",
+  "context": {
+    "summary": "Add a real installer-managed local model auto-install path with resource preflight, pull/install commands, health checks, logs and rollback diagnostics.",
+    "background": "TASK-122 added the local model runner catalog and TASK-123 wired supported local runners into Compose profiles. The installer still needs explicit user choices and execution for selected local model runners."
+  },
+  "scope": {
+    "in": [
+      "Add installer answer-file and env settings for local model auto-install, selected runner ids and retry count.",
+      "Expose local model runner choices in the wizard with catalog resource hints.",
+      "Disable roles explicitly when the user declines the catalog runner that would satisfy them.",
+      "Add an install step that preflights selected runners, starts required Compose services, pulls/downloads supported runner models, writes logs and verifies health.",
+      "Add rollback-safe state for installer-created local model install metadata.",
+      "Add validation, docs and acceptance coverage for the local model auto-install path."
+    ],
+    "out": [
+      "Adding heavy experimental runner images beyond the current Compose profiles.",
+      "Changing document processing behavior.",
+      "Adding Web UI features."
+    ]
+  },
+  "acceptance_criteria": [
+    "Installer answers, generated .env and mindory.config.json persist local model auto-install settings.",
+    "Wizard prompts include local model runner choices with resource hints from LOCAL_MODEL_RUNNER_CATALOG.",
+    "Declining a local runner disables the LLM roles covered only by that runner instead of leaving half-configured roles.",
+    "Selected supported local runners are preflighted, installed through real Compose commands, retried, logged under MINDORY_HOME/logs and health-checked.",
+    "Ollama selected runners pull their configured model names before runtime health succeeds.",
+    "Failed local model install stops the installer with clear diagnostics and journal rollback state.",
+    "pnpm installer:validate, pnpm tasks:validate and pnpm check pass before merge."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm installer:validate",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm local model auto-install uses @mindory/llm/Compose surfaces and does not add direct model calls to API or worker code."
+    ]
+  },
+  "dependencies": [
+    "TASK-122",
+    "TASK-123"
+  ],
+  "risks": [
+    "Real Ollama model pulls require network and can be slow, so validator coverage uses command runner assertions while live acceptance remains explicit."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is done.",
+    "Branch is committed and merged back into master."
+  ]
+}

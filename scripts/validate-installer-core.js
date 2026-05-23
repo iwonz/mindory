@@ -103,6 +103,7 @@ assert(installerPackage.dependencies?.["@mindory/storage-s3"] === "workspace:*",
 
 for (const symbol of [
   "MindoryInstallAnswers",
+  "LocalModelAnswers",
   "createInstallPlan",
   "InstallTransactionJournal",
   "rollbackCompletedActions",
@@ -144,6 +145,12 @@ for (const symbol of [
 }
 for (const token of ["CONFIG_CATALOG", "llmRoleProviderSupportStatus", "llmRoleSupportStatus", "checkMindoryLlmProviderHealth", "MINDORY_HOME_DIRECTORIES", "composeProfilesForAnswers", "redactEnvMap"]) {
   assert(installerSource.includes(token), `Installer core must include ${token}.`);
+}
+for (const token of ["MINDORY_INSTALL_LOCAL_MODEL_AUTO_INSTALL", "MINDORY_INSTALL_LOCAL_MODEL_RUNNERS", "MINDORY_INSTALL_LOCAL_MODEL_PULL_RETRIES", "installSelectedLocalModels", "local-model-install.log", "ollama\", \"pull", "LOCAL_MODEL_RUNNER_CATALOG"]) {
+  assert(installerSource.includes(token), `Installer local model auto-install must include ${token}.`);
+  if (token.startsWith("MINDORY_")) {
+    assert(envExample.includes(token), `.env.example must include ${token}.`);
+  }
 }
 for (const token of ["MINDORY_CLAMAV_HEALTH_RETRIES", "MINDORY_CLAMAV_HEALTH_TIMEOUT_MS"]) {
   assert(installerSource.includes(token), `Installer ClamAV health must include ${token}.`);
@@ -205,6 +212,10 @@ for (const promptId of [
   "modalities.video_keyframe_provider",
   "modalities.video_ffmpeg_command",
   "modalities.video_ffprobe_command",
+  "local_models.auto_install",
+  "local_models.pull_retries",
+  "local_models.runner.mindory-deterministic-local-http.enabled",
+  "local_models.runner.ollama-nomic-embed-text.enabled",
   "interfaces.api_port",
   "tokens.cli_api_token",
   "llm.TEXT_EMBEDDING.enabled",
@@ -293,16 +304,20 @@ assert(env.MINDORY_S3_SECRET_ACCESS_KEY === "installer-secret", "Rendered env mu
 assert(env.MINDORY_REMOTE_BACKUP_ENABLED === "true", "Rendered env must include encrypted remote backup switch.");
 assert(env.MINDORY_REMOTE_BACKUP_S3_SECRET_ACCESS_KEY === "backup-secret", "Rendered env must include remote backup S3 secret for generated .env.");
 assert(env.MINDORY_LLM_TEXT_EMBEDDING_PROVIDER === "ollama", "Rendered env must include LLM role provider.");
+assert(env.MINDORY_INSTALL_LOCAL_MODEL_AUTO_INSTALL === "false", "Rendered env must include local model auto-install switch.");
+assert(env.MINDORY_INSTALL_LOCAL_MODEL_PULL_RETRIES === "2", "Rendered env must include local model pull retry count.");
 
 const envFile = installer.renderEnvFile(answers);
 assert(envFile.includes("MINDORY_S3_ENDPOINT=http://librefs:9000"), "Env file must render S3-compatible endpoint.");
 assert(envFile.includes("MINDORY_LLM_TEXT_EMBEDDING_DIMENSIONS=1536"), "Env file must render embedding dimensions.");
+assert(envFile.includes("MINDORY_INSTALL_LOCAL_MODEL_AUTO_INSTALL=false"), "Env file must render local model auto-install settings.");
 
 const configJson = JSON.parse(installer.renderMindoryConfigJson(answers));
 assert(configJson.mindory_home === "/tmp/mindory-installer-test", "Config JSON must include mindory_home.");
 assert(configJson.storage.provider === "s3", "Config JSON must include storage provider.");
 assert(configJson.remote_backup.enabled === true, "Config JSON must include remote backup settings.");
 assert(configJson.docling.enabled === false, "Config JSON must include Docling service settings.");
+assert(configJson.local_models.autoInstall === false, "Config JSON must include local model settings.");
 
 const plan = installer.createInstallPlan(answers);
 assert(plan.composeProfiles.includes("librefs"), "S3 LibreFS answers must add the librefs profile.");
@@ -311,7 +326,7 @@ assert(plan.composeProfiles.includes("ollama"), "Ollama LLM answers must add the
 for (const directory of ["config", "data/postgres", "data/redis", "data/objects", "data/librefs", "data/models", "data/ollama", "logs", "backups", "install"]) {
   assert(plan.homeDirectories.includes(directory), `Install plan must include ${directory}.`);
 }
-for (const stepId of ["ensure-home", "write-config", "write-env", "write-compose-assets", "bootstrap-storage", "health-check"]) {
+for (const stepId of ["ensure-home", "write-config", "write-env", "write-compose-assets", "install-local-models", "bootstrap-storage", "health-check"]) {
   assert(plan.steps.some((step) => step.id === stepId), `Install plan must include ${stepId}.`);
 }
 
@@ -412,6 +427,89 @@ for (const token of ["pull --ignore-buildable", "build", "up -d postgres redis c
 assert(composeCommands.some((command) => command.includes("exec -T clamav sh -lc") && command.includes("clamdscan")), "Installer health-check must execute ClamAV scan probes.");
 assert(composeCommands.some((command) => command.includes("EICAR-STANDARD-ANTIVIRUS-TEST-FILE")), "Installer health-check must verify an infected EICAR probe.");
 fs.rmSync(composeHome, { recursive: true, force: true });
+
+const localModelHome = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-installer-local-models-"));
+fs.rmSync(localModelHome, { recursive: true, force: true });
+const localModelCommands = [];
+const healthyLocalModelsComposePs = JSON.stringify([
+  { Service: "postgres", State: "running", Health: "healthy" },
+  { Service: "redis", State: "running", Health: "healthy" },
+  { Service: "llm", State: "running", Health: "healthy" },
+  { Service: "ollama", State: "running", Health: "healthy" }
+]);
+const localModelAnswers = installer.createDefaultInstallAnswers({
+  mindoryHome: localModelHome,
+  antivirus: {
+    mode: "disabled",
+    provider: "clamav",
+    clamavPlatform: "linux/amd64"
+  },
+  localModels: {
+    autoInstall: true,
+    selectedRunnerIds: ["mindory-deterministic-local-http", "ollama-nomic-embed-text"],
+    pullRetries: 2
+  }
+});
+const localModelPlan = installer.createInstallPlan(localModelAnswers);
+assert(localModelPlan.composeProfiles.includes("local-models"), "Selected deterministic local runner must enable local-models profile.");
+assert(localModelPlan.composeProfiles.includes("ollama"), "Selected Ollama local runner must enable ollama profile.");
+const localModelReport = await installer.executeInstallPlan(localModelAnswers, {
+  sourceRoot: root,
+  owner: "validator",
+  stopBeforeStepId: "bootstrap-storage",
+  timeoutMs: 100,
+  pollIntervalMs: 1,
+  dependencyProbe: {
+    run() {
+      return { status: 0, stdout: "ok", stderr: "" };
+    },
+    isWritable() {
+      return true;
+    },
+    isPortAvailable() {
+      return true;
+    },
+    diskSpaceBytes() {
+      return 20_000_000_000;
+    }
+  },
+  commandRunner: {
+    async run(command, args) {
+      localModelCommands.push(`${command} ${args.join(" ")}`);
+      if (args.includes("ps")) {
+        return { status: 0, stdout: healthyLocalModelsComposePs, stderr: "" };
+      }
+      return { status: 0, stdout: "ok", stderr: "" };
+    }
+  }
+});
+assert(localModelReport.executedStepIds.includes("install-local-models"), "Local model execution must run install-local-models.");
+assert(localModelReport.pendingStepIds[0] === "bootstrap-storage", "Local model execution must stop after model install when requested.");
+assert(localModelCommands.some((command) => command.includes("up -d postgres redis llm ollama")), "Local model install must start selected model services.");
+assert(localModelCommands.some((command) => command.includes("exec -T llm node -e")), "Local HTTP runner must be health-checked through Compose.");
+assert(localModelCommands.some((command) => command.includes("exec -T ollama ollama pull nomic-embed-text")), "Ollama runner must pull its selected model.");
+assert(localModelCommands.some((command) => command.includes("exec -T ollama ollama list")), "Ollama runner must verify installed models.");
+const localModelInstallReport = JSON.parse(fs.readFileSync(path.join(localModelHome, "install", "local-models", "install-report.json"), "utf8"));
+assert(localModelInstallReport.status === "installed", "Local model install report must record installed status.");
+assert(fs.existsSync(path.join(localModelHome, "logs", "local-model-install.log")), "Local model install must write a diagnostic log.");
+fs.rmSync(localModelHome, { recursive: true, force: true });
+
+const localModelDependencyChecks = installer.detectHostDependencies(localModelAnswers, {
+  run() {
+    return { status: 0, stdout: "ok", stderr: "" };
+  },
+  isWritable() {
+    return true;
+  },
+  isPortAvailable(port) {
+    return port !== 11434;
+  },
+  diskSpaceBytes() {
+    return 1_000_000_000;
+  }
+});
+assert(localModelDependencyChecks.some((check) => check.id.includes("local-model-port-ollama-nomic-embed-text-11434") && check.status === "failed"), "Local model dependency detection must check selected runner ports.");
+assert(localModelDependencyChecks.some((check) => check.id === "disk-space" && check.status === "failed" && check.diagnosis.includes("estimated for selected local model runners")), "Local model dependency detection must include selected runner disk requirements.");
 
 const resumeFileHome = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-installer-resume-file-"));
 fs.rmSync(resumeFileHome, { recursive: true, force: true });

@@ -37,6 +37,7 @@ import {
   type ConfigCatalogEntry,
   type InstallDependencyPolicy,
   type InstallProfile,
+  type LocalModelRunnerCatalogEntry,
   type LlmOpenAiAuthMode,
   type LlmProvider,
   type StorageProvider,
@@ -147,6 +148,12 @@ export interface ModalityAnswers {
   videoFfprobeCommand: string;
 }
 
+export interface LocalModelAnswers {
+  autoInstall: boolean;
+  selectedRunnerIds: string[];
+  pullRetries: number;
+}
+
 export interface LlmRoleAnswers {
   enabled: boolean;
   provider: LlmProvider;
@@ -214,6 +221,7 @@ export interface MindoryInstallAnswers {
   docling: DoclingAnswers;
   antivirus: AntivirusAnswers;
   modalities: ModalityAnswers;
+  localModels: LocalModelAnswers;
   llmRoles: Partial<Record<InstallerLlmRoleKey, LlmRoleAnswers>>;
   llmProviders: LlmProviderAnswers;
   interfaces: InterfaceAnswers;
@@ -391,6 +399,7 @@ export interface InstallExecutionOptions {
   timeoutMs?: number;
   pollIntervalMs?: number;
   commandRunner?: InstallCommandRunner;
+  dependencyProbe?: DependencyProbe;
   llmCommandRunner?: LlmLocalCommandRunner;
   llmAuditSink?: LlmAuditSink;
   apiReadyCheck?: (url: string) => Promise<boolean> | boolean;
@@ -942,6 +951,11 @@ export function createDefaultInstallAnswers(overrides: Partial<MindoryInstallAns
       videoFfmpegCommand: catalogDefault("MINDORY_DOCUMENT_PROCESSING_VIDEO_FFMPEG_COMMAND"),
       videoFfprobeCommand: catalogDefault("MINDORY_DOCUMENT_PROCESSING_VIDEO_FFPROBE_COMMAND")
     },
+    localModels: {
+      autoInstall: catalogDefault("MINDORY_INSTALL_LOCAL_MODEL_AUTO_INSTALL") === "true",
+      selectedRunnerIds: parseCsvStringArray(catalogDefault("MINDORY_INSTALL_LOCAL_MODEL_RUNNERS")),
+      pullRetries: Number.parseInt(catalogDefault("MINDORY_INSTALL_LOCAL_MODEL_PULL_RETRIES"), 10)
+    },
     llmRoles: {},
     llmProviders: {
       openaiCompatibleBaseUrl: catalogDefault("MINDORY_LLM_OPENAI_COMPATIBLE_BASE_URL"),
@@ -1046,6 +1060,11 @@ export function createInstallAnswersFromHome(mindoryHome: string): MindoryInstal
       videoFfmpegCommand: envValue(env, "MINDORY_DOCUMENT_PROCESSING_VIDEO_FFMPEG_COMMAND"),
       videoFfprobeCommand: envValue(env, "MINDORY_DOCUMENT_PROCESSING_VIDEO_FFPROBE_COMMAND")
     },
+    localModels: {
+      autoInstall: envBool(env, "MINDORY_INSTALL_LOCAL_MODEL_AUTO_INSTALL"),
+      selectedRunnerIds: parseCsvStringArray(envValue(env, "MINDORY_INSTALL_LOCAL_MODEL_RUNNERS")),
+      pullRetries: envNumber(env, "MINDORY_INSTALL_LOCAL_MODEL_PULL_RETRIES")
+    },
     llmRoles: readLlmRoleAnswersFromEnv(env),
     llmProviders: {
       openaiCompatibleBaseUrl: envValue(env, "MINDORY_LLM_OPENAI_COMPATIBLE_BASE_URL"),
@@ -1102,6 +1121,9 @@ function installConfigJsonToAnswers(config: Record<string, unknown>, fallbackHom
   }
   if (isObjectRecord(config.modalities)) {
     overrides.modalities = config.modalities as unknown as ModalityAnswers;
+  }
+  if (isObjectRecord(config.local_models)) {
+    overrides.localModels = config.local_models as unknown as LocalModelAnswers;
   }
   if (isObjectRecord(config.llm_roles)) {
     overrides.llmRoles = config.llm_roles as Partial<Record<InstallerLlmRoleKey, LlmRoleAnswers>>;
@@ -1189,6 +1211,24 @@ export function validateInstallAnswers(answers: MindoryInstallAnswers): string[]
   }
   if (answers.modalities.videoMaxKeyframes <= 0) {
     errors.push("modalities.videoMaxKeyframes must be greater than zero.");
+  }
+  if (answers.localModels.pullRetries <= 0) {
+    errors.push("localModels.pullRetries must be greater than zero.");
+  }
+  const selectedLocalModelRunnerIds = new Set<string>();
+  for (const runnerId of answers.localModels.selectedRunnerIds) {
+    const runner = LOCAL_MODEL_RUNNER_CATALOG.find((entry) => entry.id === runnerId);
+    if (runner === undefined) {
+      errors.push(`localModels.selectedRunnerIds contains unknown runner ${runnerId}.`);
+      continue;
+    }
+    if (selectedLocalModelRunnerIds.has(runnerId)) {
+      errors.push(`localModels.selectedRunnerIds contains duplicate runner ${runnerId}.`);
+    }
+    selectedLocalModelRunnerIds.add(runnerId);
+    if (runner.status !== "supported") {
+      errors.push(`localModels.selectedRunnerIds ${runnerId} is ${runner.status}; installer auto-install currently accepts supported local model runners.`);
+    }
   }
   validateCatalogValue(errors, "MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_PROVIDER", answers.modalities.videoKeyframeProvider);
   if (answers.modalities.video && answers.modalities.videoKeyframeProvider === "ffmpeg" && answers.modalities.videoFfmpegCommand.trim() === "") {
@@ -1339,6 +1379,7 @@ export function createInstallPlan(answers: MindoryInstallAnswers): InstallPlan {
       step("write-compose-assets", "Write release Compose assets", "compose", "restore_file", path.posix.join(answers.mindoryHome, "install/compose")),
       step("pull-images", "Pull or build required container images", "docker", "none"),
       step("start-infra", "Start Postgres, Redis and optional infrastructure", "docker", "compose_down"),
+      step("install-local-models", "Install selected local model runners", "docker", "restore_file", path.posix.join(answers.mindoryHome, "install/local-models")),
       step("bootstrap-storage", "Bootstrap object storage bucket", "docker", "none"),
       step("run-migrations", "Run database migrations", "migration", "none"),
       step("start-runtime", "Start API, worker and MCP package smoke services", "runtime", "compose_down"),
@@ -1514,14 +1555,30 @@ export function detectHostDependencies(answers: MindoryInstallAnswers, probe: De
   });
 
   const diskSpaceBytes = probe.diskSpaceBytes(answers.mindoryHome);
+  const selectedRunners = selectedLocalModelRunners(answers);
+  const localModelDiskBytes = estimateLocalModelDiskBytes(selectedRunners);
   checks.push({
     id: "disk-space",
     label: "Available disk space",
-    status: diskSpaceBytes === null || diskSpaceBytes >= 5_000_000_000 ? "ok" : "failed",
+    status: diskSpaceBytes === null || diskSpaceBytes >= 5_000_000_000 + localModelDiskBytes ? "ok" : "failed",
     required: true,
-    diagnosis: diskSpaceBytes === null ? "Disk space could not be measured by this probe." : `${diskSpaceBytes} bytes available.`,
-    manualFix: "Free at least 5GB for local runtime state."
+    diagnosis: diskSpaceBytes === null ? "Disk space could not be measured by this probe." : `${diskSpaceBytes} bytes available; ${localModelDiskBytes} bytes estimated for selected local model runners.`,
+    manualFix: "Free at least 5GB plus selected local model runner disk requirements for local runtime state."
   });
+
+  for (const runner of selectedRunners) {
+    for (const port of runner.ports) {
+      const available = probe.isPortAvailable(port.defaultHostPort);
+      checks.push({
+        id: `local-model-port-${runner.id}-${port.defaultHostPort}`,
+        label: `${runner.title} port ${port.defaultHostPort}`,
+        status: available ? "ok" : "failed",
+        required: true,
+        ...(available ? {} : { diagnosis: `Port ${port.defaultHostPort} is already in use.` }),
+        manualFix: `Choose a different host port for ${runner.id} or stop the conflicting process.`
+      });
+    }
+  }
 
   return checks;
 }
@@ -3155,6 +3212,9 @@ export function answersToEnvMap(answers: MindoryInstallAnswers): Record<string, 
   assign(env, "MINDORY_INSTALL_DEPENDENCY_POLICY", answers.dependencyPolicy);
   assign(env, "MINDORY_INSTALL_ROLLBACK_ON_FAILURE", bool(answers.rollbackOnFailure));
   assign(env, "MINDORY_INSTALL_DEV_MODE", bool(answers.devMode));
+  assign(env, "MINDORY_INSTALL_LOCAL_MODEL_AUTO_INSTALL", bool(answers.localModels.autoInstall));
+  assign(env, "MINDORY_INSTALL_LOCAL_MODEL_RUNNERS", answers.localModels.selectedRunnerIds.join(","));
+  assign(env, "MINDORY_INSTALL_LOCAL_MODEL_PULL_RETRIES", String(answers.localModels.pullRetries));
   assign(env, "MINDORY_PUBLIC_URL", answers.publicUrl);
   assign(env, "MINDORY_API_PORT", String(answers.interfaces.apiPort));
   assign(env, "MINDORY_STORAGE_PROVIDER", answers.storage.provider);
@@ -3249,6 +3309,7 @@ export function renderMindoryConfigJson(answers: MindoryInstallAnswers): string 
     docling: answers.docling,
     antivirus: answers.antivirus,
     modalities: answers.modalities,
+    local_models: answers.localModels,
     llm_roles: answers.llmRoles,
     llm_providers: answers.llmProviders,
     interfaces: answers.interfaces
@@ -3298,6 +3359,11 @@ export function composeProfilesForAnswers(answers: MindoryInstallAnswers): strin
   if (answers.docling.enabled) {
     profiles.add("docling");
   }
+  if (answers.localModels.autoInstall) {
+    for (const runner of selectedLocalModelRunners(answers)) {
+      profiles.add(runner.composeProfile);
+    }
+  }
   for (const roleAnswers of Object.values(answers.llmRoles)) {
     if (roleAnswers?.enabled) {
       for (const profile of composeProfilesForLlmProvider(roleAnswers.provider)) {
@@ -3312,6 +3378,36 @@ function composeProfilesForLlmProvider(provider: LlmProvider): string[] {
   return LOCAL_MODEL_RUNNER_CATALOG
     .filter((entry) => entry.status === "supported" && entry.provider === provider)
     .map((entry) => entry.composeProfile);
+}
+
+function selectedLocalModelRunners(answers: MindoryInstallAnswers): LocalModelRunnerCatalogEntry[] {
+  if (!answers.localModels.autoInstall) {
+    return [];
+  }
+  const ids = new Set(answers.localModels.selectedRunnerIds);
+  return LOCAL_MODEL_RUNNER_CATALOG.filter((entry) => ids.has(entry.id));
+}
+
+function estimateLocalModelDiskBytes(runners: readonly LocalModelRunnerCatalogEntry[]): number {
+  return runners.reduce((total, runner) => total + runner.modelFiles.reduce((runnerTotal, file) => runnerTotal + estimateSizeHintBytes(file.sizeHint), 0), 0);
+}
+
+function estimateSizeHintBytes(sizeHint: string): number {
+  const matches = Array.from(sizeHint.matchAll(/(\d+(?:\.\d+)?)\s*(GB|MB|KB)/gi));
+  if (matches.length === 0) {
+    return 0;
+  }
+  return Math.max(...matches.map((match) => {
+    const value = Number.parseFloat(match[1] ?? "0");
+    const unit = (match[2] ?? "").toUpperCase();
+    if (unit === "GB") {
+      return Math.ceil(value * 1_000_000_000);
+    }
+    if (unit === "MB") {
+      return Math.ceil(value * 1_000_000);
+    }
+    return Math.ceil(value * 1_000);
+  }));
 }
 
 function answersUsesLocalCommandProvider(answers: MindoryInstallAnswers): boolean {
@@ -3364,6 +3460,9 @@ export function buildWizardPromptPlan(options: WizardOptions = {}): WizardPrompt
     promptFromCatalog("modalities.video_keyframe_provider", "MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_PROVIDER", "choice"),
     promptFromCatalog("modalities.video_ffmpeg_command", "MINDORY_DOCUMENT_PROCESSING_VIDEO_FFMPEG_COMMAND", "text"),
     promptFromCatalog("modalities.video_ffprobe_command", "MINDORY_DOCUMENT_PROCESSING_VIDEO_FFPROBE_COMMAND", "text"),
+    promptFromCatalog("local_models.auto_install", "MINDORY_INSTALL_LOCAL_MODEL_AUTO_INSTALL", "boolean"),
+    promptFromCatalog("local_models.pull_retries", "MINDORY_INSTALL_LOCAL_MODEL_PULL_RETRIES", "number"),
+    ...localModelRunnerPrompts(answers),
     promptFromCatalog("interfaces.api_port", "MINDORY_API_PORT", "number"),
     promptFromCatalog("interfaces.mcp_enabled", "MINDORY_MCP_ENABLED", "boolean"),
     promptFromCatalog("interfaces.hermes_enabled", "MINDORY_HERMES_ADAPTER_ENABLED", "boolean"),
@@ -3463,6 +3562,23 @@ export async function runInstallWizard(io: WizardIo, options: WizardOptions = {}
     answers.modalities.videoFfprobeCommand = await askString(io, promptFromCatalog("modalities.video_ffprobe_command", "MINDORY_DOCUMENT_PROCESSING_VIDEO_FFPROBE_COMMAND", "text", { defaultValue: answers.modalities.videoFfprobeCommand }));
   }
 
+  answers.localModels.autoInstall = await askBoolean(io, promptFromCatalog("local_models.auto_install", "MINDORY_INSTALL_LOCAL_MODEL_AUTO_INSTALL", "boolean"));
+  answers.localModels.selectedRunnerIds = [];
+  if (answers.localModels.autoInstall) {
+    const selectedRunners: LocalModelRunnerCatalogEntry[] = [];
+    for (const runner of supportedLocalModelRunners()) {
+      const selected = await askBoolean(io, localModelRunnerPrompt(runner, answers));
+      if (selected) {
+        selectedRunners.push(runner);
+        answers.localModels.selectedRunnerIds.push(runner.id);
+        applyLocalModelRunnerToAnswers(answers, runner, answers.allowExperimental || options.allowExperimental === true);
+      } else {
+        disableLocalModelRunnerRoles(answers, runner, selectedRunners);
+      }
+    }
+    answers.localModels.pullRetries = await askNumber(io, promptFromCatalog("local_models.pull_retries", "MINDORY_INSTALL_LOCAL_MODEL_PULL_RETRIES", "number", { defaultValue: String(answers.localModels.pullRetries) }));
+  }
+
   for (const role of LLM_ROLE_KEYS) {
     const experimentalAllowed = answers.allowExperimental || options.allowExperimental === true;
     const roleAllowed = roleSupportStatus(role) === "supported" || experimentalAllowed;
@@ -3555,6 +3671,110 @@ export function createReadlineWizardIo(): WizardIo & { close(): void } {
 
 function promptFromCatalog(id: string, envName: string, kind: WizardPromptKind, overrides: Partial<WizardPrompt> = {}): WizardPrompt {
   return promptFromEntry(id, catalogEntry(envName), kind, overrides);
+}
+
+function localModelRunnerPrompts(answers: MindoryInstallAnswers): WizardPrompt[] {
+  return supportedLocalModelRunners().map((runner) => localModelRunnerPrompt(runner, answers));
+}
+
+function localModelRunnerPrompt(runner: LocalModelRunnerCatalogEntry, answers: MindoryInstallAnswers): WizardPrompt {
+  return {
+    id: `local_models.runner.${runner.id}.enabled`,
+    kind: "boolean",
+    label: runner.title,
+    help: [
+      runner.notes,
+      `Roles: ${runner.roles.join(", ")}.`,
+      `Models: ${runner.modelNames.join(", ")}.`
+    ].join(" "),
+    defaultValue: answers.localModels.selectedRunnerIds.includes(runner.id) ? "true" : "false",
+    secret: false,
+    resourceHint: runner.resourceHint,
+    supportStatus: runner.status
+  };
+}
+
+function supportedLocalModelRunners(): LocalModelRunnerCatalogEntry[] {
+  return LOCAL_MODEL_RUNNER_CATALOG.filter((runner) => runner.status === "supported");
+}
+
+function applyLocalModelRunnerToAnswers(answers: MindoryInstallAnswers, runner: LocalModelRunnerCatalogEntry, experimentalAllowed: boolean): void {
+  for (const role of runner.roles) {
+    if (!LLM_ROLE_KEYS.includes(role)) {
+      continue;
+    }
+    if (roleSupportRequiresExperimental(llmRoleSupportStatus(role)) && !experimentalAllowed) {
+      disableLlmRole(answers, role);
+      continue;
+    }
+    const dimensions = localModelDimensionsForRole(runner, role);
+    answers.llmRoles[role] = {
+      enabled: true,
+      provider: runner.provider,
+      model: localModelNameForRole(runner, role),
+      required: false,
+      timeoutMs: runner.healthcheck.timeoutMs,
+      concurrency: 1,
+      ...(dimensions === undefined ? {} : { dimensions })
+    };
+  }
+}
+
+function disableLocalModelRunnerRoles(
+  answers: MindoryInstallAnswers,
+  declinedRunner: LocalModelRunnerCatalogEntry,
+  selectedRunners: readonly LocalModelRunnerCatalogEntry[]
+): void {
+  for (const role of declinedRunner.roles) {
+    if (!LLM_ROLE_KEYS.includes(role)) {
+      continue;
+    }
+    const coveredBySelectedRunner = selectedRunners.some((runner) => runner.roles.includes(role));
+    if (!coveredBySelectedRunner) {
+      disableLlmRole(answers, role);
+    }
+  }
+}
+
+function disableLlmRole(answers: MindoryInstallAnswers, role: InstallerLlmRoleKey): void {
+  answers.llmRoles[role] = {
+    enabled: false,
+    provider: "disabled",
+    model: "",
+    required: false,
+    timeoutMs: Number.parseInt(catalogDefault(`MINDORY_LLM_${role}_TIMEOUT_MS`), 10),
+    concurrency: Number.parseInt(catalogDefault(`MINDORY_LLM_${role}_CONCURRENCY`), 10)
+  };
+}
+
+function localModelNameForRole(runner: LocalModelRunnerCatalogEntry, role: InstallerLlmRoleKey): string {
+  const roleTokens: Partial<Record<InstallerLlmRoleKey, readonly string[]>> = {
+    CHAT: ["chat"],
+    TEXT_EMBEDDING: ["text-embedding", "embed", "nomic"],
+    IMAGE_EMBEDDING: ["image-embedding", "clip", "siglip"],
+    VISION_CAPTIONING: ["vision", "caption", "moondream"],
+    OCR: ["ocr"],
+    ASR: ["asr", "whisper"],
+    FACE_DETECTION: ["face", "detect", "buffalo"],
+    FACE_RECOGNITION: ["face", "recogn", "buffalo"],
+    IMAGE_GENERATION: ["image-generation"],
+    AUDIO_GENERATION: ["audio-generation"]
+  };
+  const tokens = roleTokens[role] ?? [];
+  const matched = runner.modelNames.find((modelName) =>
+    tokens.some((token) => modelName.toLowerCase().includes(token))
+  );
+  return matched ?? runner.modelNames[0] ?? catalogDefault(`MINDORY_LLM_${role}_MODEL`);
+}
+
+function localModelDimensionsForRole(runner: LocalModelRunnerCatalogEntry, role: InstallerLlmRoleKey): number | null | undefined {
+  if (role !== "TEXT_EMBEDDING" && role !== "IMAGE_EMBEDDING") {
+    return undefined;
+  }
+  if (runner.id === "mindory-deterministic-local-http") {
+    return 1536;
+  }
+  return null;
 }
 
 function promptFromEntry(id: string, entry: ConfigCatalogEntry, kind: WizardPromptKind, overrides: Partial<WizardPrompt> = {}): WizardPrompt {
@@ -3680,6 +3900,10 @@ async function executeSupportedInstallStep(
     await startComposeInfrastructure(plan, options);
     return;
   }
+  if (stepItem.id === "install-local-models") {
+    await installSelectedLocalModels(answers, plan, stepItem, options);
+    return;
+  }
   if (stepItem.id === "bootstrap-storage") {
     await bootstrapObjectStorage(answers, plan, options);
     return;
@@ -3754,6 +3978,180 @@ async function pullOrBuildImages(plan: InstallPlan, options: InstallExecutionOpt
 
 async function startComposeInfrastructure(plan: InstallPlan, options: InstallExecutionOptions): Promise<void> {
   await runDockerCompose(plan, ["up", "-d", ...infrastructureServices(plan)], options);
+}
+
+async function installSelectedLocalModels(
+  answers: MindoryInstallAnswers,
+  plan: InstallPlan,
+  stepItem: InstallPlanStep,
+  options: InstallExecutionOptions
+): Promise<void> {
+  const targetDirectory = path.join(plan.mindoryHome, "install", "local-models");
+  prepareTargetRollback(targetDirectory, stepItem, plan.mindoryHome);
+  rmSync(targetDirectory, { recursive: true, force: true });
+  mkdirSync(targetDirectory, { recursive: true, mode: 0o700 });
+
+  const logPath = path.join(plan.mindoryHome, "logs", "local-model-install.log");
+  mkdirSync(path.dirname(logPath), { recursive: true, mode: 0o700 });
+  const selectedRunners = selectedLocalModelRunners(answers);
+  const report = {
+    schema_version: INSTALLER_SCHEMA_VERSION,
+    kind: "mindory-local-model-install-report",
+    created_at: new Date().toISOString(),
+    auto_install: answers.localModels.autoInstall,
+    selected_runner_ids: selectedRunners.map((runner) => runner.id),
+    log_path: logPath,
+    status: selectedRunners.length === 0 ? "skipped" : "running",
+    installed: [] as string[],
+    skipped: [] as string[],
+    failures: [] as Array<{ runner_id: string; error: string }>
+  };
+
+  appendLocalModelInstallLog(logPath, `local model install start auto_install=${answers.localModels.autoInstall} runners=${report.selected_runner_ids.join(",") || "none"}`);
+  if (!answers.localModels.autoInstall || selectedRunners.length === 0) {
+    report.status = "skipped";
+    writeLocalModelInstallReport(targetDirectory, report);
+    appendLocalModelInstallLog(logPath, "local model install skipped");
+    return;
+  }
+
+  let currentRunnerId = "preflight";
+  try {
+    preflightSelectedLocalModelRunners(plan, selectedRunners, options);
+    for (const runner of selectedRunners) {
+      currentRunnerId = runner.id;
+      await waitForLocalModelRunnerService(plan, runner, options);
+      await installLocalModelRunner(plan, runner, answers.localModels.pullRetries, logPath, options);
+      report.installed.push(runner.id);
+      writeLocalModelInstallReport(targetDirectory, report);
+    }
+    report.status = "installed";
+    writeLocalModelInstallReport(targetDirectory, report);
+    appendLocalModelInstallLog(logPath, "local model install completed");
+  } catch (error) {
+    report.status = "failed";
+    report.failures.push({ runner_id: currentRunnerId, error: errorToString(error) });
+    writeLocalModelInstallReport(targetDirectory, report);
+    appendLocalModelInstallLog(logPath, `local model install failed: ${errorToString(error)}`);
+    throw new Error(`Local model auto-install failed. See ${logPath}. ${errorToString(error)}`);
+  }
+}
+
+function preflightSelectedLocalModelRunners(
+  plan: InstallPlan,
+  runners: readonly LocalModelRunnerCatalogEntry[],
+  options: InstallExecutionOptions
+): void {
+  for (const runner of runners) {
+    if (runner.status !== "supported") {
+      throw new Error(`Local model runner ${runner.id} is ${runner.status}; this installer flow only installs supported runners.`);
+    }
+    if (!plan.composeProfiles.includes(runner.composeProfile)) {
+      throw new Error(`Local model runner ${runner.id} requires Compose profile ${runner.composeProfile}.`);
+    }
+  }
+  const diskSpaceBytes = options.dependencyProbe?.diskSpaceBytes(plan.mindoryHome) ?? null;
+  const requiredDiskBytes = 5_000_000_000 + estimateLocalModelDiskBytes(runners);
+  if (diskSpaceBytes !== null && diskSpaceBytes < requiredDiskBytes) {
+    throw new Error(`Insufficient disk space for local model auto-install: ${diskSpaceBytes} bytes available, ${requiredDiskBytes} bytes required.`);
+  }
+}
+
+async function installLocalModelRunner(
+  plan: InstallPlan,
+  runner: LocalModelRunnerCatalogEntry,
+  retries: number,
+  logPath: string,
+  options: InstallExecutionOptions
+): Promise<void> {
+  appendLocalModelInstallLog(logPath, `install runner ${runner.id} provider=${runner.provider} service=${runner.serviceName}`);
+  if (runner.provider === "ollama") {
+    for (const modelName of runner.modelNames) {
+      await runLocalModelComposeCommandWithRetries(plan, ["exec", "-T", runner.serviceName, "ollama", "pull", modelName], retries, logPath, options);
+    }
+    await runLocalModelComposeCommandWithRetries(plan, ["exec", "-T", runner.serviceName, "ollama", "list"], retries, logPath, options);
+    return;
+  }
+  if (runner.provider === "local-http") {
+    await runLocalHttpRunnerHealthcheck(plan, runner, retries, logPath, options);
+    return;
+  }
+  if (runner.provider === "local-command") {
+    throw new Error(`Local-command runner ${runner.id} must be configured through MINDORY_LLM_LOCAL_COMMAND_* and is not installed as a Compose service.`);
+  }
+}
+
+async function runLocalHttpRunnerHealthcheck(
+  plan: InstallPlan,
+  runner: LocalModelRunnerCatalogEntry,
+  retries: number,
+  logPath: string,
+  options: InstallExecutionOptions
+): Promise<void> {
+  const port = runner.ports[0]?.containerPort ?? 8080;
+  const script = `fetch('http://127.0.0.1:${port}/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1));`;
+  await runLocalModelComposeCommandWithRetries(plan, ["exec", "-T", runner.serviceName, "node", "-e", script], retries, logPath, options);
+}
+
+async function waitForLocalModelRunnerService(
+  plan: InstallPlan,
+  runner: LocalModelRunnerCatalogEntry,
+  options: InstallExecutionOptions
+): Promise<void> {
+  const deadline = Date.now() + runner.healthcheck.timeoutMs;
+  const pollIntervalMs = options.pollIntervalMs ?? 2_000;
+  let lastStatus = "service not observed yet";
+  while (Date.now() < deadline) {
+    const records = parseComposeJson((await runDockerCompose(plan, ["ps", "--all", "--format", "json"], options, { captureOutput: true })).stdout);
+    const record = findComposeService(records, runner.serviceName);
+    if (record !== undefined && isComposeRunningAndHealthy(record)) {
+      return;
+    }
+    if (record !== undefined && isComposeFailed(record)) {
+      throw new Error(`Local model service ${runner.serviceName} failed while waiting for ${runner.id}.`);
+    }
+    lastStatus = record === undefined ? "missing" : composeStatusText(record);
+    await sleep(pollIntervalMs);
+  }
+  throw new Error(`Timed out waiting for local model service ${runner.serviceName} for ${runner.id}: ${lastStatus}`);
+}
+
+async function runLocalModelComposeCommandWithRetries(
+  plan: InstallPlan,
+  composeArgs: readonly string[],
+  retries: number,
+  logPath: string,
+  options: InstallExecutionOptions
+): Promise<void> {
+  const attempts = Math.max(1, retries);
+  let lastResult: InstallCommandResult | null = null;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    appendLocalModelInstallLog(logPath, `attempt ${attempt}/${attempts}: docker compose ${composeArgs.join(" ")}`);
+    const result = await runDockerComposeWithoutStatusCheck(plan, composeArgs, options);
+    lastResult = result;
+    appendLocalModelInstallLog(logPath, `status=${result.status ?? "null"}`);
+    if (result.stdout.trim() !== "") {
+      appendLocalModelInstallLog(logPath, `stdout: ${result.stdout.trim()}`);
+    }
+    if (result.stderr.trim() !== "") {
+      appendLocalModelInstallLog(logPath, `stderr: ${result.stderr.trim()}`);
+    }
+    if ((result.status ?? 1) === 0) {
+      return;
+    }
+    if (attempt < attempts) {
+      await sleep(options.pollIntervalMs ?? 2_000);
+    }
+  }
+  throw new Error(`Local model command failed after ${attempts} attempt(s): docker compose ${composeArgs.join(" ")} ${lastResult === null ? "" : commandOutput(lastResult)}`.trim());
+}
+
+function writeLocalModelInstallReport(targetDirectory: string, report: Record<string, unknown>): void {
+  writeFileSync(path.join(targetDirectory, "install-report.json"), `${JSON.stringify(report, null, 2)}\n`, { mode: 0o600 });
+}
+
+function appendLocalModelInstallLog(logPath: string, message: string): void {
+  writeFileSync(logPath, `[${new Date().toISOString()}] ${message}\n`, { flag: "a", mode: 0o600 });
 }
 
 async function bootstrapObjectStorage(
@@ -5786,6 +6184,8 @@ function promptIdToEnvName(promptId: string): string | undefined {
     "install.allow_experimental": "MINDORY_INSTALL_ALLOW_EXPERIMENTAL",
     "install.dependency_policy": "MINDORY_INSTALL_DEPENDENCY_POLICY",
     "av.mode": "MINDORY_AV_MODE",
+    "local_models.auto_install": "MINDORY_INSTALL_LOCAL_MODEL_AUTO_INSTALL",
+    "local_models.pull_retries": "MINDORY_INSTALL_LOCAL_MODEL_PULL_RETRIES",
     "storage.s3.endpoint": "MINDORY_S3_ENDPOINT",
     "storage.s3.bucket": "MINDORY_S3_BUCKET",
     "storage.s3.access_key_id": "MINDORY_S3_ACCESS_KEY_ID",
@@ -5866,6 +6266,7 @@ function mergeAnswers(defaults: MindoryInstallAnswers, overrides: Partial<Mindor
     docling: { ...defaults.docling, ...overrides.docling },
     antivirus: { ...defaults.antivirus, ...overrides.antivirus },
     modalities: { ...defaults.modalities, ...overrides.modalities },
+    localModels: { ...defaults.localModels, ...overrides.localModels },
     llmRoles: { ...defaults.llmRoles, ...overrides.llmRoles },
     llmProviders: { ...defaults.llmProviders, ...overrides.llmProviders },
     interfaces: { ...defaults.interfaces, ...overrides.interfaces },
@@ -5952,6 +6353,10 @@ function assign(env: Record<string, string>, name: string, value: string): void 
 
 function bool(value: boolean): string {
   return value ? "true" : "false";
+}
+
+function parseCsvStringArray(value: string): string[] {
+  return value.split(",").map((entry) => entry.trim()).filter((entry) => entry !== "");
 }
 
 function parseJsonStringArray(value: string, label: string): string[] {

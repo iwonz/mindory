@@ -35,12 +35,21 @@ literal fallback values.
 `TASK-52` introduces installer configuration metadata before the installer
 runtime exists. The cataloged installer settings include `MINDORY_HOME`,
 install profile, release channel, experimental-mode flag, dependency policy,
-rollback-on-failure behavior and dev-mode flag.
+rollback-on-failure behavior, dev-mode flag, local model auto-install switch,
+selected local runner ids and local model pull retry count.
 
 The default installation root is `~/.mindory`. `@mindory/installer` uses the
 catalog for answer validation, generated `.env` output and redacted summaries.
 The installer wizard uses the same catalog for prompts rather than hardcoding
 choices in installer code.
+
+Local model installation is controlled by
+`MINDORY_INSTALL_LOCAL_MODEL_AUTO_INSTALL`,
+`MINDORY_INSTALL_LOCAL_MODEL_RUNNERS` and
+`MINDORY_INSTALL_LOCAL_MODEL_PULL_RETRIES`. Selected supported runners are
+validated against `LOCAL_MODEL_RUNNER_CATALOG`, contribute Compose profiles,
+run resource preflight, write diagnostic logs under `$MINDORY_HOME/logs` and
+must pass health checks before installer startup continues.
 
 Docker Compose uses `MINDORY_HOME` on the host as the single Mindory-owned root.
 If it is not set, Compose falls back to `${HOME}/.mindory`. Runtime state is

@@ -20,6 +20,9 @@ documentation.
 
 ### Added
 
+- `TASK-124`: installer local model auto-install flow with catalog runner
+  prompts, resource preflight, Compose service health checks, Ollama model
+  pulls, diagnostic logs and rollback journal coverage.
 - `TASK-123`: supported local model Compose profiles now resolve from the
   local runner catalog, persist model data under `MINDORY_HOME` and validate
   healthchecks for local HTTP and Ollama runners.
