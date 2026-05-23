@@ -20,6 +20,10 @@ documentation.
 
 ### Added
 
+- `TASK-136`: supported Faster Whisper local ASR runner with
+  `local-models-asr` Compose profile, installer selection/healthcheck wiring,
+  `MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL`, live ASR transcript/time-ref acceptance
+  and release-bundle assets for the runner.
 - `TASK-135`: supported Tesseract local OCR runner with `local-models-ocr`
   Compose profile, installer selection/healthcheck wiring,
   `MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL`, PDF/image OCR live acceptance coverage

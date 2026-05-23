@@ -6,7 +6,7 @@ The repository should be described with the support levels in
 
 ## Current Baseline
 
-The repository is complete through `TASK-135`.
+The repository is complete through `TASK-136`.
 
 Release baseline:
 
@@ -17,8 +17,9 @@ Release baseline:
   image embeddings, face detection/recognition, image generation, audio
   generation, local-command runners and local-http runners into checked
   supported local/install/runtime paths. `TASK-133` registered this contract;
-  `TASK-134` promoted the central role/provider support matrix, and
-  `TASK-135` added the supported Tesseract OCR runner. `TASK-136` through
+  `TASK-134` promoted the central role/provider support matrix,
+  `TASK-135` added the supported Tesseract OCR runner and `TASK-136` added
+  the supported Faster Whisper ASR runner. `TASK-137` through
   `TASK-147` execute and verify the remaining runner, installer,
   acceptance and release work one task at a time.
 
@@ -75,6 +76,8 @@ Supported local MVP path:
   `$MINDORY_HOME/data/ollama`.
 - The supported Tesseract runner uses the `local-models-ocr` profile and
   `MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL` for PDF/image OCR through `@mindory/llm`.
+- The supported Faster Whisper runner uses the `local-models-asr` profile and
+  `MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL` for audio ASR through `@mindory/llm`.
 - OpenAI-compatible chat, text embedding, image generation and audio generation
   operations support API-key and OAuth bearer auth through `@mindory/llm`.
 - Local HTTP chat/text embedding/image embedding/OCR/vision/ASR/face/generation
@@ -166,7 +169,7 @@ Public GitHub hygiene baseline:
 
 - Alerting policy is not bundled; route Prometheus and OTLP exports to the
   monitoring stack used by the deployment.
-- ASR, vision/image-embedding, face and generation runner images remain
+- Vision/image-embedding, face and generation runner images remain
   runner-specific work for the v0.1.1 task series; provider and role support
   levels are defined in `docs/SUPPORT_MATRIX.md`.
 

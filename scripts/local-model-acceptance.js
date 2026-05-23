@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const live = process.env.MINDORY_LOCAL_MODEL_ACCEPTANCE_LIVE === "true";
 const ocrLive = process.env.MINDORY_LOCAL_OCR_ACCEPTANCE_LIVE === "true";
+const asrLive = process.env.MINDORY_LOCAL_ASR_ACCEPTANCE_LIVE === "true";
 const timeoutMs = parsePositiveInteger(process.env.MINDORY_LOCAL_MODEL_ACCEPTANCE_TIMEOUT_MS ?? "300000", "MINDORY_LOCAL_MODEL_ACCEPTANCE_TIMEOUT_MS");
 
 const FONT = {
@@ -51,7 +52,10 @@ if (live) {
 if (ocrLive) {
   await runOcrRunnerLiveAcceptance();
 }
-if (!live && !ocrLive) {
+if (asrLive) {
+  await runAsrRunnerLiveAcceptance();
+}
+if (!live && !ocrLive && !asrLive) {
   runDryRunAcceptance();
 }
 
@@ -65,6 +69,7 @@ function runDryRunAcceptance() {
   const localModelsDocs = fs.readFileSync(path.join(root, "docs", "LOCAL_MODELS.md"), "utf8");
   const compose = fs.readFileSync(path.join(root, "docker-compose.yml"), "utf8");
   const tesseractServer = fs.readFileSync(path.join(root, "deploy", "local-models", "ocr", "tesseract", "server.py"), "utf8");
+  const asrServer = fs.readFileSync(path.join(root, "deploy", "local-models", "asr", "faster-whisper", "server.py"), "utf8");
 
   assert(packageJson.scripts?.["local-model:acceptance"] === "node scripts/local-model-acceptance.js", "Root package must expose local-model:acceptance.");
   assert(checkRepo.includes("local-model:acceptance"), "Repository checks must include local-model:acceptance.");
@@ -102,14 +107,22 @@ function runDryRunAcceptance() {
     "local-models-ocr",
     "deploy/local-models/ocr/tesseract/Dockerfile",
     "MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL",
-    "MINDORY_OCR_HEALTH_LOAD_MODEL"
+    "MINDORY_OCR_HEALTH_LOAD_MODEL",
+    "local-models-asr",
+    "deploy/local-models/asr/faster-whisper/Dockerfile",
+    "MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL",
+    "MINDORY_ASR_HEALTH_LOAD_MODEL"
   ]) {
-    assert(compose.includes(token), `Tesseract Compose profile must include ${token}.`);
+    assert(compose.includes(token), `Local model Compose profile must include ${token}.`);
   }
   for (const token of ["Tesseract", "pypdfium2", "POST", "/ocr", "page_number", "confidence"]) {
     assert(tesseractServer.includes(token), `Tesseract runner server must include ${token}.`);
   }
+  for (const token of ["faster_whisper", "WhisperModel", "POST", "/asr", "segment_index", "start_ms", "end_ms"]) {
+    assert(asrServer.includes(token), `Faster Whisper ASR runner server must include ${token}.`);
+  }
   assert(localModelsDocs.includes("MINDORY_LOCAL_OCR_ACCEPTANCE_LIVE=true"), "Local model docs must document live Tesseract acceptance.");
+  assert(localModelsDocs.includes("MINDORY_LOCAL_ASR_ACCEPTANCE_LIVE=true"), "Local model docs must document live Faster Whisper acceptance.");
   console.log("Local model acceptance dry-run passed. Set MINDORY_LOCAL_MODEL_ACCEPTANCE_LIVE=true to run the Docker local-model path.");
 }
 
@@ -174,6 +187,46 @@ async function runOcrRunnerLiveAcceptance() {
   }
 }
 
+async function runAsrRunnerLiveAcceptance() {
+  const asrPort = await findFreePort(8084 + Math.floor(Math.random() * 1000));
+  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-local-asr-acceptance-"));
+  const env = {
+    ...process.env,
+    MINDORY_HOME: tempHome,
+    MINDORY_ASR_PORT: String(asrPort),
+    MINDORY_ASR_MODEL: process.env.MINDORY_ASR_MODEL ?? "Systran/faster-whisper-tiny.en",
+    MINDORY_ASR_DEVICE: process.env.MINDORY_ASR_DEVICE ?? "cpu",
+    MINDORY_ASR_COMPUTE_TYPE: process.env.MINDORY_ASR_COMPUTE_TYPE ?? "int8",
+    MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL: `http://asr:8084`,
+    MINDORY_LLM_ASR_MODEL: process.env.MINDORY_LLM_ASR_MODEL ?? "Systran/faster-whisper-tiny.en"
+  };
+  try {
+    run("docker", ["compose", "--profile", "local-models-asr", "up", "--build", "-d", "asr"], env);
+    const baseUrl = `http://127.0.0.1:${asrPort}`;
+    await waitForHttpOk(`${baseUrl}/health`, timeoutMs);
+    const fixture = createAsrFixtureWithDocker(env, "mindory audio runner test");
+    const result = await postAsr(baseUrl, fixture, "audio/wav");
+    const transcript = extractAsrText(result);
+    assert(transcript.length > 0, "Faster Whisper live ASR must return non-empty transcript text.");
+    assert(Array.isArray(result.segments) && result.segments.some((segment) => Number.isInteger(segment.start_ms) && Number.isInteger(segment.end_ms)), "Faster Whisper live ASR must return time-coded transcript segments.");
+    await assertAsrFailureDiagnostics(baseUrl);
+    console.log("Faster Whisper ASR live acceptance passed.");
+  } catch (error) {
+    try {
+      run("docker", ["compose", "--profile", "local-models-asr", "logs", "asr"], env);
+    } catch {
+      // Keep the original acceptance error when log collection itself fails.
+    }
+    throw error;
+  } finally {
+    try {
+      run("docker", ["compose", "--profile", "local-models-asr", "down", "--remove-orphans"], env);
+    } finally {
+      removeIfSafeTempPath(tempHome);
+    }
+  }
+}
+
 async function waitForHttpOk(url, timeout) {
   const deadline = Date.now() + timeout;
   let lastError = "";
@@ -209,10 +262,48 @@ async function postOcr(baseUrl, bytes, mimeType) {
   return JSON.parse(text);
 }
 
+async function postAsr(baseUrl, bytes, mimeType) {
+  const response = await fetch(`${baseUrl}/asr`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      model: "Systran/faster-whisper-tiny.en",
+      mime_type: mimeType,
+      data_base64: bytes.toString("base64")
+    })
+  });
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(`ASR request failed with ${response.status}: ${text}`);
+  }
+  return JSON.parse(text);
+}
+
+async function assertAsrFailureDiagnostics(baseUrl) {
+  const response = await fetch(`${baseUrl}/asr`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      model: "Systran/faster-whisper-tiny.en",
+      mime_type: "audio/wav",
+      data_base64: Buffer.from("not an audio file").toString("base64")
+    })
+  });
+  const text = await response.text();
+  assert(!response.ok, "Faster Whisper live ASR must reject invalid audio.");
+  assert(text.includes("asr_failed"), "Faster Whisper live ASR failure response must include asr_failed diagnostics.");
+}
+
 function extractOcrText(payload) {
   const direct = typeof payload.text === "string" ? payload.text : "";
   const pages = Array.isArray(payload.pages) ? payload.pages.map((page) => page?.text ?? "").join("\n") : "";
   return `${direct}\n${pages}`.trim();
+}
+
+function extractAsrText(payload) {
+  const direct = typeof payload.text === "string" ? payload.text : "";
+  const segments = Array.isArray(payload.segments) ? payload.segments.map((segment) => segment?.text ?? "").join("\n") : "";
+  return `${direct}\n${segments}`.trim();
 }
 
 function createTextPngWithDocker(env, text) {
@@ -241,6 +332,31 @@ sys.stdout.write(base64.b64encode(buffer.getvalue()).decode("ascii"))
   });
   if ((result.status ?? 1) !== 0) {
     throw new Error(`Could not create OCR image fixture: ${(result.stderr || result.stdout).trim()}`);
+  }
+  return Buffer.from(result.stdout.trim(), "base64");
+}
+
+function createAsrFixtureWithDocker(env, text) {
+  const script = `
+import base64
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+text = sys.argv[1]
+with tempfile.TemporaryDirectory(prefix="mindory-asr-fixture-") as temp_dir:
+    path = Path(temp_dir) / "fixture.wav"
+    subprocess.run(["espeak-ng", "-w", str(path), text], check=True, capture_output=True, text=True)
+    sys.stdout.write(base64.b64encode(path.read_bytes()).decode("ascii"))
+`;
+  const result = spawnSync("docker", ["compose", "--profile", "local-models-asr", "exec", "-T", "asr", "python", "-c", script, text], {
+    cwd: root,
+    env,
+    encoding: "utf8"
+  });
+  if ((result.status ?? 1) !== 0) {
+    throw new Error(`Could not create ASR audio fixture: ${(result.stderr || result.stdout).trim()}`);
   }
   return Buffer.from(result.stdout.trim(), "base64");
 }

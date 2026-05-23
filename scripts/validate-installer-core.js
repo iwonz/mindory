@@ -1404,6 +1404,39 @@ assert(paddleOcrWizardAnswers.llmRoles.OCR.model === "tesseract-eng", "Tesseract
 assert(paddleOcrWizardAnswers.llmProviders.localHttpOcrBaseUrl === "http://ocr:8083", "Tesseract runner selection must set the OCR-specific local HTTP endpoint.");
 assert(installer.composeProfilesForAnswers(paddleOcrWizardAnswers).includes("local-models-ocr"), "Tesseract wizard answers must enable local-models-ocr.");
 
+const asrWizardAnswers = await installer.runInstallWizard({
+  async prompt(prompt) {
+    if (prompt.id === "local_models.auto_install") {
+      return "true";
+    }
+    if (prompt.id === "local_models.runner.faster-whisper-tiny-asr.enabled") {
+      return "true";
+    }
+    if (prompt.id.startsWith("local_models.runner.")) {
+      return "false";
+    }
+    if (prompt.id === "local_models.pull_retries") {
+      return "2";
+    }
+    if (prompt.id.startsWith("llm.ASR.")) {
+      return "";
+    }
+    if (prompt.id.startsWith("llm.")) {
+      return "false";
+    }
+    return scriptedResponses.get(prompt.id) ?? "";
+  },
+  async confirm() {
+    return true;
+  }
+});
+assert(asrWizardAnswers.localModels.selectedRunnerIds.includes("faster-whisper-tiny-asr"), "Wizard must select the supported Faster Whisper local runner.");
+assert(asrWizardAnswers.llmRoles.ASR.enabled === true, "Faster Whisper runner selection must keep ASR enabled by default.");
+assert(asrWizardAnswers.llmRoles.ASR.provider === "local-http", "Faster Whisper runner selection must configure ASR through local-http.");
+assert(asrWizardAnswers.llmRoles.ASR.model === "Systran/faster-whisper-tiny.en", "Faster Whisper runner selection must use the catalog ASR model.");
+assert(asrWizardAnswers.llmProviders.localHttpAsrBaseUrl === "http://asr:8084", "Faster Whisper runner selection must set the ASR-specific local HTTP endpoint.");
+assert(installer.composeProfilesForAnswers(asrWizardAnswers).includes("local-models-asr"), "Faster Whisper wizard answers must enable local-models-asr.");
+
 const supportedLocalCommandAnswers = installer.createDefaultInstallAnswers({
   llmRoles: {
     IMAGE_EMBEDDING: {

@@ -172,6 +172,7 @@ export interface LlmProviderAnswers {
   ollamaBaseUrl: string;
   localHttpBaseUrl: string;
   localHttpOcrBaseUrl: string;
+  localHttpAsrBaseUrl: string;
   localCommandTimeoutMs: number;
   localCommandHealthcheckCommand: string;
   localCommandHealthcheckArgs: string[];
@@ -968,6 +969,7 @@ export function createDefaultInstallAnswers(overrides: Partial<MindoryInstallAns
       ollamaBaseUrl: catalogDefault("MINDORY_LLM_OLLAMA_BASE_URL"),
       localHttpBaseUrl: catalogDefault("MINDORY_LLM_LOCAL_HTTP_BASE_URL"),
       localHttpOcrBaseUrl: catalogDefault("MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL"),
+      localHttpAsrBaseUrl: catalogDefault("MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL"),
       localCommandTimeoutMs: Number.parseInt(catalogDefault("MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS"), 10),
       localCommandHealthcheckCommand: catalogDefault("MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND"),
       localCommandHealthcheckArgs: parseJsonStringArray(catalogDefault("MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS"), "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS"),
@@ -1079,6 +1081,7 @@ export function createInstallAnswersFromHome(mindoryHome: string): MindoryInstal
       ollamaBaseUrl: envValue(env, "MINDORY_LLM_OLLAMA_BASE_URL"),
       localHttpBaseUrl: envValue(env, "MINDORY_LLM_LOCAL_HTTP_BASE_URL"),
       localHttpOcrBaseUrl: envValue(env, "MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL"),
+      localHttpAsrBaseUrl: envValue(env, "MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL"),
       localCommandTimeoutMs: envNumber(env, "MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS"),
       localCommandHealthcheckCommand: envValue(env, "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND"),
       localCommandHealthcheckArgs: parseJsonStringArray(envValue(env, "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS"), "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS"),
@@ -3295,6 +3298,7 @@ export function answersToEnvMap(answers: MindoryInstallAnswers): Record<string, 
   assign(env, "MINDORY_LLM_OLLAMA_BASE_URL", answers.llmProviders.ollamaBaseUrl);
   assign(env, "MINDORY_LLM_LOCAL_HTTP_BASE_URL", answers.llmProviders.localHttpBaseUrl);
   assign(env, "MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL", answers.llmProviders.localHttpOcrBaseUrl);
+  assign(env, "MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL", answers.llmProviders.localHttpAsrBaseUrl);
   assign(env, "MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS", String(answers.llmProviders.localCommandTimeoutMs));
   assign(env, "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND", answers.llmProviders.localCommandHealthcheckCommand);
   assign(env, "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS", JSON.stringify(answers.llmProviders.localCommandHealthcheckArgs));
@@ -3806,6 +3810,10 @@ function applyLocalHttpRunnerEndpoint(
   const serviceBaseUrl = `http://${runner.serviceName}:${port.containerPort}`;
   if (role === "OCR") {
     answers.llmProviders.localHttpOcrBaseUrl = serviceBaseUrl;
+    return;
+  }
+  if (role === "ASR") {
+    answers.llmProviders.localHttpAsrBaseUrl = serviceBaseUrl;
     return;
   }
   answers.llmProviders.localHttpBaseUrl = serviceBaseUrl;

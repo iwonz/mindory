@@ -1,7 +1,7 @@
 {
   "id": "TASK-136",
   "title": "Real local ASR runner profile",
-  "status": "draft",
+  "status": "done",
   "type": "feature",
   "priority": "high",
   "branch": "task/TASK-136-real-local-asr-runner-profile",

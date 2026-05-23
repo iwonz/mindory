@@ -45,6 +45,10 @@ for (const token of [
   "deploy/local-models/ocr/tesseract/Dockerfile",
   "MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL",
   "MINDORY_OCR_HEALTH_LOAD_MODEL",
+  "profiles: [\"local-models-asr\"]",
+  "deploy/local-models/asr/faster-whisper/Dockerfile",
+  "MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL",
+  "MINDORY_ASR_HEALTH_LOAD_MODEL",
   "profiles: [\"ollama\"]",
   "ollama/ollama:latest",
   "test: [\"CMD\", \"ollama\", \"list\"]",
@@ -82,12 +86,17 @@ for (const token of [
   assert(`${localModels}\n${deployment}`.includes(token), `local model profile docs must include ${token}.`);
 }
 
-for (const assetPath of ["deploy/local-models/ocr/tesseract/Dockerfile", "deploy/local-models/ocr/tesseract/server.py"]) {
-  assert(releaseManifest.assets?.some((asset) => asset.path === assetPath && asset.required === true), `Release manifest must include OCR runner asset ${assetPath}.`);
+for (const assetPath of [
+  "deploy/local-models/ocr/tesseract/Dockerfile",
+  "deploy/local-models/ocr/tesseract/server.py",
+  "deploy/local-models/asr/faster-whisper/Dockerfile",
+  "deploy/local-models/asr/faster-whisper/server.py"
+]) {
+  assert(releaseManifest.assets?.some((asset) => asset.path === assetPath && asset.required === true), `Release manifest must include local model runner asset ${assetPath}.`);
 }
 
-for (const token of ["MINDORY_LOCAL_OCR_ACCEPTANCE_LIVE", "createTextPngWithDocker", "createTextPdfBuffer", "/ocr"]) {
-  assert(localModelAcceptance.includes(token), `Local model acceptance must include OCR live token ${token}.`);
+for (const token of ["MINDORY_LOCAL_OCR_ACCEPTANCE_LIVE", "createTextPngWithDocker", "createTextPdfBuffer", "/ocr", "MINDORY_LOCAL_ASR_ACCEPTANCE_LIVE", "createAsrFixtureWithDocker", "/asr"]) {
+  assert(localModelAcceptance.includes(token), `Local model acceptance must include live runner token ${token}.`);
 }
 
 console.log("Local model Compose profiles validated.");

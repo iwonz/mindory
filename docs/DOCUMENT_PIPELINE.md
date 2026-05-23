@@ -254,6 +254,12 @@ uses their `start_ms`/`end_ms` refs in artifact search and chunk metadata. If
 ASR is required and the provider fails or returns no transcript, extraction
 fails with a readable processing error.
 
+The supported local ASR runner is `faster-whisper-tiny-asr`. Installer
+selection starts the `local-models-asr` Compose profile and sets
+`MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL=http://asr:8084`, so audio ASR requests go
+to the dedicated Faster Whisper endpoint while other local HTTP roles can use
+the general model service.
+
 ## Video Processing
 
 When `MINDORY_DOCUMENT_PROCESSING_VIDEO_ENABLED=true`, routing sends video

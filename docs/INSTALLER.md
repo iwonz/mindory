@@ -337,7 +337,9 @@ come from `LOCAL_MODEL_RUNNER_CATALOG`; `docs/LOCAL_MODELS.md` records role
 coverage, source/image metadata, model files, license/status, ports,
 healthchecks and resource hints. The supported Tesseract runner sets
 `MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL=http://ocr:8083` and routes OCR through
-the `local-models-ocr` Compose profile. If a supported local runner is selected,
+the `local-models-ocr` Compose profile. The supported Faster Whisper runner
+sets `MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL=http://asr:8084` and routes ASR
+through the `local-models-asr` Compose profile. If a supported local runner is selected,
 the wizard applies the matching `@mindory/llm` role provider/model defaults. If the
 runner is declined, roles only covered by that runner are written as disabled
 instead of being left half-configured. Supported multimodal roles can be
@@ -353,7 +355,9 @@ requirements, waits for runner service health and retries pull/download
 operations according to `MINDORY_INSTALL_LOCAL_MODEL_PULL_RETRIES`. The
 supported deterministic local HTTP runner is verified through its `/health`
 endpoint; the supported Ollama runner executes `ollama pull nomic-embed-text`
-and `ollama list` inside the `ollama` service. Failures stop installation with
+and `ollama list` inside the `ollama` service; the supported Tesseract and
+Faster Whisper runners are verified through their model-loading `/health`
+endpoints. Failures stop installation with
 the log path in the diagnostic and leave rollback journal state for repair.
 
 For LibreFS or MinIO local S3 choices, installer startup enables the matching
