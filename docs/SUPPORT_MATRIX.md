@@ -36,7 +36,7 @@ writing README, issues, release notes and docs.
 | CLI | Supported local MVP | Calls HTTP API; no direct database access. |
 | MCP stdio | Supported local MVP | Tools call HTTP API; Compose service is a packaging smoke artifact. |
 | Hermes adapter | Supported baseline | Lifecycle helpers, HTTP client, optional tools, runnable example host and conformance harnesses are covered by `pnpm check`; no external Hermes SDK code is vendored. |
-| Web UI | Future | Planned public-ready MVP surface. It is not implemented in the current baseline; HTTP API, CLI and MCP are the supported surfaces until the UI task series lands. |
+| Web UI | Supported foundation | Web UI foundation in `@mindory/ui` builds and runs as a static/proxy server with token/API URL entry, health banner, project/session navigation and message inspection through HTTP API calls. Document pipeline, search/context/memory/faces and diagnostics screens are separate scoped UI surfaces. |
 
 ## Storage And Search
 

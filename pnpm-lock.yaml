@@ -90,6 +90,15 @@ importers:
         specifier: ^1.29.0
         version: 1.29.0(zod@4.4.3)
 
+  apps/ui:
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.12.4
+      typescript:
+        specifier: ^5.8.0
+        version: 5.9.3
+
   apps/worker:
     dependencies:
       '@mindory/config':

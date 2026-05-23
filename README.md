@@ -8,7 +8,7 @@ The canonical product and engineering specification is `docs/PRD.md`.
 
 ## Repository Status
 
-This repository is complete through `TASK-125`. Mindory can run a local
+This repository is complete through `TASK-126`. Mindory can run a local
 demo-MVP through Docker Compose, seed demo credentials, process uploaded
 documents through the worker pipeline and run live acceptance. `pnpm check`
 passes through the repo validation, typecheck, lint, tests and dry-run
@@ -28,7 +28,7 @@ experimental profile surfaces and documented non-MVP surfaces:
 | Installer | Supported today: wizard, plan/dry-run, prepare execution for `$MINDORY_HOME` directories/config/compose assets, Docker Compose startup through health checks, supported local model auto-install with resource preflight/logs/Ollama pulls, S3 bucket bootstrap/access checks, first project/token provisioning, local asset update, signed remote release update, runtime backup/restore, scheduled local backups with retention/health, local Compose PostgreSQL PITR, encrypted remote backup archives with S3-compatible upload/download verification, external S3 object inventory/streaming backup/restore, guarded uninstall, dependency detection, lock/journal resume/repair, signed bootstrap staging, installer acceptance and public self-host acceptance. |
 | Deployment | Supported local MVP: Compose stack with single-home bind mounts under `MINDORY_HOME`, defaulting to `${HOME}/.mindory` outside demo scripts. Release bundle generation, signed manifest verification, generated release notes, tag-build Docker image publishing to GHCR and signed remote update/rollback are supported; unattended update automation remains outside the current scope. |
 | Observability | Supported baseline: structured log helpers, model operation audit queries, Prometheus API/worker metrics exporters, OpenTelemetry OTLP tracing/log export, in-process job/stage metrics, health snapshots and documented in-process rate-limit strategy. |
-| Web UI | Planned public-ready MVP surface: no web UI is implemented in the current baseline. HTTP API, CLI and MCP are the supported user-facing surfaces until the UI task series lands. |
+| Web UI | Supported foundation: `@mindory/ui` builds as a workspace package and provides token/API URL entry, API health, project/session navigation and session message inspection through HTTP API calls. Document pipeline, search/context/memory/faces and diagnostics screens are separate scoped UI tasks. |
 
 Public repository files:
 
@@ -41,6 +41,7 @@ Public repository files:
 - `docs/REPOSITORY_STATUS.md`: current public repository status.
 - `docs/SUPPORT_MATRIX.md`: supported, experimental and planned capability
   matrix.
+- `docs/UI.md`: Web UI foundation build, run and validation notes.
 
 ## Development Process
 
@@ -90,6 +91,16 @@ Set `MINDORY_LOCAL_MODEL_ACCEPTANCE_LIVE=true` to run the live Docker gate. Live
 mode starts `pnpm mvp:demo --model-profile local --require-indexed` in a
 temporary `MINDORY_HOME`, verifies OCR/ASR/vision/face artifacts, source refs,
 jobs, unified search and worker model-operation metrics, then resets the stack.
+
+The Web UI foundation can be built and run locally:
+
+```bash
+pnpm --filter @mindory/ui build
+pnpm --filter @mindory/ui start
+```
+
+It serves `http://127.0.0.1:3080` by default and proxies `/api` to
+`MINDORY_UI_API_URL` or `http://localhost:3000`.
 
 To start and seed the stack without running live acceptance:
 
@@ -190,6 +201,11 @@ worker-side derivation creates candidate claims only.
 The MCP package exposes a `MindoryApiClient`, tool definitions, tool registry,
 server builder and `mindory-mcp` stdio binary. Tools call the Mindory HTTP API
 and do not access database, queue, storage or vector internals directly.
+
+The UI package exposes `@mindory/ui`, a static browser app plus local static/API
+proxy server. The current foundation covers token entry, health, project/session
+navigation and messages through the HTTP API. It does not access database,
+queue, storage, vector or worker internals directly.
 
 The CLI package exposes the `mindory` binary, a minimal bootstrap argument
 parser, and commands for project, token, session, message, document, memory,

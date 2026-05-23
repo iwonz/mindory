@@ -133,8 +133,10 @@ The remaining non-goals are:
 - multi-region deployment.
 
 Audio, video, OCR and multimodal processing now have checked runtime paths with
-the limits described in the support matrix. A full web UI is planned for the
-public-ready MVP path but is not implemented in the current baseline.
+the limits described in the support matrix. The Web UI foundation is
+implemented for connection, health and project/session navigation; full document
+pipeline, search/context/memory/faces and diagnostics screens are scoped in the
+public-ready UI task series.
 
 Do not implement the remaining non-goals unless a task explicitly scopes them.
 

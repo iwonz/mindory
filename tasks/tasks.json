@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-125",
+  "current_task_id": "TASK-126",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -911,6 +911,13 @@
       "status": "done",
       "branch": "task/TASK-125-multimodal-local-model-live-acceptance",
       "file": "tasks/TASK-125.json"
+    },
+    {
+      "id": "TASK-126",
+      "title": "Web UI foundation",
+      "status": "done",
+      "branch": "task/TASK-126-web-ui-foundation",
+      "file": "tasks/TASK-126.json"
     }
   ]
 }

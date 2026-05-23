@@ -20,6 +20,9 @@ documentation.
 
 ### Added
 
+- `TASK-126`: Web UI foundation package with static/proxy server, token/API URL
+  entry, health banner, project/session navigation, message inspection and
+  `pnpm ui:validate` coverage.
 - `TASK-125`: local-model multimodal acceptance gate with dry-run repository
   checks and opt-in live Docker verification for deterministic OCR, ASR,
   vision, face, source refs, jobs, unified search and model-operation metrics.

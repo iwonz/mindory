@@ -596,6 +596,11 @@ export const CONFIG_CATALOG_SECTIONS = [
     description: "Central model-backed role and provider settings."
   },
   {
+    id: "ui",
+    title: "Web UI",
+    description: "Mindory browser UI static server and API proxy settings."
+  },
+  {
     id: "mcp",
     title: "MCP",
     description: "MCP stdio interface settings."
@@ -869,6 +874,10 @@ export const CONFIG_CATALOG = [
   }),
   entry("MINDORY_LLM_LOCAL_COMMAND_MAX_INPUT_BYTES", "llm", "number", "16777216", "Maximum JSON stdin size for local-command model operations.", "both", "experimental"),
   entry("MINDORY_LLM_LOCAL_COMMAND_MAX_OUTPUT_BYTES", "llm", "number", "67108864", "Maximum combined stdout/stderr size for local-command healthchecks and operations.", "both", "experimental"),
+
+  entry("MINDORY_UI_HOST", "ui", "string", "127.0.0.1", "Web UI static server listen host.", "both", "supported"),
+  entry("MINDORY_UI_PORT", "ui", "number", "3080", "Web UI static server listen port.", "both", "supported"),
+  entry("MINDORY_UI_API_URL", "ui", "string", "http://localhost:3000", "Upstream Mindory API URL used by the UI proxy.", "both", "supported"),
 
   entry("MINDORY_MCP_ENABLED", "mcp", "boolean", "true", "Enable the MCP stdio server.", "runtime", "supported"),
   entry("MINDORY_MCP_TRANSPORT", "mcp", "enum", "stdio", "MCP transport.", "runtime", "supported", {

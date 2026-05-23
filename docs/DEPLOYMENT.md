@@ -194,6 +194,21 @@ This is a dry-run check in `pnpm check`. Set
 temporary `MINDORY_HOME` and verify deterministic multimodal artifacts, source
 refs, jobs, unified search and worker model-operation metrics.
 
+## Web UI Foundation
+
+Build and run the UI package:
+
+```bash
+pnpm --filter @mindory/ui build
+pnpm --filter @mindory/ui start
+```
+
+The local UI server listens on `MINDORY_UI_HOST:MINDORY_UI_PORT`, defaulting to
+`127.0.0.1:3080`, and proxies `/api` to `MINDORY_UI_API_URL`, defaulting to
+`http://localhost:3000`. Compose service/image wiring for the UI is handled by
+the UI deployment task; the package itself is already part of workspace
+typecheck and `pnpm check`.
+
 ## Base Services
 
 - `postgres`

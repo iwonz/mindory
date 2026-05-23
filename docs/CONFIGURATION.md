@@ -450,6 +450,13 @@ face roles through `@mindory/llm`. Text and image embeddings use 1536
 dimensions for the current pgvector schema. `ollama` adds the Ollama profile
 for a real local text embedding runner.
 
+## Web UI
+
+`MINDORY_UI_HOST` and `MINDORY_UI_PORT` configure the `@mindory/ui` static
+server. `MINDORY_UI_API_URL` configures the upstream Mindory API that the UI
+server proxies under `/api`. The browser app defaults to `/api`, so local UI
+usage does not require cross-origin API requests.
+
 ## MVP Acceptance
 
 `MINDORY_E2E_LIVE=true` makes `pnpm mvp:acceptance` run against

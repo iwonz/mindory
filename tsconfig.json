@@ -5,6 +5,7 @@
     { "path": "apps/mcp" },
     { "path": "apps/cli" },
     { "path": "apps/worker" },
+    { "path": "apps/ui" },
     { "path": "apps/adapters/hermes" },
     { "path": "packages/core" },
     { "path": "packages/db" },
