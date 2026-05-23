@@ -171,6 +171,7 @@ export interface LlmProviderAnswers {
   openaiOAuthAccessToken: string;
   ollamaBaseUrl: string;
   localHttpBaseUrl: string;
+  localHttpOcrBaseUrl: string;
   localCommandTimeoutMs: number;
   localCommandHealthcheckCommand: string;
   localCommandHealthcheckArgs: string[];
@@ -966,6 +967,7 @@ export function createDefaultInstallAnswers(overrides: Partial<MindoryInstallAns
       openaiOAuthAccessToken: catalogDefault("MINDORY_LLM_OPENAI_OAUTH_ACCESS_TOKEN"),
       ollamaBaseUrl: catalogDefault("MINDORY_LLM_OLLAMA_BASE_URL"),
       localHttpBaseUrl: catalogDefault("MINDORY_LLM_LOCAL_HTTP_BASE_URL"),
+      localHttpOcrBaseUrl: catalogDefault("MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL"),
       localCommandTimeoutMs: Number.parseInt(catalogDefault("MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS"), 10),
       localCommandHealthcheckCommand: catalogDefault("MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND"),
       localCommandHealthcheckArgs: parseJsonStringArray(catalogDefault("MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS"), "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS"),
@@ -1076,6 +1078,7 @@ export function createInstallAnswersFromHome(mindoryHome: string): MindoryInstal
       openaiOAuthAccessToken: envValue(env, "MINDORY_LLM_OPENAI_OAUTH_ACCESS_TOKEN"),
       ollamaBaseUrl: envValue(env, "MINDORY_LLM_OLLAMA_BASE_URL"),
       localHttpBaseUrl: envValue(env, "MINDORY_LLM_LOCAL_HTTP_BASE_URL"),
+      localHttpOcrBaseUrl: envValue(env, "MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL"),
       localCommandTimeoutMs: envNumber(env, "MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS"),
       localCommandHealthcheckCommand: envValue(env, "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND"),
       localCommandHealthcheckArgs: parseJsonStringArray(envValue(env, "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS"), "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS"),
@@ -3291,6 +3294,7 @@ export function answersToEnvMap(answers: MindoryInstallAnswers): Record<string, 
   assign(env, "MINDORY_LLM_OPENAI_OAUTH_ACCESS_TOKEN", answers.llmProviders.openaiOAuthAccessToken);
   assign(env, "MINDORY_LLM_OLLAMA_BASE_URL", answers.llmProviders.ollamaBaseUrl);
   assign(env, "MINDORY_LLM_LOCAL_HTTP_BASE_URL", answers.llmProviders.localHttpBaseUrl);
+  assign(env, "MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL", answers.llmProviders.localHttpOcrBaseUrl);
   assign(env, "MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS", String(answers.llmProviders.localCommandTimeoutMs));
   assign(env, "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND", answers.llmProviders.localCommandHealthcheckCommand);
   assign(env, "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS", JSON.stringify(answers.llmProviders.localCommandHealthcheckArgs));
@@ -3395,9 +3399,14 @@ export function composeProfilesForAnswers(answers: MindoryInstallAnswers): strin
       profiles.add(runner.composeProfile);
     }
   }
-  for (const roleAnswers of Object.values(answers.llmRoles)) {
+  const selectedRunners = selectedLocalModelRunners(answers);
+  for (const [role, roleAnswers] of Object.entries(answers.llmRoles)) {
     if (roleAnswers?.enabled) {
-      for (const profile of composeProfilesForLlmProvider(roleAnswers.provider)) {
+      const roleKey = role as InstallerLlmRoleKey;
+      if (selectedRunners.some((runner) => runner.provider === roleAnswers.provider && runner.roles.includes(roleKey))) {
+        continue;
+      }
+      for (const profile of composeProfilesForLlmProvider(roleAnswers.provider, roleKey)) {
         profiles.add(profile);
       }
     }
@@ -3405,10 +3414,15 @@ export function composeProfilesForAnswers(answers: MindoryInstallAnswers): strin
   return Array.from(profiles).sort();
 }
 
-function composeProfilesForLlmProvider(provider: LlmProvider): string[] {
-  return LOCAL_MODEL_RUNNER_CATALOG
+function composeProfilesForLlmProvider(provider: LlmProvider, role?: InstallerLlmRoleKey): string[] {
+  const entries = LOCAL_MODEL_RUNNER_CATALOG
     .filter((entry) => entry.status === "supported" && entry.provider === provider)
-    .map((entry) => entry.composeProfile);
+    .filter((entry) => role === undefined || entry.roles.includes(role));
+  if (provider === "local-http" && role !== undefined) {
+    const defaultRunner = entries.find((entry) => entry.id === "mindory-deterministic-local-http") ?? entries[0];
+    return defaultRunner === undefined ? [] : [defaultRunner.composeProfile];
+  }
+  return entries.map((entry) => entry.composeProfile);
 }
 
 function selectedLocalModelRunners(answers: MindoryInstallAnswers): LocalModelRunnerCatalogEntry[] {
@@ -3615,7 +3629,10 @@ export async function runInstallWizard(io: WizardIo, options: WizardOptions = {}
     const experimentalAllowed = answers.allowExperimental || options.allowExperimental === true;
     const roleStatus = roleSupportStatus(role);
     const roleAllowed = roleStatus === "supported" || (roleStatus === "experimental" && experimentalAllowed);
-    const enabled = await askBoolean(io, promptFromCatalog(`llm.${role}.enabled`, `MINDORY_LLM_${role}_ENABLED`, "boolean"));
+    const existingRoleAnswers = answers.llmRoles[role];
+    const enabled = await askBoolean(io, promptFromCatalog(`llm.${role}.enabled`, `MINDORY_LLM_${role}_ENABLED`, "boolean", {
+      defaultValue: bool(existingRoleAnswers?.enabled ?? catalogDefault(`MINDORY_LLM_${role}_ENABLED`) === "true")
+    }));
     if (enabled && !roleAllowed) {
       throw new Error(roleStatus === "future" ? `MINDORY_LLM_${role} is future and cannot be enabled.` : `MINDORY_LLM_${role} is ${roleStatus} and requires experimental mode.`);
     }
@@ -3632,11 +3649,21 @@ export async function runInstallWizard(io: WizardIo, options: WizardOptions = {}
     }
     const roleAnswers: LlmRoleAnswers = {
       enabled: true,
-      provider: await askChoice(io, promptFromCatalog(`llm.${role}.provider`, `MINDORY_LLM_${role}_PROVIDER`, "choice")) as LlmProvider,
-      model: await askString(io, promptFromCatalog(`llm.${role}.model`, `MINDORY_LLM_${role}_MODEL`, "text")),
-      required: await askBoolean(io, promptFromCatalog(`llm.${role}.required`, `MINDORY_LLM_${role}_REQUIRED`, "boolean")),
-      timeoutMs: await askNumber(io, promptFromCatalog(`llm.${role}.timeout_ms`, `MINDORY_LLM_${role}_TIMEOUT_MS`, "number")),
-      concurrency: await askNumber(io, promptFromCatalog(`llm.${role}.concurrency`, `MINDORY_LLM_${role}_CONCURRENCY`, "number"))
+      provider: await askChoice(io, promptFromCatalog(`llm.${role}.provider`, `MINDORY_LLM_${role}_PROVIDER`, "choice", {
+        defaultValue: existingRoleAnswers?.provider ?? catalogDefault(`MINDORY_LLM_${role}_PROVIDER`)
+      })) as LlmProvider,
+      model: await askString(io, promptFromCatalog(`llm.${role}.model`, `MINDORY_LLM_${role}_MODEL`, "text", {
+        defaultValue: existingRoleAnswers?.model ?? catalogDefault(`MINDORY_LLM_${role}_MODEL`)
+      })),
+      required: await askBoolean(io, promptFromCatalog(`llm.${role}.required`, `MINDORY_LLM_${role}_REQUIRED`, "boolean", {
+        defaultValue: bool(existingRoleAnswers?.required ?? catalogDefault(`MINDORY_LLM_${role}_REQUIRED`) === "true")
+      })),
+      timeoutMs: await askNumber(io, promptFromCatalog(`llm.${role}.timeout_ms`, `MINDORY_LLM_${role}_TIMEOUT_MS`, "number", {
+        defaultValue: String(existingRoleAnswers?.timeoutMs ?? catalogDefault(`MINDORY_LLM_${role}_TIMEOUT_MS`))
+      })),
+      concurrency: await askNumber(io, promptFromCatalog(`llm.${role}.concurrency`, `MINDORY_LLM_${role}_CONCURRENCY`, "number", {
+        defaultValue: String(existingRoleAnswers?.concurrency ?? catalogDefault(`MINDORY_LLM_${role}_CONCURRENCY`))
+      }))
     };
     const providerStatus = llmRoleProviderSupportStatus(role, roleAnswers.provider);
     if (roleAnswers.provider !== "disabled" && providerStatus === "future") {
@@ -3652,7 +3679,11 @@ export async function runInstallWizard(io: WizardIo, options: WizardOptions = {}
     }
     const dimensionsEntry = maybeCatalogEntry(`MINDORY_LLM_${role}_DIMENSIONS`);
     if (dimensionsEntry !== undefined) {
-      const dimensions = await askString(io, promptFromEntry(`llm.${role}.dimensions`, dimensionsEntry, "number"));
+      const dimensions = await askString(io, promptFromEntry(`llm.${role}.dimensions`, dimensionsEntry, "number", {
+        defaultValue: existingRoleAnswers?.dimensions === undefined || existingRoleAnswers.dimensions === null
+          ? dimensionsEntry.defaultValue
+          : String(existingRoleAnswers.dimensions)
+      }));
       roleAnswers.dimensions = dimensions.trim() === "" ? null : Number.parseInt(dimensions, 10);
     }
     answers.llmRoles[role] = roleAnswers;
@@ -3756,7 +3787,28 @@ function applyLocalModelRunnerToAnswers(answers: MindoryInstallAnswers, runner: 
       concurrency: 1,
       ...(dimensions === undefined ? {} : { dimensions })
     };
+    applyLocalHttpRunnerEndpoint(answers, runner, role);
   }
+}
+
+function applyLocalHttpRunnerEndpoint(
+  answers: MindoryInstallAnswers,
+  runner: LocalModelRunnerCatalogEntry,
+  role: InstallerLlmRoleKey
+): void {
+  if (runner.provider !== "local-http") {
+    return;
+  }
+  const port = runner.ports.find((entry) => entry.name === "http") ?? runner.ports[0];
+  if (port === undefined) {
+    return;
+  }
+  const serviceBaseUrl = `http://${runner.serviceName}:${port.containerPort}`;
+  if (role === "OCR") {
+    answers.llmProviders.localHttpOcrBaseUrl = serviceBaseUrl;
+    return;
+  }
+  answers.llmProviders.localHttpBaseUrl = serviceBaseUrl;
 }
 
 function disableLocalModelRunnerRoles(
@@ -4129,7 +4181,8 @@ async function runLocalHttpRunnerHealthcheck(
 ): Promise<void> {
   const port = runner.ports[0]?.containerPort ?? 8080;
   const script = `fetch('http://127.0.0.1:${port}/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1));`;
-  await runLocalModelComposeCommandWithRetries(plan, ["exec", "-T", runner.serviceName, "node", "-e", script], retries, logPath, options);
+  const command = runner.healthcheck.command ?? ["node", "-e", script];
+  await runLocalModelComposeCommandWithRetries(plan, ["exec", "-T", runner.serviceName, ...command], retries, logPath, options);
 }
 
 async function waitForLocalModelRunnerService(

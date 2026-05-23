@@ -503,6 +503,63 @@ assert(localModelInstallReport.status === "installed", "Local model install repo
 assert(fs.existsSync(path.join(localModelHome, "logs", "local-model-install.log")), "Local model install must write a diagnostic log.");
 fs.rmSync(localModelHome, { recursive: true, force: true });
 
+const ocrLocalModelHome = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-installer-ocr-local-model-"));
+fs.rmSync(ocrLocalModelHome, { recursive: true, force: true });
+const ocrLocalModelCommands = [];
+const healthyOcrComposePs = JSON.stringify([
+  { Service: "postgres", State: "running", Health: "healthy" },
+  { Service: "redis", State: "running", Health: "healthy" },
+  { Service: "ocr", State: "running", Health: "healthy" }
+]);
+const ocrLocalModelAnswers = installer.createDefaultInstallAnswers({
+  mindoryHome: ocrLocalModelHome,
+  antivirus: {
+    mode: "disabled",
+    provider: "clamav",
+    clamavPlatform: "linux/amd64"
+  },
+  localModels: {
+    autoInstall: true,
+    selectedRunnerIds: ["paddleocr-pp-ocrv5-mobile"],
+    pullRetries: 2
+  }
+});
+const ocrLocalModelPlan = installer.createInstallPlan(ocrLocalModelAnswers);
+assert(ocrLocalModelPlan.composeProfiles.includes("local-models-ocr"), "Selected PaddleOCR runner must enable local-models-ocr profile.");
+await installer.executeInstallPlan(ocrLocalModelAnswers, {
+  sourceRoot: root,
+  owner: "validator-ocr",
+  stopBeforeStepId: "bootstrap-storage",
+  timeoutMs: 100,
+  pollIntervalMs: 1,
+  dependencyProbe: {
+    run() {
+      return { status: 0, stdout: "ok", stderr: "" };
+    },
+    isWritable() {
+      return true;
+    },
+    isPortAvailable() {
+      return true;
+    },
+    diskSpaceBytes() {
+      return 20_000_000_000;
+    }
+  },
+  commandRunner: {
+    async run(command, args) {
+      ocrLocalModelCommands.push(`${command} ${args.join(" ")}`);
+      if (args.includes("ps")) {
+        return { status: 0, stdout: healthyOcrComposePs, stderr: "" };
+      }
+      return { status: 0, stdout: "ok", stderr: "" };
+    }
+  }
+});
+assert(ocrLocalModelCommands.some((command) => command.includes("up -d postgres redis ocr")), "PaddleOCR install must start the OCR service.");
+assert(ocrLocalModelCommands.some((command) => command.includes("exec -T ocr python -c")), "PaddleOCR runner must be health-checked with its Python health command.");
+fs.rmSync(ocrLocalModelHome, { recursive: true, force: true });
+
 const localModelDependencyChecks = installer.detectHostDependencies(localModelAnswers, {
   run() {
     return { status: 0, stdout: "ok", stderr: "" };
@@ -1313,6 +1370,39 @@ const ocrWizardAnswers = await installer.runInstallWizard({
 assert(ocrWizardAnswers.allowExperimental === false, "Wizard OCR scenario must keep experimental mode disabled.");
 assert(ocrWizardAnswers.llmRoles.OCR.enabled === true, "Wizard must allow promoted OCR without experimental mode.");
 assert(ocrWizardAnswers.llmRoles.OCR.provider === "local-http", "Wizard must keep promoted OCR on local-http.");
+
+const paddleOcrWizardAnswers = await installer.runInstallWizard({
+  async prompt(prompt) {
+    if (prompt.id === "local_models.auto_install") {
+      return "true";
+    }
+    if (prompt.id === "local_models.runner.paddleocr-pp-ocrv5-mobile.enabled") {
+      return "true";
+    }
+    if (prompt.id.startsWith("local_models.runner.")) {
+      return "false";
+    }
+    if (prompt.id === "local_models.pull_retries") {
+      return "2";
+    }
+    if (prompt.id.startsWith("llm.OCR.")) {
+      return "";
+    }
+    if (prompt.id.startsWith("llm.")) {
+      return "false";
+    }
+    return scriptedResponses.get(prompt.id) ?? "";
+  },
+  async confirm() {
+    return true;
+  }
+});
+assert(paddleOcrWizardAnswers.localModels.selectedRunnerIds.includes("paddleocr-pp-ocrv5-mobile"), "Wizard must select the supported PaddleOCR local runner.");
+assert(paddleOcrWizardAnswers.llmRoles.OCR.enabled === true, "PaddleOCR runner selection must keep OCR enabled by default.");
+assert(paddleOcrWizardAnswers.llmRoles.OCR.provider === "local-http", "PaddleOCR runner selection must configure OCR through local-http.");
+assert(paddleOcrWizardAnswers.llmRoles.OCR.model === "ESLAV__PP-OCRv5_mobile", "PaddleOCR runner selection must use the catalog OCR model.");
+assert(paddleOcrWizardAnswers.llmProviders.localHttpOcrBaseUrl === "http://ocr:8083", "PaddleOCR runner selection must set the OCR-specific local HTTP endpoint.");
+assert(installer.composeProfilesForAnswers(paddleOcrWizardAnswers).includes("local-models-ocr"), "PaddleOCR wizard answers must enable local-models-ocr.");
 
 const supportedLocalCommandAnswers = installer.createDefaultInstallAnswers({
   llmRoles: {

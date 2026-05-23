@@ -18,7 +18,7 @@ secrets, rate limits, structured logs and observability are maintained in
 | Installer first-run provisioning | Supported. The start step creates the first project/token and writes `config/initial-token.json` under `$MINDORY_HOME`. |
 | Installer lifecycle operations | Supported baseline for local asset update, signed remote release update, runtime backup/restore, scheduled local backup, encrypted remote backup archives, external S3 streaming backups, journal resume/repair and guarded uninstall. |
 | Release images and bundles | Bundle generation is supported with `pnpm release:bundle`. Generated manifests are RSA-SHA256 signed, and bootstrap scripts verify the signature before trusting bundle checksums. Publishing automation pushes versioned Docker images on trusted tag builds and publishes signed release artifacts plus generated release notes to public GitHub pre-releases. |
-| Heavy local models | Experimental. `LOCAL_MODEL_RUNNER_CATALOG` records installable runner metadata, role coverage, source/image details, model files, healthchecks and resource hints; selected heavy profiles require explicit user choice and resource checks. |
+| Heavy local models | Supported baseline. `LOCAL_MODEL_RUNNER_CATALOG` records installable runner metadata, role coverage, source/image details, model files, healthchecks and resource hints; the deterministic local HTTP, Ollama text embedding and PaddleOCR OCR runners have Compose profiles and installer health checks. Other heavy runner rows keep their catalog status until their task-specific implementation lands. |
 
 The expected local demo flow is:
 
@@ -180,7 +180,10 @@ Installer-managed local model setup is controlled separately by
 are started through their Compose profiles, checked against catalog resource
 hints and installed before migrations continue. The deterministic local HTTP
 runner is health-checked directly; the Ollama runner pulls
-`nomic-embed-text` inside the service. Logs are written to
+`nomic-embed-text` inside the service. The PaddleOCR runner starts
+`local-models-ocr`, waits for model-loading health and configures
+`MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL=http://ocr:8083` so PDF/image OCR uses the
+dedicated OCR endpoint. Logs are written to
 `$MINDORY_HOME/logs/local-model-install.log`.
 
 The local-model acceptance gate is:
@@ -337,6 +340,7 @@ Automated down migrations are not part of the MVP deployment path.
 - `docling`
 - `ollama`
 - `local-models`
+- `local-models-ocr`
 
 Example:
 
@@ -358,6 +362,12 @@ model weights. It serves deterministic 1536-dimensional embeddings for local
 acceptance. The `ollama` profile is optional for local text embeddings. External
 and Ollama embedding models must also produce 1536-dimensional vectors for the
 current pgvector MVP schema.
+
+The `local-models-ocr` profile builds the Mindory PaddleOCR runner from
+`deploy/local-models/ocr/paddleocr/Dockerfile`, stores PaddleOCR model data
+under `$MINDORY_HOME/data/models/paddleocr`, exposes `/health` on
+`MINDORY_OCR_PORT` and serves `POST /ocr` for PDF/image OCR through
+`@mindory/llm`.
 
 The `docling` profile runs Mindory's Docling-compatible extraction service from
 the built application image. It exposes `/health` on `MINDORY_DOCLING_PORT`

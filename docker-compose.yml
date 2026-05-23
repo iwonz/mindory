@@ -160,6 +160,7 @@ x-mindory-env: &mindory-env
   MINDORY_LLM_OPENAI_OAUTH_ACCESS_TOKEN: ${MINDORY_LLM_OPENAI_OAUTH_ACCESS_TOKEN:-}
   MINDORY_LLM_OLLAMA_BASE_URL: ${MINDORY_LLM_OLLAMA_BASE_URL:-http://ollama:11434}
   MINDORY_LLM_LOCAL_HTTP_BASE_URL: ${MINDORY_LLM_LOCAL_HTTP_BASE_URL:-http://llm:8080}
+  MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL: ${MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL:-}
   MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS: ${MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS:-120000}
   MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND: ${MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND:-}
   MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS: ${MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS:-["healthcheck","--role","{role}","--model","{model}"]}
@@ -512,3 +513,35 @@ services:
     volumes:
       - ${MINDORY_HOME:-${HOME}/.mindory}/logs:/data/mindory/logs
       - ${MINDORY_HOME:-${HOME}/.mindory}/data/models:/data/mindory/models
+
+  ocr:
+    build:
+      context: .
+      dockerfile: deploy/local-models/ocr/paddleocr/Dockerfile
+    profiles: ["local-models-ocr"]
+    restart: unless-stopped
+    environment:
+      MINDORY_OCR_HOST: 0.0.0.0
+      MINDORY_OCR_PORT: "8083"
+      MINDORY_OCR_MODEL: ${MINDORY_OCR_MODEL:-ESLAV__PP-OCRv5_mobile}
+      MINDORY_OCR_LANG: ${MINDORY_OCR_LANG:-en}
+      MINDORY_OCR_MAX_PDF_PAGES: ${MINDORY_OCR_MAX_PDF_PAGES:-50}
+      MINDORY_OCR_HEALTH_LOAD_MODEL: ${MINDORY_OCR_HEALTH_LOAD_MODEL:-true}
+      PADDLEOCR_HOME: /data/mindory/models/paddleocr
+    ports:
+      - "${MINDORY_OCR_PORT:-8083}:8083"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8083/health', timeout=30).status < 400 else 1)"
+        ]
+      interval: 15s
+      timeout: 30s
+      retries: 20
+      start_period: 30s
+    volumes:
+      - ${MINDORY_HOME:-${HOME}/.mindory}/data/models/paddleocr:/data/mindory/models/paddleocr
+      - ${MINDORY_HOME:-${HOME}/.mindory}/logs:/data/mindory/logs

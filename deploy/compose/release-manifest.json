@@ -21,6 +21,16 @@
       "path": ".env.example",
       "type": "env-template",
       "required": true
+    },
+    {
+      "path": "deploy/local-models/ocr/paddleocr/Dockerfile",
+      "type": "local-model-image-build",
+      "required": true
+    },
+    {
+      "path": "deploy/local-models/ocr/paddleocr/server.py",
+      "type": "local-model-runtime",
+      "required": true
     }
   ],
   "mindory_home_directories": [

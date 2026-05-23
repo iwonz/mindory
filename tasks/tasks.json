@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-134",
+  "current_task_id": "TASK-135",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -978,7 +978,7 @@
     {
       "id": "TASK-135",
       "title": "Real local OCR runner profile",
-      "status": "draft",
+      "status": "done",
       "branch": "task/TASK-135-real-local-ocr-runner-profile",
       "file": "tasks/TASK-135.json"
     },
