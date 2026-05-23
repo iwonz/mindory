@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-114",
+  "current_task_id": "TASK-115",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -834,6 +834,13 @@
       "status": "done",
       "branch": "task/TASK-114-fix-github-actions-pnpm-setup",
       "file": "tasks/TASK-114.json"
+    },
+    {
+      "id": "TASK-115",
+      "title": "Harden CI video fixture generation",
+      "status": "done",
+      "branch": "task/TASK-115-harden-ci-video-fixture",
+      "file": "tasks/TASK-115.json"
     }
   ]
 }
