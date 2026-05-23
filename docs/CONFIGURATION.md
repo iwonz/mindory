@@ -390,6 +390,10 @@ to that endpoint and keeps other local HTTP roles on
 `MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL` is the equivalent ASR-specific override
 used by the supported Faster Whisper runner; when it is set, only ASR calls use
 that endpoint.
+`MINDORY_LLM_FACE_DETECTION_LOCAL_HTTP_BASE_URL` and
+`MINDORY_LLM_FACE_RECOGNITION_LOCAL_HTTP_BASE_URL` are face-specific overrides
+used by the supported local face runner; when they are set, only face detection
+and recognition calls use that endpoint.
 
 Image semantics runner example:
 
@@ -406,6 +410,21 @@ MINDORY_LLM_VISION_CAPTIONING_LOCAL_HTTP_BASE_URL=http://vision:8082
 MINDORY_IMAGE_SEMANTICS_PORT=8082
 MINDORY_IMAGE_SEMANTICS_MODEL=mindory-image-semantics-v1
 MINDORY_IMAGE_SEMANTICS_EMBEDDING_DIMENSIONS=1536
+```
+
+Local face runner example:
+
+```env
+MINDORY_LLM_FACE_DETECTION_ENABLED=true
+MINDORY_LLM_FACE_DETECTION_PROVIDER=local-http
+MINDORY_LLM_FACE_DETECTION_MODEL=mindory-local-face-v1
+MINDORY_LLM_FACE_RECOGNITION_ENABLED=true
+MINDORY_LLM_FACE_RECOGNITION_PROVIDER=local-http
+MINDORY_LLM_FACE_RECOGNITION_MODEL=mindory-local-face-v1
+MINDORY_LLM_FACE_DETECTION_LOCAL_HTTP_BASE_URL=http://faces:8086
+MINDORY_LLM_FACE_RECOGNITION_LOCAL_HTTP_BASE_URL=http://faces:8086
+MINDORY_FACE_PORT=8086
+MINDORY_FACE_MODEL=mindory-local-face-v1
 ```
 
 The service must answer `GET /health`, `POST /chat/completions`,
@@ -497,6 +516,14 @@ The runner-specific knobs are `MINDORY_ASR_PORT`, `MINDORY_ASR_MODEL`,
 `MINDORY_ASR_DEVICE`, `MINDORY_ASR_COMPUTE_TYPE`, `MINDORY_ASR_LANGUAGE`,
 `MINDORY_ASR_BEAM_SIZE`, `MINDORY_ASR_VAD_FILTER`,
 `MINDORY_ASR_TIMEOUT_MS` and `MINDORY_ASR_HEALTH_LOAD_MODEL`.
+
+For installer-managed face detection/recognition, selecting
+`mindory-local-face-v1` starts the `local-models-face` Compose profile and
+sets `MINDORY_LLM_FACE_DETECTION_LOCAL_HTTP_BASE_URL=http://faces:8086` plus
+`MINDORY_LLM_FACE_RECOGNITION_LOCAL_HTTP_BASE_URL=http://faces:8086`.
+The runner-specific knobs are `MINDORY_FACE_PORT`, `MINDORY_FACE_MODEL`,
+`MINDORY_FACE_EMBEDDING_DIMENSIONS`, `MINDORY_FACE_MIN_AREA_RATIO` and
+`MINDORY_FACE_HEALTH_LOAD_MODEL`.
 
 ## Web UI
 

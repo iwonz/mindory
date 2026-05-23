@@ -51,6 +51,16 @@
       "path": "deploy/local-models/vision/image-semantics/server.py",
       "type": "local-model-runtime",
       "required": true
+    },
+    {
+      "path": "deploy/local-models/face/local-face/Dockerfile",
+      "type": "local-model-image-build",
+      "required": true
+    },
+    {
+      "path": "deploy/local-models/face/local-face/server.py",
+      "type": "local-model-runtime",
+      "required": true
     }
   ],
   "mindory_home_directories": [

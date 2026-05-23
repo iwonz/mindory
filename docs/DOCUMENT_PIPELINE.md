@@ -226,9 +226,14 @@ processing error.
 
 When `MINDORY_LLM_FACE_DETECTION_ENABLED=true` and
 `MINDORY_LLM_FACE_DETECTION_PROVIDER=local-http`, the image extractor calls
-`@mindory/llm` over `POST /faces/detect`. When face recognition is enabled with
-the same provider, it also calls `POST /faces/recognize` for provider
-embeddings. Provider boxes, embeddings, confidence and labels become derived
+`@mindory/llm` over `POST /faces/detect`. Selecting `mindory-local-face-v1`
+in the installer starts the `local-models-face` profile and sets
+`MINDORY_LLM_FACE_DETECTION_LOCAL_HTTP_BASE_URL=http://faces:8086` plus
+`MINDORY_LLM_FACE_RECOGNITION_LOCAL_HTTP_BASE_URL=http://faces:8086`, so face
+calls use the dedicated local face runner without changing other local HTTP
+roles. When face recognition is enabled with the same provider, it also calls
+`POST /faces/recognize` for provider embeddings and deterministic identity
+ids. Provider boxes, embeddings, confidence and labels become derived
 `face_observation` artifacts and workspace-scoped face observation rows. The
 worker auto-matches them against existing project observations through
 `FaceService`, creates candidate identities when no match reaches the threshold

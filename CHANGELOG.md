@@ -20,6 +20,11 @@ documentation.
 
 ### Added
 
+- `TASK-138`: supported local face runner with `local-models-face` Compose
+  profile, installer selection/healthcheck wiring,
+  `MINDORY_LLM_FACE_DETECTION_LOCAL_HTTP_BASE_URL`,
+  `MINDORY_LLM_FACE_RECOGNITION_LOCAL_HTTP_BASE_URL`, face detection/recognition
+  live acceptance and release-bundle assets for the runner.
 - `TASK-137`: supported local image semantics runner with `local-models-vision`
   Compose profile, installer selection/healthcheck wiring,
   `MINDORY_LLM_IMAGE_EMBEDDING_LOCAL_HTTP_BASE_URL`,

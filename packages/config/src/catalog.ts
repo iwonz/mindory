@@ -408,45 +408,50 @@ export const LOCAL_MODEL_RUNNER_CATALOG = [
     notes: "Supported Faster Whisper HTTP runner for time-coded audio and video transcript artifacts."
   }),
   localModelRunner({
-    id: "compreface-face-services",
-    title: "CompreFace face detection and recognition",
-    status: "experimental",
+    id: "mindory-local-face-v1",
+    title: "Mindory local face detection and recognition",
+    status: "supported",
     provider: "local-http",
     roles: ["FACE_DETECTION", "FACE_RECOGNITION"],
     composeProfile: "local-models-face",
     serviceName: "faces",
-    containerImage: "exadel/compreface:latest",
-    sourceUrl: "https://github.com/exadel-inc/CompreFace",
-    modelNames: ["buffalo_l"],
+    containerImage: "mindory-local-face-runner",
+    sourceUrl: "repo://deploy/local-models/face/local-face",
+    modelNames: ["mindory-local-face-v1", "mindory-face-detection-v1", "mindory-face-recognition-v1"],
     modelFiles: [
       {
-        name: "CompreFace recognition bundle",
-        sourceUrl: "https://github.com/exadel-inc/CompreFace",
-        sizeHint: "2GB-4GB",
-        targetPath: "$MINDORY_HOME/data/models/compreface"
+        name: "opencv-haar-face-runner",
+        sourceUrl: "repo://deploy/local-models/face/local-face/server.py",
+        sizeHint: "100MB-250MB",
+        targetPath: "$MINDORY_HOME/install/current/deploy/local-models/face/local-face"
       }
     ],
-    license: "Apache-2.0 runtime; verify bundled model licenses before redistribution",
+    license: "Apache-2.0 for Mindory runner; OpenCV Apache-2.0 runtime cascade",
     ports: [
       {
         name: "http",
         containerPort: 8086,
         defaultHostPort: 8086,
-        envName: "MINDORY_LLM_LOCAL_HTTP_BASE_URL"
+        envName: "MINDORY_LLM_FACE_DETECTION_LOCAL_HTTP_BASE_URL"
       }
     ],
     healthcheck: {
       kind: "http",
       endpoint: "GET /health",
-      timeoutMs: 180000
+      command: [
+        "python",
+        "-c",
+        "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8086/health', timeout=30).status < 400 else 1)"
+      ],
+      timeoutMs: 120000
     },
     resourceHint: {
-      cpu: "4+ cores",
-      memory: "8GB+",
-      disk: "8GB+",
-      gpu: "optional"
+      cpu: "2+ cores",
+      memory: "2GB+",
+      disk: "1GB+",
+      gpu: "not required"
     },
-    notes: "Workspace-scoped face observation and identity matching runner."
+    notes: "Supported OpenCV Haar/local-embedding face runner for workspace-scoped observations and auto-match acceptance."
   })
 ] as const satisfies readonly LocalModelRunnerCatalogEntry[];
 
@@ -823,6 +828,8 @@ export const CONFIG_CATALOG = [
   entry("MINDORY_LLM_VISION_CAPTIONING_LOCAL_HTTP_BASE_URL", "llm", "string", "", "Optional vision-captioning-specific local HTTP model server base URL. When set, vision captioning and object detection calls use this endpoint instead of MINDORY_LLM_LOCAL_HTTP_BASE_URL.", "both", "supported"),
   entry("MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL", "llm", "string", "", "Optional OCR-specific local HTTP model server base URL. When set, OCR calls use this endpoint instead of MINDORY_LLM_LOCAL_HTTP_BASE_URL.", "both", "supported"),
   entry("MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL", "llm", "string", "", "Optional ASR-specific local HTTP model server base URL. When set, ASR calls use this endpoint instead of MINDORY_LLM_LOCAL_HTTP_BASE_URL.", "both", "supported"),
+  entry("MINDORY_LLM_FACE_DETECTION_LOCAL_HTTP_BASE_URL", "llm", "string", "", "Optional face-detection-specific local HTTP model server base URL. When set, face detection calls use this endpoint instead of MINDORY_LLM_LOCAL_HTTP_BASE_URL.", "both", "supported"),
+  entry("MINDORY_LLM_FACE_RECOGNITION_LOCAL_HTTP_BASE_URL", "llm", "string", "", "Optional face-recognition-specific local HTTP model server base URL. When set, face recognition calls use this endpoint instead of MINDORY_LLM_LOCAL_HTTP_BASE_URL.", "both", "supported"),
   entry("MINDORY_IMAGE_SEMANTICS_HOST", "llm", "string", "0.0.0.0", "Image semantics runner bind host inside the vision container.", "runtime", "supported"),
   entry("MINDORY_IMAGE_SEMANTICS_PORT", "llm", "number", "8082", "Image semantics runner host/container HTTP port.", "both", "supported"),
   entry("MINDORY_IMAGE_SEMANTICS_MODEL", "llm", "string", "mindory-image-semantics-v1", "Image semantics runner model label exposed through vision and image embedding responses.", "both", "supported"),
@@ -847,6 +854,12 @@ export const CONFIG_CATALOG = [
   entry("MINDORY_ASR_VAD_FILTER", "llm", "boolean", "false", "Enable Faster Whisper VAD filtering in the local ASR runner.", "both", "supported"),
   entry("MINDORY_ASR_HEALTH_LOAD_MODEL", "llm", "boolean", "true", "Load the Faster Whisper model during runner health checks.", "both", "supported"),
   entry("MINDORY_ASR_TIMEOUT_MS", "llm", "number", "120000", "Per-request ASR timeout in milliseconds.", "both", "supported"),
+  entry("MINDORY_FACE_HOST", "llm", "string", "0.0.0.0", "Face runner bind host inside the face container.", "runtime", "supported"),
+  entry("MINDORY_FACE_PORT", "llm", "number", "8086", "Face runner host/container HTTP port.", "both", "supported"),
+  entry("MINDORY_FACE_MODEL", "llm", "string", "mindory-local-face-v1", "Face runner model label exposed through detection and recognition responses.", "both", "supported"),
+  entry("MINDORY_FACE_EMBEDDING_DIMENSIONS", "llm", "number", "512", "Default face embedding dimensions returned by the local face runner.", "both", "supported"),
+  entry("MINDORY_FACE_MIN_AREA_RATIO", "llm", "string", "0.01", "Minimum image area ratio for local face-region observations.", "both", "supported"),
+  entry("MINDORY_FACE_HEALTH_LOAD_MODEL", "llm", "boolean", "true", "Load the OpenCV cascade and run a sample face pass during health checks.", "both", "supported"),
   entry("MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS", "llm", "number", "120000", "Default timeout for local-command provider healthchecks and operations.", "both", "supported"),
   entry("MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND", "llm", "string", "", "Executable used for local-command provider healthchecks.", "both", "supported", {
     prompt: {

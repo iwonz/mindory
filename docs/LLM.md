@@ -28,7 +28,8 @@ The default local model names are examples, not mandatory services:
 - image embeddings: `CLIP ViT-L-16-SigLIP2-256__webli`
 - local image semantics: `mindory-image-semantics-v1`
 - OCR: `tesseract-eng`
-- face detection and recognition: `buffalo_l`
+- face detection and recognition: `buffalo_l`; local face runner:
+  `mindory-local-face-v1`
 
 Docker Compose keeps local model runners optional. The default MVP demo uses
 disabled/non-blocking model capabilities and deterministic embedded fixtures.
@@ -183,6 +184,16 @@ honors `MINDORY_ASR_PORT`, `MINDORY_ASR_MODEL`, `MINDORY_ASR_DEVICE`,
 `MINDORY_ASR_COMPUTE_TYPE`, `MINDORY_ASR_LANGUAGE`,
 `MINDORY_ASR_BEAM_SIZE`, `MINDORY_ASR_VAD_FILTER` and
 `MINDORY_ASR_HEALTH_LOAD_MODEL`.
+
+`MINDORY_LLM_FACE_DETECTION_LOCAL_HTTP_BASE_URL` and
+`MINDORY_LLM_FACE_RECOGNITION_LOCAL_HTTP_BASE_URL` are supported face endpoint
+overrides. The installer sets both to `http://faces:8086` when
+`mindory-local-face-v1` is selected, so face boxes, embeddings and recognition
+ids use the dedicated local face service while other local HTTP roles can keep
+using the general `MINDORY_LLM_LOCAL_HTTP_BASE_URL` service. The local face
+container also honors `MINDORY_FACE_PORT`, `MINDORY_FACE_MODEL`,
+`MINDORY_FACE_EMBEDDING_DIMENSIONS`, `MINDORY_FACE_MIN_AREA_RATIO` and
+`MINDORY_FACE_HEALTH_LOAD_MODEL`.
 
 The local HTTP contract is intentionally small:
 
@@ -339,5 +350,9 @@ pnpm mvp:demo --model-profile ollama
 - `local-models-asr`: can be added explicitly when the Faster Whisper ASR
   runner is selected; it serves ASR through
   `MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL`.
+- `local-models-face`: can be added explicitly when the local face runner is
+  selected; it serves face detection and recognition through
+  `MINDORY_LLM_FACE_DETECTION_LOCAL_HTTP_BASE_URL` and
+  `MINDORY_LLM_FACE_RECOGNITION_LOCAL_HTTP_BASE_URL`.
 - `ollama`: adds the `ollama` profile for local text embeddings. Configure a
   1536-dimensional embedding model before using strict indexed acceptance.

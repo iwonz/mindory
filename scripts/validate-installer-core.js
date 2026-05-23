@@ -156,7 +156,7 @@ for (const token of ["MINDORY_CLAMAV_HEALTH_RETRIES", "MINDORY_CLAMAV_HEALTH_TIM
   assert(installerSource.includes(token), `Installer ClamAV health must include ${token}.`);
   assert(envExample.includes(token), `.env.example must include ${token}.`);
 }
-for (const token of ["MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND", "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS", "MINDORY_LLM_LOCAL_COMMAND_OPERATION_COMMAND", "MINDORY_LLM_LOCAL_COMMAND_OPERATION_ARGS", "MINDORY_LLM_LOCAL_COMMAND_MAX_INPUT_BYTES", "MINDORY_LLM_LOCAL_COMMAND_MAX_OUTPUT_BYTES"]) {
+for (const token of ["MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND", "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS", "MINDORY_LLM_LOCAL_COMMAND_OPERATION_COMMAND", "MINDORY_LLM_LOCAL_COMMAND_OPERATION_ARGS", "MINDORY_LLM_LOCAL_COMMAND_MAX_INPUT_BYTES", "MINDORY_LLM_LOCAL_COMMAND_MAX_OUTPUT_BYTES", "MINDORY_LLM_FACE_DETECTION_LOCAL_HTTP_BASE_URL", "MINDORY_LLM_FACE_RECOGNITION_LOCAL_HTTP_BASE_URL"]) {
   assert(installerSource.includes(token), `Installer local-command health must include ${token}.`);
   assert(envExample.includes(token), `.env.example must include ${token}.`);
   assert(composeFile.includes(token), `docker-compose.yml must include ${token}.`);
@@ -216,6 +216,7 @@ for (const promptId of [
   "local_models.pull_retries",
   "local_models.runner.mindory-deterministic-local-http.enabled",
   "local_models.runner.ollama-nomic-embed-text.enabled",
+  "local_models.runner.mindory-local-face-v1.enabled",
   "interfaces.api_port",
   "interfaces.ui_port",
   "tokens.cli_api_token",
@@ -559,6 +560,63 @@ await installer.executeInstallPlan(ocrLocalModelAnswers, {
 assert(ocrLocalModelCommands.some((command) => command.includes("up -d postgres redis ocr")), "Tesseract install must start the OCR service.");
 assert(ocrLocalModelCommands.some((command) => command.includes("exec -T ocr python -c")), "Tesseract runner must be health-checked with its Python health command.");
 fs.rmSync(ocrLocalModelHome, { recursive: true, force: true });
+
+const faceLocalModelHome = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-installer-face-local-model-"));
+fs.rmSync(faceLocalModelHome, { recursive: true, force: true });
+const faceLocalModelCommands = [];
+const healthyFaceComposePs = JSON.stringify([
+  { Service: "postgres", State: "running", Health: "healthy" },
+  { Service: "redis", State: "running", Health: "healthy" },
+  { Service: "faces", State: "running", Health: "healthy" }
+]);
+const faceLocalModelAnswers = installer.createDefaultInstallAnswers({
+  mindoryHome: faceLocalModelHome,
+  antivirus: {
+    mode: "disabled",
+    provider: "clamav",
+    clamavPlatform: "linux/amd64"
+  },
+  localModels: {
+    autoInstall: true,
+    selectedRunnerIds: ["mindory-local-face-v1"],
+    pullRetries: 2
+  }
+});
+const faceLocalModelPlan = installer.createInstallPlan(faceLocalModelAnswers);
+assert(faceLocalModelPlan.composeProfiles.includes("local-models-face"), "Selected face runner must enable local-models-face profile.");
+await installer.executeInstallPlan(faceLocalModelAnswers, {
+  sourceRoot: root,
+  owner: "validator-face",
+  stopBeforeStepId: "bootstrap-storage",
+  timeoutMs: 100,
+  pollIntervalMs: 1,
+  dependencyProbe: {
+    run() {
+      return { status: 0, stdout: "ok", stderr: "" };
+    },
+    isWritable() {
+      return true;
+    },
+    isPortAvailable() {
+      return true;
+    },
+    diskSpaceBytes() {
+      return 20_000_000_000;
+    }
+  },
+  commandRunner: {
+    async run(command, args) {
+      faceLocalModelCommands.push(`${command} ${args.join(" ")}`);
+      if (args.includes("ps")) {
+        return { status: 0, stdout: healthyFaceComposePs, stderr: "" };
+      }
+      return { status: 0, stdout: "ok", stderr: "" };
+    }
+  }
+});
+assert(faceLocalModelCommands.some((command) => command.includes("up -d postgres redis faces")), "Face install must start the face service.");
+assert(faceLocalModelCommands.some((command) => command.includes("exec -T faces python -c")), "Face runner must be health-checked with its Python health command.");
+fs.rmSync(faceLocalModelHome, { recursive: true, force: true });
 
 const localModelDependencyChecks = installer.detectHostDependencies(localModelAnswers, {
   run() {
@@ -1473,6 +1531,43 @@ assert(imageSemanticsWizardAnswers.llmRoles.VISION_CAPTIONING.model === "mindory
 assert(imageSemanticsWizardAnswers.llmProviders.localHttpImageEmbeddingBaseUrl === "http://vision:8082", "Image semantics runner selection must set the image-embedding-specific local HTTP endpoint.");
 assert(imageSemanticsWizardAnswers.llmProviders.localHttpVisionCaptioningBaseUrl === "http://vision:8082", "Image semantics runner selection must set the vision-captioning-specific local HTTP endpoint.");
 assert(installer.composeProfilesForAnswers(imageSemanticsWizardAnswers).includes("local-models-vision"), "Image semantics wizard answers must enable local-models-vision.");
+
+const faceWizardAnswers = await installer.runInstallWizard({
+  async prompt(prompt) {
+    if (prompt.id === "local_models.auto_install") {
+      return "true";
+    }
+    if (prompt.id === "local_models.runner.mindory-local-face-v1.enabled") {
+      return "true";
+    }
+    if (prompt.id.startsWith("local_models.runner.")) {
+      return "false";
+    }
+    if (prompt.id === "local_models.pull_retries") {
+      return "2";
+    }
+    if (prompt.id.startsWith("llm.FACE_DETECTION.") || prompt.id.startsWith("llm.FACE_RECOGNITION.")) {
+      return "";
+    }
+    if (prompt.id.startsWith("llm.")) {
+      return "false";
+    }
+    return scriptedResponses.get(prompt.id) ?? "";
+  },
+  async confirm() {
+    return true;
+  }
+});
+assert(faceWizardAnswers.localModels.selectedRunnerIds.includes("mindory-local-face-v1"), "Wizard must select the supported local face runner.");
+assert(faceWizardAnswers.llmRoles.FACE_DETECTION.enabled === true, "Face runner selection must keep face detection enabled by default.");
+assert(faceWizardAnswers.llmRoles.FACE_DETECTION.provider === "local-http", "Face runner selection must configure face detection through local-http.");
+assert(faceWizardAnswers.llmRoles.FACE_RECOGNITION.enabled === true, "Face runner selection must keep face recognition enabled by default.");
+assert(faceWizardAnswers.llmRoles.FACE_RECOGNITION.provider === "local-http", "Face runner selection must configure face recognition through local-http.");
+assert(faceWizardAnswers.llmRoles.FACE_DETECTION.model === "mindory-local-face-v1", "Face runner selection must use the catalog face detection model.");
+assert(faceWizardAnswers.llmRoles.FACE_RECOGNITION.model === "mindory-local-face-v1", "Face runner selection must use the catalog face recognition model.");
+assert(faceWizardAnswers.llmProviders.localHttpFaceDetectionBaseUrl === "http://faces:8086", "Face runner selection must set the face-detection-specific local HTTP endpoint.");
+assert(faceWizardAnswers.llmProviders.localHttpFaceRecognitionBaseUrl === "http://faces:8086", "Face runner selection must set the face-recognition-specific local HTTP endpoint.");
+assert(installer.composeProfilesForAnswers(faceWizardAnswers).includes("local-models-face"), "Face wizard answers must enable local-models-face.");
 
 const supportedLocalCommandAnswers = installer.createDefaultInstallAnswers({
   llmRoles: {

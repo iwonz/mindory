@@ -129,6 +129,9 @@ async function waitForComposeServices(timeoutMs) {
   if (profiles.includes("local-models-asr")) {
     required.push("asr");
   }
+  if (profiles.includes("local-models-face")) {
+    required.push("faces");
+  }
   if (profiles.includes("ollama")) {
     required.push("ollama");
   }
@@ -331,10 +334,12 @@ function applyLocalHttpModelProfile(env) {
   setDefault(env, "MINDORY_LLM_VISION_CAPTIONING_MODEL", "mindory-local-vision");
   setDefault(env, "MINDORY_LLM_FACE_DETECTION_ENABLED", "true");
   setDefault(env, "MINDORY_LLM_FACE_DETECTION_PROVIDER", "local-http");
-  setDefault(env, "MINDORY_LLM_FACE_DETECTION_MODEL", "mindory-local-face");
+  setDefault(env, "MINDORY_LLM_FACE_DETECTION_MODEL", "mindory-local-face-v1");
+  setDefault(env, "MINDORY_LLM_FACE_DETECTION_LOCAL_HTTP_BASE_URL", "http://faces:8086");
   setDefault(env, "MINDORY_LLM_FACE_RECOGNITION_ENABLED", "true");
   setDefault(env, "MINDORY_LLM_FACE_RECOGNITION_PROVIDER", "local-http");
-  setDefault(env, "MINDORY_LLM_FACE_RECOGNITION_MODEL", "mindory-local-face");
+  setDefault(env, "MINDORY_LLM_FACE_RECOGNITION_MODEL", "mindory-local-face-v1");
+  setDefault(env, "MINDORY_LLM_FACE_RECOGNITION_LOCAL_HTTP_BASE_URL", "http://faces:8086");
 }
 
 function setDefault(env, key, value) {

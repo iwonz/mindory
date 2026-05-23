@@ -18,7 +18,7 @@ secrets, rate limits, structured logs and observability are maintained in
 | Installer first-run provisioning | Supported. The start step creates the first project/token and writes `config/initial-token.json` under `$MINDORY_HOME`. |
 | Installer lifecycle operations | Supported baseline for local asset update, signed remote release update, runtime backup/restore, scheduled local backup, encrypted remote backup archives, external S3 streaming backups, journal resume/repair and guarded uninstall. |
 | Release images and bundles | Bundle generation is supported with `pnpm release:bundle`. Generated manifests are RSA-SHA256 signed, and bootstrap scripts verify the signature before trusting bundle checksums. Publishing automation pushes versioned Docker images on trusted tag builds and publishes signed release artifacts plus generated release notes to public GitHub pre-releases. |
-| Heavy local models | Supported baseline. `LOCAL_MODEL_RUNNER_CATALOG` records installable runner metadata, role coverage, source/image details, model files, healthchecks and resource hints; the deterministic local HTTP, Ollama text embedding, Tesseract OCR and Faster Whisper ASR runners have Compose profiles and installer health checks. Other heavy runner rows keep their catalog status until their task-specific implementation lands. |
+| Heavy local models | Supported baseline. `LOCAL_MODEL_RUNNER_CATALOG` records installable runner metadata, role coverage, source/image details, model files, healthchecks and resource hints; the deterministic local HTTP, Ollama text embedding, Tesseract OCR, Faster Whisper ASR, image semantics and local face runners have Compose profiles and installer health checks. Other heavy runner rows keep their catalog status until their task-specific implementation lands. |
 
 The expected local demo flow is:
 
@@ -191,7 +191,11 @@ endpoint. The Tesseract runner starts
 dedicated OCR endpoint. The Faster Whisper runner starts `local-models-asr`,
 waits for model-loading health and configures
 `MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL=http://asr:8084` so audio ASR uses the
-dedicated ASR endpoint. Logs are written to
+dedicated ASR endpoint. The local face runner starts `local-models-face`,
+waits for detection/recognition health and configures
+`MINDORY_LLM_FACE_DETECTION_LOCAL_HTTP_BASE_URL=http://faces:8086` plus
+`MINDORY_LLM_FACE_RECOGNITION_LOCAL_HTTP_BASE_URL=http://faces:8086` so face
+operations use the dedicated face endpoint. Logs are written to
 `$MINDORY_HOME/logs/local-model-install.log`.
 
 The local-model acceptance gate is:
@@ -348,8 +352,10 @@ Automated down migrations are not part of the MVP deployment path.
 - `docling`
 - `ollama`
 - `local-models`
+- `local-models-vision`
 - `local-models-ocr`
 - `local-models-asr`
+- `local-models-face`
 
 Example:
 
@@ -383,6 +389,12 @@ The `local-models-asr` profile builds the Mindory Faster Whisper runner from
 under `$MINDORY_HOME/data/models/whisper`, exposes `/health` on
 `MINDORY_ASR_PORT` and serves `POST /asr` for audio transcript segments through
 `@mindory/llm`.
+
+The `local-models-face` profile builds the Mindory local face runner from
+`deploy/local-models/face/local-face/Dockerfile`, stores runner data under
+`$MINDORY_HOME/data/models/face`, exposes `/health` on `MINDORY_FACE_PORT` and
+serves `POST /faces/detect` plus `POST /faces/recognize` for face boxes,
+embeddings and deterministic identity ids through `@mindory/llm`.
 
 The `docling` profile runs Mindory's Docling-compatible extraction service from
 the built application image. It exposes `/health` on `MINDORY_DOCLING_PORT`
