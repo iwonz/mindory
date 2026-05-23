@@ -20,6 +20,10 @@ documentation.
 
 ### Added
 
+- `TASK-132`: final public-ready pre-release gate with `pnpm public-ready:gate`,
+  dry-run coverage in `pnpm check` and opt-in live orchestration for fresh
+  clone, published release bootstrap, self-host gate, local-model acceptance,
+  Web UI E2E, public wording validation and clean git status.
 - `TASK-131`: Web UI Playwright E2E acceptance with dry-run repository coverage
   in `pnpm check` and opt-in live browser verification for login, upload,
   pipeline jobs, artifacts/source refs, search, memory, context and

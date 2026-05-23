@@ -1,0 +1,56 @@
+{
+  "id": "TASK-132",
+  "title": "Final public pre-release readiness gate",
+  "status": "done",
+  "type": "test",
+  "priority": "high",
+  "branch": "task/TASK-132-final-public-pre-release-readiness-gate",
+  "created_at": "2026-05-23",
+  "updated_at": "2026-05-23",
+  "context": {
+    "summary": "Add the final public-ready pre-release acceptance gate.",
+    "background": "TASK-118 through TASK-131 established current public docs, release bootstrap, live self-host acceptance, local model acceptance and Web UI E2E acceptance. The final task ties those checks into a single release announcement gate with CI-safe dry-run validation and opt-in live execution from a fresh clone."
+  },
+  "scope": {
+    "in": [
+      "Add a root public-ready:gate command with dry-run checklist validation.",
+      "Include public-ready:gate in pnpm check.",
+      "Add live orchestration for fresh clone, pnpm check, published-release bootstrap acceptance, self-host live gate, local-model live acceptance, Web UI live E2E, public wording validation and clean git status.",
+      "Document MINDORY_PUBLIC_READY_LIVE, MINDORY_PUBLIC_READY_SOURCE_URL and MINDORY_PUBLIC_READY_TIMEOUT_MS.",
+      "Update README, MVP acceptance, deployment, release checklist, support matrix, repository status, PRD, development process and changelog docs.",
+      "Update tasks registry for TASK-132."
+    ],
+    "out": [
+      "Changing runtime product behavior.",
+      "Publishing a GitHub release.",
+      "Running the live final gate automatically during pnpm check."
+    ]
+  },
+  "acceptance_criteria": [
+    "pnpm public-ready:gate passes in dry-run mode and is included in pnpm check.",
+    "Live mode performs a real fresh clone and delegates to the existing live release, self-host, local-model and Web UI acceptance commands.",
+    "The gate checks public stale wording validation and clean git status before reporting success.",
+    "Public docs describe the final pre-release gate and its live environment variables.",
+    "Task registry marks TASK-132 as current and done."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm public-ready:gate",
+      "pnpm tasks:validate",
+      "pnpm typecheck",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm live mode is opt-in through MINDORY_PUBLIC_READY_LIVE=true.",
+      "Confirm dry-run mode does not start Docker or download release artifacts."
+    ]
+  },
+  "dependencies": [
+    "TASK-131"
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is done.",
+    "Branch is committed and merged back into master."
+  ]
+}

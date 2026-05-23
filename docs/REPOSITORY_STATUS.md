@@ -6,11 +6,13 @@ The repository should be described with the support levels in
 
 ## Current Baseline
 
-The repository is complete through `TASK-131`.
+The repository is complete through `TASK-132`.
 
 Supported local MVP path:
 
 - `pnpm check` passes from a clean checkout with dependencies installed.
+- `pnpm public-ready:gate` dry-runs the final public pre-release checklist and
+  is included in `pnpm check`; live mode runs the same gate from a fresh clone.
 - `pnpm local-model:acceptance` runs a CI-safe dry-run of the supported local
   model profile and is included in `pnpm check`; live mode is explicit through
   `MINDORY_LOCAL_MODEL_ACCEPTANCE_LIVE=true`.
@@ -121,7 +123,11 @@ Supported local MVP path:
   validation.
 - Public self-host acceptance is the release-readiness gate for local self-host
   users and is required by `docs/RELEASE_CHECKLIST.md` before publication.
-- Public current-state docs are aligned with the TASK-131 runtime baseline and
+- Final public-ready gate combines fresh clone, published-release bootstrap,
+  self-host live matrix, local-model live acceptance, Web UI Playwright flow,
+  CLI/MCP smoke coverage through self-host acceptance, public stale wording
+  validation and clean `git status --short`.
+- Public current-state docs are aligned with the TASK-132 runtime baseline and
   distinguish checked local-MVP paths from planned release work.
 
 Public GitHub hygiene baseline:

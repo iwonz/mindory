@@ -8,11 +8,12 @@ The canonical product and engineering specification is `docs/PRD.md`.
 
 ## Repository Status
 
-This repository is complete through `TASK-131`. Mindory can run a local
+This repository is complete through `TASK-132`. Mindory can run a local
 demo-MVP through Docker Compose, seed demo credentials, process uploaded
 documents through the worker pipeline and run live acceptance. `pnpm check`
 passes through the repo validation, typecheck, lint, tests and dry-run
-installer, public self-host, local-model and Web UI E2E acceptance paths.
+installer, public self-host, local-model, Web UI E2E and final public-ready
+acceptance paths.
 
 The current state is intentionally split into supported local-MVP surfaces,
 experimental profile surfaces and documented non-MVP surfaces:
@@ -80,6 +81,23 @@ pnpm selfhost:gate -- --dry-run
 ```
 
 `pnpm selfhost:acceptance` is the dry-run path used by `pnpm check`.
+
+The final public-ready pre-release gate is:
+
+```bash
+pnpm public-ready:gate
+```
+
+By default it dry-runs the checklist and is included in `pnpm check`. Live mode
+runs the full release announcement gate from a fresh clone:
+
+```bash
+MINDORY_PUBLIC_READY_LIVE=true pnpm public-ready:gate
+```
+
+The live gate verifies the published pre-release bootstrap, self-host live
+matrix, local-model live profile, full Web UI Playwright flow, public wording
+gate and clean `git status --short`.
 
 The deterministic local-model profile has a separate dry-run gate:
 

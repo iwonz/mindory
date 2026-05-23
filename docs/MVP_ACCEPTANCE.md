@@ -121,6 +121,26 @@ pnpm selfhost:gate -- --local-model
 Use `MINDORY_SELFHOST_ACCEPTANCE_TIMEOUT_MS=<milliseconds>` when local Docker
 image pulls, ClamAV startup or rebuilds need more than the default timeout.
 
+Final public-ready pre-release gate:
+
+```bash
+pnpm public-ready:gate
+```
+
+Dry-run mode is part of `pnpm check` and verifies the final checklist wiring:
+fresh clone, temporary `MINDORY_HOME`, published-release bootstrap, local-model
+profile, full Web UI flow, CLI/MCP smoke through self-host acceptance, public
+stale wording validation and clean `git status --short`. Live mode runs those
+checks from a fresh clone:
+
+```bash
+MINDORY_PUBLIC_READY_LIVE=true pnpm public-ready:gate
+```
+
+Use `MINDORY_PUBLIC_READY_SOURCE_URL` to point the fresh clone at a different
+source repository and `MINDORY_PUBLIC_READY_TIMEOUT_MS` when Docker image pulls
+or local model startup need more time.
+
 Manual live Docker flow:
 
 ```bash

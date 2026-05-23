@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-131",
+  "current_task_id": "TASK-132",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -953,6 +953,13 @@
       "status": "done",
       "branch": "task/TASK-131-web-ui-e2e-acceptance",
       "file": "tasks/TASK-131.json"
+    },
+    {
+      "id": "TASK-132",
+      "title": "Final public pre-release readiness gate",
+      "status": "done",
+      "branch": "task/TASK-132-final-public-pre-release-readiness-gate",
+      "file": "tasks/TASK-132.json"
     }
   ]
 }

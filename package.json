@@ -51,6 +51,7 @@
     "observability:validate": "pnpm --filter @mindory/observability typecheck && node scripts/validate-observability.js",
     "processing:validate": "node scripts/validate-processing-pipeline.js",
     "production:validate": "node scripts/validate-production-hardening.js",
+    "public-ready:gate": "node scripts/public-ready-gate.js",
     "public-debt:validate": "node scripts/validate-public-readiness-debt.js",
     "public:validate": "node scripts/validate-public-github-hygiene.js",
     "published-release:acceptance": "node scripts/published-release-acceptance.js",

@@ -298,6 +298,21 @@ the checksum and runs the packaged installer `plan` command from a temporary
 `MINDORY_HOME`. It does not start Docker; the live Docker self-host gate remains
 `pnpm selfhost:gate`.
 
+The final public-ready pre-release gate is:
+
+```bash
+pnpm public-ready:gate
+```
+
+Dry-run mode is included in `pnpm check`. Live mode runs from a fresh clone and
+combines published-release bootstrap acceptance, `pnpm selfhost:gate`, live
+local-model acceptance, live `pnpm ui:e2e`, public stale wording validation and
+clean `git status --short`:
+
+```bash
+MINDORY_PUBLIC_READY_LIVE=true pnpm public-ready:gate
+```
+
 The reproducible release image path is:
 
 ```bash

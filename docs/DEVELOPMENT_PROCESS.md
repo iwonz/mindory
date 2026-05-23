@@ -121,6 +121,7 @@ pnpm hermes:smoke
 pnpm hermes:contract
 pnpm hermes:harness
 pnpm production:validate
+pnpm public-ready:gate
 pnpm mvp:demo:validate
 pnpm ui:e2e
 pnpm selfhost:acceptance

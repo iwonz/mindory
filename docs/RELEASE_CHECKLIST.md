@@ -23,6 +23,7 @@ repository.
 ## Required Checks
 
 - `pnpm check`.
+- `pnpm public-ready:gate`.
 - `pnpm release:validate`.
 - `pnpm published-release:acceptance`.
 - `pnpm public-debt:validate`.
@@ -61,6 +62,18 @@ pnpm selfhost:gate
 For non-Docker release checklist rehearsal, use
 `pnpm selfhost:gate -- --dry-run`. The full gate is required before publishing
 or announcing a pre-release as usable by others.
+
+Before announcing a public pre-release as usable by others, run the combined
+final gate:
+
+```bash
+MINDORY_PUBLIC_READY_LIVE=true pnpm public-ready:gate
+```
+
+Dry-run mode is part of `pnpm check`. Live mode performs a fresh clone, installs
+dependencies, runs `pnpm check`, verifies the public pre-release bootstrap,
+runs the live self-host gate, runs the local-model acceptance, runs live
+`pnpm ui:e2e`, validates public wording and confirms clean `git status --short`.
 
 ## Release Notes Requirements
 
