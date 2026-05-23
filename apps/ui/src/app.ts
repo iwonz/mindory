@@ -14,6 +14,7 @@ import type {
   ProcessingJob,
   ProcessingRun,
   Project,
+  RuntimeDiagnostics,
   Session,
   SourceRef,
   StoredConnection,
@@ -22,7 +23,7 @@ import type {
 
 interface ViewState {
   connection: StoredConnection;
-  activeView: "sessions" | "documents" | "search";
+  activeView: "sessions" | "documents" | "search" | "diagnostics";
   health: Loadable<HealthResponse>;
   projects: Loadable<Project[]>;
   peers: Loadable<Peer[]>;
@@ -38,6 +39,9 @@ interface ViewState {
   memoryHits: Loadable<MemorySearchHit[]>;
   faceIdentities: Loadable<FaceIdentity[]>;
   faceObservations: Loadable<FaceObservation[]>;
+  ready: Loadable<HealthResponse>;
+  runtimeDiagnostics: Loadable<RuntimeDiagnostics | null>;
+  diagnosticJobs: Loadable<ProcessingJob[]>;
   selectedProjectId: string;
   selectedSessionId: string;
   selectedDocumentId: string;
@@ -83,6 +87,9 @@ const view: ViewState = {
   memoryHits: idle([]),
   faceIdentities: idle([]),
   faceObservations: idle([]),
+  ready: idle(emptyHealth),
+  runtimeDiagnostics: idle(null),
+  diagnosticJobs: idle([]),
   selectedProjectId: "",
   selectedSessionId: "",
   selectedDocumentId: "",
@@ -120,6 +127,9 @@ function renderActiveWorkspace(): HTMLElement {
   }
   if (view.activeView === "search") {
     return renderSearchWorkspace();
+  }
+  if (view.activeView === "diagnostics") {
+    return renderDiagnosticsWorkspace();
   }
   return renderSessionWorkspace();
 }
@@ -218,6 +228,8 @@ function renderWorkspaceHeader(): HTMLElement {
     ? selectedDocument?.title || selectedDocument?.original_filename || selectedProject?.name || "Documents"
     : view.activeView === "search"
       ? selectedProject?.name || "Search"
+      : view.activeView === "diagnostics"
+        ? selectedProject?.name || "Diagnostics"
       : selectedSession?.title || selectedProject?.name || "Workspace";
   return el("header", { className: "workspace-header" },
     el("div", {},
@@ -244,6 +256,13 @@ function renderWorkspaceHeader(): HTMLElement {
         render();
         if (view.selectedProjectId.length > 0) {
           void refreshFaces(view.selectedProjectId);
+        }
+      }),
+      tabButton("Diagnostics", view.activeView === "diagnostics", () => {
+        view.activeView = "diagnostics";
+        render();
+        if (view.selectedProjectId.length > 0) {
+          void refreshDiagnostics(view.selectedProjectId);
         }
       }),
       button("Reload", "secondary", () => {
@@ -280,6 +299,14 @@ function renderSearchWorkspace(): HTMLElement {
   );
 }
 
+function renderDiagnosticsWorkspace(): HTMLElement {
+  return el("section", { className: "diagnostics-grid", "aria-label": "Mindory runtime diagnostics workspace" },
+    renderRuntimeDiagnosticsPanel(),
+    renderProviderDiagnosticsPanel(),
+    renderJobDiagnosticsPanel()
+  );
+}
+
 function renderProjectsPanel(): HTMLElement {
   return panel("Projects", view.projects, {
     empty: "No readable projects for this token.",
@@ -295,6 +322,8 @@ function renderProjectsPanel(): HTMLElement {
           void refreshDocuments(project.id);
         } else if (view.activeView === "search") {
           void refreshFaces(project.id);
+        } else if (view.activeView === "diagnostics") {
+          void refreshDiagnostics(project.id);
         }
       });
     }))
@@ -581,6 +610,153 @@ function renderFacesPanel(): HTMLElement {
     ),
     renderFaceIdentities(),
     renderFaceObservations()
+  );
+}
+
+function renderRuntimeDiagnosticsPanel(): HTMLElement {
+  const diagnostics = view.runtimeDiagnostics.data;
+  const ready = view.ready.data;
+  return el("section", { className: "panel" },
+    el("div", { className: "panel-heading" },
+      el("h3", {}, "Runtime"),
+      el("span", {}, view.runtimeDiagnostics.state === "ready" ? "ready" : view.runtimeDiagnostics.state)
+    ),
+    el("div", { className: "button-strip" },
+      button("Refresh", "secondary light", () => {
+        if (view.selectedProjectId.length > 0) {
+          void refreshDiagnostics(view.selectedProjectId);
+        }
+      })
+    ),
+    view.selectedProjectId.length === 0
+      ? el("div", { className: "state empty" }, "Choose a project to load runtime diagnostics.")
+      : view.runtimeDiagnostics.state === "loading"
+        ? el("div", { className: "state loading" }, "Loading runtime diagnostics.")
+        : view.runtimeDiagnostics.state === "error"
+          ? renderError(view.runtimeDiagnostics.error)
+          : el("div", { className: "detail-stack" },
+            el("dl", { className: "detail-list" },
+              detailRow("Ready", ready.status ?? "not checked"),
+              detailRow("Generated", formatDate(diagnostics?.generated_at)),
+              detailRow("Project", diagnostics?.project_id ?? view.selectedProjectId),
+              detailRow("API metrics", diagnostics?.metrics_links.api_metrics_url ?? "disabled"),
+              detailRow("Worker metrics", diagnostics?.metrics_links.worker_metrics_url ?? "disabled")
+            ),
+            renderConfigSection("Install", readRecordPath(diagnostics?.config, ["install"])),
+            renderConfigSection("API", readRecordPath(diagnostics?.config, ["api"])),
+            renderConfigSection("Metrics links", diagnostics?.metrics_links ?? {})
+          )
+  );
+}
+
+function renderProviderDiagnosticsPanel(): HTMLElement {
+  const diagnostics = view.runtimeDiagnostics.data;
+  return el("section", { className: "panel wide-panel" },
+    el("div", { className: "panel-heading" },
+      el("h3", {}, "Providers"),
+      el("span", {}, view.ready.state === "ready" ? "ready" : view.ready.state)
+    ),
+    view.runtimeDiagnostics.state === "loading"
+      ? el("div", { className: "state loading" }, "Loading provider diagnostics.")
+      : view.runtimeDiagnostics.state === "error"
+        ? renderError(view.runtimeDiagnostics.error)
+        : !diagnostics
+          ? el("div", { className: "state empty" }, "No provider diagnostics loaded.")
+          : el("div", { className: "detail-stack" },
+            renderConfigSection("Storage", readRecordPath(diagnostics.config, ["storage"])),
+            renderConfigSection("Vector", readRecordPath(diagnostics.config, ["vector"])),
+            renderConfigSection("Antivirus", readRecordPath(diagnostics.config, ["antivirus"])),
+            renderConfigSection("Document processing", readRecordPath(diagnostics.config, ["document_processing"])),
+            renderProviderHealth(diagnostics.provider_health),
+            renderConfigSection("Model roles", readRecordPath(diagnostics.config, ["llm"]))
+          )
+  );
+}
+
+function renderJobDiagnosticsPanel(): HTMLElement {
+  const jobs = view.diagnosticJobs;
+  return el("section", { className: "panel" },
+    el("div", { className: "panel-heading" },
+      el("h3", {}, "Jobs and queues"),
+      el("span", {}, jobs.state === "ready" ? `${jobs.data.length}` : jobs.state)
+    ),
+    jobs.state === "loading"
+      ? el("div", { className: "state loading" }, "Loading recent jobs.")
+      : jobs.state === "error"
+        ? renderError(jobs.error)
+        : view.selectedProjectId.length === 0
+          ? el("div", { className: "state empty" }, "Choose a project to load job diagnostics.")
+          : el("div", { className: "detail-stack" },
+            renderJobStatusSummary(jobs.data),
+            jobs.data.length === 0
+              ? el("div", { className: "state empty" }, "No recent jobs found.")
+              : el("div", { className: "card-list" }, ...jobs.data.map((job) =>
+                el("article", { className: `job-card ${job.status}` },
+                  el("div", { className: "card-title-row" },
+                    el("strong", {}, job.type),
+                    statusPill(job.status)
+                  ),
+                  el("dl", { className: "compact-list" },
+                    detailRow("Job", job.id),
+                    detailRow("Target", `${job.target_type}:${job.target_id}`),
+                    detailRow("Attempts", `${job.attempts}/${job.max_attempts}`),
+                    detailRow("Updated", formatDate(job.updated_at))
+                  ),
+                  job.last_error ? el("p", { className: "error-text" }, job.last_error) : null,
+                  renderDetails(job.details)
+                )
+              ))
+          )
+  );
+}
+
+function renderConfigSection(title: string, value: Record<string, unknown>): HTMLElement {
+  return el("section", { className: "subsection config-section" },
+    el("div", { className: "subsection-heading" },
+      el("h4", {}, title),
+      el("span", {}, `${Object.keys(value).length}`)
+    ),
+    renderDetails(value) ?? el("div", { className: "state empty" }, "No values.")
+  );
+}
+
+function renderProviderHealth(value: Record<string, unknown>): HTMLElement {
+  const entries = Object.entries(value);
+  return el("section", { className: "subsection" },
+    el("div", { className: "subsection-heading" },
+      el("h4", {}, "Provider health"),
+      el("span", {}, `${entries.length}`)
+    ),
+    el("div", { className: "card-list" }, ...entries.map(([key, state]) =>
+      el("article", { className: "result-card" },
+        el("div", { className: "card-title-row" },
+          el("strong", {}, key),
+          statusPill(readProviderStatus(state))
+        ),
+        renderDetails(isRecordValue(state) ? state : { value: state })
+      )
+    ))
+  );
+}
+
+function renderJobStatusSummary(jobs: ProcessingJob[]): HTMLElement {
+  const counts = new Map<string, number>();
+  for (const job of jobs) {
+    counts.set(job.status, (counts.get(job.status) ?? 0) + 1);
+  }
+  return el("section", { className: "subsection" },
+    el("div", { className: "subsection-heading" },
+      el("h4", {}, "Recent job status"),
+      el("span", {}, `${jobs.length}`)
+    ),
+    counts.size === 0
+      ? el("div", { className: "state empty" }, "No job status counts.")
+      : el("div", { className: "status-grid" }, ...Array.from(counts.entries()).map(([status, count]) =>
+        el("div", { className: "status-metric" },
+          statusPill(status),
+          el("strong", {}, String(count))
+        )
+      ))
   );
 }
 
@@ -900,6 +1076,8 @@ async function refreshProjects(): Promise<void> {
         void refreshDocuments(projects[0].id);
       } else if (view.activeView === "search") {
         void refreshFaces(projects[0].id);
+      } else if (view.activeView === "diagnostics") {
+        void refreshDiagnostics(projects[0].id);
       }
     } else if (view.selectedProjectId.length > 0) {
       void refreshProjectDetail(view.selectedProjectId);
@@ -907,6 +1085,8 @@ async function refreshProjects(): Promise<void> {
         void refreshDocuments(view.selectedProjectId);
       } else if (view.activeView === "search") {
         void refreshFaces(view.selectedProjectId);
+      } else if (view.activeView === "diagnostics") {
+        void refreshDiagnostics(view.selectedProjectId);
       }
     }
   } catch (error) {
@@ -1249,6 +1429,30 @@ async function mergeFace(projectId: string, sourceIdentityId: string, targetIden
   }
 }
 
+async function refreshDiagnostics(projectId: string): Promise<void> {
+  view.ready = loading(view.ready.data);
+  view.runtimeDiagnostics = loading(view.runtimeDiagnostics.data);
+  view.diagnosticJobs = loading(view.diagnosticJobs.data);
+  render();
+  try {
+    const client = new MindoryUiApiClient(view.connection);
+    const [readyStatus, diagnostics, jobs] = await Promise.all([
+      client.ready(),
+      client.runtimeDiagnostics(projectId),
+      client.listJobs(projectId, 100)
+    ]);
+    view.ready = ready(readyStatus);
+    view.runtimeDiagnostics = ready(diagnostics);
+    view.diagnosticJobs = ready(jobs);
+  } catch (error) {
+    const displayError = toDisplayError(error, "Runtime diagnostics could not be loaded");
+    view.ready = failed(emptyHealth, displayError);
+    view.runtimeDiagnostics = failed(null, displayError);
+    view.diagnosticJobs = failed([], displayError);
+  }
+  render();
+}
+
 function resetProjectScopedState(): void {
   view.projects = idle([]);
   view.selectedProjectId = "";
@@ -1271,6 +1475,9 @@ function resetSelectedProjectState(): void {
   view.memoryHits = idle([]);
   view.faceIdentities = idle([]);
   view.faceObservations = idle([]);
+  view.ready = idle(emptyHealth);
+  view.runtimeDiagnostics = idle(null);
+  view.diagnosticJobs = idle([]);
   view.selectedFaceIdentityId = "";
   view.selectedSourceRef = null;
 }
@@ -1366,6 +1573,29 @@ function renderDetails(value: Record<string, unknown> | undefined): HTMLElement 
     el("summary", {}, "Details"),
     el("pre", {}, JSON.stringify(value, null, 2))
   );
+}
+
+function readRecordPath(value: Record<string, unknown> | undefined, path: string[]): Record<string, unknown> {
+  let current: unknown = value;
+  for (const segment of path) {
+    if (!isRecordValue(current)) {
+      return {};
+    }
+    current = current[segment];
+  }
+  return isRecordValue(current) ? current : {};
+}
+
+function readProviderStatus(value: unknown): string {
+  if (!isRecordValue(value)) {
+    return "unknown";
+  }
+  const status = value.status;
+  return typeof status === "string" ? status : "unknown";
+}
+
+function isRecordValue(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function renderSourceRefs(sourceRefs: SourceRef[], onUse?: () => void): HTMLElement {

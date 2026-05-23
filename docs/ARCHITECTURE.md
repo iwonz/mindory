@@ -114,8 +114,9 @@ URL from `MINDORY_UI_API_URL`.
 
 The UI covers connection state, token entry, API health, project/session
 navigation, selected session messages, document pipeline operations, unified
-search, context preview, manual memory and face identity operations. It does not
-read PostgreSQL, Redis, object storage, vector indexes or worker state directly.
+search, context preview, manual memory, face identity operations and runtime
+diagnostics. It does not read PostgreSQL, Redis, object storage, vector indexes
+or worker state directly.
 
 ## Configuration Catalog
 

@@ -11,6 +11,7 @@ const requiredFiles = [
   "apps/api/src/errors.ts",
   "apps/api/src/routes/dependencies.ts",
   "apps/api/src/routes/health.ts",
+  "apps/api/src/routes/runtime.ts",
   "apps/api/src/routes/projects.ts",
   "apps/api/src/routes/tokens.ts",
   "packages/config/src/index.ts"
@@ -39,6 +40,7 @@ const auth = read("apps/api/src/auth.ts");
 const errors = read("apps/api/src/errors.ts");
 const routeDependencies = read("apps/api/src/routes/dependencies.ts");
 const healthRoutes = read("apps/api/src/routes/health.ts");
+const runtimeRoutes = read("apps/api/src/routes/runtime.ts");
 const projectRoutes = read("apps/api/src/routes/projects.ts");
 const tokenRoutes = read("apps/api/src/routes/tokens.ts");
 const config = read("packages/config/src/index.ts");
@@ -54,6 +56,7 @@ assert(app.includes("Fastify(fastifyOptions)") || app.includes("Fastify({"), "AP
 assert(app.includes("registerAuth"), "API app must register auth.");
 assert(app.includes("registerErrorHandlers"), "API app must register error handlers.");
 assert(app.includes("registerHealthRoutes"), "API app must register health routes.");
+assert(app.includes("registerRuntimeRoutes"), "API app must register runtime diagnostics routes.");
 assert(app.includes("registerTokenRoutes"), "API app must register token routes.");
 assert(app.includes("registerProjectRoutes"), "API app must register project routes.");
 assert(app.includes("redact"), "API logger must redact sensitive fields.");
@@ -81,6 +84,9 @@ assert(!errors.includes("not" + "_implemented"), "API errors must not expose inc
 for (const route of ['"/health"', '"/ready"']) {
   assert(healthRoutes.includes(route), `Health routes must include ${route}.`);
 }
+assert(runtimeRoutes.includes('"/v1/runtime/diagnostics"'), "Runtime diagnostics route must include GET /v1/runtime/diagnostics.");
+assert(runtimeRoutes.includes('"project:read"'), "Runtime diagnostics route must require project:read.");
+assert(runtimeRoutes.includes("secret_key_configured"), "Runtime diagnostics must return redacted secret flags.");
 
 for (const route of ['"/v1/projects"', '"/v1/projects/:id"']) {
   assert(projectRoutes.includes(route), `Project routes must include ${route}.`);

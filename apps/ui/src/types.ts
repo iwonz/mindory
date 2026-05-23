@@ -286,6 +286,20 @@ export interface FaceMergeResponse {
   reassigned_observations: number;
 }
 
+export interface RuntimeDiagnostics {
+  request_id: string;
+  project_id: string;
+  config: Record<string, unknown>;
+  provider_health: Record<string, unknown>;
+  metrics_links: {
+    enabled: boolean;
+    api_metrics_url: string | null;
+    worker_metrics_url: string | null;
+    bearer_token_configured: boolean;
+  };
+  generated_at: string;
+}
+
 declare global {
   interface Window {
     __MINDORY_UI_CONFIG__?: UiConfig;

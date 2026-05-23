@@ -1,0 +1,58 @@
+{
+  "id": "TASK-129",
+  "title": "Web UI runtime settings and diagnostics",
+  "status": "done",
+  "type": "feature",
+  "priority": "high",
+  "branch": "task/TASK-129-web-ui-runtime-settings-diagnostics",
+  "created_at": "2026-05-23",
+  "updated_at": "2026-05-23",
+  "context": {
+    "summary": "Add read-only Web UI diagnostics for runtime config, providers, jobs and metrics without exposing secrets.",
+    "background": "TASK-126 through TASK-128 added the UI foundation, document workspace and search/context/memory/faces. The next public-ready UI scope is runtime diagnostics before Docker/installer wiring."
+  },
+  "scope": {
+    "in": [
+      "Add a project-scoped runtime diagnostics HTTP API route with redacted config summary.",
+      "Expose storage, vector, antivirus, document processing and LLM/model role settings without raw secrets.",
+      "Expose provider health/configured states and metrics links.",
+      "Add a Diagnostics UI tab with runtime, providers and recent job status panels.",
+      "Use /ready, /v1/runtime/diagnostics and /v1/jobs through the UI API client only.",
+      "Add diagnostics workspace validation and include it in pnpm check.",
+      "Update README, API docs, UI docs, architecture, support matrix, repository status and changelog."
+    ],
+    "out": [
+      "UI Docker image/service and installer routing integration, which is TASK-130.",
+      "Playwright E2E acceptance, which is TASK-131.",
+      "New backend health probes for external providers beyond current configured/disabled state reporting."
+    ]
+  },
+  "acceptance_criteria": [
+    "GET /v1/runtime/diagnostics requires projectId and project:read permission.",
+    "Runtime diagnostics return redacted install/config summary, storage/vector/AV/model settings, provider health states and metrics links without raw secret values.",
+    "The UI Diagnostics tab renders runtime summary, provider settings/health and recent job status through HTTP API calls only.",
+    "The UI shows loading, empty, 401/403 and generic error states for diagnostics.",
+    "pnpm check includes diagnostics workspace validation, and docs describe the supported diagnostics surface."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm --filter @mindory/ui build",
+      "pnpm ui:diagnostics:validate",
+      "pnpm api:validate",
+      "pnpm api:runtime:validate",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Open the UI locally and confirm the Diagnostics tab renders without browser console errors when the API is unavailable."
+    ]
+  },
+  "dependencies": [
+    "TASK-128"
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is done.",
+    "Branch is committed and merged back into master."
+  ]
+}

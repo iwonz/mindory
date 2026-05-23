@@ -20,6 +20,9 @@ documentation.
 
 ### Added
 
+- `TASK-129`: Web UI runtime diagnostics workspace with storage/vector/AV/model
+  settings, provider health, recent job status, metrics links, redacted
+  installer/config summary and `pnpm ui:diagnostics:validate` coverage.
 - `TASK-128`: Web UI search/context/memory/faces workspace with unified search
   filters, context preview, manual memory creation, source-backed memory display,
   face identity list/rename/merge and `pnpm ui:insights:validate` coverage.

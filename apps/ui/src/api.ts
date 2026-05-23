@@ -16,6 +16,7 @@ import type {
   ProcessingRun,
   Project,
   RecomputeDocumentResponse,
+  RuntimeDiagnostics,
   Session,
   StoredConnection,
   SourceRef,
@@ -192,6 +193,10 @@ export class MindoryUiApiClient {
     return this.request<FaceMergeResponse>("POST", `/v1/faces/identities/${encodeURIComponent(sourceIdentityId)}/merge`, {
       body: JSON.stringify({ projectId, targetIdentityId })
     });
+  }
+
+  runtimeDiagnostics(projectId: string): Promise<RuntimeDiagnostics> {
+    return this.request<RuntimeDiagnostics>("GET", `/v1/runtime/diagnostics?projectId=${encodeURIComponent(projectId)}`);
   }
 
   private async request<T>(method: string, path: string, options: { auth?: boolean; body?: BodyInit } = {}): Promise<T> {

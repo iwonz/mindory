@@ -219,6 +219,18 @@ status. `details.stages` carries per-stage progress and queued child job ids.
 `details.error` exposes readable error code/message, attempt counts and
 retryability for failed jobs.
 
+Registered runtime diagnostics route:
+
+```text
+GET /v1/runtime/diagnostics
+```
+
+The route requires `projectId` and `project:read`. It returns read-only runtime
+diagnostics for storage/vector/AV/model settings, provider health states,
+metrics links and a redacted installer/config summary. It never returns raw
+tokens, API keys or secret values; secret-bearing settings are exposed only as
+`*_configured` booleans.
+
 ## MCP Boundary
 
 MCP tools in `apps/mcp` call HTTP API paths rather than repositories or database

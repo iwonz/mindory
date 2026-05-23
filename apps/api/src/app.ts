@@ -15,6 +15,7 @@ import { registerMemoryRoutes, type MemoryRouteDependencies } from "./routes/mem
 import { createApiMetricsDependencies, registerMetricsRoutes, type ApiMetricsDependencies } from "./routes/metrics.js";
 import { registerPeerRoutes, type PeerRouteDependencies } from "./routes/peers.js";
 import { registerProjectRoutes, type ProjectRouteDependencies } from "./routes/projects.js";
+import { registerRuntimeRoutes } from "./routes/runtime.js";
 import { registerSearchRoutes, type SearchRouteDependencies } from "./routes/search.js";
 import { registerSessionRoutes, type SessionRouteDependencies } from "./routes/sessions.js";
 import { registerTokenRoutes, type TokenRouteDependencies } from "./routes/tokens.js";
@@ -73,6 +74,7 @@ export async function buildApiApp(options: BuildApiAppOptions = {}): Promise<Fas
   await registerMetricsRoutes(app, config, metrics);
   await registerAuth(app, withDependencyFreeRouteMode(options.auth, options.allowDependencyFreeRoutes));
   await registerHealthRoutes(app, config);
+  await registerRuntimeRoutes(app, config);
   await registerArtifactRoutes(app, withDependencyFreeRouteMode(options.artifacts, options.allowDependencyFreeRoutes));
   await registerTokenRoutes(app, withDependencyFreeRouteMode(options.tokens, options.allowDependencyFreeRoutes));
   await registerProjectRoutes(app, withDependencyFreeRouteMode(options.projects, options.allowDependencyFreeRoutes));

@@ -57,6 +57,11 @@ The UI includes:
 - manual memory creation with source refs;
 - source-backed memory search display;
 - face identity list, rename, merge and observation display;
+- runtime diagnostics for storage/vector/AV/model settings;
+- provider health states;
+- recent job status summary;
+- metrics links;
+- redacted installer/config summary;
 - loading, empty, `401`, `403` and generic error states.
 
 The UI calls:
@@ -82,6 +87,8 @@ The UI calls:
 - `GET /v1/faces/observations`
 - `PATCH /v1/faces/identities/:id`
 - `POST /v1/faces/identities/:id/merge`
+- `GET /v1/runtime/diagnostics`
+- `GET /v1/jobs`
 
 It does not access PostgreSQL, Redis, object storage, vector backends or worker
 internals directly.
@@ -94,9 +101,10 @@ Run:
 pnpm ui:validate
 pnpm ui:documents:validate
 pnpm ui:insights:validate
+pnpm ui:diagnostics:validate
 ```
 
 `pnpm check` includes these validators. The validators build the UI, check
 workspace/typecheck registration, verify the API client, document pipeline
-workspace, search/context/memory/faces workspace, connection states and confirm
-the docs/config entries stay in sync.
+workspace, search/context/memory/faces workspace, runtime diagnostics workspace,
+connection states and confirm the docs/config entries stay in sync.

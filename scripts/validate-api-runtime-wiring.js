@@ -111,6 +111,7 @@ assert(app.includes("registerSessionRoutes"), "API app must register session rou
 assert(app.includes("registerFaceRoutes"), "API app must register face routes.");
 assert(app.includes("registerSearchRoutes"), "API app must register unified search routes.");
 assert(app.includes("registerMetricsRoutes"), "API app must register metrics routes.");
+assert(app.includes("registerRuntimeRoutes"), "API app must register runtime diagnostics routes.");
 assert(app.includes("registerTracingHooks"), "API app must register tracing hooks.");
 assert(app.includes("options.close"), "API app must close runtime dependencies on shutdown.");
 assert(errors.includes("isRepositoryNotFoundError"), "API error handler must map repository not-found errors.");

@@ -37,88 +37,70 @@ const app = read("apps/ui/src/app.ts");
 const api = read("apps/ui/src/api.ts");
 const types = read("apps/ui/src/types.ts");
 const styles = read("apps/ui/public/styles.css");
-const memoryRoutes = read("apps/api/src/routes/memories.ts");
+const apiApp = read("apps/api/src/app.ts");
+const runtimeRoutes = read("apps/api/src/routes/runtime.ts");
 const uiDocs = read("docs/UI.md");
 const readme = read("README.md");
 const statusDocs = read("docs/REPOSITORY_STATUS.md");
 const supportMatrix = read("docs/SUPPORT_MATRIX.md");
 const checkRepo = read("scripts/check-repo.js");
 
-assert(rootPackage.scripts?.["ui:insights:validate"] === "node scripts/validate-ui-insights-workspace.js", "Root package must expose ui:insights:validate.");
-assertIncludes(checkRepo, "ui:insights:validate", "Repository check list");
+assert(rootPackage.scripts?.["ui:diagnostics:validate"] === "node scripts/validate-ui-diagnostics-workspace.js", "Root package must expose ui:diagnostics:validate.");
+assertIncludes(checkRepo, "ui:diagnostics:validate", "Repository check list");
 
 for (const token of [
-  "unifiedSearch",
-  "buildContext",
-  "rememberMemory",
-  "searchMemories",
-  "listFaceIdentities",
-  "listFaceObservations",
-  "renameFaceIdentity",
-  "mergeFaceIdentity",
-  "/v1/search",
-  "/v1/context/build",
-  "/v1/memories",
-  "/v1/faces/identities"
+  "registerRuntimeRoutes",
+  "/v1/runtime/diagnostics",
+  "requireProjectPermission",
+  "redactedRuntimeConfig",
+  "providerHealth",
+  "metricsLinks",
+  "secret_key_configured",
+  "token_configured"
+]) {
+  assertIncludes(runtimeRoutes + apiApp, token, "Runtime diagnostics API");
+}
+
+for (const token of [
+  "runtimeDiagnostics",
+  "/v1/runtime/diagnostics",
+  "ready()",
+  "listJobs"
 ]) {
   assertIncludes(api, token, "UI API client");
 }
 
+assertIncludes(types, "RuntimeDiagnostics", "UI types");
+
 for (const token of [
-  "UnifiedSearchHit",
-  "ContextBuildResult",
-  "MemoryClaim",
-  "MemorySearchHit",
-  "FaceIdentity",
-  "FaceObservation",
-  "SourceRef"
+  "renderDiagnosticsWorkspace",
+  "renderRuntimeDiagnosticsPanel",
+  "renderProviderDiagnosticsPanel",
+  "renderJobDiagnosticsPanel",
+  "refreshDiagnostics",
+  "Runtime",
+  "Providers",
+  "Jobs and queues",
+  "Provider health",
+  "Metrics links"
 ]) {
-  assertIncludes(types, token, "UI insights types");
+  assertIncludes(app, token, "UI diagnostics workspace");
 }
 
 for (const token of [
-  "renderSearchWorkspace",
-  "renderUnifiedSearchPanel",
-  "renderContextMemoryPanel",
-  "renderFacesPanel",
-  "runUnifiedSearch",
-  "buildContextPreview",
-  "rememberManualMemory",
-  "refreshFaces",
-  "renameFace",
-  "mergeFace",
-  "Unified search",
-  "Context preview",
-  "Source-backed memories",
-  "Faces"
+  ".diagnostics-grid",
+  ".config-section",
+  ".status-grid",
+  ".status-metric"
 ]) {
-  assertIncludes(app, token, "UI insights workspace");
+  assertIncludes(styles, token, "UI diagnostics styles");
 }
 
 for (const token of [
-  ".insights-grid",
-  ".control-form",
-  ".toggle-field",
-  ".result-card",
-  ".face-card"
-]) {
-  assertIncludes(styles, token, "UI insights styles");
-}
-
-for (const token of [
-  "artifact",
-  "processing_run",
-  "face_identity",
-  "face_observation"
-]) {
-  assertIncludes(memoryRoutes, token, "Memory route source refs");
-}
-
-for (const token of [
-  "unified search",
-  "context preview",
-  "manual memory",
-  "face identity",
+  "runtime diagnostics",
+  "storage/vector/AV/model",
+  "provider health",
+  "metrics links",
   "TASK-129"
 ]) {
   assertIncludes(`${uiDocs}\n${readme}\n${statusDocs}\n${supportMatrix}`, token, "public documentation");
@@ -132,9 +114,9 @@ const blockedMarkers = [
 ];
 
 for (const marker of blockedMarkers) {
-  for (const [label, content] of Object.entries({ app, api, types, styles, uiDocs })) {
+  for (const [label, content] of Object.entries({ app, api, types, styles, runtimeRoutes, uiDocs })) {
     assert(!content.includes(marker), `${label} must not include ${marker}.`);
   }
 }
 
-console.log("Web UI insights workspace validated.");
+console.log("Web UI diagnostics workspace validated.");

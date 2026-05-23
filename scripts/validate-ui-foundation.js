@@ -125,7 +125,7 @@ for (const token of ["pnpm --filter @mindory/ui build", "pnpm --filter @mindory/
 }
 
 assertIncludes(readme, "@mindory/ui", "README");
-assertIncludes(repositoryStatus, "TASK-128", "repository status");
+assertIncludes(repositoryStatus, "TASK-129", "repository status");
 assertIncludes(supportMatrix, "Web UI", "support matrix");
 
 const blockedMarkers = [

@@ -254,6 +254,13 @@ button:disabled {
   gap: 14px;
 }
 
+.diagnostics-grid {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(280px, 0.9fr) minmax(360px, 1.25fr) minmax(320px, 1fr);
+  gap: 14px;
+}
+
 .panel {
   min-width: 0;
   min-height: 480px;
@@ -539,6 +546,27 @@ button:disabled {
   overflow-wrap: anywhere;
 }
 
+.config-section .json-details {
+  max-height: 320px;
+  overflow: auto;
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+.status-metric {
+  border: 1px solid #e2e7ec;
+  border-radius: 8px;
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
 .json-details {
   border: 1px solid #e2e7ec;
   border-radius: 6px;
@@ -634,6 +662,10 @@ button:disabled {
   }
 
   .insights-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .diagnostics-grid {
     grid-template-columns: 1fr;
   }
 

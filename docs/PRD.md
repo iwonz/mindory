@@ -135,8 +135,9 @@ The remaining non-goals are:
 Audio, video, OCR and multimodal processing now have checked runtime paths with
 the limits described in the support matrix. The Web UI is implemented for
 connection, health, project/session navigation, the document pipeline workspace,
-unified search, context preview, manual memory and face identity operations;
-runtime diagnostics screens are scoped in the public-ready UI task series.
+unified search, context preview, manual memory, face identity operations and
+runtime diagnostics; Docker/installer service wiring and E2E coverage are
+scoped in the public-ready UI task series.
 
 Do not implement the remaining non-goals unless a task explicitly scopes them.
 

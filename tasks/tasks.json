@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-128",
+  "current_task_id": "TASK-129",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -932,6 +932,13 @@
       "status": "done",
       "branch": "task/TASK-128-web-ui-search-context-memory-faces",
       "file": "tasks/TASK-128.json"
+    },
+    {
+      "id": "TASK-129",
+      "title": "Web UI runtime settings and diagnostics",
+      "status": "done",
+      "branch": "task/TASK-129-web-ui-runtime-settings-diagnostics",
+      "file": "tasks/TASK-129.json"
     }
   ]
 }

@@ -26,6 +26,7 @@ const checks = [
   ["ui:validate", "scripts/validate-ui-foundation.js"],
   ["ui:documents:validate", "scripts/validate-ui-document-workspace.js"],
   ["ui:insights:validate", "scripts/validate-ui-insights-workspace.js"],
+  ["ui:diagnostics:validate", "scripts/validate-ui-diagnostics-workspace.js"],
   ["db:validate", "scripts/validate-db-schema.js"],
   ["db:repositories:validate", "scripts/validate-db-repositories.js"],
   ["api:validate", "scripts/validate-api-contract.js"],
