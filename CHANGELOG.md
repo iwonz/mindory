@@ -20,6 +20,9 @@ documentation.
 
 ### Added
 
+- `TASK-120`: published GitHub pre-release bootstrap acceptance for public
+  manifest URLs, signed verification, bundle checksum and packaged installer
+  dry-run.
 - `TASK-119`: GitHub release workflow and public docs now describe trusted tag
   artifacts as public pre-releases instead of draft-only releases.
 - `TASK-118`: current-state public documentation cleanup for the TASK-117+

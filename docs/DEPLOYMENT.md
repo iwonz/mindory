@@ -218,12 +218,25 @@ Validate this path locally without publishing:
 
 ```bash
 pnpm release:validate
+pnpm published-release:acceptance
 ```
 
 The local validation builds a temporary release bundle, verifies the manifest
 signature, rejects tampered manifest and artifact cases, verifies the bundle
 checksum and runs the packaged installer `plan` command from the extracted
 bundle. It does not start Docker or publish artifacts.
+
+After publishing a GitHub pre-release, verify the public bootstrap path:
+
+```bash
+MINDORY_PUBLISHED_RELEASE_ACCEPTANCE_LIVE=true pnpm published-release:acceptance
+```
+
+The live published-release acceptance downloads the public manifest and public
+key sidecar, runs `install.sh --verify-only`, downloads the bundle, verifies
+the checksum and runs the packaged installer `plan` command from a temporary
+`MINDORY_HOME`. It does not start Docker; the live Docker self-host gate remains
+`MINDORY_SELFHOST_ACCEPTANCE_LIVE=true pnpm selfhost:acceptance`.
 
 The reproducible release image path is:
 

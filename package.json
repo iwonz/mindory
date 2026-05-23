@@ -50,6 +50,7 @@
     "production:validate": "node scripts/validate-production-hardening.js",
     "public-debt:validate": "node scripts/validate-public-readiness-debt.js",
     "public:validate": "node scripts/validate-public-github-hygiene.js",
+    "published-release:acceptance": "node scripts/published-release-acceptance.js",
     "queue:validate": "node scripts/validate-queue.js",
     "release:bundle": "node scripts/build-release-bundle.js",
     "release:notes": "node scripts/generate-release-notes.js",

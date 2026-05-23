@@ -8,7 +8,9 @@ import { fileURLToPath } from "node:url";
 function parseArgs(argv) {
   const options = {
     manifestPath: "",
+    manifestUrl: "",
     publicKeyPath: "",
+    publicKeyUrl: "",
     home: "",
     keep: false
   };
@@ -16,8 +18,12 @@ function parseArgs(argv) {
     const arg = argv[index];
     if (arg === "--manifest") {
       options.manifestPath = path.resolve(argv[++index] ?? "");
+    } else if (arg === "--manifest-url") {
+      options.manifestUrl = argv[++index] ?? "";
     } else if (arg === "--public-key") {
       options.publicKeyPath = path.resolve(argv[++index] ?? "");
+    } else if (arg === "--public-key-url") {
+      options.publicKeyUrl = argv[++index] ?? "";
     } else if (arg === "--home") {
       options.home = path.resolve(argv[++index] ?? "");
     } else if (arg === "--keep") {
@@ -36,11 +42,13 @@ function usage() {
 
 Usage:
   node scripts/smoke-release-install.js --manifest <manifest.env> [--public-key <public.pem>] [--home <dir>] [--keep]
+  node scripts/smoke-release-install.js --manifest-url <url> [--public-key-url <url>] [--home <dir>] [--keep]
 
 The smoke verifies the signed release manifest, checks the bundle checksum,
 extracts the release bundle into a temporary MINDORY_HOME-style release
-directory and runs the packaged installer plan command. It does not start
-Docker or write outside the selected home.
+directory and runs the packaged installer plan command. Remote manifest,
+public key sidecar and bundle URLs are downloaded into a temporary work
+directory first. It does not start Docker or write outside the selected home.
 `);
 }
 
@@ -61,6 +69,54 @@ function sha256File(filePath) {
 
 function sha256Text(content) {
   return crypto.createHash("sha256").update(content, "utf8").digest("hex");
+}
+
+async function downloadFile(url, outputPath, label) {
+  let response;
+  try {
+    response = await fetch(url);
+  } catch (error) {
+    throw new Error(`Failed to download ${label} from ${url}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  if (!response.ok) {
+    throw new Error(`Failed to download ${label} from ${url}: HTTP ${response.status} ${response.statusText}. If this is a GitHub release asset, confirm the release is public and not left as a draft.`);
+  }
+  const bytes = Buffer.from(await response.arrayBuffer());
+  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+  fs.writeFileSync(outputPath, bytes);
+}
+
+function basenameFromUrl(url, fallback) {
+  try {
+    const parsed = new URL(url);
+    const base = path.basename(parsed.pathname);
+    return base || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+async function prepareManifestInput(options) {
+  if (!options.manifestUrl) {
+    return {
+      manifestPath: options.manifestPath,
+      publicKeyPath: options.publicKeyPath,
+      downloadDir: ""
+    };
+  }
+
+  const downloadDir = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-release-download-"));
+  const manifestPath = path.join(downloadDir, basenameFromUrl(options.manifestUrl, "mindory.manifest.env"));
+  await downloadFile(options.manifestUrl, manifestPath, "release manifest");
+
+  if (options.publicKeyPath) {
+    return { manifestPath, publicKeyPath: options.publicKeyPath, downloadDir };
+  }
+
+  const publicKeyUrl = options.publicKeyUrl || `${options.manifestUrl}.public.pem`;
+  const publicKeyPath = path.join(downloadDir, basenameFromUrl(publicKeyUrl, `${path.basename(manifestPath)}.public.pem`));
+  await downloadFile(publicKeyUrl, publicKeyPath, "release manifest public key");
+  return { manifestPath, publicKeyPath, downloadDir };
 }
 
 function unsignedManifestContent(content) {
@@ -94,9 +150,16 @@ function verifyManifestSignature(manifestPath, manifest, publicKeyPath) {
   assert(ok, "Manifest signature verification failed.");
 }
 
-function resolveBundlePath(manifestPath, bundleUrl, bundleName) {
+async function resolveBundlePath(manifestPath, bundleUrl, bundleName) {
   if (bundleUrl.startsWith("file://")) {
     return fileURLToPath(bundleUrl);
+  }
+  if (/^https?:\/\//u.test(bundleUrl)) {
+    const downloadPath = path.join(path.dirname(manifestPath), basenameFromUrl(bundleUrl, bundleName || "mindory-release.tar.gz"));
+    if (!fs.existsSync(downloadPath)) {
+      await downloadFile(bundleUrl, downloadPath, "release bundle");
+    }
+    return downloadPath;
   }
   if (fs.existsSync(bundleUrl)) {
     return path.resolve(bundleUrl);
@@ -161,17 +224,18 @@ if (options.help) {
   process.exit(0);
 }
 
-assert(options.manifestPath, "Pass --manifest <manifest.env>.");
-const manifestPath = options.manifestPath;
+assert(options.manifestPath || options.manifestUrl, "Pass --manifest <manifest.env> or --manifest-url <url>.");
+const preparedInput = await prepareManifestInput(options);
+const manifestPath = preparedInput.manifestPath;
 const manifest = fs.readFileSync(manifestPath, "utf8");
-verifyManifestSignature(manifestPath, manifest, options.publicKeyPath);
+verifyManifestSignature(manifestPath, manifest, preparedInput.publicKeyPath);
 const version = manifestValue(manifest, "MINDORY_RELEASE_VERSION");
 const bundleUrl = manifestValue(manifest, "MINDORY_RELEASE_BUNDLE_URL");
 const checksum = manifestValue(manifest, "MINDORY_RELEASE_BUNDLE_SHA256");
 const bundleName = manifestValue(manifest, "MINDORY_RELEASE_BUNDLE_NAME");
 assert(version && bundleUrl && checksum, "Manifest is missing version, bundle URL or SHA-256.");
 
-const bundlePath = resolveBundlePath(manifestPath, bundleUrl, bundleName);
+const bundlePath = await resolveBundlePath(manifestPath, bundleUrl, bundleName);
 const actualChecksum = sha256File(bundlePath);
 assert(actualChecksum === checksum, `Checksum mismatch. Expected ${checksum}, got ${actualChecksum}.`);
 
@@ -191,5 +255,8 @@ try {
 } finally {
   if (!options.keep) {
     fs.rmSync(home, { recursive: true, force: true });
+    if (preparedInput.downloadDir) {
+      fs.rmSync(preparedInput.downloadDir, { recursive: true, force: true });
+    }
   }
 }

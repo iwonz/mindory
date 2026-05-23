@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-119",
+  "current_task_id": "TASK-120",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -869,6 +869,13 @@
       "status": "done",
       "branch": "task/TASK-119-github-pre-release-publication-flow",
       "file": "tasks/TASK-119.json"
+    },
+    {
+      "id": "TASK-120",
+      "title": "Add published release bootstrap acceptance",
+      "status": "done",
+      "branch": "task/TASK-120-published-release-bootstrap-acceptance",
+      "file": "tasks/TASK-120.json"
     }
   ]
 }

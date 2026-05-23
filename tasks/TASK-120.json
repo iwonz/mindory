@@ -1,0 +1,61 @@
+{
+  "id": "TASK-120",
+  "title": "Add published release bootstrap acceptance",
+  "status": "done",
+  "type": "test",
+  "priority": "high",
+  "branch": "task/TASK-120-published-release-bootstrap-acceptance",
+  "created_at": "2026-05-23",
+  "updated_at": "2026-05-23",
+  "context": {
+    "summary": "Add an acceptance path that verifies a public GitHub pre-release can be bootstrapped from its signed manifest and release assets.",
+    "background": "TASK-119 changed the release workflow to publish trusted tag builds as public pre-releases. The next gate needs to prove the public manifest URL, public key sidecar, bundle checksum and packaged installer dry-run work from a clean temporary home."
+  },
+  "scope": {
+    "in": [
+      "Teach release install smoke to download manifests and bundles from public HTTPS release URLs.",
+      "Add a published-release acceptance script with default dry-run validation and opt-in live GitHub release verification.",
+      "Exercise install.sh verify-only plus packaged installer plan in live mode.",
+      "Document the published pre-release bootstrap acceptance command.",
+      "Include the dry-run acceptance in pnpm check."
+    ],
+    "out": [
+      "Changing release signing keys.",
+      "Changing the v0.1.0 tag target.",
+      "Starting Docker Compose as part of this acceptance; live Docker self-host acceptance is TASK-121.",
+      "Implementing local model auto-install or Web UI tasks."
+    ]
+  },
+  "acceptance_criteria": [
+    "Release smoke supports --manifest-url and downloads the matching public key sidecar and bundle before checksum verification.",
+    "Published-release acceptance dry-run validates script/docs wiring without network access.",
+    "Published-release acceptance live mode verifies install.sh --verify-only against the public pre-release manifest URL.",
+    "Published-release acceptance live mode extracts the downloaded bundle into a temp MINDORY_HOME and runs the packaged installer plan command.",
+    "Failure output clearly reports missing draft/private release assets or download/signature/checksum problems.",
+    "pnpm published-release:acceptance, pnpm bootstrap:validate, pnpm release:validate, pnpm tasks:validate and pnpm check pass before merge."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm published-release:acceptance",
+      "pnpm bootstrap:validate",
+      "pnpm release:validate",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Publish v0.1.0 as a GitHub pre-release before running live acceptance.",
+      "Run MINDORY_PUBLISHED_RELEASE_ACCEPTANCE_LIVE=true pnpm published-release:acceptance once the release assets are public."
+    ]
+  },
+  "dependencies": [
+    "TASK-119"
+  ],
+  "risks": [
+    "Live acceptance depends on GitHub release assets being public and reachable."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is done.",
+    "Branch is committed and merged back into master."
+  ]
+}

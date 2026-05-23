@@ -61,6 +61,7 @@ Validate the release path locally without publishing:
 
 ```bash
 pnpm release:validate
+pnpm published-release:acceptance
 MINDORY_SELFHOST_ACCEPTANCE_LIVE=true pnpm selfhost:acceptance
 ```
 
@@ -69,6 +70,11 @@ signature, records the manifest signature check as a release gate, rejects
 tampered manifest and artifact cases, verifies the checksum
 and runs the packaged installer `plan` command from the extracted release. It
 does not start Docker or publish artifacts.
+
+After a GitHub pre-release is public, run
+`MINDORY_PUBLISHED_RELEASE_ACCEPTANCE_LIVE=true pnpm published-release:acceptance`
+to verify public manifest and asset URLs, signature/checksum validation and the
+packaged installer plan command from a temporary home.
 
 Rotate release signing keys by updating the `MINDORY_RELEASE_SIGNING_PRIVATE_KEY_PEM`
 secret, recording the new public key fingerprint from the generated manifest in

@@ -17,6 +17,7 @@ const checks = [
   ["installer:acceptance", "scripts/installer-acceptance.js"],
   ["bootstrap:validate", "scripts/validate-bootstrap-scripts.js"],
   ["release:validate", "scripts/validate-release-workflow.js"],
+  ["published-release:acceptance", "scripts/published-release-acceptance.js"],
   ["observability:validate", "scripts/validate-observability.js"],
   ["llm:validate", "scripts/validate-llm.js"],
   ["db:validate", "scripts/validate-db-schema.js"],

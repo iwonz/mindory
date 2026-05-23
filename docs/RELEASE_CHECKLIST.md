@@ -24,6 +24,7 @@ repository.
 
 - `pnpm check`.
 - `pnpm release:validate`.
+- `pnpm published-release:acceptance`.
 - `pnpm public-debt:validate`.
 - `MINDORY_SELFHOST_ACCEPTANCE_LIVE=true pnpm selfhost:acceptance`.
 - `git status --short` returns no changes.
@@ -41,6 +42,15 @@ repository.
 The automated tag workflow must leave the GitHub Release public and marked as a
 pre-release. A draft release is allowed only as a manual staging checkpoint
 before the trusted tag build updates and publishes the same tag.
+
+After the pre-release is public, run:
+
+```bash
+MINDORY_PUBLISHED_RELEASE_ACCEPTANCE_LIVE=true pnpm published-release:acceptance
+```
+
+This checks the public release URLs, signed manifest verification, bundle
+checksum and packaged installer dry-run from a temporary `MINDORY_HOME`.
 
 ## Release Notes Requirements
 

@@ -156,7 +156,14 @@ extracting or launching the wizard:
 
 ```bash
 ./install.sh --manifest-path dist/releases/mindory-0.1.0.manifest.env --verify-only
+MINDORY_PUBLISHED_RELEASE_ACCEPTANCE_LIVE=true pnpm published-release:acceptance
 ```
+
+`pnpm published-release:acceptance` runs a non-network dry-run by default. With
+`MINDORY_PUBLISHED_RELEASE_ACCEPTANCE_LIVE=true`, it downloads the public
+GitHub pre-release manifest and public key sidecar, runs `install.sh
+--verify-only`, downloads the bundle, verifies the checksum, extracts into a
+temporary `MINDORY_HOME` and runs the packaged installer `plan` command.
 
 Create a local release-style bundle and matching manifest with:
 
