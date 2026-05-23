@@ -520,12 +520,12 @@ const ocrLocalModelAnswers = installer.createDefaultInstallAnswers({
   },
   localModels: {
     autoInstall: true,
-    selectedRunnerIds: ["paddleocr-pp-ocrv5-mobile"],
+    selectedRunnerIds: ["tesseract-local-ocr"],
     pullRetries: 2
   }
 });
 const ocrLocalModelPlan = installer.createInstallPlan(ocrLocalModelAnswers);
-assert(ocrLocalModelPlan.composeProfiles.includes("local-models-ocr"), "Selected PaddleOCR runner must enable local-models-ocr profile.");
+assert(ocrLocalModelPlan.composeProfiles.includes("local-models-ocr"), "Selected Tesseract runner must enable local-models-ocr profile.");
 await installer.executeInstallPlan(ocrLocalModelAnswers, {
   sourceRoot: root,
   owner: "validator-ocr",
@@ -556,8 +556,8 @@ await installer.executeInstallPlan(ocrLocalModelAnswers, {
     }
   }
 });
-assert(ocrLocalModelCommands.some((command) => command.includes("up -d postgres redis ocr")), "PaddleOCR install must start the OCR service.");
-assert(ocrLocalModelCommands.some((command) => command.includes("exec -T ocr python -c")), "PaddleOCR runner must be health-checked with its Python health command.");
+assert(ocrLocalModelCommands.some((command) => command.includes("up -d postgres redis ocr")), "Tesseract install must start the OCR service.");
+assert(ocrLocalModelCommands.some((command) => command.includes("exec -T ocr python -c")), "Tesseract runner must be health-checked with its Python health command.");
 fs.rmSync(ocrLocalModelHome, { recursive: true, force: true });
 
 const localModelDependencyChecks = installer.detectHostDependencies(localModelAnswers, {
@@ -1376,7 +1376,7 @@ const paddleOcrWizardAnswers = await installer.runInstallWizard({
     if (prompt.id === "local_models.auto_install") {
       return "true";
     }
-    if (prompt.id === "local_models.runner.paddleocr-pp-ocrv5-mobile.enabled") {
+    if (prompt.id === "local_models.runner.tesseract-local-ocr.enabled") {
       return "true";
     }
     if (prompt.id.startsWith("local_models.runner.")) {
@@ -1397,12 +1397,12 @@ const paddleOcrWizardAnswers = await installer.runInstallWizard({
     return true;
   }
 });
-assert(paddleOcrWizardAnswers.localModels.selectedRunnerIds.includes("paddleocr-pp-ocrv5-mobile"), "Wizard must select the supported PaddleOCR local runner.");
-assert(paddleOcrWizardAnswers.llmRoles.OCR.enabled === true, "PaddleOCR runner selection must keep OCR enabled by default.");
-assert(paddleOcrWizardAnswers.llmRoles.OCR.provider === "local-http", "PaddleOCR runner selection must configure OCR through local-http.");
-assert(paddleOcrWizardAnswers.llmRoles.OCR.model === "ESLAV__PP-OCRv5_mobile", "PaddleOCR runner selection must use the catalog OCR model.");
-assert(paddleOcrWizardAnswers.llmProviders.localHttpOcrBaseUrl === "http://ocr:8083", "PaddleOCR runner selection must set the OCR-specific local HTTP endpoint.");
-assert(installer.composeProfilesForAnswers(paddleOcrWizardAnswers).includes("local-models-ocr"), "PaddleOCR wizard answers must enable local-models-ocr.");
+assert(paddleOcrWizardAnswers.localModels.selectedRunnerIds.includes("tesseract-local-ocr"), "Wizard must select the supported Tesseract local runner.");
+assert(paddleOcrWizardAnswers.llmRoles.OCR.enabled === true, "Tesseract runner selection must keep OCR enabled by default.");
+assert(paddleOcrWizardAnswers.llmRoles.OCR.provider === "local-http", "Tesseract runner selection must configure OCR through local-http.");
+assert(paddleOcrWizardAnswers.llmRoles.OCR.model === "tesseract-eng", "Tesseract runner selection must use the catalog OCR model.");
+assert(paddleOcrWizardAnswers.llmProviders.localHttpOcrBaseUrl === "http://ocr:8083", "Tesseract runner selection must set the OCR-specific local HTTP endpoint.");
+assert(installer.composeProfilesForAnswers(paddleOcrWizardAnswers).includes("local-models-ocr"), "Tesseract wizard answers must enable local-models-ocr.");
 
 const supportedLocalCommandAnswers = installer.createDefaultInstallAnswers({
   llmRoles: {

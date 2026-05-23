@@ -101,9 +101,9 @@ assert(compose.includes("clamdscan --no-summary /tmp/mindory-clamav-health.txt")
 assert(compose.includes("\n  llm:"), "Compose must define an optional local LLM SDK service.");
 assert(compose.includes("scripts/local-model-server.mjs"), "Local LLM SDK profile must run the local model HTTP service.");
 assert(compose.includes("/health"), "Local LLM SDK profile must expose a healthcheck.");
-assert(compose.includes("deploy/local-models/ocr/paddleocr/Dockerfile"), "Compose must build the supported PaddleOCR runner image.");
+assert(compose.includes("deploy/local-models/ocr/tesseract/Dockerfile"), "Compose must build the supported Tesseract runner image.");
 assert(compose.includes("MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL"), "Compose must expose the OCR-specific local HTTP endpoint override.");
-assert(compose.includes("MINDORY_OCR_HEALTH_LOAD_MODEL"), "Compose must health-check PaddleOCR model loading.");
+assert(compose.includes("MINDORY_OCR_HEALTH_LOAD_MODEL"), "Compose must health-check Tesseract model loading.");
 for (const envName of [
   "MINDORY_DOCUMENT_PROCESSING_PDF_ENABLED: ${MINDORY_DOCUMENT_PROCESSING_PDF_ENABLED:-true}",
   "MINDORY_DOCUMENT_PROCESSING_IMAGE_ENABLED: ${MINDORY_DOCUMENT_PROCESSING_IMAGE_ENABLED:-true}",
@@ -123,7 +123,7 @@ assert(override.includes("NODE_ENV: development"), "docker-compose.override.yml 
 assert(testCompose.includes("name: mindory-test"), "docker-compose.test.yml must isolate the integration test project.");
 assert(testCompose.includes("MINDORY_TEST_POSTGRES_PORT"), "docker-compose.test.yml must expose configurable PostgreSQL test port.");
 assert(testCompose.includes("MINDORY_TEST_REDIS_PORT"), "docker-compose.test.yml must expose configurable Redis test port.");
-for (const assetPath of ["docker-compose.yml", "Dockerfile", ".env.example", "deploy/local-models/ocr/paddleocr/Dockerfile", "deploy/local-models/ocr/paddleocr/server.py"]) {
+for (const assetPath of ["docker-compose.yml", "Dockerfile", ".env.example", "deploy/local-models/ocr/tesseract/Dockerfile", "deploy/local-models/ocr/tesseract/server.py"]) {
   assert(releaseManifest.assets?.some((asset) => asset.path === assetPath && asset.required === true), `Release Compose manifest must include ${assetPath}.`);
 }
 for (const homeDirectory of ["config", "data/postgres", "data/redis", "data/objects", "data/librefs", "data/models", "data/ollama", "logs", "backups", "install"]) {

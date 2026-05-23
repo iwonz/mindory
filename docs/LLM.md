@@ -26,7 +26,7 @@ this must be empty or `1536`.
 The default local model names are examples, not mandatory services:
 
 - image embeddings: `CLIP ViT-L-16-SigLIP2-256__webli`
-- OCR: `ESLAV__PP-OCRv5_mobile`
+- OCR: `tesseract-eng`
 - face detection and recognition: `buffalo_l`
 
 Docker Compose keeps local model runners optional. The default MVP demo uses
@@ -95,7 +95,7 @@ MINDORY_LLM_IMAGE_EMBEDDING_MODEL=CLIP ViT-L-16-SigLIP2-256__webli
 
 MINDORY_LLM_OCR_ENABLED=false
 MINDORY_LLM_OCR_PROVIDER=local-http
-MINDORY_LLM_OCR_MODEL=ESLAV__PP-OCRv5_mobile
+MINDORY_LLM_OCR_MODEL=tesseract-eng
 
 MINDORY_LLM_FACE_DETECTION_ENABLED=false
 MINDORY_LLM_FACE_DETECTION_PROVIDER=local-http
@@ -153,10 +153,10 @@ generation roles.
 
 `MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL` is a supported OCR-only endpoint override.
 The installer sets it to `http://ocr:8083` when
-`paddleocr-pp-ocrv5-mobile` is selected, so PaddleOCR handles PDF/image OCR
+`tesseract-local-ocr` is selected, so Tesseract handles PDF/image OCR
 while other local HTTP roles can continue using the general
 `MINDORY_LLM_LOCAL_HTTP_BASE_URL` service.
-The PaddleOCR container also honors `MINDORY_OCR_PORT`, `MINDORY_OCR_MODEL`,
+The Tesseract container also honors `MINDORY_OCR_PORT`, `MINDORY_OCR_MODEL`,
 `MINDORY_OCR_LANG`, `MINDORY_OCR_MAX_PDF_PAGES` and
 `MINDORY_OCR_HEALTH_LOAD_MODEL`.
 

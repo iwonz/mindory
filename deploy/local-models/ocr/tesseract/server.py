@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 import base64
+import csv
 import json
 import os
+import subprocess
 import tempfile
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from io import StringIO
 from pathlib import Path
-from threading import Lock
 
 try:
     import pypdfium2 as pdfium
@@ -16,50 +18,42 @@ except Exception as exc:
 else:
     PDF_IMPORT_ERROR = None
 
-try:
-    from paddleocr import PaddleOCR
-except Exception as exc:
-    PaddleOCR = None
-    PADDLE_IMPORT_ERROR = exc
-else:
-    PADDLE_IMPORT_ERROR = None
-
 
 HOST = os.environ.get("MINDORY_OCR_HOST", "0.0.0.0")
 PORT = int(os.environ.get("MINDORY_OCR_PORT", "8083"))
-MODEL = os.environ.get("MINDORY_OCR_MODEL", "ESLAV__PP-OCRv5_mobile")
-LANG = os.environ.get("MINDORY_OCR_LANG", "en")
+MODEL = os.environ.get("MINDORY_OCR_MODEL", "tesseract-eng")
+LANG = os.environ.get("MINDORY_OCR_LANG", "eng")
+PSM = os.environ.get("MINDORY_OCR_PSM", "6")
 MAX_PDF_PAGES = int(os.environ.get("MINDORY_OCR_MAX_PDF_PAGES", "50"))
-HEALTH_LOAD_MODEL = os.environ.get("MINDORY_OCR_HEALTH_LOAD_MODEL", "true").lower() in {"1", "true", "yes", "on"}
-
-_OCR = None
-_OCR_LOCK = Lock()
+TIMEOUT_SECONDS = int(os.environ.get("MINDORY_OCR_TIMEOUT_MS", "120000")) / 1000
+HEALTH_RUN_ENGINE = os.environ.get("MINDORY_OCR_HEALTH_LOAD_MODEL", "true").lower() in {"1", "true", "yes", "on"}
 
 
 class MindoryOcrHandler(BaseHTTPRequestHandler):
-    server_version = "mindory-paddleocr/1.0"
+    server_version = "mindory-tesseract-ocr/1.0"
 
     def do_GET(self):
         if self.path != "/health":
             self.write_json(404, {"error": "not_found"})
             return
         try:
-            if PADDLE_IMPORT_ERROR is not None:
-                raise RuntimeError(f"PaddleOCR import failed: {PADDLE_IMPORT_ERROR}")
-            if HEALTH_LOAD_MODEL:
-                ensure_ocr()
+            version = tesseract_version()
+            if HEALTH_RUN_ENGINE:
+                verify_tesseract_language()
             self.write_json(200, {
                 "status": "ok",
-                "service": "mindory-paddleocr",
+                "service": "mindory-tesseract-ocr",
+                "engine": "tesseract",
                 "model": MODEL,
                 "lang": LANG,
+                "psm": PSM,
                 "pdf": pdfium is not None,
-                "model_loaded": _OCR is not None
+                "version": version
             })
         except Exception as exc:
             self.write_json(503, {
                 "status": "failed",
-                "service": "mindory-paddleocr",
+                "service": "mindory-tesseract-ocr",
                 "error": str(exc)
             })
 
@@ -106,49 +100,16 @@ class MindoryOcrHandler(BaseHTTPRequestHandler):
         print("%s - - [%s] %s" % (self.address_string(), self.log_date_time_string(), fmt % args), flush=True)
 
 
-def ensure_ocr():
-    global _OCR
-    if _OCR is not None:
-        return _OCR
-    with _OCR_LOCK:
-        if _OCR is not None:
-            return _OCR
-        if PaddleOCR is None:
-            raise RuntimeError(f"PaddleOCR import failed: {PADDLE_IMPORT_ERROR}")
-        _OCR = create_paddle_ocr()
-        return _OCR
+def tesseract_version():
+    result = run_tesseract(["--version"])
+    return result.stdout.splitlines()[0] if result.stdout else "tesseract"
 
 
-def create_paddle_ocr():
-    candidates = [
-        {
-            "lang": LANG,
-            "ocr_version": "PP-OCRv5",
-            "use_doc_orientation_classify": False,
-            "use_doc_unwarping": False,
-            "use_textline_orientation": False
-        },
-        {
-            "lang": LANG,
-            "use_doc_orientation_classify": False,
-            "use_doc_unwarping": False,
-            "use_textline_orientation": False
-        },
-        {
-            "lang": LANG,
-            "use_angle_cls": True
-        },
-        {
-            "lang": LANG
-        }
-    ]
-    last_error = None
-    for kwargs in candidates:
-        try:
-            return PaddleOCR(**kwargs)
-        except (TypeError, ValueError) as exc:
-            last_error = exc
-    raise RuntimeError(f"Could not initialize PaddleOCR with supported constructor options: {last_error}")
+def verify_tesseract_language():
+    result = run_tesseract(["--list-langs"])
+    languages = set(result.stdout.splitlines()[1:])
+    if LANG not in languages:
+        raise RuntimeError(f"Tesseract language '{LANG}' is not installed. Available languages: {', '.join(sorted(languages))}")
 
 
 def recognize_bytes(data, mime_type):
@@ -186,68 +147,27 @@ def recognize_image(data, mime_type):
 
 
 def recognize_path(path):
-    ocr = ensure_ocr()
-    if hasattr(ocr, "predict"):
-        raw = ocr.predict(input=str(path))
-    else:
-        raw = ocr.ocr(str(path), cls=True)
-    texts, scores = extract_ocr_texts(raw)
-    text = "\n".join(unique_nonempty(texts))
-    confidence = average(scores)
-    return text, confidence
+    result = run_tesseract([str(path), "stdout", "-l", LANG, "--psm", PSM, "tsv"])
+    rows = list(csv.DictReader(StringIO(result.stdout), delimiter="\t"))
+    words = []
+    confidences = []
+    for row in rows:
+        text = (row.get("text") or "").strip()
+        if text:
+            words.append(text)
+        conf = row.get("conf")
+        if is_number(conf) and float(conf) >= 0:
+            confidences.append(float(conf))
+    return " ".join(words), average(confidences)
 
 
-def extract_ocr_texts(value):
-    texts = []
-    scores = []
-
-    def visit(node):
-        if node is None:
-            return
-        if isinstance(node, dict):
-            payload = node.get("res") if isinstance(node.get("res"), dict) else node
-            for key in ("rec_texts", "texts"):
-                if isinstance(payload.get(key), list):
-                    texts.extend(str(item) for item in payload[key])
-            for key in ("rec_scores", "scores"):
-                if isinstance(payload.get(key), list):
-                    scores.extend(float(item) for item in payload[key] if is_number(item))
-            for key in ("text", "transcription"):
-                if isinstance(payload.get(key), str):
-                    texts.append(payload[key])
-            for child in payload.values():
-                if child is not payload:
-                    visit(child)
-            return
-        if isinstance(node, (list, tuple)):
-            if len(node) == 2 and isinstance(node[0], str) and is_number(node[1]):
-                texts.append(node[0])
-                scores.append(float(node[1]))
-                return
-            for child in node:
-                visit(child)
-            return
-        json_value = getattr(node, "json", None)
-        if callable(json_value):
-            try:
-                json_value = json_value()
-            except Exception:
-                json_value = None
-        if isinstance(json_value, dict):
-            visit(json_value)
-            return
-        to_json = getattr(node, "to_json", None)
-        if callable(to_json):
-            try:
-                visit(to_json())
-                return
-            except Exception:
-                pass
-        if hasattr(node, "__dict__"):
-            visit(vars(node))
-
-    visit(value)
-    return texts, scores
+def run_tesseract(args):
+    try:
+        return subprocess.run(["tesseract", *args], check=True, capture_output=True, text=True, timeout=TIMEOUT_SECONDS)
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError(f"Tesseract failed: {(exc.stderr or exc.stdout).strip()}") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(f"Tesseract timed out after {TIMEOUT_SECONDS:.0f}s.") from exc
 
 
 def decode_data(body):
@@ -266,18 +186,6 @@ def page_payload(page_number, text, confidence):
     if confidence is not None:
         payload["confidence"] = confidence
     return payload
-
-
-def unique_nonempty(values):
-    seen = set()
-    result = []
-    for value in values:
-        text = str(value).strip()
-        if not text or text in seen:
-            continue
-        seen.add(text)
-        result.append(text)
-    return result
 
 
 def average(values):
@@ -307,6 +215,8 @@ def image_suffix(mime_type, data):
         return ".png"
     if normalized == "image/bmp" or data.startswith(b"BM"):
         return ".bmp"
+    if normalized == "image/x-portable-pixmap" or data.startswith(b"P6\n") or data.startswith(b"P3\n"):
+        return ".ppm"
     if normalized in {"image/tiff", "image/tif"}:
         return ".tiff"
     return ".img"
@@ -318,5 +228,5 @@ def string_value(value, fallback):
 
 if __name__ == "__main__":
     server = ThreadingHTTPServer((HOST, PORT), MindoryOcrHandler)
-    print(f"Mindory PaddleOCR runner listening on {HOST}:{PORT}", flush=True)
+    print(f"Mindory Tesseract OCR runner listening on {HOST}:{PORT}", flush=True)
     server.serve_forever()

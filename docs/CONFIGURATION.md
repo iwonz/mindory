@@ -325,7 +325,7 @@ must be empty or `1536` while
 
 The default local/free model names are examples for future processors:
 `CLIP ViT-L-16-SigLIP2-256__webli` for image embeddings,
-`ESLAV__PP-OCRv5_mobile` for OCR and `buffalo_l` for face detection and
+`tesseract-eng` for OCR and `buffalo_l` for face detection and
 recognition. They remain disabled until the corresponding handlers are enabled.
 
 `MINDORY_LLM_OPENAI_COMPATIBLE_BASE_URL` configures the
@@ -377,7 +377,7 @@ MINDORY_LLM_OLLAMA_BASE_URL=http://ollama:11434
 service used by supported `chat`, text/image embedding, PDF/image OCR, image
 vision captioning/object detection, audio ASR, image face and generation paths.
 `MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL` is an OCR-specific override used by the
-supported PaddleOCR runner; when it is set, `@mindory/llm` sends only OCR calls
+supported Tesseract runner; when it is set, `@mindory/llm` sends only OCR calls
 to that endpoint and keeps other local HTTP roles on
 `MINDORY_LLM_LOCAL_HTTP_BASE_URL`.
 The service must answer `GET /health`, `POST /chat/completions`,
@@ -455,12 +455,12 @@ face roles through `@mindory/llm`. Text and image embeddings use 1536
 dimensions for the current pgvector schema. `ollama` adds the Ollama profile
 for a real local text embedding runner.
 
-For installer-managed OCR, selecting `paddleocr-pp-ocrv5-mobile` starts the
+For installer-managed OCR, selecting `tesseract-local-ocr` starts the
 `local-models-ocr` Compose profile and sets
 `MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL=http://ocr:8083`.
 The runner-specific knobs are `MINDORY_OCR_PORT`, `MINDORY_OCR_MODEL`,
-`MINDORY_OCR_LANG`, `MINDORY_OCR_MAX_PDF_PAGES` and
-`MINDORY_OCR_HEALTH_LOAD_MODEL`.
+`MINDORY_OCR_LANG`, `MINDORY_OCR_PSM`, `MINDORY_OCR_TIMEOUT_MS`,
+`MINDORY_OCR_MAX_PDF_PAGES` and `MINDORY_OCR_HEALTH_LOAD_MODEL`.
 
 ## Web UI
 

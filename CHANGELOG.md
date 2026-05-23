@@ -20,7 +20,7 @@ documentation.
 
 ### Added
 
-- `TASK-135`: supported PaddleOCR local OCR runner with `local-models-ocr`
+- `TASK-135`: supported Tesseract local OCR runner with `local-models-ocr`
   Compose profile, installer selection/healthcheck wiring,
   `MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL`, PDF/image OCR live acceptance coverage
   and release-bundle assets for the runner.

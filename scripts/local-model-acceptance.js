@@ -10,6 +10,24 @@ const live = process.env.MINDORY_LOCAL_MODEL_ACCEPTANCE_LIVE === "true";
 const ocrLive = process.env.MINDORY_LOCAL_OCR_ACCEPTANCE_LIVE === "true";
 const timeoutMs = parsePositiveInteger(process.env.MINDORY_LOCAL_MODEL_ACCEPTANCE_TIMEOUT_MS ?? "300000", "MINDORY_LOCAL_MODEL_ACCEPTANCE_TIMEOUT_MS");
 
+const FONT = {
+  " ": ["00000", "00000", "00000", "00000", "00000", "00000", "00000"],
+  "A": ["01110", "10001", "10001", "11111", "10001", "10001", "10001"],
+  "C": ["01111", "10000", "10000", "10000", "10000", "10000", "01111"],
+  "D": ["11110", "10001", "10001", "10001", "10001", "10001", "11110"],
+  "E": ["11111", "10000", "10000", "11110", "10000", "10000", "11111"],
+  "F": ["11111", "10000", "10000", "11110", "10000", "10000", "10000"],
+  "G": ["01111", "10000", "10000", "10111", "10001", "10001", "01110"],
+  "H": ["10001", "10001", "10001", "11111", "10001", "10001", "10001"],
+  "I": ["11111", "00100", "00100", "00100", "00100", "00100", "11111"],
+  "M": ["10001", "11011", "10101", "10101", "10001", "10001", "10001"],
+  "N": ["10001", "11001", "10101", "10011", "10001", "10001", "10001"],
+  "O": ["01110", "10001", "10001", "10001", "10001", "10001", "01110"],
+  "P": ["11110", "10001", "10001", "11110", "10000", "10000", "10000"],
+  "R": ["11110", "10001", "10001", "11110", "10100", "10010", "10001"],
+  "Y": ["10001", "10001", "01010", "00100", "00100", "00100", "00100"]
+};
+
 const scenario = [
   "supported deterministic local HTTP model profile",
   "text document chunk embeddings and indexed search",
@@ -46,7 +64,7 @@ function runDryRunAcceptance() {
   const workerRuntime = fs.readFileSync(path.join(root, "apps", "worker", "src", "runtime.ts"), "utf8");
   const localModelsDocs = fs.readFileSync(path.join(root, "docs", "LOCAL_MODELS.md"), "utf8");
   const compose = fs.readFileSync(path.join(root, "docker-compose.yml"), "utf8");
-  const paddleOcrServer = fs.readFileSync(path.join(root, "deploy", "local-models", "ocr", "paddleocr", "server.py"), "utf8");
+  const tesseractServer = fs.readFileSync(path.join(root, "deploy", "local-models", "ocr", "tesseract", "server.py"), "utf8");
 
   assert(packageJson.scripts?.["local-model:acceptance"] === "node scripts/local-model-acceptance.js", "Root package must expose local-model:acceptance.");
   assert(checkRepo.includes("local-model:acceptance"), "Repository checks must include local-model:acceptance.");
@@ -82,16 +100,16 @@ function runDryRunAcceptance() {
   assert(localModelsDocs.includes("pnpm local-model:acceptance"), "Local model docs must document local-model acceptance.");
   for (const token of [
     "local-models-ocr",
-    "deploy/local-models/ocr/paddleocr/Dockerfile",
+    "deploy/local-models/ocr/tesseract/Dockerfile",
     "MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL",
     "MINDORY_OCR_HEALTH_LOAD_MODEL"
   ]) {
-    assert(compose.includes(token), `PaddleOCR Compose profile must include ${token}.`);
+    assert(compose.includes(token), `Tesseract Compose profile must include ${token}.`);
   }
-  for (const token of ["PaddleOCR", "pypdfium2", "POST", "/ocr", "page_number", "confidence"]) {
-    assert(paddleOcrServer.includes(token), `PaddleOCR runner server must include ${token}.`);
+  for (const token of ["Tesseract", "pypdfium2", "POST", "/ocr", "page_number", "confidence"]) {
+    assert(tesseractServer.includes(token), `Tesseract runner server must include ${token}.`);
   }
-  assert(localModelsDocs.includes("MINDORY_LOCAL_OCR_ACCEPTANCE_LIVE=true"), "Local model docs must document live PaddleOCR acceptance.");
+  assert(localModelsDocs.includes("MINDORY_LOCAL_OCR_ACCEPTANCE_LIVE=true"), "Local model docs must document live Tesseract acceptance.");
   console.log("Local model acceptance dry-run passed. Set MINDORY_LOCAL_MODEL_ACCEPTANCE_LIVE=true to run the Docker local-model path.");
 }
 
@@ -129,17 +147,24 @@ async function runOcrRunnerLiveAcceptance() {
     MINDORY_HOME: tempHome,
     MINDORY_OCR_PORT: String(ocrPort),
     MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL: `http://ocr:8083`,
-    MINDORY_LLM_OCR_MODEL: "ESLAV__PP-OCRv5_mobile"
+    MINDORY_LLM_OCR_MODEL: "tesseract-eng"
   };
   try {
-    run("docker", ["compose", "--profile", "local-models-ocr", "up", "-d", "ocr"], env);
+    run("docker", ["compose", "--profile", "local-models-ocr", "up", "--build", "-d", "ocr"], env);
     const baseUrl = `http://127.0.0.1:${ocrPort}`;
     await waitForHttpOk(`${baseUrl}/health`, timeoutMs);
-    const imageResult = await postOcr(baseUrl, createTextBmpBuffer("MINDORY OCR IMAGE"), "image/bmp");
-    assert(extractOcrText(imageResult).length > 0, "PaddleOCR live image OCR must return recognized text.");
+    const imageResult = await postOcr(baseUrl, createTextPngWithDocker(env, "MINDORY OCR IMAGE"), "image/png");
+    assert(extractOcrText(imageResult).length > 0, "Tesseract live image OCR must return recognized text.");
     const pdfResult = await postOcr(baseUrl, createTextPdfBuffer("Mindory OCR PDF"), "application/pdf");
-    assert(extractOcrText(pdfResult).length > 0, "PaddleOCR live PDF OCR must return recognized text.");
-    console.log("PaddleOCR live acceptance passed.");
+    assert(extractOcrText(pdfResult).length > 0, "Tesseract live PDF OCR must return recognized text.");
+    console.log("Tesseract live acceptance passed.");
+  } catch (error) {
+    try {
+      run("docker", ["compose", "--profile", "local-models-ocr", "logs", "ocr"], env);
+    } catch {
+      // Keep the original acceptance error when log collection itself fails.
+    }
+    throw error;
   } finally {
     try {
       run("docker", ["compose", "--profile", "local-models-ocr", "down", "--remove-orphans"], env);
@@ -172,7 +197,7 @@ async function postOcr(baseUrl, bytes, mimeType) {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
-      model: "ESLAV__PP-OCRv5_mobile",
+      model: "tesseract-eng",
       mime_type: mimeType,
       data_base64: bytes.toString("base64")
     })
@@ -188,6 +213,36 @@ function extractOcrText(payload) {
   const direct = typeof payload.text === "string" ? payload.text : "";
   const pages = Array.isArray(payload.pages) ? payload.pages.map((page) => page?.text ?? "").join("\n") : "";
   return `${direct}\n${pages}`.trim();
+}
+
+function createTextPngWithDocker(env, text) {
+  const script = `
+import base64
+import io
+import sys
+from PIL import Image, ImageDraw, ImageFont
+
+text = sys.argv[1]
+font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 72)
+probe = Image.new("RGB", (1, 1), "white")
+draw = ImageDraw.Draw(probe)
+left, top, right, bottom = draw.textbbox((0, 0), text, font=font)
+image = Image.new("RGB", (right - left + 96, bottom - top + 96), "white")
+draw = ImageDraw.Draw(image)
+draw.text((48 - left, 48 - top), text, fill="black", font=font)
+buffer = io.BytesIO()
+image.save(buffer, format="PNG")
+sys.stdout.write(base64.b64encode(buffer.getvalue()).decode("ascii"))
+`;
+  const result = spawnSync("docker", ["compose", "--profile", "local-models-ocr", "exec", "-T", "ocr", "python", "-c", script, text], {
+    cwd: root,
+    env,
+    encoding: "utf8"
+  });
+  if ((result.status ?? 1) !== 0) {
+    throw new Error(`Could not create OCR image fixture: ${(result.stderr || result.stdout).trim()}`);
+  }
+  return Buffer.from(result.stdout.trim(), "base64");
 }
 
 function createTextPdfBuffer(text) {
@@ -215,33 +270,23 @@ function createTextPdfBuffer(text) {
   return Buffer.from(pdf, "utf8");
 }
 
-function createTextBmpBuffer(text) {
-  const scale = 5;
+function createTextPpmBuffer(text) {
+  const scale = 14;
   const glyphWidth = 5;
   const glyphHeight = 7;
   const spacing = 2;
-  const margin = 10;
+  const margin = 30;
   const width = margin * 2 + text.length * (glyphWidth + spacing) * scale;
   const height = margin * 2 + glyphHeight * scale;
-  const rowSize = Math.ceil((24 * width) / 32) * 4;
-  const pixelDataSize = rowSize * height;
-  const buffer = Buffer.alloc(54 + pixelDataSize, 255);
-  buffer.write("BM", 0);
-  buffer.writeUInt32LE(54 + pixelDataSize, 2);
-  buffer.writeUInt32LE(54, 10);
-  buffer.writeUInt32LE(40, 14);
-  buffer.writeInt32LE(width, 18);
-  buffer.writeInt32LE(height, 22);
-  buffer.writeUInt16LE(1, 26);
-  buffer.writeUInt16LE(24, 28);
-  buffer.writeUInt32LE(pixelDataSize, 34);
+  const header = Buffer.from(`P6\n${width} ${height}\n255\n`, "ascii");
+  const pixels = Buffer.alloc(width * height * 3, 255);
   for (let index = 0; index < text.length; index += 1) {
-    drawGlyph(buffer, width, height, rowSize, margin + index * (glyphWidth + spacing) * scale, margin, text[index].toUpperCase(), scale);
+    drawGlyph(pixels, width, height, margin + index * (glyphWidth + spacing) * scale, margin, text[index].toUpperCase(), scale);
   }
-  return buffer;
+  return Buffer.concat([header, pixels]);
 }
 
-function drawGlyph(buffer, width, height, rowSize, x, y, char, scale) {
+function drawGlyph(buffer, width, height, x, y, char, scale) {
   const rows = FONT[char] ?? FONT[" "];
   for (let row = 0; row < rows.length; row += 1) {
     for (let col = 0; col < rows[row].length; col += 1) {
@@ -250,41 +295,22 @@ function drawGlyph(buffer, width, height, rowSize, x, y, char, scale) {
       }
       for (let dy = 0; dy < scale; dy += 1) {
         for (let dx = 0; dx < scale; dx += 1) {
-          setBmpPixel(buffer, width, height, rowSize, x + col * scale + dx, y + row * scale + dy, 0, 0, 0);
+          setRgbPixel(buffer, width, height, x + col * scale + dx, y + row * scale + dy, 0, 0, 0);
         }
       }
     }
   }
 }
 
-function setBmpPixel(buffer, width, height, rowSize, x, y, r, g, b) {
+function setRgbPixel(buffer, width, height, x, y, r, g, b) {
   if (x < 0 || x >= width || y < 0 || y >= height) {
     return;
   }
-  const bmpY = height - 1 - y;
-  const offset = 54 + bmpY * rowSize + x * 3;
-  buffer[offset] = b;
+  const offset = (y * width + x) * 3;
+  buffer[offset] = r;
   buffer[offset + 1] = g;
-  buffer[offset + 2] = r;
+  buffer[offset + 2] = b;
 }
-
-const FONT = {
-  " ": ["00000", "00000", "00000", "00000", "00000", "00000", "00000"],
-  "A": ["01110", "10001", "10001", "11111", "10001", "10001", "10001"],
-  "C": ["01111", "10000", "10000", "10000", "10000", "10000", "01111"],
-  "D": ["11110", "10001", "10001", "10001", "10001", "10001", "11110"],
-  "E": ["11111", "10000", "10000", "11110", "10000", "10000", "11111"],
-  "F": ["11111", "10000", "10000", "11110", "10000", "10000", "10000"],
-  "G": ["01111", "10000", "10000", "10111", "10001", "10001", "01110"],
-  "H": ["10001", "10001", "10001", "11111", "10001", "10001", "10001"],
-  "I": ["11111", "00100", "00100", "00100", "00100", "00100", "11111"],
-  "M": ["10001", "11011", "10101", "10101", "10001", "10001", "10001"],
-  "N": ["10001", "11001", "10101", "10011", "10001", "10001", "10001"],
-  "O": ["01110", "10001", "10001", "10001", "10001", "10001", "01110"],
-  "P": ["11110", "10001", "10001", "11110", "10000", "10000", "10000"],
-  "R": ["11110", "10001", "10001", "11110", "10100", "10010", "10001"],
-  "Y": ["10001", "10001", "01010", "00100", "00100", "00100", "00100"]
-};
 
 function run(command, args, env) {
   const result = spawnSync(command, args, {

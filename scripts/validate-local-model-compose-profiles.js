@@ -42,7 +42,7 @@ for (const token of [
   "fetch('http://127.0.0.1:8080/health')",
   "data/models:/data/mindory/models",
   "profiles: [\"local-models-ocr\"]",
-  "deploy/local-models/ocr/paddleocr/Dockerfile",
+  "deploy/local-models/ocr/tesseract/Dockerfile",
   "MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL",
   "MINDORY_OCR_HEALTH_LOAD_MODEL",
   "profiles: [\"ollama\"]",
@@ -82,11 +82,11 @@ for (const token of [
   assert(`${localModels}\n${deployment}`.includes(token), `local model profile docs must include ${token}.`);
 }
 
-for (const assetPath of ["deploy/local-models/ocr/paddleocr/Dockerfile", "deploy/local-models/ocr/paddleocr/server.py"]) {
+for (const assetPath of ["deploy/local-models/ocr/tesseract/Dockerfile", "deploy/local-models/ocr/tesseract/server.py"]) {
   assert(releaseManifest.assets?.some((asset) => asset.path === assetPath && asset.required === true), `Release manifest must include OCR runner asset ${assetPath}.`);
 }
 
-for (const token of ["MINDORY_LOCAL_OCR_ACCEPTANCE_LIVE", "createTextBmpBuffer", "createTextPdfBuffer", "/ocr"]) {
+for (const token of ["MINDORY_LOCAL_OCR_ACCEPTANCE_LIVE", "createTextPngWithDocker", "createTextPdfBuffer", "/ocr"]) {
   assert(localModelAcceptance.includes(token), `Local model acceptance must include OCR live token ${token}.`);
 }
 

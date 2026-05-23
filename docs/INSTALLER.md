@@ -335,7 +335,7 @@ Prompt labels, defaults, enum values, secret flags and resource hints come from
 the config catalog whenever a catalog entry exists. Local model runner choices
 come from `LOCAL_MODEL_RUNNER_CATALOG`; `docs/LOCAL_MODELS.md` records role
 coverage, source/image metadata, model files, license/status, ports,
-healthchecks and resource hints. The supported PaddleOCR runner sets
+healthchecks and resource hints. The supported Tesseract runner sets
 `MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL=http://ocr:8083` and routes OCR through
 the `local-models-ocr` Compose profile. If a supported local runner is selected,
 the wizard applies the matching `@mindory/llm` role provider/model defaults. If the

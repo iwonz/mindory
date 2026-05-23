@@ -120,7 +120,7 @@ x-mindory-env: &mindory-env
   MINDORY_LLM_VISION_CAPTIONING_CONCURRENCY: ${MINDORY_LLM_VISION_CAPTIONING_CONCURRENCY:-1}
   MINDORY_LLM_OCR_ENABLED: ${MINDORY_LLM_OCR_ENABLED:-false}
   MINDORY_LLM_OCR_PROVIDER: ${MINDORY_LLM_OCR_PROVIDER:-local-http}
-  MINDORY_LLM_OCR_MODEL: ${MINDORY_LLM_OCR_MODEL:-ESLAV__PP-OCRv5_mobile}
+  MINDORY_LLM_OCR_MODEL: ${MINDORY_LLM_OCR_MODEL:-tesseract-eng}
   MINDORY_LLM_OCR_REQUIRED: ${MINDORY_LLM_OCR_REQUIRED:-false}
   MINDORY_LLM_OCR_TIMEOUT_MS: ${MINDORY_LLM_OCR_TIMEOUT_MS:-60000}
   MINDORY_LLM_OCR_CONCURRENCY: ${MINDORY_LLM_OCR_CONCURRENCY:-1}
@@ -517,17 +517,18 @@ services:
   ocr:
     build:
       context: .
-      dockerfile: deploy/local-models/ocr/paddleocr/Dockerfile
+      dockerfile: deploy/local-models/ocr/tesseract/Dockerfile
     profiles: ["local-models-ocr"]
     restart: unless-stopped
     environment:
       MINDORY_OCR_HOST: 0.0.0.0
       MINDORY_OCR_PORT: "8083"
-      MINDORY_OCR_MODEL: ${MINDORY_OCR_MODEL:-ESLAV__PP-OCRv5_mobile}
-      MINDORY_OCR_LANG: ${MINDORY_OCR_LANG:-en}
+      MINDORY_OCR_MODEL: ${MINDORY_OCR_MODEL:-tesseract-eng}
+      MINDORY_OCR_LANG: ${MINDORY_OCR_LANG:-eng}
+      MINDORY_OCR_PSM: ${MINDORY_OCR_PSM:-6}
+      MINDORY_OCR_TIMEOUT_MS: ${MINDORY_OCR_TIMEOUT_MS:-120000}
       MINDORY_OCR_MAX_PDF_PAGES: ${MINDORY_OCR_MAX_PDF_PAGES:-50}
       MINDORY_OCR_HEALTH_LOAD_MODEL: ${MINDORY_OCR_HEALTH_LOAD_MODEL:-true}
-      PADDLEOCR_HOME: /data/mindory/models/paddleocr
     ports:
       - "${MINDORY_OCR_PORT:-8083}:8083"
     healthcheck:
@@ -543,5 +544,5 @@ services:
       retries: 20
       start_period: 30s
     volumes:
-      - ${MINDORY_HOME:-${HOME}/.mindory}/data/models/paddleocr:/data/mindory/models/paddleocr
+      - ${MINDORY_HOME:-${HOME}/.mindory}/data/models/tesseract:/data/mindory/models/tesseract
       - ${MINDORY_HOME:-${HOME}/.mindory}/logs:/data/mindory/logs

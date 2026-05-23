@@ -195,7 +195,7 @@ for (const token of [
   "llmRoleEntries(\"IMAGE_GENERATION\"",
   "llmRoleEntries(\"AUDIO_GENERATION\"",
   "CLIP ViT-L-16-SigLIP2-256__webli",
-  "ESLAV__PP-OCRv5_mobile",
+  "tesseract-eng",
   "buffalo_l",
   "MINDORY_LLM_OPENAI_COMPATIBLE_BASE_URL",
   "MINDORY_LLM_OPENAI_COMPATIBLE_AUTH_MODE",
