@@ -111,6 +111,7 @@ for (const token of [
   "crypto.sign",
   "pathToFileURL",
   "tar",
+  ".npmrc",
   "node_modules",
   "dist"
 ]) {

@@ -1,7 +1,7 @@
 {
   "id": "TASK-112",
   "title": "Run live self-host public acceptance",
-  "status": "draft",
+  "status": "done",
   "type": "test",
   "priority": "high",
   "branch": "task/TASK-112-live-self-host-public-acceptance",

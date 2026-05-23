@@ -69,7 +69,9 @@ pnpm selfhost:acceptance
 ```
 
 By default it runs the non-destructive dry-run path in a temporary
-`MINDORY_HOME`. The live Docker path is opt-in:
+`MINDORY_HOME`. The live Docker path is opt-in and runs the installer-driven
+release gate for sync ClamAV, pgvector, Qdrant, Docling, upload/search/context,
+backup, signed remote update and uninstall:
 
 ```bash
 MINDORY_SELFHOST_ACCEPTANCE_LIVE=true pnpm selfhost:acceptance

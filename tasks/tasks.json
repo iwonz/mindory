@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-111",
+  "current_task_id": "TASK-112",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -817,7 +817,7 @@
     {
       "id": "TASK-112",
       "title": "Run live self-host public acceptance",
-      "status": "draft",
+      "status": "done",
       "branch": "task/TASK-112-live-self-host-public-acceptance",
       "file": "tasks/TASK-112.json"
     },
