@@ -133,7 +133,7 @@ export const LLM_ROLE_SUPPORT_CATALOG = [
     "local-http": "supported",
     "local-command": "supported"
   }),
-  llmRoleSupport("OCR", "supported", "local-http", "ESLAV__PP-OCRv5_mobile", {
+  llmRoleSupport("OCR", "supported", "local-http", "tesseract-eng", {
     "openai-compatible": "experimental",
     "ollama": "future",
     "local-http": "supported",
@@ -310,28 +310,22 @@ export const LOCAL_MODEL_RUNNER_CATALOG = [
     notes: "Image embedding runner aligned with the default CLIP/SigLIP2 model name in the LLM role catalog."
   }),
   localModelRunner({
-    id: "paddleocr-pp-ocrv5-mobile",
-    title: "PaddleOCR PP-OCRv5 mobile OCR",
+    id: "tesseract-local-ocr",
+    title: "Tesseract local OCR",
     status: "supported",
     provider: "local-http",
     roles: ["OCR"],
     composeProfile: "local-models-ocr",
     serviceName: "ocr",
-    containerImage: "mindory-paddleocr-runner",
-    sourceUrl: "https://github.com/PaddlePaddle/PaddleOCR",
-    modelNames: ["ESLAV__PP-OCRv5_mobile"],
+    containerImage: "mindory-tesseract-ocr-runner",
+    sourceUrl: "https://github.com/tesseract-ocr/tesseract",
+    modelNames: ["tesseract-eng"],
     modelFiles: [
       {
-        name: "PP-OCRv5_mobile_det",
-        sourceUrl: "https://github.com/PaddlePaddle/PaddleOCR",
-        sizeHint: "50MB-200MB",
-        targetPath: "$MINDORY_HOME/data/models/paddleocr"
-      },
-      {
-        name: "PP-OCRv5_mobile_rec",
-        sourceUrl: "https://github.com/PaddlePaddle/PaddleOCR",
-        sizeHint: "50MB-200MB",
-        targetPath: "$MINDORY_HOME/data/models/paddleocr"
+        name: "eng.traineddata",
+        sourceUrl: "https://github.com/tesseract-ocr/tessdata",
+        sizeHint: "10MB-50MB",
+        targetPath: "$MINDORY_HOME/data/models/tesseract/eng.traineddata"
       }
     ],
     license: "Apache-2.0",
@@ -359,7 +353,7 @@ export const LOCAL_MODEL_RUNNER_CATALOG = [
       disk: "1GB+",
       gpu: "optional"
     },
-    notes: "Supported PaddleOCR HTTP runner for image and scanned-PDF page artifacts."
+    notes: "Supported Tesseract HTTP runner for image and scanned-PDF page artifacts."
   }),
   localModelRunner({
     id: "faster-whisper-small-asr",
@@ -854,12 +848,14 @@ export const CONFIG_CATALOG = [
   entry("MINDORY_LLM_OLLAMA_BASE_URL", "llm", "string", "http://ollama:11434", "Ollama base URL.", "both", "supported"),
   entry("MINDORY_LLM_LOCAL_HTTP_BASE_URL", "llm", "string", "http://llm:8080", "Local HTTP model server base URL.", "both", "supported"),
   entry("MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL", "llm", "string", "", "Optional OCR-specific local HTTP model server base URL. When set, OCR calls use this endpoint instead of MINDORY_LLM_LOCAL_HTTP_BASE_URL.", "both", "supported"),
-  entry("MINDORY_OCR_HOST", "llm", "string", "0.0.0.0", "PaddleOCR runner bind host inside the OCR container.", "runtime", "supported"),
-  entry("MINDORY_OCR_PORT", "llm", "number", "8083", "PaddleOCR runner host/container HTTP port.", "both", "supported"),
-  entry("MINDORY_OCR_MODEL", "llm", "string", "ESLAV__PP-OCRv5_mobile", "PaddleOCR runner model label exposed through OCR responses.", "both", "supported"),
-  entry("MINDORY_OCR_LANG", "llm", "string", "en", "PaddleOCR language code.", "both", "supported"),
-  entry("MINDORY_OCR_MAX_PDF_PAGES", "llm", "number", "50", "Maximum PDF pages rendered by the PaddleOCR runner for one OCR request.", "both", "supported"),
-  entry("MINDORY_OCR_HEALTH_LOAD_MODEL", "llm", "boolean", "true", "Load PaddleOCR model weights during runner health checks.", "both", "supported"),
+  entry("MINDORY_OCR_HOST", "llm", "string", "0.0.0.0", "OCR runner bind host inside the OCR container.", "runtime", "supported"),
+  entry("MINDORY_OCR_PORT", "llm", "number", "8083", "OCR runner host/container HTTP port.", "both", "supported"),
+  entry("MINDORY_OCR_MODEL", "llm", "string", "tesseract-eng", "OCR runner model label exposed through OCR responses.", "both", "supported"),
+  entry("MINDORY_OCR_LANG", "llm", "string", "eng", "Tesseract language code.", "both", "supported"),
+  entry("MINDORY_OCR_PSM", "llm", "number", "6", "Tesseract page segmentation mode used by the local OCR runner.", "both", "supported"),
+  entry("MINDORY_OCR_TIMEOUT_MS", "llm", "number", "120000", "Per-page Tesseract OCR timeout in milliseconds.", "both", "supported"),
+  entry("MINDORY_OCR_MAX_PDF_PAGES", "llm", "number", "50", "Maximum PDF pages rendered by the OCR runner for one OCR request.", "both", "supported"),
+  entry("MINDORY_OCR_HEALTH_LOAD_MODEL", "llm", "boolean", "true", "Verify the Tesseract language package during runner health checks.", "both", "supported"),
   entry("MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS", "llm", "number", "120000", "Default timeout for local-command provider healthchecks and operations.", "both", "supported"),
   entry("MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND", "llm", "string", "", "Executable used for local-command provider healthchecks.", "both", "supported", {
     prompt: {

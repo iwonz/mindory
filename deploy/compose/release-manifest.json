@@ -23,12 +23,12 @@
       "required": true
     },
     {
-      "path": "deploy/local-models/ocr/paddleocr/Dockerfile",
+      "path": "deploy/local-models/ocr/tesseract/Dockerfile",
       "type": "local-model-image-build",
       "required": true
     },
     {
-      "path": "deploy/local-models/ocr/paddleocr/server.py",
+      "path": "deploy/local-models/ocr/tesseract/server.py",
       "type": "local-model-runtime",
       "required": true
     }

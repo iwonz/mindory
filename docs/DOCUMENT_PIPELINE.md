@@ -167,10 +167,10 @@ spans and chunk source refs back to the page artifact. If OCR is required and
 the provider fails or returns no text, extraction fails with a readable
 processing error.
 
-The supported local OCR runner is `paddleocr-pp-ocrv5-mobile`. Installer
+The supported local OCR runner is `tesseract-local-ocr`. Installer
 selection starts the `local-models-ocr` Compose profile and sets
 `MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL=http://ocr:8083`, so PDF OCR requests go
-to PaddleOCR without changing the RAW original object.
+to Tesseract without changing the RAW original object.
 
 When `MINDORY_DOCLING_ENABLED=true`, the worker sends PDF bytes to the
 Docling-compatible service at `MINDORY_DOCLING_URL` instead of running the PDF
@@ -204,7 +204,7 @@ When `MINDORY_LLM_OCR_ENABLED=true` and
 `MINDORY_LLM_OCR_PROVIDER=local-http`, the image extractor calls
 `@mindory/llm` OCR over `POST /ocr` and persists provider OCR as derived
 `ocr_text` artifacts and spans. When `MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL`
-points at the supported PaddleOCR runner, image OCR requests use that dedicated
+points at the supported Tesseract runner, image OCR requests use that dedicated
 endpoint and still remain derived state. When
 `MINDORY_LLM_VISION_CAPTIONING_ENABLED=true` and
 `MINDORY_LLM_VISION_CAPTIONING_PROVIDER=local-http`, it calls
