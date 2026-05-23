@@ -198,6 +198,7 @@ export interface MindoryConfig {
     localHttp: {
       baseUrl: string;
       ocrBaseUrl: string;
+      asrBaseUrl: string;
     };
     localCommand: {
       timeoutMs: number;
@@ -510,7 +511,8 @@ export function loadMindoryConfig(env: EnvSource = process.env): MindoryConfig {
       },
       localHttp: {
         baseUrl: readString(env, "MINDORY_LLM_LOCAL_HTTP_BASE_URL", catalogString("MINDORY_LLM_LOCAL_HTTP_BASE_URL")),
-        ocrBaseUrl: readString(env, "MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL", catalogString("MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL"))
+        ocrBaseUrl: readString(env, "MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL", catalogString("MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL")),
+        asrBaseUrl: readString(env, "MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL", catalogString("MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL"))
       },
       localCommand: {
         timeoutMs: readNumber(env, "MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS", catalogNumber("MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS")),
@@ -796,7 +798,7 @@ function validateLlmConfig(config: MindoryConfig): void {
     throw new Error("MINDORY_LLM_OLLAMA_BASE_URL is required when an Ollama capability is enabled.");
   }
 
-  if (usesLlmProvider(config, "local-http") && config.llm.localHttp.baseUrl.trim() === "" && !localHttpUsesOcrOverrideOnly(config)) {
+  if (usesLlmProvider(config, "local-http") && config.llm.localHttp.baseUrl.trim() === "" && !localHttpUsesRoleOverrideOnly(config)) {
     throw new Error("MINDORY_LLM_LOCAL_HTTP_BASE_URL is required when a local HTTP capability is enabled without a role-specific endpoint override.");
   }
 
@@ -832,18 +834,24 @@ function usesLlmProvider(config: MindoryConfig, provider: LlmProvider): boolean 
   ].some((capability) => capability.enabled && capability.provider === provider);
 }
 
-function localHttpUsesOcrOverrideOnly(config: MindoryConfig): boolean {
-  const nonOcrCapabilities = [
+function localHttpUsesRoleOverrideOnly(config: MindoryConfig): boolean {
+  const nonOverriddenCapabilities = [
     config.llm.chat,
     config.llm.textEmbedding,
     config.llm.imageEmbedding,
     config.llm.visionCaptioning,
-    config.llm.asr,
     config.llm.faceDetection,
     config.llm.faceRecognition,
     config.llm.imageGeneration,
     config.llm.audioGeneration
   ];
-  const nonOcrUsesLocalHttp = nonOcrCapabilities.some((capability) => capability.enabled && capability.provider === "local-http");
-  return !nonOcrUsesLocalHttp && config.llm.ocr.enabled && config.llm.ocr.provider === "local-http" && config.llm.localHttp.ocrBaseUrl.trim() !== "";
+  const otherUsesLocalHttp = nonOverriddenCapabilities.some((capability) => capability.enabled && capability.provider === "local-http");
+  if (otherUsesLocalHttp) {
+    return false;
+  }
+  const ocrUsesOverride = config.llm.ocr.enabled && config.llm.ocr.provider === "local-http" && config.llm.localHttp.ocrBaseUrl.trim() !== "";
+  const asrUsesOverride = config.llm.asr.enabled && config.llm.asr.provider === "local-http" && config.llm.localHttp.asrBaseUrl.trim() !== "";
+  const ocrMissingOverride = config.llm.ocr.enabled && config.llm.ocr.provider === "local-http" && config.llm.localHttp.ocrBaseUrl.trim() === "";
+  const asrMissingOverride = config.llm.asr.enabled && config.llm.asr.provider === "local-http" && config.llm.localHttp.asrBaseUrl.trim() === "";
+  return (ocrUsesOverride || asrUsesOverride) && !ocrMissingOverride && !asrMissingOverride;
 }

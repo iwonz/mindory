@@ -719,7 +719,7 @@ export function buildMindoryAsrProvider(
 
   if (asr.provider === "local-http") {
     const providerOptions: LocalHttpModelOptions = {
-      baseUrl: config.llm.localHttp.baseUrl,
+      baseUrl: localHttpBaseUrlForRole(config, "asr"),
       model: asr.model
     };
     if (options.fetchImpl !== undefined) {
@@ -2498,6 +2498,9 @@ function localCommandModelOptions(config: MindoryConfig, options: MindoryLlmOpti
 function localHttpBaseUrlForRole(config: MindoryConfig, role: LlmRole): string {
   if (role === "ocr" && config.llm.localHttp.ocrBaseUrl.trim() !== "") {
     return config.llm.localHttp.ocrBaseUrl;
+  }
+  if (role === "asr" && config.llm.localHttp.asrBaseUrl.trim() !== "") {
+    return config.llm.localHttp.asrBaseUrl;
   }
   return config.llm.localHttp.baseUrl;
 }

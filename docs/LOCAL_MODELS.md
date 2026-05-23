@@ -21,9 +21,9 @@ Each catalog entry records:
 The `TASK-133` through `TASK-147` series targets `v0.1.1` with checked local
 runner paths for OCR, ASR, vision captioning, object detection, image
 embeddings, face detection, face recognition, image generation and audio
-generation. OCR is now a supported local runner path through Tesseract; the
-remaining runner-specific rows keep their catalog status until their
-implementation and live acceptance tasks are accepted.
+generation. OCR is supported through Tesseract, and ASR is supported through
+Faster Whisper. The remaining runner-specific rows keep their catalog status
+until their implementation and live acceptance tasks are accepted.
 
 ## Catalog Entries
 
@@ -33,7 +33,7 @@ implementation and live acceptance tasks are accepted.
 | `ollama-nomic-embed-text` | text embeddings | `ollama` | supported | `ollama/ollama:latest`, `nomic-embed-text` | `11434` | `GET /api/tags` | 2+ CPU, 4GB+ RAM, 1GB+ disk, optional GPU | Apache-2.0 model family; verify upstream model card before redistribution |
 | `openclip-siglip2-image-embedding` | image embeddings | `local-http` | experimental | `https://github.com/mlfoundations/open_clip`, `timm/ViT-L-16-SigLIP2-256` | `8082` | `GET /health` | 4+ CPU, 8GB+ RAM, 5GB+ disk, GPU recommended | MIT runtime; verify upstream model card before redistribution |
 | `tesseract-local-ocr` | OCR | `local-http` | supported | Mindory Tesseract adapter image built from `deploy/local-models/ocr/tesseract/Dockerfile`, `tesseract-ocr-eng` language data | `8083` | `GET /health` with language verification | 2+ CPU, 4GB+ RAM, 1GB+ disk, optional GPU | Apache-2.0 |
-| `faster-whisper-small-asr` | ASR | `local-http` | experimental | `https://github.com/SYSTRAN/faster-whisper`, `openai/whisper-small` | `8084` | `GET /health` | 4+ CPU, 6GB+ RAM, 3GB+ disk, GPU recommended for long audio | MIT |
+| `faster-whisper-tiny-asr` | ASR | `local-http` | supported | Mindory Faster Whisper adapter image built from `deploy/local-models/asr/faster-whisper/Dockerfile`, `Systran/faster-whisper-tiny.en` | `8084` | `GET /health` with model loading | 4+ CPU, 4GB+ RAM, 1GB+ disk, GPU recommended for long audio | MIT runtime; verify upstream model card before redistribution |
 | `moondream2-vision-captioning` | vision captioning | `local-http` | experimental | `https://huggingface.co/vikhyatk/moondream2` | `8085` | `GET /health` | 4+ CPU, 8GB+ RAM, 8GB+ disk, GPU recommended | Apache-2.0 |
 | `compreface-face-services` | face detection, face recognition | `local-http` | experimental | `exadel/compreface:latest`, `https://github.com/exadel-inc/CompreFace` | `8086` | `GET /health` | 4+ CPU, 8GB+ RAM, 8GB+ disk, optional GPU | Apache-2.0 runtime; verify bundled model licenses before redistribution |
 
@@ -85,6 +85,19 @@ That gate starts the `local-models-ocr` Compose profile, waits for the
 Tesseract `/health` response, posts generated image and PDF fixtures to
 `POST /ocr`, and requires non-empty OCR page text.
 
+The ASR runner also has a focused live gate because Faster Whisper downloads
+and loads model weights during health checks:
+
+```bash
+MINDORY_LOCAL_ASR_ACCEPTANCE_LIVE=true pnpm local-model:acceptance
+```
+
+That gate starts the `local-models-asr` Compose profile, waits for the
+Faster Whisper `/health` response, generates a local `espeak-ng` speech fixture
+inside the runner container, posts it to `POST /asr`, requires non-empty
+time-coded transcript segments, and verifies invalid audio produces an
+`asr_failed` diagnostic.
+
 ## Installer Auto-Install
 
 The wizard records local model setup in these generated settings:
@@ -99,6 +112,9 @@ resource hints. Selecting `mindory-deterministic-local-http` enables the
 `GET /health`. Selecting `tesseract-local-ocr` enables
 `local-models-ocr`, sets `MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL=http://ocr:8083`,
 waits for the Tesseract healthcheck and routes PDF/image OCR through
+`@mindory/llm`. Selecting `faster-whisper-tiny-asr` enables
+`local-models-asr`, sets `MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL=http://asr:8084`,
+waits for Faster Whisper model-loading health, and routes audio ASR through
 `@mindory/llm`. Selecting `ollama-nomic-embed-text` enables the `ollama`
 profile, waits for service health, runs `ollama pull nomic-embed-text`, then
 verifies the model runner with `ollama list`.

@@ -160,6 +160,16 @@ The Tesseract container also honors `MINDORY_OCR_PORT`, `MINDORY_OCR_MODEL`,
 `MINDORY_OCR_LANG`, `MINDORY_OCR_MAX_PDF_PAGES` and
 `MINDORY_OCR_HEALTH_LOAD_MODEL`.
 
+`MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL` is a supported ASR-only endpoint override.
+The installer sets it to `http://asr:8084` when `faster-whisper-tiny-asr` is
+selected, so Faster Whisper handles audio transcript segments while other
+local HTTP roles can continue using the general
+`MINDORY_LLM_LOCAL_HTTP_BASE_URL` service. The Faster Whisper container also
+honors `MINDORY_ASR_PORT`, `MINDORY_ASR_MODEL`, `MINDORY_ASR_DEVICE`,
+`MINDORY_ASR_COMPUTE_TYPE`, `MINDORY_ASR_LANGUAGE`,
+`MINDORY_ASR_BEAM_SIZE`, `MINDORY_ASR_VAD_FILTER` and
+`MINDORY_ASR_HEALTH_LOAD_MODEL`.
+
 The local HTTP contract is intentionally small:
 
 - `GET /health` returns any 2xx response when the model service is ready.
@@ -268,7 +278,8 @@ The image pipeline uses local HTTP OCR, image embeddings, vision captioning and
 object detection to derive
 searchable OCR text, captions and labels without changing RAW originals.
 The audio pipeline uses local HTTP ASR to derive searchable transcript segments
-with time refs.
+with time refs. The supported local runner path is `faster-whisper-tiny-asr`
+through the `local-models-asr` Compose profile.
 The image pipeline uses local HTTP face detection/recognition to derive
 workspace-scoped face observations with provider boxes and embeddings.
 
@@ -306,5 +317,8 @@ pnpm mvp:demo --model-profile ollama
 - `local`: adds the `local-models` profile, starts a lightweight deterministic
   `llm` service on `MINDORY_LLM_LOCAL_HTTP_BASE_URL`, and configures
   1536-dimensional local HTTP text embeddings for strict indexed acceptance.
+- `local-models-asr`: can be added explicitly when the Faster Whisper ASR
+  runner is selected; it serves ASR through
+  `MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL`.
 - `ollama`: adds the `ollama` profile for local text embeddings. Configure a
   1536-dimensional embedding model before using strict indexed acceptance.

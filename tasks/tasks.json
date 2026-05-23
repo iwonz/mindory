@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-135",
+  "current_task_id": "TASK-136",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -985,7 +985,7 @@
     {
       "id": "TASK-136",
       "title": "Real local ASR runner profile",
-      "status": "draft",
+      "status": "done",
       "branch": "task/TASK-136-real-local-asr-runner-profile",
       "file": "tasks/TASK-136.json"
     },

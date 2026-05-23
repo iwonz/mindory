@@ -172,6 +172,7 @@ for (const token of [
   "MINDORY_LLM_OLLAMA_BASE_URL",
   "MINDORY_LLM_LOCAL_HTTP_BASE_URL",
   "MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL",
+  "MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL",
   "MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS",
   "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND",
   "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS",
@@ -491,6 +492,7 @@ const localConfig = loadMindoryConfig({
   MINDORY_LLM_AUDIO_GENERATION_MODEL: "local-audio-generation",
   MINDORY_LLM_LOCAL_HTTP_BASE_URL: "http://llm.local:8080",
   MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL: "http://ocr.local:8083",
+  MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL: "http://asr.local:8084",
   MINDORY_LLM_OLLAMA_BASE_URL: "http://ollama.local:11434"
 });
 const localRuntime = buildMindoryLlm(localConfig, {
@@ -682,7 +684,7 @@ assert(localRequests.some((request) => request.url === "http://llm.local:8080/ch
 assert(localRequests.some((request) => request.url === "http://llm.local:8080/embeddings"), "Local HTTP embeddings provider must call /embeddings.");
 assert(localRequests.some((request) => request.url === "http://llm.local:8080/embeddings/images"), "Local HTTP image embeddings provider must call /embeddings/images.");
 assert(localRequests.some((request) => request.url === "http://ocr.local:8083/ocr"), "Local HTTP OCR provider must use the OCR-specific base URL override.");
-assert(localRequests.some((request) => request.url === "http://llm.local:8080/asr"), "Local HTTP ASR provider must call /asr.");
+assert(localRequests.some((request) => request.url === "http://asr.local:8084/asr"), "Local HTTP ASR provider must use the ASR-specific base URL override.");
 assert(localRequests.some((request) => request.url === "http://llm.local:8080/vision/caption"), "Local HTTP vision provider must call /vision/caption.");
 assert(localRequests.some((request) => request.url === "http://llm.local:8080/vision/objects"), "Local HTTP object detection provider must call /vision/objects.");
 assert(localRequests.some((request) => request.url === "http://llm.local:8080/faces/detect"), "Local HTTP face detection provider must call /faces/detect.");

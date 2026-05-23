@@ -356,44 +356,50 @@ export const LOCAL_MODEL_RUNNER_CATALOG = [
     notes: "Supported Tesseract HTTP runner for image and scanned-PDF page artifacts."
   }),
   localModelRunner({
-    id: "faster-whisper-small-asr",
-    title: "Faster Whisper small ASR",
-    status: "experimental",
+    id: "faster-whisper-tiny-asr",
+    title: "Faster Whisper tiny ASR",
+    status: "supported",
     provider: "local-http",
     roles: ["ASR"],
     composeProfile: "local-models-asr",
     serviceName: "asr",
+    containerImage: "mindory-faster-whisper-asr-runner",
     sourceUrl: "https://github.com/SYSTRAN/faster-whisper",
-    modelNames: ["whisper-small"],
+    modelNames: ["Systran/faster-whisper-tiny.en"],
     modelFiles: [
       {
-        name: "openai/whisper-small",
-        sourceUrl: "https://huggingface.co/openai/whisper-small",
-        sizeHint: "1GB-2GB",
+        name: "Systran/faster-whisper-tiny.en",
+        sourceUrl: "https://huggingface.co/Systran/faster-whisper-tiny.en",
+        sizeHint: "100MB-250MB",
         targetPath: "$MINDORY_HOME/data/models/whisper"
       }
     ],
-    license: "MIT",
+    license: "MIT runtime; verify upstream model card before redistribution",
     ports: [
       {
         name: "http",
         containerPort: 8084,
         defaultHostPort: 8084,
-        envName: "MINDORY_LLM_LOCAL_HTTP_BASE_URL"
+        envName: "MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL"
       }
     ],
     healthcheck: {
       kind: "http",
       endpoint: "GET /health",
+      command: [
+        "python",
+        "-c",
+        "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8084/health', timeout=30).status < 400 else 1)"
+      ],
       timeoutMs: 120000
     },
     resourceHint: {
       cpu: "4+ cores",
-      memory: "6GB+",
-      disk: "3GB+",
+      memory: "4GB+",
+      disk: "1GB+",
       gpu: "recommended for long audio"
     },
-    notes: "ASR runner for time-coded audio and video transcript artifacts."
+    notes: "Supported Faster Whisper HTTP runner for time-coded audio and video transcript artifacts."
   }),
   localModelRunner({
     id: "moondream2-vision-captioning",
@@ -848,6 +854,7 @@ export const CONFIG_CATALOG = [
   entry("MINDORY_LLM_OLLAMA_BASE_URL", "llm", "string", "http://ollama:11434", "Ollama base URL.", "both", "supported"),
   entry("MINDORY_LLM_LOCAL_HTTP_BASE_URL", "llm", "string", "http://llm:8080", "Local HTTP model server base URL.", "both", "supported"),
   entry("MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL", "llm", "string", "", "Optional OCR-specific local HTTP model server base URL. When set, OCR calls use this endpoint instead of MINDORY_LLM_LOCAL_HTTP_BASE_URL.", "both", "supported"),
+  entry("MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL", "llm", "string", "", "Optional ASR-specific local HTTP model server base URL. When set, ASR calls use this endpoint instead of MINDORY_LLM_LOCAL_HTTP_BASE_URL.", "both", "supported"),
   entry("MINDORY_OCR_HOST", "llm", "string", "0.0.0.0", "OCR runner bind host inside the OCR container.", "runtime", "supported"),
   entry("MINDORY_OCR_PORT", "llm", "number", "8083", "OCR runner host/container HTTP port.", "both", "supported"),
   entry("MINDORY_OCR_MODEL", "llm", "string", "tesseract-eng", "OCR runner model label exposed through OCR responses.", "both", "supported"),
@@ -856,6 +863,16 @@ export const CONFIG_CATALOG = [
   entry("MINDORY_OCR_TIMEOUT_MS", "llm", "number", "120000", "Per-page Tesseract OCR timeout in milliseconds.", "both", "supported"),
   entry("MINDORY_OCR_MAX_PDF_PAGES", "llm", "number", "50", "Maximum PDF pages rendered by the OCR runner for one OCR request.", "both", "supported"),
   entry("MINDORY_OCR_HEALTH_LOAD_MODEL", "llm", "boolean", "true", "Verify the Tesseract language package during runner health checks.", "both", "supported"),
+  entry("MINDORY_ASR_HOST", "llm", "string", "0.0.0.0", "ASR runner bind host inside the ASR container.", "runtime", "supported"),
+  entry("MINDORY_ASR_PORT", "llm", "number", "8084", "ASR runner host/container HTTP port.", "both", "supported"),
+  entry("MINDORY_ASR_MODEL", "llm", "string", "Systran/faster-whisper-tiny.en", "Faster Whisper model used by the local ASR runner.", "both", "supported"),
+  entry("MINDORY_ASR_DEVICE", "llm", "string", "cpu", "Faster Whisper device for the local ASR runner.", "both", "supported"),
+  entry("MINDORY_ASR_COMPUTE_TYPE", "llm", "string", "int8", "Faster Whisper compute type for the local ASR runner.", "both", "supported"),
+  entry("MINDORY_ASR_LANGUAGE", "llm", "string", "en", "Optional language hint for the local ASR runner.", "both", "supported"),
+  entry("MINDORY_ASR_BEAM_SIZE", "llm", "number", "5", "Faster Whisper beam size for transcription.", "both", "supported"),
+  entry("MINDORY_ASR_VAD_FILTER", "llm", "boolean", "false", "Enable Faster Whisper VAD filtering in the local ASR runner.", "both", "supported"),
+  entry("MINDORY_ASR_HEALTH_LOAD_MODEL", "llm", "boolean", "true", "Load the Faster Whisper model during runner health checks.", "both", "supported"),
+  entry("MINDORY_ASR_TIMEOUT_MS", "llm", "number", "120000", "Per-request ASR timeout in milliseconds.", "both", "supported"),
   entry("MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS", "llm", "number", "120000", "Default timeout for local-command provider healthchecks and operations.", "both", "supported"),
   entry("MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND", "llm", "string", "", "Executable used for local-command provider healthchecks.", "both", "supported", {
     prompt: {

@@ -123,6 +123,9 @@ async function waitForComposeServices(timeoutMs) {
   if (profiles.includes("local-models-ocr")) {
     required.push("ocr");
   }
+  if (profiles.includes("local-models-asr")) {
+    required.push("asr");
+  }
   if (profiles.includes("ollama")) {
     required.push("ollama");
   }

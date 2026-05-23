@@ -161,6 +161,7 @@ x-mindory-env: &mindory-env
   MINDORY_LLM_OLLAMA_BASE_URL: ${MINDORY_LLM_OLLAMA_BASE_URL:-http://ollama:11434}
   MINDORY_LLM_LOCAL_HTTP_BASE_URL: ${MINDORY_LLM_LOCAL_HTTP_BASE_URL:-http://llm:8080}
   MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL: ${MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL:-}
+  MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL: ${MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL:-}
   MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS: ${MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS:-120000}
   MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND: ${MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND:-}
   MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS: ${MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS:-["healthcheck","--role","{role}","--model","{model}"]}
@@ -545,4 +546,41 @@ services:
       start_period: 30s
     volumes:
       - ${MINDORY_HOME:-${HOME}/.mindory}/data/models/tesseract:/data/mindory/models/tesseract
+      - ${MINDORY_HOME:-${HOME}/.mindory}/logs:/data/mindory/logs
+
+  asr:
+    build:
+      context: .
+      dockerfile: deploy/local-models/asr/faster-whisper/Dockerfile
+    profiles: ["local-models-asr"]
+    restart: unless-stopped
+    environment:
+      MINDORY_ASR_HOST: 0.0.0.0
+      MINDORY_ASR_PORT: "8084"
+      MINDORY_ASR_MODEL: ${MINDORY_ASR_MODEL:-Systran/faster-whisper-tiny.en}
+      MINDORY_ASR_DEVICE: ${MINDORY_ASR_DEVICE:-cpu}
+      MINDORY_ASR_COMPUTE_TYPE: ${MINDORY_ASR_COMPUTE_TYPE:-int8}
+      MINDORY_ASR_LANGUAGE: ${MINDORY_ASR_LANGUAGE:-en}
+      MINDORY_ASR_BEAM_SIZE: ${MINDORY_ASR_BEAM_SIZE:-5}
+      MINDORY_ASR_VAD_FILTER: ${MINDORY_ASR_VAD_FILTER:-false}
+      MINDORY_ASR_TIMEOUT_MS: ${MINDORY_ASR_TIMEOUT_MS:-120000}
+      MINDORY_ASR_HEALTH_LOAD_MODEL: ${MINDORY_ASR_HEALTH_LOAD_MODEL:-true}
+      HF_HOME: /data/mindory/models/huggingface
+      XDG_CACHE_HOME: /data/mindory/models/cache
+    ports:
+      - "${MINDORY_ASR_PORT:-8084}:8084"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8084/health', timeout=30).status < 400 else 1)"
+        ]
+      interval: 15s
+      timeout: 30s
+      retries: 20
+      start_period: 120s
+    volumes:
+      - ${MINDORY_HOME:-${HOME}/.mindory}/data/models/whisper:/data/mindory/models/whisper
       - ${MINDORY_HOME:-${HOME}/.mindory}/logs:/data/mindory/logs

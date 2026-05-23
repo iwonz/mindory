@@ -380,6 +380,9 @@ vision captioning/object detection, audio ASR, image face and generation paths.
 supported Tesseract runner; when it is set, `@mindory/llm` sends only OCR calls
 to that endpoint and keeps other local HTTP roles on
 `MINDORY_LLM_LOCAL_HTTP_BASE_URL`.
+`MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL` is the equivalent ASR-specific override
+used by the supported Faster Whisper runner; when it is set, only ASR calls use
+that endpoint.
 The service must answer `GET /health`, `POST /chat/completions`,
 `POST /embeddings`, `POST /embeddings/images`, `POST /ocr`,
 `POST /vision/caption`, `POST /vision/objects`, `POST /asr`,
@@ -461,6 +464,14 @@ For installer-managed OCR, selecting `tesseract-local-ocr` starts the
 The runner-specific knobs are `MINDORY_OCR_PORT`, `MINDORY_OCR_MODEL`,
 `MINDORY_OCR_LANG`, `MINDORY_OCR_PSM`, `MINDORY_OCR_TIMEOUT_MS`,
 `MINDORY_OCR_MAX_PDF_PAGES` and `MINDORY_OCR_HEALTH_LOAD_MODEL`.
+
+For installer-managed ASR, selecting `faster-whisper-tiny-asr` starts the
+`local-models-asr` Compose profile and sets
+`MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL=http://asr:8084`.
+The runner-specific knobs are `MINDORY_ASR_PORT`, `MINDORY_ASR_MODEL`,
+`MINDORY_ASR_DEVICE`, `MINDORY_ASR_COMPUTE_TYPE`, `MINDORY_ASR_LANGUAGE`,
+`MINDORY_ASR_BEAM_SIZE`, `MINDORY_ASR_VAD_FILTER`,
+`MINDORY_ASR_TIMEOUT_MS` and `MINDORY_ASR_HEALTH_LOAD_MODEL`.
 
 ## Web UI
 
