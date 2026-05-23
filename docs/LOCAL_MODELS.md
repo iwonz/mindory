@@ -21,9 +21,11 @@ Each catalog entry records:
 The `TASK-133` through `TASK-147` series targets `v0.1.1` with checked local
 runner paths for OCR, ASR, vision captioning, object detection, image
 embeddings, face detection, face recognition, image generation and audio
-generation. OCR is supported through Tesseract, and ASR is supported through
-Faster Whisper. The remaining runner-specific rows keep their catalog status
-until their implementation and live acceptance tasks are accepted.
+generation. OCR is supported through Tesseract, ASR is supported through Faster
+Whisper, and image caption/object/vector processing is supported through the
+Mindory local image semantics runner. The remaining runner-specific rows keep
+their catalog status until their implementation and live acceptance tasks are
+accepted.
 
 ## Catalog Entries
 
@@ -31,10 +33,9 @@ until their implementation and live acceptance tasks are accepted.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `mindory-deterministic-local-http` | text embeddings, image embeddings, OCR, ASR, vision captioning, face detection, face recognition | `local-http` | supported | Mindory release image, `scripts/local-model-server.mjs` | `8080` | `GET /health` | 1 CPU, 256MB RAM, <100MB disk, no GPU | Apache-2.0 |
 | `ollama-nomic-embed-text` | text embeddings | `ollama` | supported | `ollama/ollama:latest`, `nomic-embed-text` | `11434` | `GET /api/tags` | 2+ CPU, 4GB+ RAM, 1GB+ disk, optional GPU | Apache-2.0 model family; verify upstream model card before redistribution |
-| `openclip-siglip2-image-embedding` | image embeddings | `local-http` | experimental | `https://github.com/mlfoundations/open_clip`, `timm/ViT-L-16-SigLIP2-256` | `8082` | `GET /health` | 4+ CPU, 8GB+ RAM, 5GB+ disk, GPU recommended | MIT runtime; verify upstream model card before redistribution |
+| `mindory-image-semantics-v1` | image embeddings, vision captioning | `local-http` | supported | Mindory image semantics adapter image built from `deploy/local-models/vision/image-semantics/Dockerfile` | `8082` | `GET /health` with sample caption/object/vector pass | 2+ CPU, 2GB+ RAM, 1GB+ disk, no GPU | Apache-2.0 |
 | `tesseract-local-ocr` | OCR | `local-http` | supported | Mindory Tesseract adapter image built from `deploy/local-models/ocr/tesseract/Dockerfile`, `tesseract-ocr-eng` language data | `8083` | `GET /health` with language verification | 2+ CPU, 4GB+ RAM, 1GB+ disk, optional GPU | Apache-2.0 |
 | `faster-whisper-tiny-asr` | ASR | `local-http` | supported | Mindory Faster Whisper adapter image built from `deploy/local-models/asr/faster-whisper/Dockerfile`, `Systran/faster-whisper-tiny.en` | `8084` | `GET /health` with model loading | 4+ CPU, 4GB+ RAM, 1GB+ disk, GPU recommended for long audio | MIT runtime; verify upstream model card before redistribution |
-| `moondream2-vision-captioning` | vision captioning | `local-http` | experimental | `https://huggingface.co/vikhyatk/moondream2` | `8085` | `GET /health` | 4+ CPU, 8GB+ RAM, 8GB+ disk, GPU recommended | Apache-2.0 |
 | `compreface-face-services` | face detection, face recognition | `local-http` | experimental | `exadel/compreface:latest`, `https://github.com/exadel-inc/CompreFace` | `8086` | `GET /health` | 4+ CPU, 8GB+ RAM, 8GB+ disk, optional GPU | Apache-2.0 runtime; verify bundled model licenses before redistribution |
 
 ## Role Coverage
@@ -98,6 +99,20 @@ inside the runner container, posts it to `POST /asr`, requires non-empty
 time-coded transcript segments, and verifies invalid audio produces an
 `asr_failed` diagnostic.
 
+The image semantics runner has a focused live gate for caption, object and
+vector contracts:
+
+```bash
+MINDORY_LOCAL_VISION_ACCEPTANCE_LIVE=true pnpm local-model:acceptance
+```
+
+That gate starts the `local-models-vision` Compose profile, waits for the
+image semantics `/health` response, creates a generated color-shape image
+fixture inside the runner container, posts it to `POST /vision/caption`,
+`POST /vision/objects` and `POST /embeddings/images`, requires caption labels,
+object bounding boxes and a 1536-dimensional image vector, and verifies invalid
+image bytes produce a `vision_failed` diagnostic.
+
 ## Installer Auto-Install
 
 The wizard records local model setup in these generated settings:
@@ -115,7 +130,12 @@ waits for the Tesseract healthcheck and routes PDF/image OCR through
 `@mindory/llm`. Selecting `faster-whisper-tiny-asr` enables
 `local-models-asr`, sets `MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL=http://asr:8084`,
 waits for Faster Whisper model-loading health, and routes audio ASR through
-`@mindory/llm`. Selecting `ollama-nomic-embed-text` enables the `ollama`
+`@mindory/llm`. Selecting `mindory-image-semantics-v1` enables
+`local-models-vision`, sets
+`MINDORY_LLM_IMAGE_EMBEDDING_LOCAL_HTTP_BASE_URL=http://vision:8082` and
+`MINDORY_LLM_VISION_CAPTIONING_LOCAL_HTTP_BASE_URL=http://vision:8082`, waits
+for image semantics health and routes image vectors, captions and object
+observations through `@mindory/llm`. Selecting `ollama-nomic-embed-text` enables the `ollama`
 profile, waits for service health, runs `ollama pull nomic-embed-text`, then
 verifies the model runner with `ollama list`.
 

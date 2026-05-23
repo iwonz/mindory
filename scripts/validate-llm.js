@@ -171,6 +171,8 @@ for (const token of [
   "MINDORY_LLM_OPENAI_OAUTH_ACCESS_TOKEN",
   "MINDORY_LLM_OLLAMA_BASE_URL",
   "MINDORY_LLM_LOCAL_HTTP_BASE_URL",
+  "MINDORY_LLM_IMAGE_EMBEDDING_LOCAL_HTTP_BASE_URL",
+  "MINDORY_LLM_VISION_CAPTIONING_LOCAL_HTTP_BASE_URL",
   "MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL",
   "MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL",
   "MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS",
@@ -204,6 +206,8 @@ for (const token of [
   "MINDORY_LLM_OPENAI_OAUTH_ACCESS_TOKEN",
   "MINDORY_LLM_OLLAMA_BASE_URL",
   "MINDORY_LLM_LOCAL_HTTP_BASE_URL",
+  "MINDORY_LLM_IMAGE_EMBEDDING_LOCAL_HTTP_BASE_URL",
+  "MINDORY_LLM_VISION_CAPTIONING_LOCAL_HTTP_BASE_URL",
   "MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS",
   "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND",
   "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS",
@@ -234,6 +238,8 @@ for (const token of [
   "MINDORY_LLM_OPENAI_OAUTH_ACCESS_TOKEN",
   "MINDORY_LLM_OLLAMA_BASE_URL",
   "MINDORY_LLM_LOCAL_HTTP_BASE_URL",
+  "MINDORY_LLM_IMAGE_EMBEDDING_LOCAL_HTTP_BASE_URL",
+  "MINDORY_LLM_VISION_CAPTIONING_LOCAL_HTTP_BASE_URL",
   "MINDORY_LLM_LOCAL_COMMAND_TIMEOUT_MS",
   "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_COMMAND",
   "MINDORY_LLM_LOCAL_COMMAND_HEALTHCHECK_ARGS",
@@ -491,6 +497,8 @@ const localConfig = loadMindoryConfig({
   MINDORY_LLM_AUDIO_GENERATION_PROVIDER: "local-http",
   MINDORY_LLM_AUDIO_GENERATION_MODEL: "local-audio-generation",
   MINDORY_LLM_LOCAL_HTTP_BASE_URL: "http://llm.local:8080",
+  MINDORY_LLM_IMAGE_EMBEDDING_LOCAL_HTTP_BASE_URL: "http://image.local:8082",
+  MINDORY_LLM_VISION_CAPTIONING_LOCAL_HTTP_BASE_URL: "http://vision.local:8082",
   MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL: "http://ocr.local:8083",
   MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL: "http://asr.local:8084",
   MINDORY_LLM_OLLAMA_BASE_URL: "http://ollama.local:11434"
@@ -682,11 +690,11 @@ assert(localAudioGenerationResult.value?.mimeType === "audio/wav", "Local HTTP a
 assert(localAudioGenerationResult.audit.usage.audioSeconds === 1.5, "Local HTTP audio generation audit must include audio duration.");
 assert(localRequests.some((request) => request.url === "http://llm.local:8080/chat/completions"), "Local HTTP chat provider must call /chat/completions.");
 assert(localRequests.some((request) => request.url === "http://llm.local:8080/embeddings"), "Local HTTP embeddings provider must call /embeddings.");
-assert(localRequests.some((request) => request.url === "http://llm.local:8080/embeddings/images"), "Local HTTP image embeddings provider must call /embeddings/images.");
+assert(localRequests.some((request) => request.url === "http://image.local:8082/embeddings/images"), "Local HTTP image embeddings provider must use the image-embedding-specific base URL override.");
 assert(localRequests.some((request) => request.url === "http://ocr.local:8083/ocr"), "Local HTTP OCR provider must use the OCR-specific base URL override.");
 assert(localRequests.some((request) => request.url === "http://asr.local:8084/asr"), "Local HTTP ASR provider must use the ASR-specific base URL override.");
-assert(localRequests.some((request) => request.url === "http://llm.local:8080/vision/caption"), "Local HTTP vision provider must call /vision/caption.");
-assert(localRequests.some((request) => request.url === "http://llm.local:8080/vision/objects"), "Local HTTP object detection provider must call /vision/objects.");
+assert(localRequests.some((request) => request.url === "http://vision.local:8082/vision/caption"), "Local HTTP vision provider must use the vision-captioning-specific base URL override.");
+assert(localRequests.some((request) => request.url === "http://vision.local:8082/vision/objects"), "Local HTTP object detection provider must use the vision-captioning-specific base URL override.");
 assert(localRequests.some((request) => request.url === "http://llm.local:8080/faces/detect"), "Local HTTP face detection provider must call /faces/detect.");
 assert(localRequests.some((request) => request.url === "http://llm.local:8080/faces/recognize"), "Local HTTP face recognition provider must call /faces/recognize.");
 assert(localRequests.some((request) => request.url === "http://llm.local:8080/generation/image"), "Local HTTP image generation provider must call /generation/image.");

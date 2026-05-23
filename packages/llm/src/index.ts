@@ -557,7 +557,7 @@ export function buildMindoryImageEmbeddingsProvider(
 
   if (imageEmbedding.provider === "local-http") {
     const providerOptions: LocalHttpModelOptions = {
-      baseUrl: config.llm.localHttp.baseUrl,
+      baseUrl: localHttpBaseUrlForRole(config, "image-embedding"),
       model: imageEmbedding.model
     };
     if (imageEmbedding.dimensions !== null) {
@@ -682,7 +682,7 @@ export function buildMindoryVisionProvider(
 
   if (vision.provider === "local-http") {
     const providerOptions: LocalHttpModelOptions = {
-      baseUrl: config.llm.localHttp.baseUrl,
+      baseUrl: localHttpBaseUrlForRole(config, "vision-captioning"),
       model: vision.model
     };
     if (options.fetchImpl !== undefined) {
@@ -2496,6 +2496,12 @@ function localCommandModelOptions(config: MindoryConfig, options: MindoryLlmOpti
 }
 
 function localHttpBaseUrlForRole(config: MindoryConfig, role: LlmRole): string {
+  if (role === "image-embedding" && config.llm.localHttp.imageEmbeddingBaseUrl.trim() !== "") {
+    return config.llm.localHttp.imageEmbeddingBaseUrl;
+  }
+  if (role === "vision-captioning" && config.llm.localHttp.visionCaptioningBaseUrl.trim() !== "") {
+    return config.llm.localHttp.visionCaptioningBaseUrl;
+  }
   if (role === "ocr" && config.llm.localHttp.ocrBaseUrl.trim() !== "") {
     return config.llm.localHttp.ocrBaseUrl;
   }

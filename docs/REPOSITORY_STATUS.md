@@ -6,7 +6,7 @@ The repository should be described with the support levels in
 
 ## Current Baseline
 
-The repository is complete through `TASK-136`.
+The repository is complete through `TASK-137`.
 
 Release baseline:
 
@@ -18,9 +18,9 @@ Release baseline:
   generation, local-command runners and local-http runners into checked
   supported local/install/runtime paths. `TASK-133` registered this contract;
   `TASK-134` promoted the central role/provider support matrix,
-  `TASK-135` added the supported Tesseract OCR runner and `TASK-136` added
-  the supported Faster Whisper ASR runner. `TASK-137` through
-  `TASK-147` execute and verify the remaining runner, installer,
+  `TASK-135` added the supported Tesseract OCR runner, `TASK-136` added
+  the supported Faster Whisper ASR runner and `TASK-137` added the supported
+  image semantics runner. `TASK-138` through `TASK-147` execute and verify the remaining runner, installer,
   acceptance and release work one task at a time.
 
 Supported local MVP path:
@@ -78,6 +78,10 @@ Supported local MVP path:
   `MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL` for PDF/image OCR through `@mindory/llm`.
 - The supported Faster Whisper runner uses the `local-models-asr` profile and
   `MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL` for audio ASR through `@mindory/llm`.
+- The supported image semantics runner uses the `local-models-vision` profile,
+  `MINDORY_LLM_IMAGE_EMBEDDING_LOCAL_HTTP_BASE_URL` and
+  `MINDORY_LLM_VISION_CAPTIONING_LOCAL_HTTP_BASE_URL` for image vectors,
+  captions and object observations through `@mindory/llm`.
 - OpenAI-compatible chat, text embedding, image generation and audio generation
   operations support API-key and OAuth bearer auth through `@mindory/llm`.
 - Local HTTP chat/text embedding/image embedding/OCR/vision/ASR/face/generation
@@ -91,9 +95,11 @@ Supported local MVP path:
   coverage in a temporary Docker home.
 - Scanned-PDF OCR can run through `@mindory/llm` local HTTP or local-command
   OCR when the supported OCR role is enabled.
-- Image OCR and vision captioning can run through `@mindory/llm` local HTTP or
-  local-command providers when the supported OCR and vision-captioning roles
-  are enabled; their derived captions, labels and OCR text are searchable.
+- Image OCR, vision captioning, object detection and image embeddings can run
+  through `@mindory/llm` local HTTP or local-command providers when the
+  supported OCR, vision-captioning and image-embedding roles are enabled; their
+  derived captions, labels, object observations, vectors and OCR text are
+  searchable.
 - Audio ASR can run through `@mindory/llm` local HTTP or local-command when the
   supported ASR role is enabled; derived transcript segments keep time refs for
   search.
@@ -150,7 +156,7 @@ Supported local MVP path:
   self-host live matrix, local-model live acceptance, Web UI Playwright flow,
   CLI/MCP smoke coverage through self-host acceptance, public stale wording
   validation and clean `git status --short`.
-- Public current-state docs are aligned with the TASK-134 runtime baseline and
+- Public current-state docs are aligned with the TASK-137 runtime baseline and
   distinguish checked local-MVP paths from planned release work.
 
 Public GitHub hygiene baseline:

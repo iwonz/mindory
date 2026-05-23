@@ -213,7 +213,12 @@ labels and detected object observations in derived artifacts, and includes them
 in searchable chunk text. When `MINDORY_LLM_IMAGE_EMBEDDING_ENABLED=true`, the
 extractor calls the configured `@mindory/llm` image embedding provider and the
 worker indexes the resulting `image_embedding` artifact vector through the
-selected vector backend.
+selected vector backend. Selecting `mindory-image-semantics-v1` in the
+installer starts the `local-models-vision` profile and sets
+`MINDORY_LLM_IMAGE_EMBEDDING_LOCAL_HTTP_BASE_URL=http://vision:8082` plus
+`MINDORY_LLM_VISION_CAPTIONING_LOCAL_HTTP_BASE_URL=http://vision:8082`, so
+image vectors, captions and object observations come from the dedicated local
+image semantics runner without changing RAW originals.
 Disabled OCR/vision remains non-blocking and falls back to deterministic
 metadata/embedded text extraction. If a role is marked required and its
 provider fails or returns no usable output, extraction fails with a readable
@@ -377,8 +382,11 @@ the Jobs API `details` response.
 local HTTP embedding service, waits for `indexed` document status and verifies
 document search returns source-backed chunk hits.
 
-`TASK-125` adds `pnpm local-model:acceptance` for the supported deterministic
-local HTTP profile. Dry-run mode is part of `pnpm check`; live mode is enabled
-with `MINDORY_LOCAL_MODEL_ACCEPTANCE_LIVE=true` and verifies text, PDF OCR,
-image OCR/caption, audio ASR, video keyframe, face, source-ref, job, unified
-search and model-operation metric coverage.
+`pnpm local-model:acceptance` covers the supported deterministic local HTTP
+profile in dry-run mode as part of `pnpm check`. Focused live gates are enabled
+with `MINDORY_LOCAL_MODEL_ACCEPTANCE_LIVE=true`,
+`MINDORY_LOCAL_OCR_ACCEPTANCE_LIVE=true`,
+`MINDORY_LOCAL_ASR_ACCEPTANCE_LIVE=true` or
+`MINDORY_LOCAL_VISION_ACCEPTANCE_LIVE=true` and verify text, OCR, ASR, image
+caption/object/vector, video keyframe, face, source-ref, job, unified search
+and model-operation metric coverage.

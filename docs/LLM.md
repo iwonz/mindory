@@ -26,6 +26,7 @@ this must be empty or `1536`.
 The default local model names are examples, not mandatory services:
 
 - image embeddings: `CLIP ViT-L-16-SigLIP2-256__webli`
+- local image semantics: `mindory-image-semantics-v1`
 - OCR: `tesseract-eng`
 - face detection and recognition: `buffalo_l`
 
@@ -38,7 +39,8 @@ The local install catalog lives in `LOCAL_MODEL_RUNNER_CATALOG` from
 `@mindory/config` and is documented in `docs/LOCAL_MODELS.md`. It records the
 runner id, model role coverage, provider contract, image or source, model
 files, license/status, ports, healthcheck and CPU/RAM/disk/GPU hints for text
-embeddings, OCR, ASR, vision captioning, image embeddings and face roles.
+embeddings, image semantics, OCR, ASR, vision captioning, image embeddings and
+face roles.
 
 ## v0.1.1 Promotion Target
 
@@ -160,6 +162,18 @@ The Tesseract container also honors `MINDORY_OCR_PORT`, `MINDORY_OCR_MODEL`,
 `MINDORY_OCR_LANG`, `MINDORY_OCR_MAX_PDF_PAGES` and
 `MINDORY_OCR_HEALTH_LOAD_MODEL`.
 
+`MINDORY_LLM_IMAGE_EMBEDDING_LOCAL_HTTP_BASE_URL` and
+`MINDORY_LLM_VISION_CAPTIONING_LOCAL_HTTP_BASE_URL` are supported image-only
+endpoint overrides. The installer sets both to `http://vision:8082` when
+`mindory-image-semantics-v1` is selected, so image vectors, captions and object
+observations use the dedicated image semantics service while other local HTTP
+roles can continue using the general `MINDORY_LLM_LOCAL_HTTP_BASE_URL` service.
+The image semantics container also honors `MINDORY_IMAGE_SEMANTICS_PORT`,
+`MINDORY_IMAGE_SEMANTICS_MODEL`,
+`MINDORY_IMAGE_SEMANTICS_EMBEDDING_DIMENSIONS`,
+`MINDORY_IMAGE_SEMANTICS_MIN_OBJECT_AREA_RATIO` and
+`MINDORY_IMAGE_SEMANTICS_HEALTH_LOAD_MODEL`.
+
 `MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL` is a supported ASR-only endpoint override.
 The installer sets it to `http://asr:8084` when `faster-whisper-tiny-asr` is
 selected, so Faster Whisper handles audio transcript segments while other
@@ -178,10 +192,15 @@ The local HTTP contract is intentionally small:
   `{ text }` / `{ output }` body.
 - `POST /embeddings` accepts `{ model, input, dimensions }` and returns either
   OpenAI-compatible `{ data: [{ index, embedding }] }` or `{ embeddings }`.
+- `POST /embeddings/images` accepts `{ model, images, dimensions }` where each
+  image has `mime_type` and `data_base64`, and returns `{ embeddings }`.
 - `POST /ocr` accepts `{ model, mime_type, data_base64 }` and returns `{ text }`
   or `{ pages: [{ page_number, text, confidence }] }` for OCR-capable roles.
 - `POST /vision/caption` accepts `{ model, mime_type, data_base64 }` and
   returns `{ caption, labels }` or `{ text, labels }` for image captioning.
+- `POST /vision/objects` accepts `{ model, mime_type, data_base64 }` and
+  returns `{ objects, labels }`, where each object has `label`, optional
+  `confidence` and optional `bounding_box`.
 - `POST /asr` accepts `{ model, mime_type, data_base64 }` and returns
   `{ text, segments }`, where each segment may include `segment_index`,
   `start_ms`, `end_ms` and `confidence`.

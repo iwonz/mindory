@@ -9,6 +9,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const live = process.env.MINDORY_LOCAL_MODEL_ACCEPTANCE_LIVE === "true";
 const ocrLive = process.env.MINDORY_LOCAL_OCR_ACCEPTANCE_LIVE === "true";
 const asrLive = process.env.MINDORY_LOCAL_ASR_ACCEPTANCE_LIVE === "true";
+const visionLive = process.env.MINDORY_LOCAL_VISION_ACCEPTANCE_LIVE === "true";
 const timeoutMs = parsePositiveInteger(process.env.MINDORY_LOCAL_MODEL_ACCEPTANCE_TIMEOUT_MS ?? "300000", "MINDORY_LOCAL_MODEL_ACCEPTANCE_TIMEOUT_MS");
 
 const FONT = {
@@ -55,7 +56,10 @@ if (ocrLive) {
 if (asrLive) {
   await runAsrRunnerLiveAcceptance();
 }
-if (!live && !ocrLive && !asrLive) {
+if (visionLive) {
+  await runVisionRunnerLiveAcceptance();
+}
+if (!live && !ocrLive && !asrLive && !visionLive) {
   runDryRunAcceptance();
 }
 
@@ -70,6 +74,7 @@ function runDryRunAcceptance() {
   const compose = fs.readFileSync(path.join(root, "docker-compose.yml"), "utf8");
   const tesseractServer = fs.readFileSync(path.join(root, "deploy", "local-models", "ocr", "tesseract", "server.py"), "utf8");
   const asrServer = fs.readFileSync(path.join(root, "deploy", "local-models", "asr", "faster-whisper", "server.py"), "utf8");
+  const visionServer = fs.readFileSync(path.join(root, "deploy", "local-models", "vision", "image-semantics", "server.py"), "utf8");
 
   assert(packageJson.scripts?.["local-model:acceptance"] === "node scripts/local-model-acceptance.js", "Root package must expose local-model:acceptance.");
   assert(checkRepo.includes("local-model:acceptance"), "Repository checks must include local-model:acceptance.");
@@ -111,7 +116,12 @@ function runDryRunAcceptance() {
     "local-models-asr",
     "deploy/local-models/asr/faster-whisper/Dockerfile",
     "MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL",
-    "MINDORY_ASR_HEALTH_LOAD_MODEL"
+    "MINDORY_ASR_HEALTH_LOAD_MODEL",
+    "local-models-vision",
+    "deploy/local-models/vision/image-semantics/Dockerfile",
+    "MINDORY_LLM_IMAGE_EMBEDDING_LOCAL_HTTP_BASE_URL",
+    "MINDORY_LLM_VISION_CAPTIONING_LOCAL_HTTP_BASE_URL",
+    "MINDORY_IMAGE_SEMANTICS_HEALTH_LOAD_MODEL"
   ]) {
     assert(compose.includes(token), `Local model Compose profile must include ${token}.`);
   }
@@ -121,8 +131,12 @@ function runDryRunAcceptance() {
   for (const token of ["faster_whisper", "WhisperModel", "POST", "/asr", "segment_index", "start_ms", "end_ms"]) {
     assert(asrServer.includes(token), `Faster Whisper ASR runner server must include ${token}.`);
   }
+  for (const token of ["numpy", "PIL", "POST", "/embeddings/images", "/vision/caption", "/vision/objects", "bounding_box", "image_embedding_failed"]) {
+    assert(visionServer.includes(token), `Image semantics runner server must include ${token}.`);
+  }
   assert(localModelsDocs.includes("MINDORY_LOCAL_OCR_ACCEPTANCE_LIVE=true"), "Local model docs must document live Tesseract acceptance.");
   assert(localModelsDocs.includes("MINDORY_LOCAL_ASR_ACCEPTANCE_LIVE=true"), "Local model docs must document live Faster Whisper acceptance.");
+  assert(localModelsDocs.includes("MINDORY_LOCAL_VISION_ACCEPTANCE_LIVE=true"), "Local model docs must document live image semantics acceptance.");
   console.log("Local model acceptance dry-run passed. Set MINDORY_LOCAL_MODEL_ACCEPTANCE_LIVE=true to run the Docker local-model path.");
 }
 
@@ -227,6 +241,49 @@ async function runAsrRunnerLiveAcceptance() {
   }
 }
 
+async function runVisionRunnerLiveAcceptance() {
+  const visionPort = await findFreePort(8082 + Math.floor(Math.random() * 1000));
+  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-local-vision-acceptance-"));
+  const env = {
+    ...process.env,
+    MINDORY_HOME: tempHome,
+    MINDORY_IMAGE_SEMANTICS_PORT: String(visionPort),
+    MINDORY_LLM_IMAGE_EMBEDDING_LOCAL_HTTP_BASE_URL: `http://vision:8082`,
+    MINDORY_LLM_VISION_CAPTIONING_LOCAL_HTTP_BASE_URL: `http://vision:8082`,
+    MINDORY_LLM_IMAGE_EMBEDDING_MODEL: "mindory-image-embedding-v1",
+    MINDORY_LLM_VISION_CAPTIONING_MODEL: "mindory-vision-captioning-v1"
+  };
+  try {
+    run("docker", ["compose", "--profile", "local-models-vision", "up", "--build", "-d", "vision"], env);
+    const baseUrl = `http://127.0.0.1:${visionPort}`;
+    await waitForHttpOk(`${baseUrl}/health`, timeoutMs);
+    const fixture = createVisionFixtureWithDocker(env);
+    const caption = await postVisionCaption(baseUrl, fixture, "image/png");
+    assert(typeof caption.caption === "string" && caption.caption.includes("Image semantics:"), "Image semantics live caption must include the generated analysis caption.");
+    assert(Array.isArray(caption.labels) && caption.labels.some((label) => String(label).includes("red")), "Image semantics live caption must include color-derived labels.");
+    const objects = await postVisionObjects(baseUrl, fixture, "image/png");
+    assert(Array.isArray(objects.objects) && objects.objects.some((object) => String(object.label).includes("red")), "Image semantics live object detection must return color object observations.");
+    assert(objects.objects.some((object) => object.bounding_box && Number(object.bounding_box.width) > 0), "Image semantics live object detection must include bounding boxes.");
+    const embeddings = await postImageEmbeddings(baseUrl, fixture, "image/png", 1536);
+    assert(Array.isArray(embeddings.embeddings?.[0]) && embeddings.embeddings[0].length === 1536, "Image semantics live embedding must return the requested vector dimensions.");
+    await assertVisionFailureDiagnostics(baseUrl);
+    console.log("Image semantics live acceptance passed.");
+  } catch (error) {
+    try {
+      run("docker", ["compose", "--profile", "local-models-vision", "logs", "vision"], env);
+    } catch {
+      // Keep the original acceptance error when log collection itself fails.
+    }
+    throw error;
+  } finally {
+    try {
+      run("docker", ["compose", "--profile", "local-models-vision", "down", "--remove-orphans"], env);
+    } finally {
+      removeIfSafeTempPath(tempHome);
+    }
+  }
+}
+
 async function waitForHttpOk(url, timeout) {
   const deadline = Date.now() + timeout;
   let lastError = "";
@@ -243,6 +300,60 @@ async function waitForHttpOk(url, timeout) {
     await new Promise((resolve) => setTimeout(resolve, 2000));
   }
   throw new Error(`Timed out waiting for ${url}: ${lastError}`);
+}
+
+async function postVisionCaption(baseUrl, bytes, mimeType) {
+  const response = await fetch(`${baseUrl}/vision/caption`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      model: "mindory-vision-captioning-v1",
+      mime_type: mimeType,
+      data_base64: bytes.toString("base64")
+    })
+  });
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(`Vision caption request failed with ${response.status}: ${text}`);
+  }
+  return JSON.parse(text);
+}
+
+async function postVisionObjects(baseUrl, bytes, mimeType) {
+  const response = await fetch(`${baseUrl}/vision/objects`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      model: "mindory-vision-captioning-v1",
+      mime_type: mimeType,
+      data_base64: bytes.toString("base64")
+    })
+  });
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(`Vision object request failed with ${response.status}: ${text}`);
+  }
+  return JSON.parse(text);
+}
+
+async function postImageEmbeddings(baseUrl, bytes, mimeType, dimensions) {
+  const response = await fetch(`${baseUrl}/embeddings/images`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      model: "mindory-image-embedding-v1",
+      dimensions,
+      images: [{
+        mime_type: mimeType,
+        data_base64: bytes.toString("base64")
+      }]
+    })
+  });
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(`Image embedding request failed with ${response.status}: ${text}`);
+  }
+  return JSON.parse(text);
 }
 
 async function postOcr(baseUrl, bytes, mimeType) {
@@ -279,6 +390,21 @@ async function postAsr(baseUrl, bytes, mimeType) {
   return JSON.parse(text);
 }
 
+async function assertVisionFailureDiagnostics(baseUrl) {
+  const response = await fetch(`${baseUrl}/vision/caption`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      model: "mindory-vision-captioning-v1",
+      mime_type: "image/png",
+      data_base64: Buffer.from("not an image").toString("base64")
+    })
+  });
+  const text = await response.text();
+  assert(!response.ok, "Image semantics live caption must reject invalid image bytes.");
+  assert(text.includes("vision_failed"), "Image semantics live failure response must include vision_failed diagnostics.");
+}
+
 async function assertAsrFailureDiagnostics(baseUrl) {
   const response = await fetch(`${baseUrl}/asr`, {
     method: "POST",
@@ -304,6 +430,33 @@ function extractAsrText(payload) {
   const direct = typeof payload.text === "string" ? payload.text : "";
   const segments = Array.isArray(payload.segments) ? payload.segments.map((segment) => segment?.text ?? "").join("\n") : "";
   return `${direct}\n${segments}`.trim();
+}
+
+function createVisionFixtureWithDocker(env) {
+  const script = `
+import base64
+import io
+import sys
+from PIL import Image, ImageDraw
+
+image = Image.new("RGB", (420, 260), "white")
+draw = ImageDraw.Draw(image)
+draw.rectangle((28, 40, 150, 210), fill=(225, 25, 25))
+draw.ellipse((178, 55, 310, 190), fill=(30, 165, 60))
+draw.rectangle((320, 80, 395, 205), fill=(30, 70, 215))
+buffer = io.BytesIO()
+image.save(buffer, format="PNG")
+sys.stdout.write(base64.b64encode(buffer.getvalue()).decode("ascii"))
+`;
+  const result = spawnSync("docker", ["compose", "--profile", "local-models-vision", "exec", "-T", "vision", "python", "-c", script], {
+    cwd: root,
+    env,
+    encoding: "utf8"
+  });
+  if ((result.status ?? 1) !== 0) {
+    throw new Error(`Could not create vision image fixture: ${(result.stderr || result.stdout).trim()}`);
+  }
+  return Buffer.from(result.stdout.trim(), "base64");
 }
 
 function createTextPngWithDocker(env, text) {

@@ -49,6 +49,11 @@ for (const token of [
   "deploy/local-models/asr/faster-whisper/Dockerfile",
   "MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL",
   "MINDORY_ASR_HEALTH_LOAD_MODEL",
+  "profiles: [\"local-models-vision\"]",
+  "deploy/local-models/vision/image-semantics/Dockerfile",
+  "MINDORY_LLM_IMAGE_EMBEDDING_LOCAL_HTTP_BASE_URL",
+  "MINDORY_LLM_VISION_CAPTIONING_LOCAL_HTTP_BASE_URL",
+  "MINDORY_IMAGE_SEMANTICS_HEALTH_LOAD_MODEL",
   "profiles: [\"ollama\"]",
   "ollama/ollama:latest",
   "test: [\"CMD\", \"ollama\", \"list\"]",
@@ -90,12 +95,14 @@ for (const assetPath of [
   "deploy/local-models/ocr/tesseract/Dockerfile",
   "deploy/local-models/ocr/tesseract/server.py",
   "deploy/local-models/asr/faster-whisper/Dockerfile",
-  "deploy/local-models/asr/faster-whisper/server.py"
+  "deploy/local-models/asr/faster-whisper/server.py",
+  "deploy/local-models/vision/image-semantics/Dockerfile",
+  "deploy/local-models/vision/image-semantics/server.py"
 ]) {
   assert(releaseManifest.assets?.some((asset) => asset.path === assetPath && asset.required === true), `Release manifest must include local model runner asset ${assetPath}.`);
 }
 
-for (const token of ["MINDORY_LOCAL_OCR_ACCEPTANCE_LIVE", "createTextPngWithDocker", "createTextPdfBuffer", "/ocr", "MINDORY_LOCAL_ASR_ACCEPTANCE_LIVE", "createAsrFixtureWithDocker", "/asr"]) {
+for (const token of ["MINDORY_LOCAL_OCR_ACCEPTANCE_LIVE", "createTextPngWithDocker", "createTextPdfBuffer", "/ocr", "MINDORY_LOCAL_ASR_ACCEPTANCE_LIVE", "createAsrFixtureWithDocker", "/asr", "MINDORY_LOCAL_VISION_ACCEPTANCE_LIVE", "createVisionFixtureWithDocker", "/embeddings/images", "/vision/caption", "/vision/objects"]) {
   assert(localModelAcceptance.includes(token), `Local model acceptance must include live runner token ${token}.`);
 }
 

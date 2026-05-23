@@ -1437,6 +1437,43 @@ assert(asrWizardAnswers.llmRoles.ASR.model === "Systran/faster-whisper-tiny.en",
 assert(asrWizardAnswers.llmProviders.localHttpAsrBaseUrl === "http://asr:8084", "Faster Whisper runner selection must set the ASR-specific local HTTP endpoint.");
 assert(installer.composeProfilesForAnswers(asrWizardAnswers).includes("local-models-asr"), "Faster Whisper wizard answers must enable local-models-asr.");
 
+const imageSemanticsWizardAnswers = await installer.runInstallWizard({
+  async prompt(prompt) {
+    if (prompt.id === "local_models.auto_install") {
+      return "true";
+    }
+    if (prompt.id === "local_models.runner.mindory-image-semantics-v1.enabled") {
+      return "true";
+    }
+    if (prompt.id.startsWith("local_models.runner.")) {
+      return "false";
+    }
+    if (prompt.id === "local_models.pull_retries") {
+      return "2";
+    }
+    if (prompt.id.startsWith("llm.IMAGE_EMBEDDING.") || prompt.id.startsWith("llm.VISION_CAPTIONING.")) {
+      return "";
+    }
+    if (prompt.id.startsWith("llm.")) {
+      return "false";
+    }
+    return scriptedResponses.get(prompt.id) ?? "";
+  },
+  async confirm() {
+    return true;
+  }
+});
+assert(imageSemanticsWizardAnswers.localModels.selectedRunnerIds.includes("mindory-image-semantics-v1"), "Wizard must select the supported image semantics local runner.");
+assert(imageSemanticsWizardAnswers.llmRoles.IMAGE_EMBEDDING.enabled === true, "Image semantics runner selection must keep image embeddings enabled by default.");
+assert(imageSemanticsWizardAnswers.llmRoles.IMAGE_EMBEDDING.provider === "local-http", "Image semantics runner selection must configure image embeddings through local-http.");
+assert(imageSemanticsWizardAnswers.llmRoles.IMAGE_EMBEDDING.model === "mindory-image-embedding-v1", "Image semantics runner selection must use the catalog image embedding model.");
+assert(imageSemanticsWizardAnswers.llmRoles.IMAGE_EMBEDDING.dimensions === 1536, "Image semantics runner selection must set image embedding dimensions.");
+assert(imageSemanticsWizardAnswers.llmRoles.VISION_CAPTIONING.enabled === true, "Image semantics runner selection must keep vision captioning enabled by default.");
+assert(imageSemanticsWizardAnswers.llmRoles.VISION_CAPTIONING.model === "mindory-vision-captioning-v1", "Image semantics runner selection must use the catalog vision model.");
+assert(imageSemanticsWizardAnswers.llmProviders.localHttpImageEmbeddingBaseUrl === "http://vision:8082", "Image semantics runner selection must set the image-embedding-specific local HTTP endpoint.");
+assert(imageSemanticsWizardAnswers.llmProviders.localHttpVisionCaptioningBaseUrl === "http://vision:8082", "Image semantics runner selection must set the vision-captioning-specific local HTTP endpoint.");
+assert(installer.composeProfilesForAnswers(imageSemanticsWizardAnswers).includes("local-models-vision"), "Image semantics wizard answers must enable local-models-vision.");
+
 const supportedLocalCommandAnswers = installer.createDefaultInstallAnswers({
   llmRoles: {
     IMAGE_EMBEDDING: {
