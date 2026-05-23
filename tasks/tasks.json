@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-116",
+  "current_task_id": "TASK-117",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -848,6 +848,13 @@
       "status": "done",
       "branch": "task/TASK-116-embed-ci-video-fixture",
       "file": "tasks/TASK-116.json"
+    },
+    {
+      "id": "TASK-117",
+      "title": "Add video fixture extraction preflight",
+      "status": "done",
+      "branch": "task/TASK-117-video-fixture-preflight",
+      "file": "tasks/TASK-117.json"
     }
   ]
 }

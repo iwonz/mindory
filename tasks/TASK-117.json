@@ -1,0 +1,56 @@
+{
+  "id": "TASK-117",
+  "title": "Add video fixture extraction preflight",
+  "status": "done",
+  "type": "test",
+  "priority": "high",
+  "branch": "task/TASK-117-video-fixture-preflight",
+  "created_at": "2026-05-23",
+  "updated_at": "2026-05-23",
+  "context": {
+    "summary": "Make the integration video scenario robust when the host ffmpeg available in CI cannot extract frames from the embedded MP4 fixture.",
+    "background": "TASK-116 removed ffmpeg encoder dependency from the fixture setup. GitHub CI then reached worker processing but timed out waiting for video chunking, while the same ffmpeg path passed locally."
+  },
+  "scope": {
+    "in": [
+      "Preflight host ffmpeg against the embedded MP4 fixture before selecting the integration video provider.",
+      "Use the real ffmpeg provider when the current environment can extract frames.",
+      "Use a deterministic manifest video fixture when host ffmpeg cannot process the embedded MP4 in that environment.",
+      "Keep the video upload/search/assertion flow active in both modes.",
+      "Validate tasks and repository checks before merge."
+    ],
+    "out": [
+      "Changing product video processing behavior.",
+      "Changing release signing or GitHub repository settings.",
+      "Changing the public release version number."
+    ]
+  },
+  "acceptance_criteria": [
+    "The integration video test preflights ffmpeg extraction before selecting the ffmpeg provider.",
+    "The ffmpeg provider remains covered when host ffmpeg can extract frames from the embedded fixture.",
+    "The manifest provider keeps video upload/search integration covered when host ffmpeg is unsuitable.",
+    "Task registry includes TASK-117 and validates.",
+    "pnpm check passes locally before merge."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm test",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Confirm GitHub CI failure after TASK-116 timed out waiting for video document chunking."
+    ]
+  },
+  "dependencies": [
+    "TASK-116"
+  ],
+  "risks": [
+    "GitHub release may reveal a later publishing-only issue after repository checks pass."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is done.",
+    "Branch is committed and merged back into master."
+  ]
+}

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import http from "node:http";
 import net from "node:net";
 import os from "node:os";
@@ -28,6 +28,7 @@ const queuePrefix = `mindory:test:${testRunId}`;
 const nativePdfFixture = JSON.parse(await readFile(path.join(root, "fixtures/docling/native-pdf.json"), "utf8"));
 const scannedPdfFixture = JSON.parse(await readFile(path.join(root, "fixtures/docling/scanned-pdf.json"), "utf8"));
 const ffmpegVideoFixturePath = path.join(root, "fixtures/video/ffmpeg-keyframe-fixture.mp4.base64");
+const videoFixturePlan = await buildVideoFixturePlan();
 const testEnv = {
   ...process.env,
   MINDORY_LOG_LEVEL: "error",
@@ -255,7 +256,7 @@ test("MVP runtime integration covers auth, upload, worker jobs and context", { t
     MINDORY_OTEL_LOG_EXPORT_ENDPOINT: logCollector.url,
     MINDORY_DOCLING_ENABLED: "true",
     MINDORY_DOCLING_URL: doclingService.baseUrl,
-    MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_PROVIDER: "ffmpeg",
+  MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_PROVIDER: videoFixturePlan.keyframeProvider,
     MINDORY_DOCUMENT_PROCESSING_VIDEO_FFMPEG_COMMAND: process.env.MINDORY_TEST_FFMPEG_BIN ?? "ffmpeg",
     MINDORY_DOCUMENT_PROCESSING_VIDEO_FFPROBE_COMMAND: process.env.MINDORY_TEST_FFPROBE_BIN ?? "ffprobe",
     MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_TIMEOUT_MS: "30000",
@@ -1235,7 +1236,7 @@ async function uploadAndProcessAudioDocument(apiUrl) {
 }
 
 async function uploadAndProcessVideoDocument(apiUrl) {
-  const video = await buildFfmpegVideoFixture();
+  const video = buildVideoFixture();
   const form = new FormData();
   form.append("projectId", projectId);
   form.append("title", "Integration video document");
@@ -1271,8 +1272,8 @@ async function uploadAndProcessVideoDocument(apiUrl) {
   assert.equal(document.metadata.extraction.frame_count, 3);
   assert.equal(document.metadata.extraction.manifest_frame_count, 3);
   assert.equal(document.metadata.extraction.max_keyframes, 3);
-  assert.equal(document.metadata.extraction.keyframe_provider, "ffmpeg");
-  assert.equal(document.metadata.extraction.ffmpeg_command, process.env.MINDORY_TEST_FFMPEG_BIN ?? "ffmpeg");
+  assert.equal(document.metadata.extraction.keyframe_provider, videoFixturePlan.keyframeProvider);
+  assert.equal(document.metadata.extraction.ffmpeg_command, videoFixturePlan.keyframeProvider === "ffmpeg" ? process.env.MINDORY_TEST_FFMPEG_BIN ?? "ffmpeg" : "");
   assert.equal(document.metadata.extraction.capabilities.vision_captioning.status, "provider_caption");
   assert.equal(document.metadata.extraction.capabilities.ocr.status, "provider_ocr");
 
@@ -1294,8 +1295,8 @@ async function uploadAndProcessVideoDocument(apiUrl) {
   assert.equal(await countDocumentTextSpans(projectId, documentId, "video_keyframe_description", databaseUrl), 3);
   const mediaMetadata = await getDocumentMediaMetadata(projectId, documentId, databaseUrl);
   assert.equal(mediaMetadata.media_type, "video");
-  assert.equal(mediaMetadata.duration_ms, null);
-  assert.equal(mediaMetadata.codec, null);
+  assert.equal(mediaMetadata.duration_ms, videoFixturePlan.keyframeProvider === "manifest" ? 3000 : null);
+  assert.equal(mediaMetadata.codec, videoFixturePlan.keyframeProvider === "manifest" ? "manifest" : null);
 
   return {
     documentId,
@@ -2217,9 +2218,70 @@ function getFreePort() {
   });
 }
 
-async function buildFfmpegVideoFixture() {
+async function buildVideoFixturePlan() {
   const fixture = await readFile(ffmpegVideoFixturePath, "utf8");
-  return Buffer.from(fixture.replace(/\s+/g, ""), "base64");
+  const bytes = Buffer.from(fixture.replace(/\s+/g, ""), "base64");
+  if (await canExtractFfmpegVideoFixture(bytes)) {
+    return {
+      keyframeProvider: "ffmpeg",
+      bytes
+    };
+  }
+  console.warn("ffmpeg video fixture preflight failed; using manifest video fixture for this integration run.");
+  return {
+    keyframeProvider: "manifest",
+    bytes: buildVideoManifestFile({
+      durationMs: 3000,
+      codec: "manifest",
+      frames: [
+        videoManifestFrame(0, "passport in hand at airport"),
+        videoManifestFrame(1000, "dogs near luggage"),
+        videoManifestFrame(2000, "nature through a window")
+      ]
+    })
+  };
+}
+
+function buildVideoFixture() {
+  return Buffer.from(videoFixturePlan.bytes);
+}
+
+async function canExtractFfmpegVideoFixture(bytes) {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "mindory-ffmpeg-preflight-"));
+  const inputPath = path.join(tempDir, "input.mp4");
+  const outputPattern = path.join(tempDir, "frame-%06d.png");
+  try {
+    await writeFile(inputPath, bytes);
+    runCommand(process.env.MINDORY_TEST_FFMPEG_BIN ?? "ffmpeg", [
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-y",
+      "-i",
+      inputPath,
+      "-vf",
+      "fps=1",
+      "-frames:v",
+      "3",
+      outputPattern
+    ]);
+    return true;
+  } catch {
+    return false;
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+}
+
+function videoManifestFrame(timestampMs, text) {
+  return {
+    timestampMs,
+    description: `video-frame ${text}`,
+    labels: text.split(/\s+/).filter(Boolean),
+    imageDataBase64: buildMinimalPng({ width: 16, height: 10, text: `video-frame ${text}` }).toString("base64"),
+    mimeType: "image/png",
+    source: "manifest_keyframes"
+  };
 }
 
 function decodeBase64Text(value) {
