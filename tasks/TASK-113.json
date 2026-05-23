@@ -1,7 +1,7 @@
 {
   "id": "TASK-113",
   "title": "Run final GitHub public readiness gate",
-  "status": "draft",
+  "status": "done",
   "type": "release",
   "priority": "high",
   "branch": "task/TASK-113-final-github-public-readiness-gate",

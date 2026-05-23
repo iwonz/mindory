@@ -6,7 +6,7 @@ The repository should be described with the support levels in
 
 ## Current Baseline
 
-The repository is complete through `TASK-111`.
+The repository is complete through `TASK-113`.
 
 Supported local MVP path:
 
@@ -14,8 +14,10 @@ Supported local MVP path:
 - `pnpm test` runs integration tests with PostgreSQL and Redis.
 - `pnpm mvp:demo` starts the local Docker Compose demo and runs live acceptance.
 - `pnpm selfhost:acceptance` runs the public self-host dry-run gate; setting
-  `MINDORY_SELFHOST_ACCEPTANCE_LIVE=true` runs installer start, MVP acceptance,
-  backup, reset and uninstall in a temporary home.
+  `MINDORY_SELFHOST_ACCEPTANCE_LIVE=true` runs the live release-readiness
+  matrix for sync ClamAV, pgvector with Docling, Qdrant with deterministic
+  local embeddings, live MVP acceptance, backup, signed remote update, reset
+  and uninstall in temporary homes.
 - The installer can plan, prepare, start through health checks, provision the
   first project/token, update local assets, create runtime backups, restore
   runtime backups and uninstall with confirmation.
@@ -81,8 +83,8 @@ Supported local MVP path:
   `.mindorys3bak` streaming archive generation, progress events, encrypted
   object chunk storage and restore into an S3-compatible bucket with integrity
   validation.
-- Public self-host acceptance is documented as the release-readiness gate for
-  local self-host users.
+- Public self-host acceptance is the release-readiness gate for local self-host
+  users and is required by `docs/RELEASE_CHECKLIST.md` before publication.
 
 Public GitHub hygiene baseline:
 
