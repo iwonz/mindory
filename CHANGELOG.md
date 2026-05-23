@@ -20,6 +20,8 @@ documentation.
 
 ### Added
 
+- `TASK-121`: live Docker self-host release gate command with dry-run mode and
+  backup/restore smoke coverage in self-host acceptance.
 - `TASK-120`: published GitHub pre-release bootstrap acceptance for public
   manifest URLs, signed verification, bundle checksum and packaged installer
   dry-run.

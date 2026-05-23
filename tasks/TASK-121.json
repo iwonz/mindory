@@ -1,0 +1,60 @@
+{
+  "id": "TASK-121",
+  "title": "Harden live Docker self-host acceptance gate",
+  "status": "done",
+  "type": "test",
+  "priority": "high",
+  "branch": "task/TASK-121-live-docker-selfhost-acceptance-gate",
+  "created_at": "2026-05-23",
+  "updated_at": "2026-05-23",
+  "context": {
+    "summary": "Make the live Docker self-host acceptance path an explicit release gate and add backup/restore smoke coverage.",
+    "background": "TASK-120 verifies public pre-release bootstrap assets without starting Docker. The next gate must verify the live self-host stack lifecycle through installer startup, runtime acceptance, backup/restore smoke and uninstall."
+  },
+  "scope": {
+    "in": [
+      "Add an explicit selfhost:gate command for the live Docker release gate.",
+      "Keep selfhost:acceptance dry-run in pnpm check.",
+      "Add backup/restore smoke coverage to dry-run and live self-host acceptance.",
+      "Document the release-gate command and its dry-run option.",
+      "Validate gate wiring through the existing dry-run acceptance path."
+    ],
+    "out": [
+      "Changing Docker service implementations.",
+      "Changing local model auto-install profiles.",
+      "Adding Web UI implementation.",
+      "Running the full live Docker gate in normal pnpm check."
+    ]
+  },
+  "acceptance_criteria": [
+    "pnpm selfhost:gate runs the live self-host acceptance with MINDORY_SELFHOST_ACCEPTANCE_LIVE=true.",
+    "pnpm selfhost:gate -- --dry-run runs the non-Docker dry-run acceptance path.",
+    "Dry-run self-host acceptance creates a real config-only backup and restores it before uninstall.",
+    "Live self-host acceptance creates a runtime backup and runs a restore smoke that does not replace live PostgreSQL data.",
+    "Docs and release checklist refer to pnpm selfhost:gate as the live Docker release gate.",
+    "pnpm selfhost:acceptance, pnpm selfhost:gate -- --dry-run, pnpm tasks:validate and pnpm check pass before merge."
+  ],
+  "verification": {
+    "commands": [
+      "pnpm selfhost:acceptance",
+      "pnpm selfhost:gate -- --dry-run",
+      "pnpm tasks:validate",
+      "pnpm check"
+    ],
+    "manual_checks": [
+      "Run pnpm selfhost:gate on a Docker-capable machine before final public release.",
+      "Confirm the live gate still leaves temporary MINDORY_HOME directories cleaned up."
+    ]
+  },
+  "dependencies": [
+    "TASK-120"
+  ],
+  "risks": [
+    "The full live gate is intentionally expensive and remains opt-in outside final release checks."
+  ],
+  "definition_of_done": [
+    "All acceptance criteria are satisfied.",
+    "Task status is done.",
+    "Branch is committed and merged back into master."
+  ]
+}

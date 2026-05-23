@@ -123,6 +123,7 @@ pnpm hermes:harness
 pnpm production:validate
 pnpm mvp:demo:validate
 pnpm selfhost:acceptance
+pnpm selfhost:gate -- --dry-run
 ```
 
 The scripts are implemented with Node-based validation during bootstrap so the

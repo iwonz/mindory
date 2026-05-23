@@ -26,7 +26,7 @@ repository.
 - `pnpm release:validate`.
 - `pnpm published-release:acceptance`.
 - `pnpm public-debt:validate`.
-- `MINDORY_SELFHOST_ACCEPTANCE_LIVE=true pnpm selfhost:acceptance`.
+- `pnpm selfhost:gate`.
 - `git status --short` returns no changes.
 - Signed manifest verification through `install.sh` or `install.ps1`
   verify-only mode for the generated manifest.
@@ -51,6 +51,16 @@ MINDORY_PUBLISHED_RELEASE_ACCEPTANCE_LIVE=true pnpm published-release:acceptance
 
 This checks the public release URLs, signed manifest verification, bundle
 checksum and packaged installer dry-run from a temporary `MINDORY_HOME`.
+
+Then run the live Docker self-host gate:
+
+```bash
+pnpm selfhost:gate
+```
+
+For non-Docker release checklist rehearsal, use
+`pnpm selfhost:gate -- --dry-run`. The full gate is required before publishing
+or announcing a pre-release as usable by others.
 
 ## Release Notes Requirements
 

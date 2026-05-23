@@ -13,11 +13,11 @@ Supported local MVP path:
 - `pnpm check` passes from a clean checkout with dependencies installed.
 - `pnpm test` runs integration tests with PostgreSQL and Redis.
 - `pnpm mvp:demo` starts the local Docker Compose demo and runs live acceptance.
-- `pnpm selfhost:acceptance` runs the public self-host dry-run gate; setting
-  `MINDORY_SELFHOST_ACCEPTANCE_LIVE=true` runs the live release-readiness
-  matrix for sync ClamAV, pgvector with Docling, Qdrant with deterministic
-  local embeddings, live MVP acceptance, backup, signed remote update, reset
-  and uninstall in temporary homes.
+- `pnpm selfhost:gate` runs the live release-readiness matrix for sync ClamAV,
+  pgvector with Docling, Qdrant with deterministic local embeddings, live MVP
+  acceptance, backup, restore smoke, signed remote update, reset and uninstall
+  in temporary homes. `pnpm selfhost:gate -- --dry-run` runs the non-Docker
+  rehearsal path used by `pnpm check`.
 - The installer can plan, prepare, start through health checks, provision the
   first project/token, update local assets, create runtime backups, restore
   runtime backups and uninstall with confirmation.

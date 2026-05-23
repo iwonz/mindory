@@ -291,20 +291,22 @@ health runners; real installer-driven startup is available through the explicit
 `start` command. Live mode is opt-in because it may need cached images or
 network access for Docker pulls.
 
-`TASK-86` adds the public self-host acceptance gate:
+The public self-host acceptance gate is:
 
 ```bash
-pnpm selfhost:acceptance
+pnpm selfhost:gate
 ```
 
-The default path is non-destructive and uses a temporary `MINDORY_HOME`.
-Opt-in live mode runs installer `start` for sync ClamAV, pgvector and Docling,
-executes live MVP acceptance, creates a runtime backup, applies a signed remote
-update, resets the stack, runs guarded uninstall, then repeats the live path for
-Qdrant with deterministic local embeddings:
+It uses temporary `MINDORY_HOME` directories and runs installer `start` for
+sync ClamAV, pgvector and Docling, executes live MVP acceptance, creates a
+runtime backup, performs a restore smoke without replacing live PostgreSQL data,
+applies a signed remote update, resets the stack, runs guarded uninstall, then
+repeats the live path for Qdrant with deterministic local embeddings.
+
+The non-Docker rehearsal path is:
 
 ```bash
-MINDORY_SELFHOST_ACCEPTANCE_LIVE=true pnpm selfhost:acceptance
+pnpm selfhost:gate -- --dry-run
 ```
 
 ## Wizard Prompts

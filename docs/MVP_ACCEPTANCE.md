@@ -44,30 +44,28 @@ pnpm mvp:acceptance
 Public self-host release-readiness gate:
 
 ```bash
-pnpm selfhost:acceptance
+pnpm selfhost:gate
 ```
 
-The default self-host command dry-runs the public flow in a temporary
-`MINDORY_HOME`: installer plan/prepare, backup dry-run, MVP scenario coverage
-for uploads/jobs/search/context/CLI/MCP/Hermes and guarded uninstall. It does
-not start Docker by default.
+This command runs the live Docker release gate in temporary `MINDORY_HOME`
+directories: installer startup, sync ClamAV, pgvector with Docling, runtime
+backup, restore smoke, signed remote update, reset, guarded uninstall and a
+Qdrant strict indexed profile.
 
-Opt-in live self-host flow:
+Non-Docker dry-run:
 
 ```bash
-MINDORY_SELFHOST_ACCEPTANCE_LIVE=true pnpm selfhost:acceptance
+pnpm selfhost:gate -- --dry-run
 ```
 
-Live mode uses temporary `MINDORY_HOME` directories. It runs installer `start`
-with sync ClamAV and pgvector plus Docling, executes live MVP acceptance against
-the provisioned API token, creates a runtime backup, applies a signed remote
-update from a generated release bundle, resets the stack and runs guarded
-uninstall. It also runs a Qdrant profile with the deterministic local embedding
-service and strict indexed search. To additionally prove the standalone
+The dry-run path performs installer plan/prepare, config-only backup and
+restore smoke, MVP scenario coverage for uploads/jobs/search/context/CLI/MCP/
+Hermes and guarded uninstall. It does not start Docker. To additionally prove
+the standalone
 `pnpm mvp:demo --model-profile local --require-indexed` path:
 
 ```bash
-MINDORY_SELFHOST_ACCEPTANCE_LIVE=true MINDORY_SELFHOST_ACCEPTANCE_LOCAL=true pnpm selfhost:acceptance
+pnpm selfhost:gate -- --local-model
 ```
 
 Use `MINDORY_SELFHOST_ACCEPTANCE_TIMEOUT_MS=<milliseconds>` when local Docker

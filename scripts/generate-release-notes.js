@@ -105,7 +105,7 @@ Generated at: ${generatedAt}
 - Repository gate: \`pnpm check\`
 - Release gate: \`pnpm release:validate\`
 - Bootstrap gate: signed manifest verification and bundle checksum validation
-- Self-host gate: \`pnpm selfhost:acceptance\`
+- Self-host gate: \`pnpm selfhost:gate\`
 
 ## GitHub Pre-release
 
@@ -145,13 +145,14 @@ ${supportMatrix}
   \`MINDORY_RELEASE_PUBLIC_KEY_SHA256\` matches the key you intend to trust.
 - Run \`mindory-installer update --dry-run\` before a real update when updating
   a persistent install.
-- Run \`pnpm selfhost:acceptance\` or the packaged installer smoke path after
+- Run \`pnpm selfhost:gate\` or the packaged installer smoke path after
   staging the release in a non-production home.
 
 ## Public Release Checklist
 
 - [ ] \`pnpm check\` passed on the release commit.
 - [ ] \`pnpm release:validate\` passed and tampered manifest/artifact checks failed as expected.
+- [ ] \`pnpm selfhost:gate\` passed on a Docker-capable release host.
 - [ ] GitHub Release is public and marked as a pre-release, not left as a draft.
 - [ ] Release manifest, public key sidecar and checksum files are attached.
 - [ ] Docker version and commit tags are published from a trusted tag build.

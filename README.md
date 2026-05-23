@@ -66,17 +66,19 @@ pnpm mvp:demo
 The public self-host gate is:
 
 ```bash
-pnpm selfhost:acceptance
+pnpm selfhost:gate
 ```
 
-By default it runs the non-destructive dry-run path in a temporary
-`MINDORY_HOME`. The live Docker path is opt-in and runs the installer-driven
-release gate for sync ClamAV, pgvector, Qdrant, Docling, upload/search/context,
-backup, signed remote update and uninstall:
+By default this runs the live Docker release gate with temporary
+`MINDORY_HOME` directories. It covers sync ClamAV, pgvector, Qdrant, Docling,
+upload/search/context, runtime backup, restore smoke, signed remote update and
+uninstall. To run the non-Docker dry-run path:
 
 ```bash
-MINDORY_SELFHOST_ACCEPTANCE_LIVE=true pnpm selfhost:acceptance
+pnpm selfhost:gate -- --dry-run
 ```
+
+`pnpm selfhost:acceptance` is the dry-run path used by `pnpm check`.
 
 To start and seed the stack without running live acceptance:
 

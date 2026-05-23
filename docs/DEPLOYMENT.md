@@ -29,17 +29,19 @@ pnpm mvp:demo
 The public self-host acceptance gate for release readiness is:
 
 ```bash
-pnpm selfhost:acceptance
+pnpm selfhost:gate
 ```
 
-This default path is a dry-run and is included in `pnpm check`. The opt-in live
-path runs installer startup inside temporary `MINDORY_HOME` directories, then
-proves sync ClamAV upload gating, pgvector search, Qdrant search with the
-deterministic local embedding service, Docling extraction, live MVP acceptance,
-runtime backup, signed remote update, reset and guarded uninstall:
+This command runs installer startup inside temporary `MINDORY_HOME`
+directories, then proves sync ClamAV upload gating, pgvector search, Qdrant
+search with the deterministic local embedding service, Docling extraction, live
+MVP acceptance, runtime backup, restore smoke, signed remote update, reset and
+guarded uninstall.
+
+For the non-Docker dry-run path used by `pnpm check`:
 
 ```bash
-MINDORY_SELFHOST_ACCEPTANCE_LIVE=true pnpm selfhost:acceptance
+pnpm selfhost:gate -- --dry-run
 ```
 
 Add `MINDORY_SELFHOST_ACCEPTANCE_LOCAL=true` to also run the standalone
@@ -236,7 +238,7 @@ The live published-release acceptance downloads the public manifest and public
 key sidecar, runs `install.sh --verify-only`, downloads the bundle, verifies
 the checksum and runs the packaged installer `plan` command from a temporary
 `MINDORY_HOME`. It does not start Docker; the live Docker self-host gate remains
-`MINDORY_SELFHOST_ACCEPTANCE_LIVE=true pnpm selfhost:acceptance`.
+`pnpm selfhost:gate`.
 
 The reproducible release image path is:
 

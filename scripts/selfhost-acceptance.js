@@ -27,6 +27,7 @@ const scenario = [
   "MCP memory and artifact tools",
   "Hermes lifecycle context and saved turns",
   "backup manifest database and object storage",
+  "restore smoke without replacing live PostgreSQL data",
   "signed remote update",
   "stack reset and guarded uninstall"
 ];
@@ -48,6 +49,7 @@ for (const required of [
   "MCP",
   "Hermes",
   "backup",
+  "restore",
   "remote update",
   "uninstall"
 ]) {
@@ -61,6 +63,7 @@ if (live) {
 }
 
 async function runDryRunAcceptance() {
+  assertGateWiring();
   const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-selfhost-dry-"));
   const cleanup = [tempHome];
   try {
@@ -69,6 +72,10 @@ async function runDryRunAcceptance() {
     run("node", ["packages/installer/dist/cli.js", "plan"]);
     run("node", ["packages/installer/dist/cli.js", "prepare", "--home", tempHome, "--source", root]);
     run("node", ["packages/installer/dist/cli.js", "backup", "--home", tempHome, "--dry-run", "--no-postgres", "--no-objects"]);
+    const backup = runJson("node", ["packages/installer/dist/cli.js", "backup", "--home", tempHome, "--no-postgres", "--no-objects", "--label", "selfhost-dry-restore-smoke"]);
+    assert(typeof backup.backupPath === "string", "Dry-run self-host acceptance must create a config-only backup for restore smoke.");
+    const restore = runJson("node", ["packages/installer/dist/cli.js", "restore", "--home", tempHome, "--backup", backup.backupPath, "--yes", "--no-postgres", "--no-objects"]);
+    assert(restore.restored === true, "Dry-run self-host acceptance must restore the config-only backup.");
     run("node", ["scripts/mvp-acceptance.js"]);
     const uninstall = runJson("node", ["packages/installer/dist/cli.js", "uninstall", "--home", tempHome, "--yes", "--backup"]);
     if (typeof uninstall.backupPath === "string") {
@@ -142,7 +149,10 @@ async function runLiveProfileAcceptance(installer, profile) {
       MINDORY_E2E_MODEL_PROFILE: profile.modelProfile
     });
 
-    run("node", ["packages/installer/dist/cli.js", "backup", "--home", tempHome, "--source", root, "--label", `selfhost-${profile.label}`]);
+    const backup = runJson("node", ["packages/installer/dist/cli.js", "backup", "--home", tempHome, "--source", root, "--label", `selfhost-${profile.label}`]);
+    assert(typeof backup.backupPath === "string", `${profile.label} must create a runtime backup.`);
+    const restore = runJson("node", ["packages/installer/dist/cli.js", "restore", "--home", tempHome, "--backup", backup.backupPath, "--yes", "--no-postgres", "--no-objects"]);
+    assert(restore.restored === true, `${profile.label} must restore config/install metadata from the runtime backup.`);
     if (profile.remoteUpdate) {
       await runSignedRemoteUpdate(installer, answers, tempHome, cleanup, profile.label);
       await assertApiReady(credentials.api_url, liveTimeoutMs);
@@ -224,6 +234,18 @@ function assertProfileCoverage(installer, tempHome) {
   assert(installer.answersToEnvMap(syncPgvectorDocling).MINDORY_AV_MODE === "sync_scan", "Self-host acceptance must render sync_scan.");
   assert(installer.answersToEnvMap(syncPgvectorDocling).MINDORY_DOCLING_ENABLED === "true", "Self-host acceptance must render Docling enabled.");
   assert(installer.answersToEnvMap(qdrantLocal).MINDORY_VECTOR_PROVIDER === "qdrant", "Self-host acceptance must render Qdrant provider.");
+}
+
+function assertGateWiring() {
+  const rootPackage = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
+  const gate = fs.readFileSync(path.join(root, "scripts", "selfhost-gate.js"), "utf8");
+  const releaseChecklist = fs.readFileSync(path.join(root, "docs", "RELEASE_CHECKLIST.md"), "utf8");
+  const deployment = fs.readFileSync(path.join(root, "docs", "DEPLOYMENT.md"), "utf8");
+  assert(rootPackage.scripts?.["selfhost:gate"] === "node scripts/selfhost-gate.js", "Root package must expose selfhost:gate.");
+  assert(gate.includes("MINDORY_SELFHOST_ACCEPTANCE_LIVE"), "selfhost:gate must set MINDORY_SELFHOST_ACCEPTANCE_LIVE.");
+  assert(gate.includes("--dry-run"), "selfhost:gate must expose a dry-run option.");
+  assert(releaseChecklist.includes("pnpm selfhost:gate"), "Release checklist must use pnpm selfhost:gate.");
+  assert(deployment.includes("pnpm selfhost:gate"), "Deployment docs must mention pnpm selfhost:gate.");
 }
 
 async function createLiveProfileAnswers(installer, tempHome, profile) {

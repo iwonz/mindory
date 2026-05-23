@@ -13,7 +13,7 @@ minimum baseline for the MVP release path.
 | Release images | Supported baseline. The release workflow runs `pnpm check`, builds Docker images and pushes version plus commit tags to GHCR only from trusted tag builds. |
 | Release bundles | Supported baseline. The release workflow generates bundle, RSA-SHA256 signed manifest, public key sidecar, checksum and release-notes artifacts, then runs smoke-release-install with signature and checksum verification. |
 | Installer execution | Supported baseline. Current installer can prepare `$MINDORY_HOME`, start Compose through health checks, provision the first token, refresh local assets, update from signed remote releases, create/restore runtime backups, encrypt and upload remote backup archives, stream external S3 object backups and uninstall with explicit confirmation. |
-| Public self-host acceptance | Supported gate. `pnpm selfhost:acceptance` dry-runs the public self-host path; opt-in live mode runs sync ClamAV, pgvector with Docling, Qdrant with deterministic local embeddings, MVP acceptance, backup, signed remote update, reset and uninstall in temporary homes. |
+| Public self-host acceptance | Supported gate. `pnpm selfhost:gate` runs the live Docker self-host release gate with sync ClamAV, pgvector with Docling, Qdrant with deterministic local embeddings, MVP acceptance, backup, restore smoke, signed remote update, reset and uninstall in temporary homes; `pnpm selfhost:gate -- --dry-run` runs the non-Docker rehearsal path. |
 | Backup and restore | Supported MVP. Installer commands cover config, installer metadata, PostgreSQL dumps, local object storage state, scheduled local backup runs, local Compose PostgreSQL PITR with WAL archive/base backup/restore-to-time, encrypted S3-compatible remote backup archives and external S3 object streaming backups. |
 | Observability | Supported baseline. Structured logs, model operation audit helpers, Prometheus metrics exporters, OpenTelemetry OTLP tracing/log export, in-process job/stage metrics, health snapshots and rate-limit strategy are documented in `docs/OBSERVABILITY.md`. |
 | Public GitHub readiness | Supported baseline. The repo includes license, contribution guide, root security policy, issue/PR templates, changelog/release notes policy, support matrix and repository status docs. |
@@ -62,7 +62,7 @@ Validate the release path locally without publishing:
 ```bash
 pnpm release:validate
 pnpm published-release:acceptance
-MINDORY_SELFHOST_ACCEPTANCE_LIVE=true pnpm selfhost:acceptance
+pnpm selfhost:gate
 ```
 
 `release:validate` generates a temporary bundle, verifies the signed manifest

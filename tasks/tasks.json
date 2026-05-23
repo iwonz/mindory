@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-120",
+  "current_task_id": "TASK-121",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -876,6 +876,13 @@
       "status": "done",
       "branch": "task/TASK-120-published-release-bootstrap-acceptance",
       "file": "tasks/TASK-120.json"
+    },
+    {
+      "id": "TASK-121",
+      "title": "Harden live Docker self-host acceptance gate",
+      "status": "done",
+      "branch": "task/TASK-121-live-docker-selfhost-acceptance-gate",
+      "file": "tasks/TASK-121.json"
     }
   ]
 }
