@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-144",
+  "current_task_id": "TASK-145",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -1048,7 +1048,7 @@
     {
       "id": "TASK-145",
       "title": "Published v0.1.1 bootstrap acceptance",
-      "status": "draft",
+      "status": "done",
       "branch": "task/TASK-145-published-v0-1-1-bootstrap-acceptance",
       "file": "tasks/TASK-145.json"
     },

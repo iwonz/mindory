@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import crypto from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -26,13 +27,44 @@ function truthy(value) {
 
 function releaseDefaults() {
   const repo = process.env.MINDORY_PUBLISHED_RELEASE_REPO || "iwonz/mindory";
-  const version = process.env.MINDORY_PUBLISHED_RELEASE_VERSION || "0.1.0";
+  const version = process.env.MINDORY_PUBLISHED_RELEASE_VERSION || "0.1.1";
   const tag = process.env.MINDORY_PUBLISHED_RELEASE_TAG || `v${version}`;
   const manifestUrl = process.env.MINDORY_PUBLISHED_RELEASE_MANIFEST_URL
     || `https://github.com/${repo}/releases/download/${tag}/mindory-${version}.manifest.env`;
   const publicKeyUrl = process.env.MINDORY_PUBLISHED_RELEASE_PUBLIC_KEY_URL
     || `${manifestUrl}.public.pem`;
-  return { repo, version, tag, manifestUrl, publicKeyUrl };
+  const bundleUrl = process.env.MINDORY_PUBLISHED_RELEASE_BUNDLE_URL
+    || `https://github.com/${repo}/releases/download/${tag}/mindory-${version}.tar.gz`;
+  const checksumUrl = process.env.MINDORY_PUBLISHED_RELEASE_CHECKSUM_URL
+    || `https://github.com/${repo}/releases/download/${tag}/mindory-${version}.sha256`;
+  return { repo, version, tag, manifestUrl, publicKeyUrl, bundleUrl, checksumUrl };
+}
+
+function sha256File(filePath) {
+  return crypto.createHash("sha256").update(fs.readFileSync(filePath)).digest("hex");
+}
+
+function parseChecksumFile(content) {
+  const entries = new Map();
+  for (const line of content.split(/\r?\n/u)) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      continue;
+    }
+    const match = /^([a-f0-9]{64})\s+\*?(.+)$/iu.exec(trimmed);
+    assert(match, `Malformed checksum line in published release .sha256 asset: ${line}`);
+    entries.set(path.basename(match[2]), match[1].toLowerCase());
+  }
+  return entries;
+}
+
+function verifyChecksumEntry(entries, filePath, label) {
+  const name = path.basename(filePath);
+  const expected = entries.get(name);
+  assert(expected, `Published release checksum file is missing ${label} entry: ${name}.`);
+  const actual = sha256File(filePath);
+  assert(actual === expected, `Published release checksum mismatch for ${label} ${name}. Expected ${expected}, got ${actual}.`);
+  return { name, sha256: actual };
 }
 
 async function downloadFile(url, outputPath, label) {
@@ -65,6 +97,7 @@ function dryRun() {
   const rootPackage = readJson("package.json");
   const checkRepo = read("scripts/check-repo.js");
   const smoke = read("scripts/smoke-release-install.js");
+  const publishedAcceptance = read("scripts/published-release-acceptance.js");
   const installerDocs = read("docs/INSTALLER.md");
   const deploymentDocs = read("docs/DEPLOYMENT.md");
   const releaseChecklist = read("docs/RELEASE_CHECKLIST.md");
@@ -72,12 +105,17 @@ function dryRun() {
   assert(rootPackage.scripts?.["published-release:acceptance"] === "node scripts/published-release-acceptance.js", "Root package must expose published-release:acceptance.");
   assert(checkRepo.includes("published-release:acceptance"), "pnpm check must include published-release:acceptance.");
 
-  for (const token of ["--manifest-url", "downloadFile", "release is public", "release_smoke_passed"]) {
+  for (const token of ["--manifest-url", "downloadFile", "release is public", "Checksum mismatch", "release_smoke_passed"]) {
     assert(smoke.includes(token), `smoke-release-install.js must include ${token}.`);
+  }
+
+  for (const token of ["0.1.1", "checksumUrl", "verifyChecksumEntry", "Published release checksum mismatch"]) {
+    assert(publishedAcceptance.includes(token), `published-release-acceptance.js must include ${token}.`);
   }
 
   for (const token of [
     "MINDORY_PUBLISHED_RELEASE_ACCEPTANCE_LIVE=true pnpm published-release:acceptance",
+    "https://github.com/iwonz/mindory/releases/download/v0.1.1/mindory-0.1.1.manifest.env",
     "https://github.com/iwonz/mindory/releases/download/v0.1.0/mindory-0.1.0.manifest.env"
   ]) {
     assert(installerDocs.includes(token), `docs/INSTALLER.md must include ${token}.`);
@@ -93,16 +131,29 @@ async function live() {
   const release = releaseDefaults();
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "mindory-published-release-"));
   const publicKeyPath = path.join(tempRoot, `mindory-${release.version}.manifest.env.public.pem`);
+  const manifestPath = path.join(tempRoot, `mindory-${release.version}.manifest.env`);
+  const bundlePath = path.join(tempRoot, `mindory-${release.version}.tar.gz`);
+  const checksumPath = path.join(tempRoot, `mindory-${release.version}.sha256`);
   const verifyHome = path.join(tempRoot, "verify-home");
   const smokeHome = path.join(tempRoot, "smoke-home");
 
   try {
+    await downloadFile(release.manifestUrl, manifestPath, "release manifest");
     await downloadFile(release.publicKeyUrl, publicKeyPath, "release manifest public key");
+    await downloadFile(release.bundleUrl, bundlePath, "release bundle");
+    await downloadFile(release.checksumUrl, checksumPath, "release checksum file");
+
+    const checksumEntries = parseChecksumFile(fs.readFileSync(checksumPath, "utf8"));
+    const verifiedChecksumAssets = [
+      verifyChecksumEntry(checksumEntries, bundlePath, "release bundle"),
+      verifyChecksumEntry(checksumEntries, manifestPath, "release manifest"),
+      verifyChecksumEntry(checksumEntries, publicKeyPath, "release manifest public key")
+    ];
 
     run("sh", [
       "install.sh",
-      "--manifest-url",
-      release.manifestUrl,
+      "--manifest-path",
+      manifestPath,
       "--public-key-path",
       publicKeyPath,
       "--verify-only"
@@ -115,8 +166,8 @@ async function live() {
 
     const smokeOutput = run(process.execPath, [
       "scripts/smoke-release-install.js",
-      "--manifest-url",
-      release.manifestUrl,
+      "--manifest",
+      manifestPath,
       "--public-key",
       publicKeyPath,
       "--home",
@@ -128,6 +179,9 @@ async function live() {
       repo: release.repo,
       tag: release.tag,
       manifestUrl: release.manifestUrl,
+      bundleUrl: release.bundleUrl,
+      checksumUrl: release.checksumUrl,
+      verifiedChecksumAssets,
       smoke: JSON.parse(smokeOutput)
     }, null, 2));
   } finally {

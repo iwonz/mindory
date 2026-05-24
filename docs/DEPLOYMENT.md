@@ -309,11 +309,15 @@ After publishing a GitHub pre-release, verify the public bootstrap path:
 MINDORY_PUBLISHED_RELEASE_ACCEPTANCE_LIVE=true pnpm published-release:acceptance
 ```
 
-The live published-release acceptance downloads the public manifest and public
-key sidecar, runs `install.sh --verify-only`, downloads the bundle, verifies
-the checksum and runs the packaged installer `plan` command from a temporary
-`MINDORY_HOME`. It does not start Docker; the live Docker self-host gate remains
-`pnpm selfhost:gate`.
+The live published-release acceptance downloads the public manifest, public key
+sidecar, release bundle and `.sha256` file, verifies checksum entries for the
+bundle, manifest and public key, runs `install.sh --verify-only`, verifies the
+signed manifest and bundle checksum again through `smoke-release-install`, and
+runs the packaged installer `plan` command from a temporary `MINDORY_HOME`. It
+does not start Docker; the live Docker self-host gate remains
+`pnpm selfhost:gate`. Download failures name the asset URL; checksum,
+signature, extraction and installer-plan failures name the broken asset or
+verification step.
 
 The final public-ready pre-release gate is:
 

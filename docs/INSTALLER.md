@@ -170,9 +170,13 @@ MINDORY_PUBLISHED_RELEASE_ACCEPTANCE_LIVE=true pnpm published-release:acceptance
 
 `pnpm published-release:acceptance` runs a non-network dry-run by default. With
 `MINDORY_PUBLISHED_RELEASE_ACCEPTANCE_LIVE=true`, it downloads the public
-GitHub pre-release manifest and public key sidecar, runs `install.sh
---verify-only`, downloads the bundle, verifies the checksum, extracts into a
-temporary `MINDORY_HOME` and runs the packaged installer `plan` command.
+GitHub pre-release manifest, public key sidecar, release bundle and `.sha256`
+asset, verifies every checksum entry, runs `install.sh --verify-only`,
+extracts into a temporary `MINDORY_HOME` and runs the packaged installer
+`plan` command. Download failures name the asset label and URL; checksum,
+signature and extraction failures name the broken asset or verification step so
+the next action is clear: confirm the release is public, re-download the asset
+or republish the release from a trusted tag build.
 
 Create a local release-style bundle and matching manifest with:
 

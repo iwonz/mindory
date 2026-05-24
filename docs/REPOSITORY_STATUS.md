@@ -6,7 +6,7 @@ The repository should be described with the support levels in
 
 ## Current Baseline
 
-The repository is complete through `TASK-144`.
+The repository is complete through `TASK-145`.
 
 Release baseline:
 
@@ -34,8 +34,11 @@ Release baseline:
   manifest, checksum, release notes and release checklist result. `TASK-144`
   published `v0.1.1` as a public GitHub pre-release with bundle, signed
   manifest, public key, checksum and release notes assets plus GHCR image tags
-  `0.1.1` and `424ab6c71abe`. `TASK-145` through `TASK-147` verify the
-  published bootstrap and final public-ready gates one task at a time.
+  `0.1.1` and `424ab6c71abe`. `TASK-145` verified the public bootstrap path
+  against the published `v0.1.1` assets by downloading the manifest, public key,
+  bundle and `.sha256` file, checking the checksum entries, verifying the
+  signed manifest and running the packaged installer dry-run. `TASK-146` and
+  `TASK-147` complete the final public-ready gates one task at a time.
 
 Supported local MVP path:
 
@@ -73,6 +76,10 @@ Supported local MVP path:
   manifests are RSA-SHA256 signed and bootstrap scripts verify signatures
   before trusting bundle checksums.
 - Release validation can be run locally with `pnpm release:validate`.
+- Published release bootstrap validation can be run locally with
+  `pnpm published-release:acceptance`; live mode downloads the public
+  `v0.1.1` manifest, public key, bundle and `.sha256` file and verifies the
+  packaged installer dry-run.
 - Tag release publishing builds and pushes versioned GHCR images, generates
   release notes with support matrix and upgrade notes, and attaches signed
   release artifacts to public GitHub pre-releases.
