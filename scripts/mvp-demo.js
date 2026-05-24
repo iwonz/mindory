@@ -340,6 +340,12 @@ function applyLocalHttpModelProfile(env) {
   setDefault(env, "MINDORY_LLM_FACE_RECOGNITION_PROVIDER", "local-http");
   setDefault(env, "MINDORY_LLM_FACE_RECOGNITION_MODEL", "mindory-local-face-v1");
   setDefault(env, "MINDORY_LLM_FACE_RECOGNITION_LOCAL_HTTP_BASE_URL", "http://faces:8086");
+  setDefault(env, "MINDORY_LLM_IMAGE_GENERATION_ENABLED", "true");
+  setDefault(env, "MINDORY_LLM_IMAGE_GENERATION_PROVIDER", "local-http");
+  setDefault(env, "MINDORY_LLM_IMAGE_GENERATION_MODEL", "mindory-local-image-generation");
+  setDefault(env, "MINDORY_LLM_AUDIO_GENERATION_ENABLED", "true");
+  setDefault(env, "MINDORY_LLM_AUDIO_GENERATION_PROVIDER", "local-http");
+  setDefault(env, "MINDORY_LLM_AUDIO_GENERATION_MODEL", "mindory-local-audio-generation");
 }
 
 function setDefault(env, key, value) {

@@ -67,6 +67,11 @@ mindory llm generate-image <prompt> [--include-bytes]
 mindory llm generate-audio <prompt> [--include-bytes]
 ```
 
+Generation commands return status, MIME type, byte length, SHA-256 and model
+audit metadata. `--include-bytes` adds base64 media output; supported smoke
+providers must return valid PNG bytes for image generation and valid WAV bytes
+for audio generation.
+
 Manual memory creation requires at least one `--source-ref <type:id>` argument
 to keep memories evidence-backed.
 

@@ -223,6 +223,10 @@ The local HTTP contract is intentionally small:
 - `POST /generation/audio` accepts `{ model, prompt, response_format }` and
   returns base64 media bytes plus `mime_type`, optional duration metadata and
   `usage`.
+  Generation providers must return non-empty bytes and a MIME type in the
+  expected family (`image/*` for image generation, `audio/*` for audio
+  generation). The deterministic local HTTP runner returns valid PNG and WAV
+  fixtures for smoke checks.
 
 `buildMindoryLlm(config).healthCheck("local-http")` checks `/health`.
 `healthCheck("ollama")` checks Ollama `/api/tags`; this verifies that the

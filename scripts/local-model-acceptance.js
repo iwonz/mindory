@@ -39,12 +39,13 @@ const scenario = [
   "audio ASR transcript artifacts with time refs",
   "video keyframe artifacts with source refs",
   "face observations identities and unified face search",
+  "image and audio generation smoke with valid media bytes",
   "jobs API completion details",
   "model operation audit records through @mindory/llm audit sinks",
   "live Docker mode is explicit"
 ];
 
-for (const required of ["local HTTP", "text", "PDF OCR", "image OCR", "audio ASR", "video keyframe", "face", "jobs", "source refs", "audit", "live Docker"]) {
+for (const required of ["local HTTP", "text", "PDF OCR", "image OCR", "audio ASR", "video keyframe", "face", "image and audio generation", "jobs", "source refs", "audit", "live Docker"]) {
   assert(scenario.some((step) => step.includes(required)), `Local-model scenario must include ${required}.`);
 }
 
@@ -103,11 +104,13 @@ function runDryRunAcceptance() {
     "MINDORY_LLM_ASR_ENABLED",
     "MINDORY_LLM_VISION_CAPTIONING_ENABLED",
     "MINDORY_LLM_FACE_DETECTION_ENABLED",
-    "MINDORY_LLM_FACE_RECOGNITION_ENABLED"
+    "MINDORY_LLM_FACE_RECOGNITION_ENABLED",
+    "MINDORY_LLM_IMAGE_GENERATION_ENABLED",
+    "MINDORY_LLM_AUDIO_GENERATION_ENABLED"
   ]) {
     assert(mvpDemo.includes(token), `Local model profile must configure ${token}.`);
   }
-  for (const role of ["text-embedding", "image-embedding", "ocr", "asr", "vision-captioning", "face-detection", "face-recognition"]) {
+  for (const role of ["text-embedding", "image-embedding", "ocr", "asr", "vision-captioning", "face-detection", "face-recognition", "image-generation", "audio-generation"]) {
     assert(llmValidation.includes(`audit.role === "${role}"`), `LLM validation must cover ${role} audit records.`);
   }
   assert(workerRuntime.includes("createModelOperationLogEvent(audit)"), "Worker runtime must export model operation audit logs.");

@@ -6,7 +6,7 @@ The repository should be described with the support levels in
 
 ## Current Baseline
 
-The repository is complete through `TASK-138`.
+The repository is complete through `TASK-139`.
 
 Release baseline:
 
@@ -20,9 +20,11 @@ Release baseline:
   `TASK-134` promoted the central role/provider support matrix,
   `TASK-135` added the supported Tesseract OCR runner, `TASK-136` added
   the supported Faster Whisper ASR runner, `TASK-137` added the supported
-  image semantics runner and `TASK-138` added the supported local face runner.
-  `TASK-139` through `TASK-147` execute and verify the remaining generation,
-  installer, acceptance and release work one task at a time.
+  image semantics runner, `TASK-138` added the supported local face runner and
+  `TASK-139` added supported image/audio generation provider validation plus
+  valid deterministic PNG/WAV generation smoke paths. `TASK-140` through
+  `TASK-147` execute and verify the remaining installer, acceptance and release
+  work one task at a time.
 
 Supported local MVP path:
 
@@ -92,12 +94,15 @@ Supported local MVP path:
 - Local HTTP chat/text embedding/image embedding/OCR/vision/ASR/face/generation
   adapters, local-command adapters and provider health checks for local HTTP,
   local-command and Ollama services are implemented through `@mindory/llm`.
+- Image/audio generation provider results validate MIME families, non-empty
+  bytes, audit usage and CLI smoke output; the deterministic local HTTP runner
+  returns valid PNG and WAV fixtures for local/self-host checks.
 - `pnpm mvp:demo --model-profile local --require-indexed` can exercise the
   indexed pgvector path with a deterministic local HTTP embeddings service.
 - `MINDORY_LOCAL_MODEL_ACCEPTANCE_LIVE=true pnpm local-model:acceptance`
   verifies deterministic local OCR, ASR, vision, image embedding, video
-  keyframe, face, source-ref, job, unified search and model-operation metric
-  coverage in a temporary Docker home.
+  keyframe, face, image/audio generation wiring, source-ref, job, unified
+  search and model-operation metric coverage in a temporary Docker home.
 - Scanned-PDF OCR can run through `@mindory/llm` local HTTP or local-command
   OCR when the supported OCR role is enabled.
 - Image OCR, vision captioning, object detection and image embeddings can run

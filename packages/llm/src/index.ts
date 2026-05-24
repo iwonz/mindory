@@ -3148,8 +3148,12 @@ function localCommandGeneratedMedia(output: unknown, defaultMimeType: string): L
     throw localCommandOperationError("local_command_missing_media", "local-command generated media output must include base64 bytes.");
   }
   const result: LlmGeneratedMediaOutput = {
-    bytes: Buffer.from(dataBase64, "base64"),
-    mimeType: stringField(output, "mime_type") ?? stringField(output, "mimeType") ?? defaultMimeType
+    bytes: decodeGeneratedMediaBase64(dataBase64, "local_command_empty_media"),
+    mimeType: validateGeneratedMediaMimeType(
+      stringField(output, "mime_type") ?? stringField(output, "mimeType") ?? defaultMimeType,
+      defaultMimeType,
+      "local_command_invalid_media_type"
+    )
   };
   if (isRecord(output.metadata)) {
     result.metadata = output.metadata;
@@ -3184,14 +3188,18 @@ function generatedMediaFromJson(payload: GeneratedMediaJsonResponse, defaultMime
   }
 
   const result: LlmGeneratedMediaOutput = {
-    bytes: Buffer.from(dataBase64, "base64"),
-    mimeType: payload.mime_type
-      ?? payload.mimeType
-      ?? payload.content_type
-      ?? payload.contentType
-      ?? firstData?.mime_type
-      ?? firstData?.mimeType
-      ?? defaultMimeType
+    bytes: decodeGeneratedMediaBase64(dataBase64, "generation_empty_media"),
+    mimeType: validateGeneratedMediaMimeType(
+      payload.mime_type
+        ?? payload.mimeType
+        ?? payload.content_type
+        ?? payload.contentType
+        ?? firstData?.mime_type
+        ?? firstData?.mimeType
+        ?? defaultMimeType,
+      defaultMimeType,
+      "generation_invalid_media_type"
+    )
   };
   if (Object.keys(metadata).length > 0) {
     result.metadata = metadata;
@@ -3201,6 +3209,29 @@ function generatedMediaFromJson(payload: GeneratedMediaJsonResponse, defaultMime
     result.usage = usage;
   }
   return result;
+}
+
+function decodeGeneratedMediaBase64(dataBase64: string, errorCode: string): Buffer {
+  const bytes = Buffer.from(dataBase64.trim(), "base64");
+  if (bytes.length === 0) {
+    throw localCommandOperationError(errorCode, "Generation response decoded to empty media bytes.");
+  }
+  return bytes;
+}
+
+function validateGeneratedMediaMimeType(mimeType: string, defaultMimeType: string, errorCode: string): string {
+  const normalizedMimeType = mimeType.trim().toLowerCase().split(";", 1)[0]?.trim() ?? "";
+  const expectedFamily = defaultMimeType.split("/", 1)[0];
+  if (normalizedMimeType === "" || !normalizedMimeType.includes("/")) {
+    throw localCommandOperationError(errorCode, "Generation response must include a valid media MIME type.");
+  }
+  if (expectedFamily !== "" && !normalizedMimeType.startsWith(`${expectedFamily}/`)) {
+    throw localCommandOperationError(
+      errorCode,
+      `Generation response MIME type ${normalizedMimeType} must be ${expectedFamily}/* for this operation.`
+    );
+  }
+  return normalizedMimeType;
 }
 
 function generatedMediaJsonUsage(payload: GeneratedMediaJsonResponse): LlmOperationUsage {

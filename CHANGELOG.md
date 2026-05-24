@@ -20,6 +20,9 @@ documentation.
 
 ### Added
 
+- `TASK-139`: supported image/audio generation provider validation, CLI smoke
+  commands with valid PNG/WAV bytes, deterministic local HTTP generation
+  fixtures and catalog coverage for `IMAGE_GENERATION`/`AUDIO_GENERATION`.
 - `TASK-138`: supported local face runner with `local-models-face` Compose
   profile, installer selection/healthcheck wiring,
   `MINDORY_LLM_FACE_DETECTION_LOCAL_HTTP_BASE_URL`,

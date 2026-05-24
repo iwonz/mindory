@@ -170,9 +170,9 @@ pnpm mvp:demo --model-profile ollama
 `disabled` is the default and starts no model containers. `local` adds the
 `local-models` profile, which runs a lightweight deterministic local HTTP model
 service for text embeddings, image embeddings, OCR, ASR, vision captioning and
-face roles through `@mindory/llm`. `ollama` adds the real Ollama service for
-local text embeddings and uses a Compose healthcheck before installer startup
-accepts the profile.
+face roles plus valid PNG/WAV image/audio generation smoke paths through
+`@mindory/llm`. `ollama` adds the real Ollama service for local text embeddings
+and uses a Compose healthcheck before installer startup accepts the profile.
 
 Installer-managed local model setup is controlled separately by
 `MINDORY_INSTALL_LOCAL_MODEL_AUTO_INSTALL` and
@@ -374,9 +374,10 @@ storage path.
 
 The `local-models` profile is intentionally lightweight and does not download
 model weights. It serves deterministic 1536-dimensional embeddings for local
-acceptance. The `ollama` profile is optional for local text embeddings. External
-and Ollama embedding models must also produce 1536-dimensional vectors for the
-current pgvector MVP schema.
+acceptance, deterministic multimodal fixture responses and valid PNG/WAV bytes
+for generation smoke checks. The `ollama` profile is optional for local text
+embeddings. External and Ollama embedding models must also produce
+1536-dimensional vectors for the current pgvector MVP schema.
 
 The `local-models-ocr` profile builds the Mindory Tesseract runner from
 `deploy/local-models/ocr/tesseract/Dockerfile`, stores runner data

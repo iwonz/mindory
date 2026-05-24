@@ -24,15 +24,16 @@ embeddings, face detection, face recognition, image generation and audio
 generation. OCR is supported through Tesseract, ASR is supported through Faster
 Whisper, image caption/object/vector processing is supported through the
 Mindory local image semantics runner, and face detection/recognition is
-supported through the Mindory local face runner. Image/audio generation runner
-profiles are tracked by their own implementation tasks before they appear in
-the install catalog.
+supported through the Mindory local face runner. Image and audio generation are
+supported through the deterministic local HTTP runner, local-command contract
+and OpenAI-compatible provider profile, with CLI smoke checks for valid PNG/WAV
+bytes and audit records.
 
 ## Catalog Entries
 
 | ID | Roles | Provider | Status | Image or source | Ports | Healthcheck | Resource hint | License |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `mindory-deterministic-local-http` | text embeddings, image embeddings, OCR, ASR, vision captioning, face detection, face recognition | `local-http` | supported | Mindory release image, `scripts/local-model-server.mjs` | `8080` | `GET /health` | 1 CPU, 256MB RAM, <100MB disk, no GPU | Apache-2.0 |
+| `mindory-deterministic-local-http` | text embeddings, image embeddings, OCR, ASR, vision captioning, face detection, face recognition, image generation, audio generation | `local-http` | supported | Mindory release image, `scripts/local-model-server.mjs` | `8080` | `GET /health` | 1 CPU, 256MB RAM, <100MB disk, no GPU | Apache-2.0 |
 | `ollama-nomic-embed-text` | text embeddings | `ollama` | supported | `ollama/ollama:latest`, `nomic-embed-text` | `11434` | `GET /api/tags` | 2+ CPU, 4GB+ RAM, 1GB+ disk, optional GPU | Apache-2.0 model family; verify upstream model card before redistribution |
 | `mindory-image-semantics-v1` | image embeddings, vision captioning | `local-http` | supported | Mindory image semantics adapter image built from `deploy/local-models/vision/image-semantics/Dockerfile` | `8082` | `GET /health` with sample caption/object/vector pass | 2+ CPU, 2GB+ RAM, 1GB+ disk, no GPU | Apache-2.0 |
 | `tesseract-local-ocr` | OCR | `local-http` | supported | Mindory Tesseract adapter image built from `deploy/local-models/ocr/tesseract/Dockerfile`, `tesseract-ocr-eng` language data | `8083` | `GET /health` with language verification | 2+ CPU, 4GB+ RAM, 1GB+ disk, optional GPU | Apache-2.0 |
@@ -41,7 +42,7 @@ the install catalog.
 
 ## Role Coverage
 
-The catalog covers all local-model roles needed by the document pipeline:
+The catalog covers all local-model roles needed by the supported MVP model surface:
 
 - `TEXT_EMBEDDING`
 - `IMAGE_EMBEDDING`
@@ -50,6 +51,8 @@ The catalog covers all local-model roles needed by the document pipeline:
 - `VISION_CAPTIONING`
 - `FACE_DETECTION`
 - `FACE_RECOGNITION`
+- `IMAGE_GENERATION`
+- `AUDIO_GENERATION`
 
 `pnpm local-models:validate` verifies this coverage, checks each runner has
 source or image metadata, model files, port and healthcheck details, resource
@@ -72,7 +75,8 @@ Live mode uses a temporary `MINDORY_HOME` and starts
 `pnpm mvp:demo --model-profile local --require-indexed`. It verifies text
 embedding/indexing, PDF and image OCR, image caption/search, audio ASR,
 video keyframe artifacts, face observations/identities, source refs, jobs,
-unified face search and worker model-operation metrics. Use
+unified face search, image/audio generation wiring and worker model-operation
+metrics. Use
 `MINDORY_LOCAL_MODEL_ACCEPTANCE_TIMEOUT_MS=<milliseconds>` when image builds or
 Docker startup need more than the default timeout.
 
@@ -137,8 +141,10 @@ The wizard records local model setup in these generated settings:
 
 When auto-install is enabled, supported runner choices are shown with catalog
 resource hints. Selecting `mindory-deterministic-local-http` enables the
-`local-models` Compose profile and verifies the local HTTP service through
-`GET /health`. Selecting `tesseract-local-ocr` enables
+`local-models` Compose profile, configures text/image embeddings, OCR, ASR,
+vision, face and image/audio generation roles against `http://llm:8080`, and
+verifies the local HTTP service through `GET /health`. Selecting
+`tesseract-local-ocr` enables
 `local-models-ocr`, sets `MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL=http://ocr:8083`,
 waits for the Tesseract healthcheck and routes PDF/image OCR through
 `@mindory/llm`. Selecting `faster-whisper-tiny-asr` enables
