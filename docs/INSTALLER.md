@@ -326,7 +326,8 @@ The wizard prompts for:
 - storage choice: local filesystem, LibreFS local S3 or external S3-compatible;
 - document modality switches, video keyframe limit, keyframe provider and
   ffmpeg/ffprobe commands when the bundled ffmpeg provider is selected;
-- local model auto-install, selected supported runner ids and pull retry count;
+- local model preset, supported multimodal resource confirmation, custom
+  auto-install, selected supported runner ids and pull retry count;
 - independent LLM role enablement, provider, model, required mode, timeout,
   concurrency and embedding dimensions where applicable;
 - API/MCP/Hermes interface switches and tokens.
@@ -335,7 +336,11 @@ Prompt labels, defaults, enum values, secret flags and resource hints come from
 the config catalog whenever a catalog entry exists. Local model runner choices
 come from `LOCAL_MODEL_RUNNER_CATALOG`; `docs/LOCAL_MODELS.md` records role
 coverage, source/image metadata, model files, license/status, ports,
-healthchecks and resource hints. The supported Tesseract runner sets
+healthchecks and resource hints. The `supported-multimodal` preset selects the
+deterministic local HTTP, image semantics, Tesseract OCR, Faster Whisper ASR
+and local face runners, shows the combined CPU/RAM/disk/GPU resource hints and
+requires confirmation before generated config marks those functions ready. The
+supported Tesseract runner sets
 `MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL=http://ocr:8083` and routes OCR through
 the `local-models-ocr` Compose profile. The supported Faster Whisper runner
 sets `MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL=http://asr:8084` and routes ASR
@@ -348,12 +353,13 @@ then routes image vectors, captions and object observations through the
 `MINDORY_LLM_FACE_RECOGNITION_LOCAL_HTTP_BASE_URL=http://faces:8086`, then
 routes face boxes, embeddings and recognition ids through the
 `local-models-face` Compose profile. If a supported local runner is selected,
-the wizard applies the matching `@mindory/llm` role provider/model defaults. If the
-runner is declined, roles only covered by that runner are written as disabled
-instead of being left half-configured. Supported multimodal roles can be
-enabled without experimental mode, but providers that are not supported for the
-selected role still require experimental mode explicitly when marked
-experimental. Providers marked future cannot be selected.
+the wizard applies the matching `@mindory/llm` role provider/model defaults and
+the redacted summary lists selected runners, roles, resource hints and
+healthchecks. If a custom runner is declined, roles only covered by that runner
+are written as disabled instead of being left half-configured. Supported
+multimodal roles can be enabled without experimental mode, but providers that
+are not supported for the selected role still require experimental mode
+explicitly when marked experimental. Providers marked future cannot be selected.
 
 During `start`, selected local runners are installed after their Compose
 services start and before storage bootstrap or migrations continue. The

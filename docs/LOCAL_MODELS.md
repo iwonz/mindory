@@ -135,12 +135,19 @@ identity ids, and verifies invalid image bytes produce a
 
 The wizard records local model setup in these generated settings:
 
+- `MINDORY_INSTALL_LOCAL_MODEL_PRESET`
+- `MINDORY_INSTALL_LOCAL_MODEL_RESOURCE_CONFIRMED`
 - `MINDORY_INSTALL_LOCAL_MODEL_AUTO_INSTALL`
 - `MINDORY_INSTALL_LOCAL_MODEL_RUNNERS`
 - `MINDORY_INSTALL_LOCAL_MODEL_PULL_RETRIES`
 
-When auto-install is enabled, supported runner choices are shown with catalog
-resource hints. Selecting `mindory-deterministic-local-http` enables the
+`MINDORY_INSTALL_LOCAL_MODEL_PRESET=supported-multimodal` selects the
+deterministic local HTTP, image semantics, Tesseract OCR, Faster Whisper ASR
+and local face runners together. The wizard shows the combined resource hints
+and requires `MINDORY_INSTALL_LOCAL_MODEL_RESOURCE_CONFIRMED=true` before the
+answer file validates. When custom auto-install is enabled, supported runner
+choices are shown with catalog resource hints. Selecting
+`mindory-deterministic-local-http` enables the
 `local-models` Compose profile, configures text/image embeddings, OCR, ASR,
 vision, face and image/audio generation roles against `http://llm:8080`, and
 verifies the local HTTP service through `GET /health`. Selecting

@@ -20,6 +20,9 @@ documentation.
 
 ### Added
 
+- `TASK-140`: installer supported multimodal preset with answer-file fields,
+  resource confirmation, generated local-model role config, redacted runner
+  resource summary and dry-run matrix coverage.
 - `TASK-139`: supported image/audio generation provider validation, CLI smoke
   commands with valid PNG/WAV bytes, deterministic local HTTP generation
   fixtures and catalog coverage for `IMAGE_GENERATION`/`AUDIO_GENERATION`.

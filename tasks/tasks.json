@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-139",
+  "current_task_id": "TASK-140",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -1013,7 +1013,7 @@
     {
       "id": "TASK-140",
       "title": "Installer multimodal supported-mode wizard",
-      "status": "draft",
+      "status": "done",
       "branch": "task/TASK-140-installer-multimodal-supported-mode-wizard",
       "file": "tasks/TASK-140.json"
     },

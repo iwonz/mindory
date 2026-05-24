@@ -146,7 +146,7 @@ for (const symbol of [
 for (const token of ["CONFIG_CATALOG", "llmRoleProviderSupportStatus", "llmRoleSupportStatus", "checkMindoryLlmProviderHealth", "MINDORY_HOME_DIRECTORIES", "composeProfilesForAnswers", "redactEnvMap"]) {
   assert(installerSource.includes(token), `Installer core must include ${token}.`);
 }
-for (const token of ["MINDORY_INSTALL_LOCAL_MODEL_AUTO_INSTALL", "MINDORY_INSTALL_LOCAL_MODEL_RUNNERS", "MINDORY_INSTALL_LOCAL_MODEL_PULL_RETRIES", "installSelectedLocalModels", "local-model-install.log", "ollama\", \"pull", "LOCAL_MODEL_RUNNER_CATALOG"]) {
+for (const token of ["MINDORY_INSTALL_LOCAL_MODEL_PRESET", "MINDORY_INSTALL_LOCAL_MODEL_RESOURCE_CONFIRMED", "MINDORY_INSTALL_LOCAL_MODEL_AUTO_INSTALL", "MINDORY_INSTALL_LOCAL_MODEL_RUNNERS", "MINDORY_INSTALL_LOCAL_MODEL_PULL_RETRIES", "installSelectedLocalModels", "local-model-install.log", "ollama\", \"pull", "LOCAL_MODEL_RUNNER_CATALOG"]) {
   assert(installerSource.includes(token), `Installer local model auto-install must include ${token}.`);
   if (token.startsWith("MINDORY_")) {
     assert(envExample.includes(token), `.env.example must include ${token}.`);
@@ -212,6 +212,8 @@ for (const promptId of [
   "modalities.video_keyframe_provider",
   "modalities.video_ffmpeg_command",
   "modalities.video_ffprobe_command",
+  "local_models.preset",
+  "local_models.supported_multimodal.confirm_resources",
   "local_models.auto_install",
   "local_models.pull_retries",
   "local_models.runner.mindory-deterministic-local-http.enabled",
@@ -1431,6 +1433,9 @@ assert(ocrWizardAnswers.llmRoles.OCR.provider === "local-http", "Wizard must kee
 
 const paddleOcrWizardAnswers = await installer.runInstallWizard({
   async prompt(prompt) {
+    if (prompt.id === "local_models.preset") {
+      return "custom";
+    }
     if (prompt.id === "local_models.auto_install") {
       return "true";
     }
@@ -1464,6 +1469,9 @@ assert(installer.composeProfilesForAnswers(paddleOcrWizardAnswers).includes("loc
 
 const asrWizardAnswers = await installer.runInstallWizard({
   async prompt(prompt) {
+    if (prompt.id === "local_models.preset") {
+      return "custom";
+    }
     if (prompt.id === "local_models.auto_install") {
       return "true";
     }
@@ -1497,6 +1505,9 @@ assert(installer.composeProfilesForAnswers(asrWizardAnswers).includes("local-mod
 
 const imageSemanticsWizardAnswers = await installer.runInstallWizard({
   async prompt(prompt) {
+    if (prompt.id === "local_models.preset") {
+      return "custom";
+    }
     if (prompt.id === "local_models.auto_install") {
       return "true";
     }
@@ -1534,6 +1545,9 @@ assert(installer.composeProfilesForAnswers(imageSemanticsWizardAnswers).includes
 
 const faceWizardAnswers = await installer.runInstallWizard({
   async prompt(prompt) {
+    if (prompt.id === "local_models.preset") {
+      return "custom";
+    }
     if (prompt.id === "local_models.auto_install") {
       return "true";
     }
@@ -1568,6 +1582,73 @@ assert(faceWizardAnswers.llmRoles.FACE_RECOGNITION.model === "mindory-local-face
 assert(faceWizardAnswers.llmProviders.localHttpFaceDetectionBaseUrl === "http://faces:8086", "Face runner selection must set the face-detection-specific local HTTP endpoint.");
 assert(faceWizardAnswers.llmProviders.localHttpFaceRecognitionBaseUrl === "http://faces:8086", "Face runner selection must set the face-recognition-specific local HTTP endpoint.");
 assert(installer.composeProfilesForAnswers(faceWizardAnswers).includes("local-models-face"), "Face wizard answers must enable local-models-face.");
+
+let supportedMultimodalSummary = null;
+const supportedMultimodalWizardAnswers = await installer.runInstallWizard({
+  async prompt(prompt) {
+    if (prompt.id === "local_models.preset") {
+      return "supported-multimodal";
+    }
+    if (prompt.id === "local_models.supported_multimodal.confirm_resources") {
+      assert(prompt.resourceHint?.disk?.includes("tesseract-local-ocr"), "Supported multimodal resource prompt must show runner disk hints.");
+      assert(prompt.resourceHint?.memory?.includes("faster-whisper-tiny-asr"), "Supported multimodal resource prompt must show runner memory hints.");
+      return "true";
+    }
+    if (prompt.id === "local_models.pull_retries") {
+      return "3";
+    }
+    if (
+      prompt.id.startsWith("llm.TEXT_EMBEDDING.")
+      || prompt.id.startsWith("llm.IMAGE_EMBEDDING.")
+      || prompt.id.startsWith("llm.OCR.")
+      || prompt.id.startsWith("llm.ASR.")
+      || prompt.id.startsWith("llm.VISION_CAPTIONING.")
+      || prompt.id.startsWith("llm.FACE_DETECTION.")
+      || prompt.id.startsWith("llm.FACE_RECOGNITION.")
+      || prompt.id.startsWith("llm.IMAGE_GENERATION.")
+      || prompt.id.startsWith("llm.AUDIO_GENERATION.")
+    ) {
+      return "";
+    }
+    if (prompt.id.startsWith("llm.")) {
+      return "false";
+    }
+    return scriptedResponses.get(prompt.id) ?? "";
+  },
+  async confirm(summary) {
+    supportedMultimodalSummary = summary;
+    return true;
+  }
+});
+for (const runnerId of ["mindory-deterministic-local-http", "mindory-image-semantics-v1", "tesseract-local-ocr", "faster-whisper-tiny-asr", "mindory-local-face-v1"]) {
+  assert(supportedMultimodalWizardAnswers.localModels.selectedRunnerIds.includes(runnerId), `Supported multimodal preset must select ${runnerId}.`);
+}
+const supportedMultimodalProfiles = installer.composeProfilesForAnswers(supportedMultimodalWizardAnswers);
+for (const profile of ["local-models", "local-models-vision", "local-models-ocr", "local-models-asr", "local-models-face"]) {
+  assert(supportedMultimodalProfiles.includes(profile), `Supported multimodal preset must enable Compose profile ${profile}.`);
+}
+for (const role of ["TEXT_EMBEDDING", "IMAGE_EMBEDDING", "OCR", "ASR", "VISION_CAPTIONING", "FACE_DETECTION", "FACE_RECOGNITION", "IMAGE_GENERATION", "AUDIO_GENERATION"]) {
+  assert(supportedMultimodalWizardAnswers.llmRoles[role].enabled === true, `Supported multimodal preset must enable ${role}.`);
+  assert(supportedMultimodalWizardAnswers.llmRoles[role].provider === "local-http", `Supported multimodal preset must route ${role} through local-http.`);
+}
+assert(supportedMultimodalWizardAnswers.localModels.preset === "supported-multimodal", "Supported multimodal wizard must record preset.");
+assert(supportedMultimodalWizardAnswers.localModels.resourceConfirmed === true, "Supported multimodal wizard must record resource confirmation.");
+assert(supportedMultimodalWizardAnswers.localModels.pullRetries === 3, "Supported multimodal wizard must apply pull retries.");
+assert(installer.validateInstallAnswers(supportedMultimodalWizardAnswers).length === 0, "Supported multimodal wizard answers must validate.");
+const supportedMultimodalEnv = installer.answersToEnvMap(supportedMultimodalWizardAnswers);
+assert(supportedMultimodalEnv.MINDORY_INSTALL_LOCAL_MODEL_PRESET === "supported-multimodal", "Supported multimodal env must record preset.");
+assert(supportedMultimodalEnv.MINDORY_INSTALL_LOCAL_MODEL_RESOURCE_CONFIRMED === "true", "Supported multimodal env must record resource confirmation.");
+assert(supportedMultimodalEnv.MINDORY_LLM_IMAGE_GENERATION_ENABLED === "true", "Supported multimodal env must enable image generation.");
+assert(supportedMultimodalEnv.MINDORY_LLM_AUDIO_GENERATION_ENABLED === "true", "Supported multimodal env must enable audio generation.");
+assert(JSON.stringify(supportedMultimodalSummary).includes("resourceHint"), "Supported multimodal summary must show selected runner resource hints.");
+
+const unconfirmedPresetErrors = installer.validateInstallAnswers(installer.createDefaultInstallAnswers({
+  localModels: {
+    preset: "supported-multimodal",
+    resourceConfirmed: false
+  }
+}));
+assert(unconfirmedPresetErrors.some((error) => error.includes("resourceConfirmed")), "Supported multimodal preset must require resource confirmation in answer files.");
 
 const supportedLocalCommandAnswers = installer.createDefaultInstallAnswers({
   llmRoles: {

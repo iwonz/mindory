@@ -1,7 +1,7 @@
 {
   "id": "TASK-140",
   "title": "Installer multimodal supported-mode wizard",
-  "status": "draft",
+  "status": "done",
   "type": "feature",
   "priority": "high",
   "branch": "task/TASK-140-installer-multimodal-supported-mode-wizard",

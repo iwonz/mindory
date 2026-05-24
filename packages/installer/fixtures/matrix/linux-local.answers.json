@@ -18,13 +18,19 @@
       "text": true,
       "pdf": true,
       "image": true,
-      "audio": false,
-      "video": false,
+      "audio": true,
+      "video": true,
       "videoMaxKeyframes": 10
+    },
+    "localModels": {
+      "preset": "supported-multimodal",
+      "resourceConfirmed": true,
+      "autoInstall": true,
+      "pullRetries": 2
     }
   },
   "expected": {
-    "composeProfiles": ["clamav"],
+    "composeProfiles": ["clamav", "local-models", "local-models-vision", "local-models-ocr", "local-models-asr", "local-models-face"],
     "dependencyFailures": []
   }
 }
