@@ -11,6 +11,30 @@ This checklist is the public release gate for Mindory tag builds.
 public pre-release after the `TASK-133` through `TASK-147` series promotes and
 verifies supported multimodal local/install/runtime paths.
 
+## v0.1.1 Local Preflight
+
+`TASK-143` records the local preflight command set for the `v0.1.1` release
+candidate:
+
+```bash
+pnpm release:bundle -- --version 0.1.1 --url-base https://github.com/iwonz/mindory/releases/download/v0.1.1
+pnpm release:notes -- --version 0.1.1 --tag v0.1.1 --image ghcr.io/iwonz/mindory:0.1.1 --sha-image ghcr.io/iwonz/mindory:<git-sha>
+pnpm release:validate
+pnpm check
+```
+
+The generated bundle preflight must create `mindory-0.1.1.tar.gz`,
+`mindory-0.1.1.manifest.env`, `mindory-0.1.1.manifest.env.public.pem`,
+`mindory-0.1.1.sha256` and `mindory-0.1.1.release-notes.md` under
+`dist/releases/` without modifying or overwriting historical `v0.1.0` release
+assets.
+
+Latest local preflight result: `TASK-143` passed on 2026-05-24 with an
+ephemeral dev/test signing key. The generated manifest pointed at
+`https://github.com/iwonz/mindory/releases/download/v0.1.1/mindory-0.1.1.tar.gz`,
+included an RSA-SHA256 signature and matched the generated `.sha256` checksum.
+This was a local preflight only; publishing still requires `TASK-144`.
+
 ## Required Repository Secrets
 
 - `MINDORY_RELEASE_SIGNING_PRIVATE_KEY_PEM`: RSA private key used only by the

@@ -6,7 +6,7 @@ The repository should be described with the support levels in
 
 ## Current Baseline
 
-The repository is complete through `TASK-142`.
+The repository is complete through `TASK-143`.
 
 Release baseline:
 
@@ -29,7 +29,9 @@ Release baseline:
   focused OCR, ASR, image semantics and face runner gates. `TASK-142` cleaned
   public docs so supported local multimodal paths are no longer described as
   experimental while unchecked custom/external providers stay clearly separate.
-  `TASK-143` through `TASK-147` execute and verify the remaining release and
+  `TASK-143` added the v0.1.1 release notes/bundle preflight with signed
+  manifest, checksum, release notes and release checklist result. `TASK-144`
+  through `TASK-147` execute and verify publishing, bootstrap acceptance and
   final public-ready work one task at a time.
 
 Supported local MVP path:

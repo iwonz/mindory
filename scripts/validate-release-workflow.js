@@ -101,7 +101,7 @@ for (const token of [
   assertIncludes(smokeScript, token, "scripts/smoke-release-install.js");
 }
 
-for (const token of ["Support Matrix", "Upgrade Notes", "Public Release Checklist", "Docker Images", "Release Artifacts", "Changelog Excerpt"]) {
+for (const token of ["Support Matrix", "Upgrade Notes", "Public Release Checklist", "Docker Images", "Release Artifacts", "Changelog Excerpt", "v0.1.1 Highlights", "Supported multimodal runtime", "Full MVP Web UI", "Final gates", "MINDORY_LOCAL_MODEL_ACCEPTANCE_LIVE=true pnpm local-model:acceptance"]) {
   assertIncludes(releaseNotesScript, token, "scripts/generate-release-notes.js");
 }
 
@@ -122,12 +122,15 @@ try {
   ], "release bundle generation");
 
   const bundlePath = path.join(outDir, "mindory-0.0.0-release-validate.tar.gz");
+  const checksumPath = path.join(outDir, "mindory-0.0.0-release-validate.sha256");
   const manifestPath = path.join(outDir, "mindory-0.0.0-release-validate.manifest.env");
   const publicKeyPath = `${manifestPath}.public.pem`;
   assert(fs.existsSync(bundlePath), "release validation must generate a bundle.");
+  assert(fs.existsSync(checksumPath), "release validation must generate a checksum file.");
   assert(fs.existsSync(manifestPath), "release validation must generate a manifest.");
   assert(fs.existsSync(publicKeyPath), "release validation must generate a manifest public key.");
   const checksum = crypto.createHash("sha256").update(fs.readFileSync(bundlePath)).digest("hex");
+  assert(fs.readFileSync(checksumPath, "utf8").includes(checksum), "release checksum file must include the generated bundle checksum.");
   const manifest = fs.readFileSync(manifestPath, "utf8");
   assert(manifest.includes(checksum), "release manifest must include the generated bundle checksum.");
   assert(manifest.includes("MINDORY_RELEASE_MANIFEST_SIGNATURE="), "release manifest must include a signature.");
@@ -158,7 +161,7 @@ try {
     releaseNotesPath
   ], "release notes generation");
   const releaseNotes = fs.readFileSync(releaseNotesPath, "utf8");
-  for (const token of ["Support Matrix", "Upgrade Notes", "Public Release Checklist", "GitHub Pre-release", "ghcr.io/example/mindory:0.0.0-release-validate", "mindory-0.0.0-release-validate.manifest.env.public.pem"]) {
+  for (const token of ["Support Matrix", "Upgrade Notes", "Public Release Checklist", "GitHub Pre-release", "v0.1.1 Highlights", "Supported multimodal runtime", "Full MVP Web UI", "Final public-ready gate", "MINDORY_LOCAL_MODEL_ACCEPTANCE_LIVE=true pnpm local-model:acceptance", "TASK-118", "ghcr.io/example/mindory:0.0.0-release-validate", "mindory-0.0.0-release-validate.manifest.env.public.pem"]) {
     assertIncludes(releaseNotes, token, "generated release notes");
   }
 

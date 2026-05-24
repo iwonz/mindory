@@ -20,6 +20,9 @@ documentation.
 
 ### Added
 
+- `TASK-143`: v0.1.1 release notes and bundle preflight, including explicit
+  supported multimodal/Web UI/final-gate release notes, local `.sha256`
+  generation and release checklist preflight results.
 - `TASK-142`: public documentation cleanup for the supported multimodal path,
   including README, support matrix, LLM, installer, document pipeline and
   release checklist wording for the v0.1.1 local-model gate.
