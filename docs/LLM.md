@@ -40,17 +40,20 @@ The local install catalog lives in `LOCAL_MODEL_RUNNER_CATALOG` from
 `@mindory/config` and is documented in `docs/LOCAL_MODELS.md`. It records the
 runner id, model role coverage, provider contract, image or source, model
 files, license/status, ports, healthcheck and CPU/RAM/disk/GPU hints for text
-embeddings, image semantics, OCR, ASR, vision captioning, image embeddings and
-face roles.
+embeddings, image semantics, OCR, ASR, vision captioning, image embeddings,
+face roles and image/audio generation smoke providers.
 
-## v0.1.1 Promotion Target
+## v0.1.1 Supported Status
 
 `v0.1.0` is historical and stale relative to the current `master` baseline.
-`TASK-134` promotes OCR, ASR, vision captioning, object detection through the
+`TASK-134` promoted OCR, ASR, vision captioning, object detection through the
 vision role, image embeddings, face detection/recognition, image generation,
 audio generation, local-command providers and local-http providers in the
-central config and SDK support matrix. Runner-specific install/live acceptance
-is completed by the following tasks in the `v0.1.1` series.
+central config and SDK support matrix. `TASK-135` through `TASK-141` added the
+supported local runner profiles and full live local-model acceptance coverage
+for the promoted local/install/runtime path. Remaining `v0.1.1` tasks are
+release, documentation and final public-ready gates, not additional promotion
+requirements for the supported local multimodal runtime.
 
 ## Support Matrix
 
@@ -350,10 +353,18 @@ pnpm mvp:demo --model-profile ollama
   exercise routing, derived artifacts and search.
 - `local`: adds the `local-models` profile, starts a lightweight deterministic
   `llm` service on `MINDORY_LLM_LOCAL_HTTP_BASE_URL`, and configures
-  1536-dimensional local HTTP text embeddings for strict indexed acceptance.
+  1536-dimensional local HTTP text embeddings plus deterministic image/audio
+  generation smoke for strict indexed acceptance.
+- `local-models-ocr`: can be added explicitly when the Tesseract OCR runner is
+  selected; it serves PDF/image OCR through
+  `MINDORY_LLM_OCR_LOCAL_HTTP_BASE_URL`.
 - `local-models-asr`: can be added explicitly when the Faster Whisper ASR
   runner is selected; it serves ASR through
   `MINDORY_LLM_ASR_LOCAL_HTTP_BASE_URL`.
+- `local-models-vision`: can be added explicitly when the image semantics
+  runner is selected; it serves image vectors, captions and object observations
+  through `MINDORY_LLM_IMAGE_EMBEDDING_LOCAL_HTTP_BASE_URL` and
+  `MINDORY_LLM_VISION_CAPTIONING_LOCAL_HTTP_BASE_URL`.
 - `local-models-face`: can be added explicitly when the local face runner is
   selected; it serves face detection and recognition through
   `MINDORY_LLM_FACE_DETECTION_LOCAL_HTTP_BASE_URL` and

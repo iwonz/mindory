@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-141",
+  "current_task_id": "TASK-142",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -1027,7 +1027,7 @@
     {
       "id": "TASK-142",
       "title": "Public docs no-experimental cleanup for supported path",
-      "status": "draft",
+      "status": "done",
       "branch": "task/TASK-142-public-docs-no-experimental-cleanup-supported-path",
       "file": "tasks/TASK-142.json"
     },

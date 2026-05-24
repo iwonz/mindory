@@ -8,7 +8,7 @@ The canonical product and engineering specification is `docs/PRD.md`.
 
 ## Repository Status
 
-This repository is complete through `TASK-141`. Mindory can run a local
+This repository is complete through `TASK-142`. Mindory can run a local
 demo-MVP through Docker Compose, seed demo credentials, process uploaded
 documents through the worker pipeline and run live acceptance. `pnpm check`
 passes through the repo validation, typecheck, lint, tests and dry-run
@@ -36,7 +36,9 @@ Release status:
   preset with resource confirmation and generated local-model role config;
   `TASK-141` upgraded the full local-model live acceptance gate across
   deterministic MVP processing and the focused OCR, ASR, vision and face
-  runners.
+  runners; `TASK-142` cleaned public docs so promoted local multimodal paths
+  are described as supported while unchecked custom/external providers remain
+  clearly separate.
 
 The current state is intentionally split into supported local-MVP surfaces,
 experimental profile surfaces and documented non-MVP surfaces:
@@ -122,20 +124,23 @@ The live gate verifies the published pre-release bootstrap, self-host live
 matrix, local-model live profile, full Web UI Playwright flow, public wording
 gate and clean `git status --short`.
 
-The deterministic local-model profile has a separate dry-run gate:
+The local-model acceptance path has a separate dry-run gate:
 
 ```bash
 pnpm local-model:acceptance
 ```
 
-Set `MINDORY_LOCAL_MODEL_ACCEPTANCE_LIVE=true` to run the live Docker gate. Live
-mode starts `pnpm mvp:demo --model-profile local --require-indexed` in a
-temporary `MINDORY_HOME`, verifies OCR/ASR/vision/face artifacts, source refs,
-jobs, unified search and worker model-operation metrics, then resets the stack.
-Focused live runner gates are also available with
-`MINDORY_LOCAL_OCR_ACCEPTANCE_LIVE=true pnpm local-model:acceptance` and
-`MINDORY_LOCAL_ASR_ACCEPTANCE_LIVE=true pnpm local-model:acceptance` and
-`MINDORY_LOCAL_VISION_ACCEPTANCE_LIVE=true pnpm local-model:acceptance`.
+Set `MINDORY_LOCAL_MODEL_ACCEPTANCE_LIVE=true` to run the full supported
+multimodal Docker gate. Live mode starts
+`pnpm mvp:demo --model-profile local --require-indexed`, verifies
+OCR/ASR/vision/face artifacts, source refs, jobs, unified search, image/audio
+generation smoke and worker model-operation metrics, then runs the focused
+Tesseract OCR, Faster Whisper ASR, image semantics and local face runner gates.
+Focused runner-only gates are also available with
+`MINDORY_LOCAL_OCR_ACCEPTANCE_LIVE=true pnpm local-model:acceptance`,
+`MINDORY_LOCAL_ASR_ACCEPTANCE_LIVE=true pnpm local-model:acceptance`,
+`MINDORY_LOCAL_VISION_ACCEPTANCE_LIVE=true pnpm local-model:acceptance` and
+`MINDORY_LOCAL_FACE_ACCEPTANCE_LIVE=true pnpm local-model:acceptance`.
 
 The Web UI can be built and run locally:
 

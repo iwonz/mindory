@@ -387,11 +387,13 @@ the Jobs API `details` response.
 local HTTP embedding service, waits for `indexed` document status and verifies
 document search returns source-backed chunk hits.
 
-`pnpm local-model:acceptance` covers the supported deterministic local HTTP
-profile in dry-run mode as part of `pnpm check`. Focused live gates are enabled
-with `MINDORY_LOCAL_MODEL_ACCEPTANCE_LIVE=true`,
-`MINDORY_LOCAL_OCR_ACCEPTANCE_LIVE=true`,
-`MINDORY_LOCAL_ASR_ACCEPTANCE_LIVE=true` or
-`MINDORY_LOCAL_VISION_ACCEPTANCE_LIVE=true` and verify text, OCR, ASR, image
-caption/object/vector, video keyframe, face, source-ref, job, unified search
-and model-operation metric coverage.
+`pnpm local-model:acceptance` covers the supported local model path in dry-run
+mode as part of `pnpm check`. `MINDORY_LOCAL_MODEL_ACCEPTANCE_LIVE=true` runs
+the full Docker gate: deterministic MVP processing, scanned PDF OCR,
+image OCR/caption/object/vector checks, audio ASR, video keyframes through
+image handlers, face observations, image/audio generation smoke, source refs,
+jobs, unified search and model-operation metric coverage. Focused runner-only
+gates are also available with `MINDORY_LOCAL_OCR_ACCEPTANCE_LIVE=true`,
+`MINDORY_LOCAL_ASR_ACCEPTANCE_LIVE=true`,
+`MINDORY_LOCAL_VISION_ACCEPTANCE_LIVE=true` and
+`MINDORY_LOCAL_FACE_ACCEPTANCE_LIVE=true`.
