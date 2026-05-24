@@ -292,6 +292,7 @@ const bundleRoot = path.join(stagingParent, bundleName);
 const outDir = options.outDir;
 const bundlePath = path.join(outDir, `${bundleName}.tar.gz`);
 const manifestPath = path.join(outDir, `${bundleName}.manifest.env`);
+const checksumPath = path.join(outDir, `${bundleName}.sha256`);
 
 fs.mkdirSync(outDir, { recursive: true });
 fs.mkdirSync(bundleRoot, { recursive: true });
@@ -304,6 +305,7 @@ try {
 
   tarGzip(stagingParent, bundleName, bundlePath);
   const checksum = sha256File(bundlePath);
+  fs.writeFileSync(checksumPath, `${checksum}  ${path.basename(bundlePath)}\n`, "utf8");
   const bundleUrl = options.urlBase
     ? `${options.urlBase.replace(/\/$/, "")}/${path.basename(bundlePath)}`
     : pathToFileURL(bundlePath).href;
@@ -319,6 +321,7 @@ try {
 
   console.log(JSON.stringify({
     bundle: bundlePath,
+    checksumFile: checksumPath,
     manifest: manifestPath,
     publicKey: signedManifest.publicKeyPath,
     publicKeySha256: signedManifest.publicKeySha256,

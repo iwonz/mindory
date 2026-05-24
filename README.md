@@ -8,7 +8,7 @@ The canonical product and engineering specification is `docs/PRD.md`.
 
 ## Repository Status
 
-This repository is complete through `TASK-142`. Mindory can run a local
+This repository is complete through `TASK-143`. Mindory can run a local
 demo-MVP through Docker Compose, seed demo credentials, process uploaded
 documents through the worker pipeline and run live acceptance. `pnpm check`
 passes through the repo validation, typecheck, lint, tests and dry-run
@@ -38,7 +38,8 @@ Release status:
   deterministic MVP processing and the focused OCR, ASR, vision and face
   runners; `TASK-142` cleaned public docs so promoted local multimodal paths
   are described as supported while unchecked custom/external providers remain
-  clearly separate.
+  clearly separate; `TASK-143` added the v0.1.1 release notes/bundle preflight
+  with signed manifest, checksum, release notes and release checklist result.
 
 The current state is intentionally split into supported local-MVP surfaces,
 experimental profile surfaces and documented non-MVP surfaces:

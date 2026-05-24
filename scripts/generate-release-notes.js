@@ -15,7 +15,9 @@ function parseArgs(argv) {
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
-    if (arg === "--version") {
+    if (arg === "--") {
+      continue;
+    } else if (arg === "--version") {
       options.version = argv[++index] ?? "";
     } else if (arg === "--out") {
       options.out = path.resolve(argv[++index] ?? "");
@@ -106,6 +108,9 @@ Generated at: ${generatedAt}
 - Release gate: \`pnpm release:validate\`
 - Bootstrap gate: signed manifest verification and bundle checksum validation
 - Self-host gate: \`pnpm selfhost:gate\`
+- Local-model gate: \`MINDORY_LOCAL_MODEL_ACCEPTANCE_LIVE=true pnpm local-model:acceptance\`
+- Web UI gate: \`MINDORY_UI_E2E_LIVE=true pnpm ui:e2e\`
+- Final public-ready gate: \`MINDORY_PUBLIC_READY_LIVE=true pnpm public-ready:gate\`
 
 ## GitHub Pre-release
 
@@ -113,6 +118,21 @@ Trusted tag builds publish these artifacts as a public GitHub pre-release. A
 draft release may be used only as a manual staging checkpoint before the final
 tag build; the automated tag path publishes with the pre-release marker so
 bootstrap URLs resolve under \`/releases/download/${tag}/\`.
+
+## v0.1.1 Highlights
+
+- Supported multimodal runtime: OCR, ASR, vision captioning, object detection,
+  image embeddings, face detection/recognition, image generation, audio
+  generation, local-command providers and local-http providers have checked
+  local/install/runtime paths.
+- Full MVP Web UI: token/API connection, health, project/session navigation,
+  document pipeline workspace, unified search, context, manual memory, face
+  identity operations and runtime diagnostics are included in the supported
+  local path.
+- Final gates: public-ready validation combines fresh clone, published
+  pre-release bootstrap, self-host live matrix, supported local-model
+  acceptance, Web UI E2E, CLI/MCP smoke, stale wording validation and clean git
+  status.
 
 ## Release Artifacts
 
