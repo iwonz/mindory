@@ -20,6 +20,9 @@ documentation.
 
 ### Added
 
+- `TASK-144`: published `v0.1.1` as a public GitHub pre-release with signed
+  bundle, manifest, public key, checksum, release notes assets and GHCR tags
+  `0.1.1` and `424ab6c71abe`; documented the release URL.
 - `TASK-143`: v0.1.1 release notes and bundle preflight, including explicit
   supported multimodal/Web UI/final-gate release notes, local `.sha256`
   generation and release checklist preflight results.

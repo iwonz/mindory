@@ -8,7 +8,7 @@ The canonical product and engineering specification is `docs/PRD.md`.
 
 ## Repository Status
 
-This repository is complete through `TASK-143`. Mindory can run a local
+This repository is complete through `TASK-144`. Mindory can run a local
 demo-MVP through Docker Compose, seed demo credentials, process uploaded
 documents through the worker pipeline and run live acceptance. `pnpm check`
 passes through the repo validation, typecheck, lint, tests and dry-run
@@ -19,8 +19,8 @@ Release status:
 
 - `v0.1.0` is a historical pre-release and is stale relative to the current
   `master` baseline.
-- `v0.1.1` is the fresh target pre-release for the `TASK-133` through
-  `TASK-147` series.
+- `v0.1.1` is the current public pre-release:
+  <https://github.com/iwonz/mindory/releases/tag/v0.1.1>.
 - The `v0.1.1` target promotes OCR, ASR, vision captioning, object detection,
   image embeddings, face detection/recognition, image generation, audio
   generation, local-command runners and local-http runners into checked
@@ -39,7 +39,9 @@ Release status:
   runners; `TASK-142` cleaned public docs so promoted local multimodal paths
   are described as supported while unchecked custom/external providers remain
   clearly separate; `TASK-143` added the v0.1.1 release notes/bundle preflight
-  with signed manifest, checksum, release notes and release checklist result.
+  with signed manifest, checksum, release notes and release checklist result;
+  `TASK-144` published `v0.1.1` as a public GitHub pre-release with signed
+  assets and GHCR tags `0.1.1` and `424ab6c71abe`.
 
 The current state is intentionally split into supported local-MVP surfaces,
 experimental profile surfaces and documented non-MVP surfaces:

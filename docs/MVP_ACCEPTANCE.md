@@ -125,7 +125,7 @@ image pulls, ClamAV startup or rebuilds need more than the default timeout.
 v0.1.1 supported multimodal target:
 
 - `v0.1.0` is historical and stale relative to current `master`.
-- `v0.1.1` is the fresh target pre-release for the `TASK-133` through
+- `v0.1.1` is the current public pre-release for the `TASK-133` through
   `TASK-147` series.
 - The target live gate covers OCR, ASR, vision captioning, object detection,
   image embeddings, face detection/recognition, image generation, audio

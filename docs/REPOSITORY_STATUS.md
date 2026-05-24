@@ -6,13 +6,14 @@ The repository should be described with the support levels in
 
 ## Current Baseline
 
-The repository is complete through `TASK-143`.
+The repository is complete through `TASK-144`.
 
 Release baseline:
 
 - `v0.1.0` is a historical pre-release and is stale relative to the current
   `master` baseline.
-- `v0.1.1` is the fresh target pre-release for `TASK-133` through `TASK-147`.
+- `v0.1.1` is the current public pre-release:
+  <https://github.com/iwonz/mindory/releases/tag/v0.1.1>.
 - The `v0.1.1` target promotes OCR, ASR, vision captioning, object detection,
   image embeddings, face detection/recognition, image generation, audio
   generation, local-command runners and local-http runners into checked
@@ -31,8 +32,10 @@ Release baseline:
   experimental while unchecked custom/external providers stay clearly separate.
   `TASK-143` added the v0.1.1 release notes/bundle preflight with signed
   manifest, checksum, release notes and release checklist result. `TASK-144`
-  through `TASK-147` execute and verify publishing, bootstrap acceptance and
-  final public-ready work one task at a time.
+  published `v0.1.1` as a public GitHub pre-release with bundle, signed
+  manifest, public key, checksum and release notes assets plus GHCR image tags
+  `0.1.1` and `424ab6c71abe`. `TASK-145` through `TASK-147` verify the
+  published bootstrap and final public-ready gates one task at a time.
 
 Supported local MVP path:
 

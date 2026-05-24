@@ -57,6 +57,9 @@ requirements for the supported local multimodal runtime.
 
 ## Support Matrix
 
+`TASK-144` published `v0.1.1` as the public pre-release for this supported
+local multimodal runtime path.
+
 `@mindory/llm` exports the role/provider support matrix, and the config catalog
 uses the same matrix for defaults, env metadata and installer gating.
 

@@ -145,7 +145,7 @@ validation and clean git status before announcing a pre-release as usable by
 others.
 
 Release note: `v0.1.0` is a historical pre-release and is stale relative to the
-current `master` baseline. The fresh target pre-release is `v0.1.1`; the
+current `master` baseline. The current public pre-release is `v0.1.1`; the
 `TASK-133` through `TASK-147` series promotes OCR, ASR, vision captioning,
 object detection, image embeddings, face detection/recognition, image
 generation, audio generation, local-command runners and local-http runners into
@@ -153,9 +153,10 @@ checked supported local/install/runtime paths. `TASK-134` promotes the central
 role/provider support matrix; `TASK-141` adds the full supported local-model
 live gate across deterministic MVP processing and the focused OCR, ASR, image
 semantics and face runners. `TASK-143` adds the v0.1.1 release notes/bundle
-preflight with signed manifest, checksum and release checklist result. The
-remaining tasks complete publishing, bootstrap acceptance and final
-public-ready gates.
+preflight with signed manifest, checksum and release checklist result.
+`TASK-144` publishes `v0.1.1` as a public GitHub pre-release with signed
+assets and GHCR tags. The remaining tasks complete published-bootstrap
+acceptance and final public-ready gates.
 
 Do not implement the remaining non-goals unless a task explicitly scopes them.
 

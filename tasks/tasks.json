@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-143",
+  "current_task_id": "TASK-144",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -1041,7 +1041,7 @@
     {
       "id": "TASK-144",
       "title": "Publish v0.1.1 pre-release",
-      "status": "draft",
+      "status": "done",
       "branch": "task/TASK-144-publish-v0-1-1-prerelease",
       "file": "tasks/TASK-144.json"
     },
