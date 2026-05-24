@@ -85,11 +85,12 @@ Live local-model multimodal gate:
 MINDORY_LOCAL_MODEL_ACCEPTANCE_LIVE=true pnpm local-model:acceptance
 ```
 
-Live mode creates a temporary `MINDORY_HOME`, starts
+Live mode creates temporary `MINDORY_HOME` directories, starts
 `pnpm mvp:demo --model-profile local --require-indexed`, uploads text, PDF,
 image, audio and video fixtures, verifies deterministic OCR, ASR, vision,
-image embedding, face observations, source refs, jobs, unified search and
-worker model-operation metrics, then runs `pnpm mvp:reset`.
+image embedding, face observations, source refs, jobs, unified search,
+image/audio generation smoke and worker model-operation metrics, then runs the
+focused OCR, ASR, image semantics and face runner gates before cleanup.
 
 Public self-host release-readiness gate:
 

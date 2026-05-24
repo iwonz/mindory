@@ -71,17 +71,19 @@ To run the live multimodal gate with Docker:
 MINDORY_LOCAL_MODEL_ACCEPTANCE_LIVE=true pnpm local-model:acceptance
 ```
 
-Live mode uses a temporary `MINDORY_HOME` and starts
-`pnpm mvp:demo --model-profile local --require-indexed`. It verifies text
-embedding/indexing, PDF and image OCR, image caption/search, audio ASR,
-video keyframe artifacts, face observations/identities, source refs, jobs,
-unified face search, image/audio generation wiring and worker model-operation
-metrics. Use
+Live mode uses temporary `MINDORY_HOME` directories. It first starts
+`pnpm mvp:demo --model-profile local --require-indexed`, then runs the focused
+OCR, ASR, image semantics and face runner gates below. The full gate verifies
+text embedding/indexing, scanned PDF OCR, image OCR/caption/object/vector
+contracts, audio ASR transcript segments, video keyframe artifacts, face
+observations/identities, source refs, jobs, unified face search, image/audio
+generation smoke through `@mindory/llm`, worker model-operation metrics and
+runner diagnostics. Use
 `MINDORY_LOCAL_MODEL_ACCEPTANCE_TIMEOUT_MS=<milliseconds>` when image builds or
 Docker startup need more than the default timeout.
 
-The OCR runner has its own live gate because Tesseract image build and model
-download are heavier than the deterministic local profile:
+The OCR runner also has its own focused live gate when only Tesseract needs to
+be checked:
 
 ```bash
 MINDORY_LOCAL_OCR_ACCEPTANCE_LIVE=true pnpm local-model:acceptance

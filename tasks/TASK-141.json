@@ -1,7 +1,7 @@
 {
   "id": "TASK-141",
   "title": "Full multimodal live acceptance upgrade",
-  "status": "draft",
+  "status": "done",
   "type": "test",
   "priority": "high",
   "branch": "task/TASK-141-full-multimodal-live-acceptance-upgrade",

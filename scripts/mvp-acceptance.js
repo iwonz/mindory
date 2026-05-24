@@ -13,6 +13,7 @@ const scenario = [
   "api upload PDF image audio and video documents",
   "artifact search with metadata filters",
   "local model OCR ASR vision face artifacts and audit wiring",
+  "local model image and audio generation smoke through @mindory/llm",
   "document reprocess and job status details",
   "disabled and non-blocking model modes",
   "strict indexed document search when embeddings are enabled",
@@ -24,7 +25,7 @@ const scenario = [
 ];
 
 if (process.env.MINDORY_E2E_LIVE !== "true") {
-  for (const required of ["api", "cli", "mcp", "hermes", "upload document", "PDF", "image", "audio", "video", "artifact search", "metadata filters", "local model", "face", "audit", "reprocess", "job status details", "disabled and non-blocking", "source-backed memory", "poll processing jobs", "indexed", "document search"]) {
+  for (const required of ["api", "cli", "mcp", "hermes", "upload document", "PDF", "image", "audio", "video", "artifact search", "metadata filters", "local model", "face", "generation", "audit", "reprocess", "job status details", "disabled and non-blocking", "source-backed memory", "poll processing jobs", "indexed", "document search"]) {
     assert(scenario.some((step) => step.includes(required)), `Dry-run scenario must include ${required}.`);
   }
   console.log("MVP acceptance dry-run validated. Set MINDORY_E2E_LIVE=true to run against a live API.");
@@ -84,6 +85,7 @@ const multimodal = await uploadMultimodalDocuments();
 await assertMultimodalSearch(multimodal);
 if (modelProfile === "local") {
   await assertLocalModelMultimodalArtifacts(multimodal);
+  assertLocalModelGenerationSmoke();
 }
 await assertDocumentReprocess(multimodal.image);
 
@@ -414,6 +416,32 @@ function localModelAuditMetricsPresent(metrics) {
   return true;
 }
 
+function assertLocalModelGenerationSmoke() {
+  const generationEnv = {
+    ...process.env,
+    MINDORY_LLM_LOCAL_HTTP_BASE_URL: process.env.MINDORY_E2E_LLM_LOCAL_HTTP_BASE_URL ?? "http://127.0.0.1:8080",
+    MINDORY_LLM_IMAGE_GENERATION_ENABLED: "true",
+    MINDORY_LLM_IMAGE_GENERATION_PROVIDER: "local-http",
+    MINDORY_LLM_IMAGE_GENERATION_MODEL: process.env.MINDORY_LLM_IMAGE_GENERATION_MODEL ?? "mindory-local-image-generation",
+    MINDORY_LLM_AUDIO_GENERATION_ENABLED: "true",
+    MINDORY_LLM_AUDIO_GENERATION_PROVIDER: "local-http",
+    MINDORY_LLM_AUDIO_GENERATION_MODEL: process.env.MINDORY_LLM_AUDIO_GENERATION_MODEL ?? "mindory-local-audio-generation"
+  };
+  const image = runCliJson(["llm", "generate-image", "draw Mindory local acceptance media", "--include-bytes"], generationEnv);
+  assertGeneratedMedia(image, "image-generation", "image/png", isPngBase64);
+  const audio = runCliJson(["llm", "generate-audio", "say Mindory local acceptance media", "--include-bytes"], generationEnv);
+  assertGeneratedMedia(audio, "audio-generation", "audio/wav", isWavBase64);
+}
+
+function assertGeneratedMedia(result, role, mimeType, isValidBase64) {
+  assert(result.status === "success", `${role} CLI smoke should return success.`);
+  assert(result.mimeType === mimeType, `${role} CLI smoke should return ${mimeType}.`);
+  assert(Number.isInteger(result.byteLength) && result.byteLength > 0, `${role} CLI smoke should return non-empty media bytes.`);
+  assert(isValidBase64(result.dataBase64), `${role} CLI smoke should return valid media bytes.`);
+  const audits = Array.isArray(result.audits) ? result.audits : [result.audit];
+  assert(audits.some((audit) => audit?.role === role && audit.provider === "local-http" && audit.status === "success"), `${role} CLI smoke should include a successful local-http audit record.`);
+}
+
 async function assertDocumentReprocess(documentId) {
   const recompute = await requestJson("POST", `/v1/documents/${encodeURIComponent(documentId)}/recompute`, {
     projectId,
@@ -448,6 +476,46 @@ function runCli(args) {
   if ((result.status ?? 1) !== 0) {
     throw new Error(`CLI failed (${args.join(" ")}): ${result.stderr || result.stdout}`);
   }
+}
+
+function runCliJson(args, env) {
+  const result = spawnSync(process.execPath, ["apps/cli/dist/index.js", "--api-url", apiUrl, "--token", token, ...args], {
+    cwd: root,
+    encoding: "utf8",
+    env
+  });
+  if ((result.status ?? 1) !== 0) {
+    throw new Error(`CLI failed (${args.join(" ")}): ${result.stderr || result.stdout}`);
+  }
+  try {
+    return JSON.parse(result.stdout);
+  } catch (error) {
+    throw new Error(`CLI returned non-JSON output for ${args.join(" ")}: ${result.stdout || error}`);
+  }
+}
+
+function isPngBase64(value) {
+  if (typeof value !== "string") {
+    return false;
+  }
+  const bytes = Buffer.from(value, "base64");
+  return bytes.length >= 8
+    && bytes[0] === 0x89
+    && bytes.subarray(1, 4).toString("ascii") === "PNG"
+    && bytes[4] === 0x0d
+    && bytes[5] === 0x0a
+    && bytes[6] === 0x1a
+    && bytes[7] === 0x0a;
+}
+
+function isWavBase64(value) {
+  if (typeof value !== "string") {
+    return false;
+  }
+  const bytes = Buffer.from(value, "base64");
+  return bytes.length >= 44
+    && bytes.subarray(0, 4).toString("ascii") === "RIFF"
+    && bytes.subarray(8, 12).toString("ascii") === "WAVE";
 }
 
 function buildMinimalPdf(pageTexts) {
