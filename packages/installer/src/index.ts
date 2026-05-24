@@ -149,6 +149,8 @@ export interface ModalityAnswers {
 }
 
 export interface LocalModelAnswers {
+  preset: LocalModelPreset;
+  resourceConfirmed: boolean;
   autoInstall: boolean;
   selectedRunnerIds: string[];
   pullRetries: number;
@@ -343,6 +345,7 @@ export class ClamAvInstallerHealthError extends Error {
 export type RollbackExecutor = (rollback: InstallRollbackStep, step: InstallPlanStep) => Promise<void> | void;
 export type WizardPromptKind = "text" | "secret" | "boolean" | "number" | "choice";
 export type WizardStorageChoice = "local-fs" | "librefs-s3" | "external-s3";
+export type LocalModelPreset = "disabled" | "supported-multimodal" | "custom";
 
 export interface WizardChoice {
   value: string;
@@ -960,6 +963,8 @@ export function createDefaultInstallAnswers(overrides: Partial<MindoryInstallAns
       videoFfprobeCommand: catalogDefault("MINDORY_DOCUMENT_PROCESSING_VIDEO_FFPROBE_COMMAND")
     },
     localModels: {
+      preset: catalogDefault("MINDORY_INSTALL_LOCAL_MODEL_PRESET") as LocalModelPreset,
+      resourceConfirmed: catalogDefault("MINDORY_INSTALL_LOCAL_MODEL_RESOURCE_CONFIRMED") === "true",
       autoInstall: catalogDefault("MINDORY_INSTALL_LOCAL_MODEL_AUTO_INSTALL") === "true",
       selectedRunnerIds: parseCsvStringArray(catalogDefault("MINDORY_INSTALL_LOCAL_MODEL_RUNNERS")),
       pullRetries: Number.parseInt(catalogDefault("MINDORY_INSTALL_LOCAL_MODEL_PULL_RETRIES"), 10)
@@ -999,7 +1004,7 @@ export function createDefaultInstallAnswers(overrides: Partial<MindoryInstallAns
     }
   };
 
-  return mergeAnswers(defaults, overrides);
+  return applyLocalModelPresetDefaults(mergeAnswers(defaults, overrides), overrides);
 }
 
 export function createInstallAnswersFromHome(mindoryHome: string): MindoryInstallAnswers {
@@ -1076,6 +1081,8 @@ export function createInstallAnswersFromHome(mindoryHome: string): MindoryInstal
       videoFfprobeCommand: envValue(env, "MINDORY_DOCUMENT_PROCESSING_VIDEO_FFPROBE_COMMAND")
     },
     localModels: {
+      preset: envValue(env, "MINDORY_INSTALL_LOCAL_MODEL_PRESET") as LocalModelPreset,
+      resourceConfirmed: envBool(env, "MINDORY_INSTALL_LOCAL_MODEL_RESOURCE_CONFIRMED"),
       autoInstall: envBool(env, "MINDORY_INSTALL_LOCAL_MODEL_AUTO_INSTALL"),
       selectedRunnerIds: parseCsvStringArray(envValue(env, "MINDORY_INSTALL_LOCAL_MODEL_RUNNERS")),
       pullRetries: envNumber(env, "MINDORY_INSTALL_LOCAL_MODEL_PULL_RETRIES")
@@ -1239,6 +1246,20 @@ export function validateInstallAnswers(answers: MindoryInstallAnswers): string[]
   }
   if (answers.modalities.videoMaxKeyframes <= 0) {
     errors.push("modalities.videoMaxKeyframes must be greater than zero.");
+  }
+  validateCatalogValue(errors, "MINDORY_INSTALL_LOCAL_MODEL_PRESET", answers.localModels.preset);
+  if (answers.localModels.preset === "supported-multimodal" && !answers.localModels.resourceConfirmed) {
+    errors.push("localModels.resourceConfirmed must be true after reviewing supported multimodal resource requirements.");
+  }
+  if (answers.localModels.preset === "supported-multimodal") {
+    for (const runnerId of supportedMultimodalLocalModelRunnerIds()) {
+      if (!answers.localModels.selectedRunnerIds.includes(runnerId)) {
+        errors.push(`supported multimodal preset requires local model runner ${runnerId}.`);
+      }
+    }
+  }
+  if (answers.localModels.preset === "disabled" && answers.localModels.autoInstall) {
+    errors.push("localModels.autoInstall must be false when localModels.preset is disabled.");
   }
   if (answers.localModels.pullRetries <= 0) {
     errors.push("localModels.pullRetries must be greater than zero.");
@@ -3258,6 +3279,8 @@ export function answersToEnvMap(answers: MindoryInstallAnswers): Record<string, 
   assign(env, "MINDORY_INSTALL_DEPENDENCY_POLICY", answers.dependencyPolicy);
   assign(env, "MINDORY_INSTALL_ROLLBACK_ON_FAILURE", bool(answers.rollbackOnFailure));
   assign(env, "MINDORY_INSTALL_DEV_MODE", bool(answers.devMode));
+  assign(env, "MINDORY_INSTALL_LOCAL_MODEL_PRESET", answers.localModels.preset);
+  assign(env, "MINDORY_INSTALL_LOCAL_MODEL_RESOURCE_CONFIRMED", bool(answers.localModels.resourceConfirmed));
   assign(env, "MINDORY_INSTALL_LOCAL_MODEL_AUTO_INSTALL", bool(answers.localModels.autoInstall));
   assign(env, "MINDORY_INSTALL_LOCAL_MODEL_RUNNERS", answers.localModels.selectedRunnerIds.join(","));
   assign(env, "MINDORY_INSTALL_LOCAL_MODEL_PULL_RETRIES", String(answers.localModels.pullRetries));
@@ -3387,12 +3410,35 @@ export function buildRedactedInstallSummary(answers: MindoryInstallAnswers): Rec
     profile: plan.profile,
     composeProfiles: plan.composeProfiles,
     homeDirectories: plan.homeDirectories,
+    localModels: buildLocalModelSummary(answers),
     environment: redactEnvMap(plan.environment),
     steps: plan.steps.map((stepItem) => ({
       id: stepItem.id,
       title: stepItem.title,
       kind: stepItem.kind,
       rollback: stepItem.rollback.kind
+    }))
+  };
+}
+
+function buildLocalModelSummary(answers: MindoryInstallAnswers): Record<string, unknown> {
+  const selectedRunners = selectedLocalModelRunners(answers);
+  const selectedRoles = Array.from(new Set(selectedRunners.flatMap((runner) => runner.roles))).sort();
+  return {
+    preset: answers.localModels.preset,
+    autoInstall: answers.localModels.autoInstall,
+    resourceConfirmed: answers.localModels.resourceConfirmed,
+    pullRetries: answers.localModels.pullRetries,
+    selectedRoles,
+    selectedRunners: selectedRunners.map((runner) => ({
+      id: runner.id,
+      title: runner.title,
+      serviceName: runner.serviceName,
+      composeProfile: runner.composeProfile,
+      roles: runner.roles,
+      modelNames: runner.modelNames,
+      resourceHint: runner.resourceHint,
+      healthcheck: runner.healthcheck
     }))
   };
 }
@@ -3525,6 +3571,8 @@ export function buildWizardPromptPlan(options: WizardOptions = {}): WizardPrompt
     promptFromCatalog("modalities.video_keyframe_provider", "MINDORY_DOCUMENT_PROCESSING_VIDEO_KEYFRAME_PROVIDER", "choice"),
     promptFromCatalog("modalities.video_ffmpeg_command", "MINDORY_DOCUMENT_PROCESSING_VIDEO_FFMPEG_COMMAND", "text"),
     promptFromCatalog("modalities.video_ffprobe_command", "MINDORY_DOCUMENT_PROCESSING_VIDEO_FFPROBE_COMMAND", "text"),
+    promptFromCatalog("local_models.preset", "MINDORY_INSTALL_LOCAL_MODEL_PRESET", "choice"),
+    localModelSupportedMultimodalResourcePrompt(answers),
     promptFromCatalog("local_models.auto_install", "MINDORY_INSTALL_LOCAL_MODEL_AUTO_INSTALL", "boolean"),
     promptFromCatalog("local_models.pull_retries", "MINDORY_INSTALL_LOCAL_MODEL_PULL_RETRIES", "number"),
     ...localModelRunnerPrompts(answers),
@@ -3628,21 +3676,39 @@ export async function runInstallWizard(io: WizardIo, options: WizardOptions = {}
     answers.modalities.videoFfprobeCommand = await askString(io, promptFromCatalog("modalities.video_ffprobe_command", "MINDORY_DOCUMENT_PROCESSING_VIDEO_FFPROBE_COMMAND", "text", { defaultValue: answers.modalities.videoFfprobeCommand }));
   }
 
-  answers.localModels.autoInstall = await askBoolean(io, promptFromCatalog("local_models.auto_install", "MINDORY_INSTALL_LOCAL_MODEL_AUTO_INSTALL", "boolean"));
+  answers.localModels.preset = await askChoice(io, promptFromCatalog("local_models.preset", "MINDORY_INSTALL_LOCAL_MODEL_PRESET", "choice")) as LocalModelPreset;
   answers.localModels.selectedRunnerIds = [];
-  if (answers.localModels.autoInstall) {
-    const selectedRunners: LocalModelRunnerCatalogEntry[] = [];
-    for (const runner of supportedLocalModelRunners()) {
-      const selected = await askBoolean(io, localModelRunnerPrompt(runner, answers));
-      if (selected) {
-        selectedRunners.push(runner);
-        answers.localModels.selectedRunnerIds.push(runner.id);
-        applyLocalModelRunnerToAnswers(answers, runner, answers.allowExperimental || options.allowExperimental === true);
-      } else {
-        disableLocalModelRunnerRoles(answers, runner, selectedRunners);
-      }
+  if (answers.localModels.preset === "disabled") {
+    answers.localModels.autoInstall = false;
+    answers.localModels.resourceConfirmed = false;
+  } else if (answers.localModels.preset === "supported-multimodal") {
+    answers.localModels.autoInstall = true;
+    answers.localModels.resourceConfirmed = await askBoolean(io, localModelSupportedMultimodalResourcePrompt(answers));
+    if (!answers.localModels.resourceConfirmed) {
+      throw new Error("Supported multimodal local model installation requires resource confirmation.");
+    }
+    for (const runner of supportedMultimodalLocalModelRunners()) {
+      answers.localModels.selectedRunnerIds.push(runner.id);
+      applyLocalModelRunnerToAnswers(answers, runner, answers.allowExperimental || options.allowExperimental === true);
     }
     answers.localModels.pullRetries = await askNumber(io, promptFromCatalog("local_models.pull_retries", "MINDORY_INSTALL_LOCAL_MODEL_PULL_RETRIES", "number", { defaultValue: String(answers.localModels.pullRetries) }));
+  } else {
+    answers.localModels.autoInstall = await askBoolean(io, promptFromCatalog("local_models.auto_install", "MINDORY_INSTALL_LOCAL_MODEL_AUTO_INSTALL", "boolean"));
+    answers.localModels.resourceConfirmed = false;
+    const selectedRunners: LocalModelRunnerCatalogEntry[] = [];
+    if (answers.localModels.autoInstall) {
+      for (const runner of supportedLocalModelRunners()) {
+        const selected = await askBoolean(io, localModelRunnerPrompt(runner, answers));
+        if (selected) {
+          selectedRunners.push(runner);
+          answers.localModels.selectedRunnerIds.push(runner.id);
+          applyLocalModelRunnerToAnswers(answers, runner, answers.allowExperimental || options.allowExperimental === true);
+        } else {
+          disableLocalModelRunnerRoles(answers, runner, selectedRunners);
+        }
+      }
+      answers.localModels.pullRetries = await askNumber(io, promptFromCatalog("local_models.pull_retries", "MINDORY_INSTALL_LOCAL_MODEL_PULL_RETRIES", "number", { defaultValue: String(answers.localModels.pullRetries) }));
+    }
   }
 
   for (const role of LLM_ROLE_KEYS) {
@@ -3767,6 +3833,24 @@ function localModelRunnerPrompts(answers: MindoryInstallAnswers): WizardPrompt[]
   return supportedLocalModelRunners().map((runner) => localModelRunnerPrompt(runner, answers));
 }
 
+function localModelSupportedMultimodalResourcePrompt(answers: MindoryInstallAnswers): WizardPrompt {
+  const runners = supportedMultimodalLocalModelRunners();
+  return {
+    id: "local_models.supported_multimodal.confirm_resources",
+    kind: "boolean",
+    label: "Confirm supported multimodal local model resources",
+    help: [
+      "The supported multimodal preset installs the checked local model runners for embeddings, OCR, ASR, vision, face detection/recognition and image/audio generation.",
+      `Selected runners: ${runners.map((runner) => runner.id).join(", ")}.`,
+      `Resource hints: ${runners.map((runner) => `${runner.id}: CPU ${runner.resourceHint.cpu}, RAM ${runner.resourceHint.memory}, disk ${runner.resourceHint.disk}, GPU ${runner.resourceHint.gpu}`).join("; ")}.`
+    ].join(" "),
+    defaultValue: bool(answers.localModels.resourceConfirmed),
+    secret: false,
+    resourceHint: aggregateLocalModelResourceHint(runners),
+    supportStatus: "supported"
+  };
+}
+
 function localModelRunnerPrompt(runner: LocalModelRunnerCatalogEntry, answers: MindoryInstallAnswers): WizardPrompt {
   return {
     id: `local_models.runner.${runner.id}.enabled`,
@@ -3786,6 +3870,30 @@ function localModelRunnerPrompt(runner: LocalModelRunnerCatalogEntry, answers: M
 
 function supportedLocalModelRunners(): LocalModelRunnerCatalogEntry[] {
   return LOCAL_MODEL_RUNNER_CATALOG.filter((runner) => runner.status === "supported");
+}
+
+function supportedMultimodalLocalModelRunners(): LocalModelRunnerCatalogEntry[] {
+  const ids = new Set(supportedMultimodalLocalModelRunnerIds());
+  return LOCAL_MODEL_RUNNER_CATALOG.filter((runner) => ids.has(runner.id));
+}
+
+function supportedMultimodalLocalModelRunnerIds(): string[] {
+  return [
+    "mindory-deterministic-local-http",
+    "mindory-image-semantics-v1",
+    "tesseract-local-ocr",
+    "faster-whisper-tiny-asr",
+    "mindory-local-face-v1"
+  ];
+}
+
+function aggregateLocalModelResourceHint(runners: readonly LocalModelRunnerCatalogEntry[]): NonNullable<WizardPrompt["resourceHint"]> {
+  return {
+    cpu: runners.map((runner) => `${runner.id}: ${runner.resourceHint.cpu}`).join("; "),
+    memory: runners.map((runner) => `${runner.id}: ${runner.resourceHint.memory}`).join("; "),
+    disk: runners.map((runner) => `${runner.id}: ${runner.resourceHint.disk}`).join("; "),
+    gpu: runners.map((runner) => `${runner.id}: ${runner.resourceHint.gpu}`).join("; ")
+  };
 }
 
 function applyLocalModelRunnerToAnswers(answers: MindoryInstallAnswers, runner: LocalModelRunnerCatalogEntry, experimentalAllowed: boolean): void {
@@ -6319,6 +6427,8 @@ function promptIdToEnvName(promptId: string): string | undefined {
     "install.allow_experimental": "MINDORY_INSTALL_ALLOW_EXPERIMENTAL",
     "install.dependency_policy": "MINDORY_INSTALL_DEPENDENCY_POLICY",
     "av.mode": "MINDORY_AV_MODE",
+    "local_models.preset": "MINDORY_INSTALL_LOCAL_MODEL_PRESET",
+    "local_models.supported_multimodal.confirm_resources": "MINDORY_INSTALL_LOCAL_MODEL_RESOURCE_CONFIRMED",
     "local_models.auto_install": "MINDORY_INSTALL_LOCAL_MODEL_AUTO_INSTALL",
     "local_models.pull_retries": "MINDORY_INSTALL_LOCAL_MODEL_PULL_RETRIES",
     "storage.s3.endpoint": "MINDORY_S3_ENDPOINT",
@@ -6408,6 +6518,39 @@ function mergeAnswers(defaults: MindoryInstallAnswers, overrides: Partial<Mindor
     interfaces: { ...defaults.interfaces, ...overrides.interfaces },
     tokens: { ...defaults.tokens, ...overrides.tokens }
   };
+}
+
+function applyLocalModelPresetDefaults(
+  answers: MindoryInstallAnswers,
+  overrides: Partial<MindoryInstallAnswers>
+): MindoryInstallAnswers {
+  const localModelOverrides = overrides.localModels;
+  if (localModelOverrides?.preset === undefined) {
+    if (answers.localModels.autoInstall || answers.localModels.selectedRunnerIds.length > 0) {
+      answers.localModels.preset = "custom";
+    }
+  }
+
+  if (answers.localModels.preset === "disabled") {
+    answers.localModels.autoInstall = false;
+    answers.localModels.selectedRunnerIds = [];
+    answers.localModels.resourceConfirmed = false;
+    return answers;
+  }
+
+  if (answers.localModels.preset === "supported-multimodal") {
+    answers.localModels.autoInstall = true;
+    answers.localModels.selectedRunnerIds = supportedMultimodalLocalModelRunnerIds();
+    for (const runner of supportedMultimodalLocalModelRunners()) {
+      applyLocalModelRunnerToAnswers(answers, runner, answers.allowExperimental);
+    }
+    answers.llmRoles = {
+      ...answers.llmRoles,
+      ...overrides.llmRoles
+    };
+  }
+
+  return answers;
 }
 
 function step(

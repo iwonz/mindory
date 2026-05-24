@@ -629,6 +629,14 @@ export const CONFIG_CATALOG = [
   }),
   entry("MINDORY_INSTALL_ROLLBACK_ON_FAILURE", "installer", "boolean", "true", "Rollback Mindory-created state when install fails.", "installer", "supported"),
   entry("MINDORY_INSTALL_DEV_MODE", "installer", "boolean", "false", "Enable installer dev/test matrix behavior.", "installer", "supported"),
+  entry("MINDORY_INSTALL_LOCAL_MODEL_PRESET", "installer", "enum", "disabled", "Local model install preset selected by the wizard or answer file.", "installer", "supported", {
+    allowedValues: ["disabled", "supported-multimodal", "custom"],
+    prompt: {
+      label: "Local model preset",
+      help: "Choose disabled for no local runners, supported-multimodal for the checked local OCR/ASR/vision/face/generation path, or custom for manual runner selection."
+    }
+  }),
+  entry("MINDORY_INSTALL_LOCAL_MODEL_RESOURCE_CONFIRMED", "installer", "boolean", "false", "Confirms the selected local model runner resource requirements were shown and accepted.", "installer", "supported"),
   entry("MINDORY_INSTALL_LOCAL_MODEL_AUTO_INSTALL", "installer", "boolean", "false", "Enable installer-managed local model runner installation.", "installer", "supported", {
     prompt: {
       label: "Install local model runners",

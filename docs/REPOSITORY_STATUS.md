@@ -6,7 +6,7 @@ The repository should be described with the support levels in
 
 ## Current Baseline
 
-The repository is complete through `TASK-139`.
+The repository is complete through `TASK-140`.
 
 Release baseline:
 
@@ -22,8 +22,10 @@ Release baseline:
   the supported Faster Whisper ASR runner, `TASK-137` added the supported
   image semantics runner, `TASK-138` added the supported local face runner and
   `TASK-139` added supported image/audio generation provider validation plus
-  valid deterministic PNG/WAV generation smoke paths. `TASK-140` through
-  `TASK-147` execute and verify the remaining installer, acceptance and release
+  valid deterministic PNG/WAV generation smoke paths. `TASK-140` added the
+  installer supported multimodal preset with resource confirmation, answer-file
+  fields and generated local-model role config. `TASK-141` through `TASK-147`
+  execute and verify the remaining acceptance and release
   work one task at a time.
 
 Supported local MVP path:
@@ -51,10 +53,13 @@ Supported local MVP path:
 - The installer can plan, prepare, start through health checks, provision the
   first project/token, update local assets, create runtime backups, restore
   runtime backups and uninstall with confirmation.
-- Installer local model auto-install can select supported catalog runners,
-  preflight resource needs, start the required Compose profiles, pull/verify
-  Ollama models, health-check the Tesseract OCR and local face runners, log diagnostics and
-  stop safely before migrations on failure.
+- Installer local model setup supports the `supported-multimodal` preset,
+  resource confirmation, generated `@mindory/llm` local role config, redacted
+  runner resource summaries and custom supported catalog runner selection. It
+  preflights resource needs, starts the required Compose profiles, pull/verifies
+  Ollama models, health-checks the Tesseract OCR, Faster Whisper ASR, image
+  semantics and local face runners, logs diagnostics and stops safely before
+  migrations on failure.
 - Release-style bundles can be generated with `pnpm release:bundle`; generated
   manifests are RSA-SHA256 signed and bootstrap scripts verify signatures
   before trusting bundle checksums.
