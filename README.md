@@ -8,7 +8,7 @@ The canonical product and engineering specification is `docs/PRD.md`.
 
 ## Repository Status
 
-This repository is complete through `TASK-138`. Mindory can run a local
+This repository is complete through `TASK-139`. Mindory can run a local
 demo-MVP through Docker Compose, seed demo credentials, process uploaded
 documents through the worker pipeline and run live acceptance. `pnpm check`
 passes through the repo validation, typecheck, lint, tests and dry-run
@@ -30,7 +30,9 @@ Release status:
   supported Faster Whisper local ASR runner profile; `TASK-137` added the
   supported local image semantics runner profile for captions, objects and
   image vectors; `TASK-138` added the supported local face runner profile for
-  detection, recognition and identity ids.
+  detection, recognition and identity ids; `TASK-139` added supported
+  image/audio generation provider validation and deterministic valid PNG/WAV
+  generation smoke paths.
 
 The current state is intentionally split into supported local-MVP surfaces,
 experimental profile surfaces and documented non-MVP surfaces:
@@ -41,7 +43,7 @@ experimental profile surfaces and documented non-MVP surfaces:
 | Worker pipeline | Supported local MVP: scan, route, extract, chunk, embed and index processors are registered. Text and metadata fallback search work without external model credentials. |
 | Document modalities | Supported fallback: text/Markdown, native-text PDF, scanned-PDF OCR through local HTTP when enabled, image OCR/vision/object detection/image embeddings/face detection and recognition through local HTTP or local-command where the role supports it, deterministic image metadata fallback, audio ASR through local HTTP when enabled plus embedded WAV transcript fallback, and video keyframes through manifest fallback, bundled ffmpeg extraction or opt-in local-command extraction. |
 | Vectors | Supported local MVP: pgvector for 1536-dimensional text chunk and image artifact embeddings when compatible providers are configured. Supported runtime option: Qdrant via `MINDORY_VECTOR_PROVIDER=qdrant`. Supported fallback: PostgreSQL full-text search when embeddings are disabled. |
-| LLM/model runtime | Supported boundary: all model operations route through `@mindory/llm`, with disabled behavior, audit hooks, OpenAI-compatible chat/text embeddings/image generation/audio generation, Ollama text embeddings, local HTTP chat/text embeddings/image embeddings/OCR/vision captioning/ASR/face/generation roles, local-command role contracts, local provider health checks and deterministic local acceptance profiles. `LOCAL_MODEL_RUNNER_CATALOG` records local runner source/image metadata, model files, healthchecks and resource hints; supported image semantics, local face, Tesseract OCR and Faster Whisper ASR Compose profiles and installer auto-install choices resolve from that catalog. |
+| LLM/model runtime | Supported boundary: all model operations route through `@mindory/llm`, with disabled behavior, audit hooks, OpenAI-compatible chat/text embeddings/image generation/audio generation, Ollama text embeddings, local HTTP chat/text embeddings/image embeddings/OCR/vision captioning/ASR/face/generation roles, local-command role contracts, local provider health checks and deterministic local acceptance profiles. Generation providers validate MIME families, non-empty bytes and audit usage; CLI smoke covers valid PNG/WAV output. `LOCAL_MODEL_RUNNER_CATALOG` records local runner source/image metadata, model files, healthchecks and resource hints; supported image semantics, local face, Tesseract OCR and Faster Whisper ASR Compose profiles and installer auto-install choices resolve from that catalog. |
 | Interfaces | Supported local MVP: HTTP API, CLI and MCP stdio tools call the API, including unified multimodal search. Hermes adapter exposes lifecycle helpers, hook registration for Hermes-like runtimes, a runnable example host and conformance harnesses; no external Hermes SDK code is vendored. |
 | Installer | Supported today: wizard, plan/dry-run, prepare execution for `$MINDORY_HOME` directories/config/compose assets, Docker Compose startup through health checks, supported local model auto-install with resource preflight/logs/Ollama pulls/image semantics/local face/Tesseract OCR/Faster Whisper ASR health checks, S3 bucket bootstrap/access checks, first project/token provisioning, local asset update, signed remote release update, runtime backup/restore, scheduled local backups with retention/health, local Compose PostgreSQL PITR, encrypted remote backup archives with S3-compatible upload/download verification, external S3 object inventory/streaming backup/restore, guarded uninstall, dependency detection, lock/journal resume/repair, signed bootstrap staging, installer acceptance and public self-host acceptance. |
 | Deployment | Supported local MVP: Compose stack with single-home bind mounts under `MINDORY_HOME`, defaulting to `${HOME}/.mindory` outside demo scripts. Release bundle generation, signed manifest verification, generated release notes, tag-build Docker image publishing to GHCR and signed remote update/rollback are supported; unattended update automation remains outside the current scope. |

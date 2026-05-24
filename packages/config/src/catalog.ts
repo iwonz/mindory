@@ -184,7 +184,9 @@ export const LOCAL_MODEL_RUNNER_CATALOG = [
       "ASR",
       "VISION_CAPTIONING",
       "FACE_DETECTION",
-      "FACE_RECOGNITION"
+      "FACE_RECOGNITION",
+      "IMAGE_GENERATION",
+      "AUDIO_GENERATION"
     ],
     composeProfile: "local-models",
     serviceName: "llm",
@@ -196,7 +198,9 @@ export const LOCAL_MODEL_RUNNER_CATALOG = [
       "mindory-local-ocr",
       "mindory-local-asr",
       "mindory-local-vision",
-      "mindory-local-face"
+      "mindory-local-face",
+      "mindory-local-image-generation",
+      "mindory-local-audio-generation"
     ],
     modelFiles: [
       {
@@ -226,7 +230,7 @@ export const LOCAL_MODEL_RUNNER_CATALOG = [
       disk: "<100MB",
       gpu: "not required"
     },
-    notes: "Deterministic runner used for local acceptance and self-contained indexed search checks."
+    notes: "Deterministic runner used for local acceptance, self-contained indexed search checks and valid PNG/WAV generation smoke tests."
   }),
   localModelRunner({
     id: "ollama-nomic-embed-text",

@@ -3,6 +3,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const VALID_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=";
+const VALID_WAV_BASE64 = testWavBase64();
 
 function assert(condition, message) {
   if (!condition) {
@@ -427,12 +429,12 @@ const openAiGenerationRuntime = buildMindoryLlm(openAiGenerationConfig, {
     const href = String(url);
     if (href.endsWith("/images/generations")) {
       return new Response(JSON.stringify({
-        data: [{ b64_json: Buffer.from("openai image").toString("base64"), revised_prompt: "revised image prompt" }],
+        data: [{ b64_json: VALID_PNG_BASE64, revised_prompt: "revised image prompt" }],
         usage: { prompt_tokens: 3, total_tokens: 3 }
       }), { status: 200 });
     }
     if (href.endsWith("/audio/speech")) {
-      return new Response(Buffer.from("openai audio"), {
+      return new Response(Buffer.from(VALID_WAV_BASE64, "base64"), {
         status: 200,
         headers: { "content-type": "audio/wav" }
       });
@@ -448,6 +450,7 @@ const openAiImageGeneration = await openAiGenerationRuntime.generation.generateI
 });
 assert(openAiImageGeneration.status === "success", "OpenAI-compatible image generation must return success.");
 assert(openAiImageGeneration.value?.mimeType === "image/png", "OpenAI-compatible image generation must return image/png.");
+assert(isPng(openAiImageGeneration.value?.bytes), "OpenAI-compatible image generation must return valid PNG bytes.");
 assert(openAiImageGeneration.value?.metadata?.revisedPrompt === "revised image prompt", "OpenAI-compatible image generation must preserve response metadata.");
 const openAiAudioGeneration = await openAiGenerationRuntime.generation.generateAudio({
   prompt: "speak"
@@ -456,6 +459,7 @@ const openAiAudioGeneration = await openAiGenerationRuntime.generation.generateA
 });
 assert(openAiAudioGeneration.status === "success", "OpenAI-compatible audio generation must return success.");
 assert(openAiAudioGeneration.value?.mimeType === "audio/wav", "OpenAI-compatible audio generation must parse binary audio response.");
+assert(isWav(openAiAudioGeneration.value?.bytes), "OpenAI-compatible audio generation must return valid WAV bytes.");
 assert(openAiGenerationRequests.some((request) => request.url === "https://llm.example/v1/images/generations"), "OpenAI-compatible image generation must call /images/generations.");
 assert(openAiGenerationRequests.some((request) => request.url === "https://llm.example/v1/audio/speech"), "OpenAI-compatible audio generation must call /audio/speech.");
 assert(openAiGenerationRequests.every((request) => request.init?.headers?.authorization === "Bearer api-key-test"), "OpenAI-compatible generation must use configured bearer auth.");
@@ -582,7 +586,7 @@ const localRuntime = buildMindoryLlm(localConfig, {
     }
     if (href.endsWith("/generation/image")) {
       return new Response(JSON.stringify({
-        data_base64: Buffer.from("local http image").toString("base64"),
+        data_base64: VALID_PNG_BASE64,
         mime_type: "image/png",
         metadata: { prompt: "local image" },
         usage: { image_count: 1, prompt_tokens: 2, total_tokens: 2 }
@@ -590,7 +594,7 @@ const localRuntime = buildMindoryLlm(localConfig, {
     }
     if (href.endsWith("/generation/audio")) {
       return new Response(JSON.stringify({
-        data_base64: Buffer.from("local http audio").toString("base64"),
+        data_base64: VALID_WAV_BASE64,
         mime_type: "audio/wav",
         duration_seconds: 1.5,
         usage: { audio_seconds: 1.5, prompt_tokens: 2, total_tokens: 2 }
@@ -690,7 +694,7 @@ const localImageGenerationResult = await localRuntime.generation.generateImage({
 });
 assert(localImageGenerationResult.status === "success", "Local HTTP image generation provider must return success.");
 assert(localImageGenerationResult.value?.mimeType === "image/png", "Local HTTP image generation provider must parse image MIME type.");
-assert(localImageGenerationResult.value?.bytes.length > 0, "Local HTTP image generation provider must parse image bytes.");
+assert(isPng(localImageGenerationResult.value?.bytes), "Local HTTP image generation provider must parse valid PNG bytes.");
 const localAudioGenerationResult = await localRuntime.generation.generateAudio({
   prompt: "speak local audio"
 }, {
@@ -699,6 +703,7 @@ const localAudioGenerationResult = await localRuntime.generation.generateAudio({
 });
 assert(localAudioGenerationResult.status === "success", "Local HTTP audio generation provider must return success.");
 assert(localAudioGenerationResult.value?.mimeType === "audio/wav", "Local HTTP audio generation provider must parse audio MIME type.");
+assert(isWav(localAudioGenerationResult.value?.bytes), "Local HTTP audio generation provider must parse valid WAV bytes.");
 assert(localAudioGenerationResult.audit.usage.audioSeconds === 1.5, "Local HTTP audio generation audit must include audio duration.");
 assert(localRequests.some((request) => request.url === "http://llm.local:8080/chat/completions"), "Local HTTP chat provider must call /chat/completions.");
 assert(localRequests.some((request) => request.url === "http://llm.local:8080/embeddings"), "Local HTTP embeddings provider must call /embeddings.");
@@ -727,6 +732,28 @@ assert(localAudits.some((audit) => audit.role === "face-detection" && audit.prov
 assert(localAudits.some((audit) => audit.role === "face-recognition" && audit.provider === "local-http" && audit.status === "success"), "Local HTTP face recognition must emit success audit.");
 assert(localAudits.some((audit) => audit.role === "image-generation" && audit.provider === "local-http" && audit.status === "success"), "Local HTTP image generation must emit success audit.");
 assert(localAudits.some((audit) => audit.role === "audio-generation" && audit.provider === "local-http" && audit.status === "success"), "Local HTTP audio generation must emit success audit.");
+
+const invalidGenerationAudits = [];
+const invalidGenerationRuntime = buildMindoryLlm(loadMindoryConfig({
+  MINDORY_LLM_IMAGE_GENERATION_ENABLED: "true",
+  MINDORY_LLM_IMAGE_GENERATION_PROVIDER: "local-http",
+  MINDORY_LLM_IMAGE_GENERATION_MODEL: "invalid-image-generation",
+  MINDORY_LLM_LOCAL_HTTP_BASE_URL: "http://invalid-generation.local:8080"
+}), {
+  auditSink: (audit) => invalidGenerationAudits.push(audit),
+  fetchImpl: async () => new Response(JSON.stringify({
+    data_base64: VALID_WAV_BASE64,
+    mime_type: "audio/wav"
+  }), { status: 200 })
+});
+const invalidImageGeneration = await invalidGenerationRuntime.generation.generateImage({
+  prompt: "wrong mime"
+}, {
+  role: invalidGenerationRuntime.registry.require("image-generation")
+});
+assert(invalidImageGeneration.status === "failed", "Image generation must fail when a provider returns non-image MIME.");
+assert(invalidImageGeneration.audit.errorCode === "generation_invalid_media_type", "Image generation MIME failure must use a typed error code.");
+assert(invalidGenerationAudits.some((audit) => audit.status === "failed" && audit.errorCode === "generation_invalid_media_type"), "Invalid generation MIME must emit failed audit.");
 
 function localCommandConfig(script, extra = {}) {
   return loadMindoryConfig({
@@ -788,7 +815,8 @@ const localCommandOperationScript = `
 const fs = require('node:fs');
 const request = JSON.parse(fs.readFileSync(0, 'utf8'));
 const embedding1536 = Array.from({ length: 1536 }, (_, index) => index / 1536);
-const media = Buffer.from('mindory generated media').toString('base64');
+const pngMedia = '${VALID_PNG_BASE64}';
+const wavMedia = '${VALID_WAV_BASE64}';
 function send(output, usage = {}) {
   console.log(JSON.stringify({ status: 'ok', role: request.role, model: request.model, output, usage }));
 }
@@ -821,10 +849,10 @@ switch (request.operation) {
     send({ faces: [{ bounding_box: { x: 0.1, y: 0.2, width: 0.3, height: 0.4 }, embedding: [0.1, 0.2, 0.3], confidence: 0.99, label: 'face' }], identity_ids: ['identity-1'] }, { image_count: 1 });
     break;
   case 'image_generation':
-    send({ data_base64: media, mime_type: 'image/png' }, { image_count: 1 });
+    send({ data_base64: pngMedia, mime_type: 'image/png' }, { image_count: 1 });
     break;
   case 'audio_generation':
-    send({ data_base64: media, mime_type: 'audio/wav' }, { audio_seconds: 1 });
+    send({ data_base64: wavMedia, mime_type: 'audio/wav' }, { audio_seconds: 1 });
     break;
   default:
     console.log(JSON.stringify({ status: 'failed', role: request.role, model: request.model, error_code: 'unknown_operation', error_message: request.operation }));
@@ -890,8 +918,12 @@ assert((await localCommandRuntime.vision.captionImage({ bytes: new TextEncoder()
 assert((await localCommandRuntime.vision.detectObjects({ bytes: new TextEncoder().encode("image"), mimeType: "image/png" }, { role: localCommandRuntime.registry.require("vision-captioning") })).value?.objects?.[0]?.label === "passport", "Local-command object detection must parse object labels.");
 assert((await localCommandRuntime.faces.detectFaces({ bytes: new TextEncoder().encode("image"), mimeType: "image/png" }, { role: localCommandRuntime.registry.require("face-detection") })).value?.faces?.[0]?.embedding?.length === 3, "Local-command face detection must parse faces.");
 assert((await localCommandRuntime.faces.recognizeFaces({ bytes: new TextEncoder().encode("image"), mimeType: "image/png" }, { role: localCommandRuntime.registry.require("face-recognition") })).value?.identityIds?.[0] === "identity-1", "Local-command face recognition must parse identities.");
-assert((await localCommandRuntime.generation.generateImage({ prompt: "draw" }, { role: localCommandRuntime.registry.require("image-generation") })).value?.mimeType === "image/png", "Local-command image generation must parse generated image bytes.");
-assert((await localCommandRuntime.generation.generateAudio({ prompt: "speak" }, { role: localCommandRuntime.registry.require("audio-generation") })).value?.mimeType === "audio/wav", "Local-command audio generation must parse generated audio bytes.");
+const localCommandImageGeneration = await localCommandRuntime.generation.generateImage({ prompt: "draw" }, { role: localCommandRuntime.registry.require("image-generation") });
+assert(localCommandImageGeneration.value?.mimeType === "image/png", "Local-command image generation must parse generated image MIME type.");
+assert(isPng(localCommandImageGeneration.value?.bytes), "Local-command image generation must parse valid PNG bytes.");
+const localCommandAudioGeneration = await localCommandRuntime.generation.generateAudio({ prompt: "speak" }, { role: localCommandRuntime.registry.require("audio-generation") });
+assert(localCommandAudioGeneration.value?.mimeType === "audio/wav", "Local-command audio generation must parse generated audio MIME type.");
+assert(isWav(localCommandAudioGeneration.value?.bytes), "Local-command audio generation must parse valid WAV bytes.");
 for (const role of ["chat", "text-embedding", "image-embedding", "ocr", "asr", "vision-captioning", "face-detection", "face-recognition", "image-generation", "audio-generation"]) {
   assert(localCommandOperationAudits.some((audit) => audit.role === role && audit.provider === "local-command" && audit.status === "success"), `Local-command ${role} must emit success audit.`);
 }
@@ -946,4 +978,48 @@ function walk(directory) {
     }
   }
   return files;
+}
+
+function isPng(bytes) {
+  const buffer = Buffer.from(bytes ?? []);
+  return buffer.length >= 8
+    && buffer[0] === 0x89
+    && buffer.subarray(1, 4).toString("ascii") === "PNG"
+    && buffer[4] === 0x0d
+    && buffer[5] === 0x0a
+    && buffer[6] === 0x1a
+    && buffer[7] === 0x0a;
+}
+
+function isWav(bytes) {
+  const buffer = Buffer.from(bytes ?? []);
+  return buffer.length >= 44
+    && buffer.subarray(0, 4).toString("ascii") === "RIFF"
+    && buffer.subarray(8, 12).toString("ascii") === "WAVE";
+}
+
+function testWavBase64() {
+  const sampleRate = 8000;
+  const samples = 800;
+  const dataSize = samples * 2;
+  const header = Buffer.alloc(44);
+  const pcm = Buffer.alloc(dataSize);
+  for (let index = 0; index < samples; index += 1) {
+    const sample = Math.sin((2 * Math.PI * 440 * index) / sampleRate) * 0.25;
+    pcm.writeInt16LE(Math.round(sample * 0x7fff), index * 2);
+  }
+  header.write("RIFF", 0, "ascii");
+  header.writeUInt32LE(36 + dataSize, 4);
+  header.write("WAVE", 8, "ascii");
+  header.write("fmt ", 12, "ascii");
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20);
+  header.writeUInt16LE(1, 22);
+  header.writeUInt32LE(sampleRate, 24);
+  header.writeUInt32LE(sampleRate * 2, 28);
+  header.writeUInt16LE(2, 32);
+  header.writeUInt16LE(16, 34);
+  header.write("data", 36, "ascii");
+  header.writeUInt32LE(dataSize, 40);
+  return Buffer.concat([header, pcm]).toString("base64");
 }

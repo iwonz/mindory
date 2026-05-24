@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import http from "node:http";
+import { deflateSync } from "node:zlib";
 
 const host = process.env.MINDORY_LOCAL_MODEL_HOST ?? "0.0.0.0";
 const port = Number.parseInt(process.env.MINDORY_LOCAL_MODEL_PORT ?? "8080", 10);
@@ -179,14 +180,16 @@ const server = http.createServer(async (request, response) => {
       const body = await readJson(request);
       const model = stringOrDefault(body.model, "mindory-local-image-generation");
       const prompt = stringOrDefault(body.prompt, "mindory image");
-      const media = deterministicMedia(`image:${model}:${prompt}`);
+      const media = deterministicPng(`image:${model}:${prompt}`);
       writeJson(response, 200, {
         model,
-        data_base64: media,
+        data_base64: media.toString("base64"),
         mime_type: "image/png",
         metadata: {
           prompt,
-          generator: "mindory-local-model"
+          generator: "mindory-local-model",
+          width: 64,
+          height: 64
         },
         usage: {
           image_count: 1,
@@ -201,18 +204,21 @@ const server = http.createServer(async (request, response) => {
       const body = await readJson(request);
       const model = stringOrDefault(body.model, "mindory-local-audio-generation");
       const prompt = stringOrDefault(body.prompt, "mindory audio");
-      const media = deterministicMedia(`audio:${model}:${prompt}`);
+      const durationSeconds = 1;
+      const media = deterministicWav(`audio:${model}:${prompt}`, durationSeconds);
       writeJson(response, 200, {
         model,
-        data_base64: media,
+        data_base64: media.toString("base64"),
         mime_type: "audio/wav",
-        duration_seconds: 1,
+        duration_seconds: durationSeconds,
         metadata: {
           prompt,
-          generator: "mindory-local-model"
+          generator: "mindory-local-model",
+          sampleRate: 16000,
+          channels: 1
         },
         usage: {
-          audio_seconds: 1,
+          audio_seconds: durationSeconds,
           prompt_tokens: tokenEstimate(prompt),
           total_tokens: tokenEstimate(prompt)
         }
@@ -248,8 +254,105 @@ function deterministicEmbedding(text, model, dimensions) {
   return embedding;
 }
 
-function deterministicMedia(text) {
-  return createHash("sha256").update(text).digest("base64");
+function deterministicPng(text) {
+  const width = 64;
+  const height = 64;
+  const seed = createHash("sha256").update(text).digest();
+  const bytesPerPixel = 3;
+  const scanlineLength = 1 + width * bytesPerPixel;
+  const pixels = Buffer.alloc(scanlineLength * height);
+
+  for (let y = 0; y < height; y += 1) {
+    const rowOffset = y * scanlineLength;
+    pixels[rowOffset] = 0;
+    for (let x = 0; x < width; x += 1) {
+      const offset = rowOffset + 1 + x * bytesPerPixel;
+      const wave = ((x ^ y) + seed[(x + y) % seed.length]) % 256;
+      pixels[offset] = (seed[0] + x * 3 + wave) % 256;
+      pixels[offset + 1] = (seed[1] + y * 5 + wave) % 256;
+      pixels[offset + 2] = (seed[2] + x * 2 + y * 2 + wave) % 256;
+    }
+  }
+
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8;
+  ihdr[9] = 2;
+  ihdr[10] = 0;
+  ihdr[11] = 0;
+  ihdr[12] = 0;
+
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    pngChunk("IHDR", ihdr),
+    pngChunk("IDAT", deflateSync(pixels)),
+    pngChunk("IEND", Buffer.alloc(0))
+  ]);
+}
+
+function deterministicWav(text, durationSeconds) {
+  const seed = createHash("sha256").update(text).digest();
+  const sampleRate = 16000;
+  const channels = 1;
+  const bitsPerSample = 16;
+  const sampleCount = Math.max(1, Math.floor(sampleRate * durationSeconds));
+  const dataSize = sampleCount * channels * (bitsPerSample / 8);
+  const header = Buffer.alloc(44);
+  const pcm = Buffer.alloc(dataSize);
+  const frequency = 220 + (seed[0] % 50) * 8;
+  const overtone = 440 + (seed[1] % 40) * 11;
+
+  for (let index = 0; index < sampleCount; index += 1) {
+    const t = index / sampleRate;
+    const envelope = Math.min(1, index / 400) * Math.min(1, (sampleCount - index) / 400);
+    const sample = Math.sin(2 * Math.PI * frequency * t) * 0.36
+      + Math.sin(2 * Math.PI * overtone * t) * 0.12;
+    const value = Math.max(-1, Math.min(1, sample * envelope));
+    pcm.writeInt16LE(Math.round(value * 0x7fff), index * 2);
+  }
+
+  header.write("RIFF", 0, "ascii");
+  header.writeUInt32LE(36 + dataSize, 4);
+  header.write("WAVE", 8, "ascii");
+  header.write("fmt ", 12, "ascii");
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20);
+  header.writeUInt16LE(channels, 22);
+  header.writeUInt32LE(sampleRate, 24);
+  header.writeUInt32LE(sampleRate * channels * (bitsPerSample / 8), 28);
+  header.writeUInt16LE(channels * (bitsPerSample / 8), 32);
+  header.writeUInt16LE(bitsPerSample, 34);
+  header.write("data", 36, "ascii");
+  header.writeUInt32LE(dataSize, 40);
+
+  return Buffer.concat([header, pcm]);
+}
+
+function pngChunk(type, data) {
+  const typeBuffer = Buffer.from(type, "ascii");
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(data.length, 0);
+  const crc = Buffer.alloc(4);
+  crc.writeUInt32BE(crc32(Buffer.concat([typeBuffer, data])), 0);
+  return Buffer.concat([length, typeBuffer, data, crc]);
+}
+
+function crc32(input) {
+  let crc = 0xffffffff;
+  for (const byte of input) {
+    crc = crc32Table[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+const crc32Table = new Uint32Array(256);
+for (let index = 0; index < crc32Table.length; index += 1) {
+  let value = index;
+  for (let bit = 0; bit < 8; bit += 1) {
+    value = (value & 1) === 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
+  }
+  crc32Table[index] = value >>> 0;
 }
 
 function readJson(request) {

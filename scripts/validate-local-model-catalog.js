@@ -19,7 +19,9 @@ const requiredRoles = [
   "ASR",
   "VISION_CAPTIONING",
   "FACE_DETECTION",
-  "FACE_RECOGNITION"
+  "FACE_RECOGNITION",
+  "IMAGE_GENERATION",
+  "AUDIO_GENERATION"
 ];
 
 const validRoles = new Set(LLM_ROLE_SUPPORT_CATALOG.map((entry) => entry.key));
