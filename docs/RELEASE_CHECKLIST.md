@@ -5,11 +5,13 @@ This checklist is the public release gate for Mindory tag builds.
 ## Current Release Target
 
 `v0.1.0` is a historical pre-release and is stale relative to current
-`master`. The fresh public target is `v0.1.1`.
+`master`. The current public pre-release is `v0.1.1`:
+<https://github.com/iwonz/mindory/releases/tag/v0.1.1>.
 
-`v0.1.1` must not overwrite or retag `v0.1.0`. It must be published as a new
-public pre-release after the `TASK-133` through `TASK-147` series promotes and
-verifies supported multimodal local/install/runtime paths.
+`v0.1.1` did not overwrite or retag `v0.1.0`; it was published as a new public
+pre-release after the `TASK-133` through `TASK-143` supported multimodal
+promotion and release preflight work. `TASK-145` through `TASK-147` complete
+published-bootstrap and final public-ready gates.
 
 ## v0.1.1 Local Preflight
 
@@ -33,7 +35,16 @@ Latest local preflight result: `TASK-143` passed on 2026-05-24 with an
 ephemeral dev/test signing key. The generated manifest pointed at
 `https://github.com/iwonz/mindory/releases/download/v0.1.1/mindory-0.1.1.tar.gz`,
 included an RSA-SHA256 signature and matched the generated `.sha256` checksum.
-This was a local preflight only; publishing still requires `TASK-144`.
+This was a local preflight only; publication was completed in `TASK-144`.
+
+Latest publication result: `TASK-144` passed on 2026-05-24. The tag
+`v0.1.1` points at master commit `424ab6c71abefb7e5af7cb7d02b6d7163bf51f73`,
+the release workflow finished successfully, and the public pre-release is
+available at <https://github.com/iwonz/mindory/releases/tag/v0.1.1>. Attached
+assets are `mindory-0.1.1.tar.gz`, `mindory-0.1.1.manifest.env`,
+`mindory-0.1.1.manifest.env.public.pem`, `mindory-0.1.1.sha256` and
+`mindory-0.1.1.release-notes.md`. Published GHCR tags are `0.1.1` and
+`424ab6c71abe`.
 
 ## Required Repository Secrets
 

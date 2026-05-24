@@ -151,7 +151,8 @@ MINDORY_RELEASE_PUBLIC_KEY_PEM="$(cat ./mindory-release.public.pem)" ./install.s
 
 Historical reference: the stale `v0.1.0` pre-release manifest remains at
 `https://github.com/iwonz/mindory/releases/download/v0.1.0/mindory-0.1.0.manifest.env`
-for archive verification. The fresh target release line is `v0.1.1`.
+for archive verification. The current public pre-release line is `v0.1.1` at
+`https://github.com/iwonz/mindory/releases/tag/v0.1.1`.
 
 For local dev/test bundles, `pnpm release:bundle` also writes
 `<manifest>.public.pem` next to the manifest, and the bootstrap can use that

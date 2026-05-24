@@ -1,12 +1,12 @@
 {
   "id": "TASK-144",
   "title": "Publish v0.1.1 pre-release",
-  "status": "draft",
+  "status": "done",
   "type": "release",
   "priority": "high",
   "branch": "task/TASK-144-publish-v0-1-1-prerelease",
   "created_at": "2026-05-23",
-  "updated_at": "2026-05-23",
+  "updated_at": "2026-05-24",
   "context": {
     "summary": "Tag the current green master and publish v0.1.1 as a public pre-release.",
     "background": "v0.1.1 must be a new immutable pre-release while v0.1.0 remains historical."

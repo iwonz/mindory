@@ -6,7 +6,8 @@ writing README, issues, release notes and docs.
 ## Release Track
 
 `v0.1.0` is a historical pre-release and is stale relative to current
-`master`. The fresh target pre-release is `v0.1.1`.
+`master`. The current public pre-release is `v0.1.1`:
+<https://github.com/iwonz/mindory/releases/tag/v0.1.1>.
 
 The current `master` baseline has promoted these model/runtime capabilities
 into checked supported local/install/runtime paths: OCR, ASR, vision
