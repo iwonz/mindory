@@ -552,6 +552,9 @@ configured and the acceptance run must prove pgvector indexing and semantic
 document search. Set `MINDORY_E2E_EXPECT_MODEL_AUDIT_METRICS=true` only for the
 live local-model acceptance gate when worker metrics are enabled and the run
 must prove model-operation audit counters were exported.
+`MINDORY_E2E_LLM_LOCAL_HTTP_BASE_URL` is the host-reachable local HTTP model
+endpoint used by the live local-profile generation smoke checks; Docker Compose
+local demos expose the deterministic runner at `http://127.0.0.1:8080`.
 
 `MINDORY_UI_E2E_LIVE=true` makes `pnpm ui:e2e` run a live Playwright browser
 flow against `MINDORY_UI_E2E_URL` or `http://127.0.0.1:3080`. The flow seeds

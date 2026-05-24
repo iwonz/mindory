@@ -150,8 +150,10 @@ current `master` baseline. The fresh target pre-release is `v0.1.1`; the
 object detection, image embeddings, face detection/recognition, image
 generation, audio generation, local-command runners and local-http runners into
 checked supported local/install/runtime paths. `TASK-134` promotes the central
-role/provider support matrix; the remaining tasks add runner-specific install
-and live acceptance coverage.
+role/provider support matrix; `TASK-141` adds the full supported local-model
+live gate across deterministic MVP processing and the focused OCR, ASR, image
+semantics and face runners. The remaining tasks complete documentation, release
+and final public-ready gates.
 
 Do not implement the remaining non-goals unless a task explicitly scopes them.
 

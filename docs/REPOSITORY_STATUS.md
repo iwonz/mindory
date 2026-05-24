@@ -6,7 +6,7 @@ The repository should be described with the support levels in
 
 ## Current Baseline
 
-The repository is complete through `TASK-140`.
+The repository is complete through `TASK-141`.
 
 Release baseline:
 
@@ -24,9 +24,11 @@ Release baseline:
   `TASK-139` added supported image/audio generation provider validation plus
   valid deterministic PNG/WAV generation smoke paths. `TASK-140` added the
   installer supported multimodal preset with resource confirmation, answer-file
-  fields and generated local-model role config. `TASK-141` through `TASK-147`
-  execute and verify the remaining acceptance and release
-  work one task at a time.
+  fields and generated local-model role config. `TASK-141` upgraded the full
+  local-model live acceptance gate across deterministic MVP processing and the
+  focused OCR, ASR, image semantics and face runner gates. `TASK-142` through
+  `TASK-147` execute and verify the remaining documentation, release and final
+  public-ready work one task at a time.
 
 Supported local MVP path:
 
@@ -105,9 +107,10 @@ Supported local MVP path:
 - `pnpm mvp:demo --model-profile local --require-indexed` can exercise the
   indexed pgvector path with a deterministic local HTTP embeddings service.
 - `MINDORY_LOCAL_MODEL_ACCEPTANCE_LIVE=true pnpm local-model:acceptance`
-  verifies deterministic local OCR, ASR, vision, image embedding, video
-  keyframe, face, image/audio generation wiring, source-ref, job, unified
-  search and model-operation metric coverage in a temporary Docker home.
+  runs the full supported multimodal live gate: deterministic local MVP
+  processing, image/audio generation smoke, worker model-operation metrics and
+  the focused Tesseract OCR, Faster Whisper ASR, image semantics and local face
+  runner gates in temporary Docker homes.
 - Scanned-PDF OCR can run through `@mindory/llm` local HTTP or local-command
   OCR when the supported OCR role is enabled.
 - Image OCR, vision captioning, object detection and image embeddings can run

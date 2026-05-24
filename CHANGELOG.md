@@ -20,6 +20,10 @@ documentation.
 
 ### Added
 
+- `TASK-141`: full local-model live acceptance gate now covers deterministic
+  MVP processing, image/audio generation smoke through `@mindory/llm`, worker
+  model-operation metrics and the focused OCR, ASR, image semantics and face
+  runner gates.
 - `TASK-140`: installer supported multimodal preset with answer-file fields,
   resource confirmation, generated local-model role config, redacted runner
   resource summary and dry-run matrix coverage.

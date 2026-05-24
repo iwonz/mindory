@@ -205,9 +205,11 @@ pnpm local-model:acceptance
 ```
 
 This is a dry-run check in `pnpm check`. Set
-`MINDORY_LOCAL_MODEL_ACCEPTANCE_LIVE=true` to start the live local profile in a
-temporary `MINDORY_HOME` and verify deterministic multimodal artifacts, source
-refs, jobs, unified search and worker model-operation metrics.
+`MINDORY_LOCAL_MODEL_ACCEPTANCE_LIVE=true` to run the full live local-model gate
+in temporary `MINDORY_HOME` directories: deterministic MVP processing,
+image/audio generation smoke, source refs, jobs, unified search, worker
+model-operation metrics and the focused OCR, ASR, image semantics and face
+runner gates.
 
 ## Web UI
 

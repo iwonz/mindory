@@ -1,7 +1,7 @@
 {
   "project": "mindory",
   "process": "mindory-ralph-cycle",
-  "current_task_id": "TASK-140",
+  "current_task_id": "TASK-141",
   "task_id_prefix": "TASK",
   "main_branch": "master",
   "release_strategy": "git-tags",
@@ -1020,7 +1020,7 @@
     {
       "id": "TASK-141",
       "title": "Full multimodal live acceptance upgrade",
-      "status": "draft",
+      "status": "done",
       "branch": "task/TASK-141-full-multimodal-live-acceptance-upgrade",
       "file": "tasks/TASK-141.json"
     },

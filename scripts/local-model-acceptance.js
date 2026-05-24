@@ -40,37 +40,47 @@ const scenario = [
   "video keyframe artifacts with source refs",
   "face observations identities and unified face search",
   "image and audio generation smoke with valid media bytes",
+  "full live mode starts OCR ASR vision and face runner gates",
   "jobs API completion details",
   "model operation audit records through @mindory/llm audit sinks",
   "live Docker mode is explicit"
 ];
 
-for (const required of ["local HTTP", "text", "PDF OCR", "image OCR", "audio ASR", "video keyframe", "face", "image and audio generation", "jobs", "source refs", "audit", "live Docker"]) {
+for (const required of ["local HTTP", "text", "PDF OCR", "image OCR", "audio ASR", "video keyframe", "face", "image and audio generation", "full live mode", "jobs", "source refs", "audit", "live Docker"]) {
   assert(scenario.some((step) => step.includes(required)), `Local-model scenario must include ${required}.`);
 }
 
 if (live) {
-  await runLiveAcceptance();
-}
-if (ocrLive) {
-  await runOcrRunnerLiveAcceptance();
-}
-if (asrLive) {
-  await runAsrRunnerLiveAcceptance();
-}
-if (visionLive) {
-  await runVisionRunnerLiveAcceptance();
-}
-if (faceLive) {
-  await runFaceRunnerLiveAcceptance();
-}
-if (!live && !ocrLive && !asrLive && !visionLive && !faceLive) {
+  await runFullLiveAcceptance();
+} else if (ocrLive || asrLive || visionLive || faceLive) {
+  if (ocrLive) {
+    await runOcrRunnerLiveAcceptance();
+  }
+  if (asrLive) {
+    await runAsrRunnerLiveAcceptance();
+  }
+  if (visionLive) {
+    await runVisionRunnerLiveAcceptance();
+  }
+  if (faceLive) {
+    await runFaceRunnerLiveAcceptance();
+  }
+} else {
   runDryRunAcceptance();
+}
+
+async function runFullLiveAcceptance() {
+  await runLiveAcceptance();
+  await runOcrRunnerLiveAcceptance();
+  await runAsrRunnerLiveAcceptance();
+  await runVisionRunnerLiveAcceptance();
+  await runFaceRunnerLiveAcceptance();
 }
 
 function runDryRunAcceptance() {
   const packageJson = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
   const checkRepo = fs.readFileSync(path.join(root, "scripts", "check-repo.js"), "utf8");
+  const localModelAcceptance = fs.readFileSync(path.join(root, "scripts", "local-model-acceptance.js"), "utf8");
   const mvpAcceptance = fs.readFileSync(path.join(root, "scripts", "mvp-acceptance.js"), "utf8");
   const mvpDemo = fs.readFileSync(path.join(root, "scripts", "mvp-demo.js"), "utf8");
   const llmValidation = fs.readFileSync(path.join(root, "scripts", "validate-llm.js"), "utf8");
@@ -90,6 +100,11 @@ function runDryRunAcceptance() {
     "Local deterministic OCR text",
     "Local deterministic vision caption",
     "Local deterministic ASR transcript",
+    "assertLocalModelGenerationSmoke",
+    "llm\", \"generate-image",
+    "llm\", \"generate-audio",
+    "image-generation",
+    "audio-generation",
     "/v1/faces/observations",
     "/v1/faces/identities",
     "targets: [\"faces\"]",
@@ -112,6 +127,9 @@ function runDryRunAcceptance() {
   }
   for (const role of ["text-embedding", "image-embedding", "ocr", "asr", "vision-captioning", "face-detection", "face-recognition", "image-generation", "audio-generation"]) {
     assert(llmValidation.includes(`audit.role === "${role}"`), `LLM validation must cover ${role} audit records.`);
+  }
+  for (const token of ["runFullLiveAcceptance", "runOcrRunnerLiveAcceptance();", "runAsrRunnerLiveAcceptance();", "runVisionRunnerLiveAcceptance();", "runFaceRunnerLiveAcceptance();"]) {
+    assert(localModelAcceptance.includes(token), `Local model full live acceptance must include ${token}.`);
   }
   assert(workerRuntime.includes("createModelOperationLogEvent(audit)"), "Worker runtime must export model operation audit logs.");
   assert(workerRuntime.includes("metrics.recordModelOperation(audit)"), "Worker runtime must record model operation metrics.");
