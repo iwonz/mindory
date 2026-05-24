@@ -20,6 +20,10 @@ documentation.
 
 ### Added
 
+- `TASK-145`: published-release bootstrap acceptance now targets `v0.1.1` by
+  default, downloads the public manifest, bundle, public key and `.sha256`
+  assets, verifies checksum entries and records clearer asset-specific failure
+  guidance.
 - `TASK-144`: published `v0.1.1` as a public GitHub pre-release with signed
   bundle, manifest, public key, checksum, release notes assets and GHCR tags
   `0.1.1` and `424ab6c71abe`; documented the release URL.

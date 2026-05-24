@@ -1,12 +1,12 @@
 {
   "id": "TASK-145",
   "title": "Published v0.1.1 bootstrap acceptance",
-  "status": "draft",
+  "status": "done",
   "type": "test",
   "priority": "high",
   "branch": "task/TASK-145-published-v0-1-1-bootstrap-acceptance",
   "created_at": "2026-05-23",
-  "updated_at": "2026-05-23",
+  "updated_at": "2026-05-24",
   "context": {
     "summary": "Verify installation bootstrap from public v0.1.1 release URLs.",
     "background": "After publishing, the signed manifest and release assets must be consumable from a clean temporary MINDORY_HOME."

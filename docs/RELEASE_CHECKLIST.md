@@ -46,6 +46,13 @@ assets are `mindory-0.1.1.tar.gz`, `mindory-0.1.1.manifest.env`,
 `mindory-0.1.1.release-notes.md`. Published GHCR tags are `0.1.1` and
 `424ab6c71abe`.
 
+Latest published bootstrap result: `TASK-145` passed on 2026-05-24.
+`MINDORY_PUBLISHED_RELEASE_ACCEPTANCE_LIVE=true pnpm published-release:acceptance`
+downloaded the public `v0.1.1` manifest, bundle, public key and `.sha256`
+assets, verified checksum entries for all three release assets, verified the
+signed manifest through `install.sh --verify-only` and completed the packaged
+installer `plan` dry-run from a temporary `MINDORY_HOME`.
+
 ## Required Repository Secrets
 
 - `MINDORY_RELEASE_SIGNING_PRIVATE_KEY_PEM`: RSA private key used only by the

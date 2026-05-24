@@ -155,8 +155,9 @@ live gate across deterministic MVP processing and the focused OCR, ASR, image
 semantics and face runners. `TASK-143` adds the v0.1.1 release notes/bundle
 preflight with signed manifest, checksum and release checklist result.
 `TASK-144` publishes `v0.1.1` as a public GitHub pre-release with signed
-assets and GHCR tags. The remaining tasks complete published-bootstrap
-acceptance and final public-ready gates.
+assets and GHCR tags. `TASK-145` verifies the published bootstrap path against
+the public `v0.1.1` assets. The remaining tasks complete final public-ready
+gates.
 
 Do not implement the remaining non-goals unless a task explicitly scopes them.
 
