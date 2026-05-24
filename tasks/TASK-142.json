@@ -1,7 +1,7 @@
 {
   "id": "TASK-142",
   "title": "Public docs no-experimental cleanup for supported path",
-  "status": "draft",
+  "status": "done",
   "type": "docs",
   "priority": "high",
   "branch": "task/TASK-142-public-docs-no-experimental-cleanup-supported-path",

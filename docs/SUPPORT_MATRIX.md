@@ -8,12 +8,13 @@ writing README, issues, release notes and docs.
 `v0.1.0` is a historical pre-release and is stale relative to current
 `master`. The fresh target pre-release is `v0.1.1`.
 
-The `v0.1.1` task series promotes the following model/runtime capabilities into
-checked supported local/install/runtime paths: OCR, ASR, vision captioning,
-object detection, image embeddings, face detection, face recognition, image
-generation, audio generation, local-command runners and local-http runners.
-Current support rows below remain authoritative until each implementation task
-is accepted.
+The current `master` baseline has promoted these model/runtime capabilities
+into checked supported local/install/runtime paths: OCR, ASR, vision
+captioning, object detection, image embeddings, face detection, face
+recognition, image generation, audio generation, local-command runners and
+local-http runners. Experimental wording below is reserved for custom or
+external provider profiles that are not part of the checked supported local
+path.
 
 ## Status Terms
 

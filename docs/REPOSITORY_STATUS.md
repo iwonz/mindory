@@ -6,7 +6,7 @@ The repository should be described with the support levels in
 
 ## Current Baseline
 
-The repository is complete through `TASK-141`.
+The repository is complete through `TASK-142`.
 
 Release baseline:
 
@@ -26,9 +26,11 @@ Release baseline:
   installer supported multimodal preset with resource confirmation, answer-file
   fields and generated local-model role config. `TASK-141` upgraded the full
   local-model live acceptance gate across deterministic MVP processing and the
-  focused OCR, ASR, image semantics and face runner gates. `TASK-142` through
-  `TASK-147` execute and verify the remaining documentation, release and final
-  public-ready work one task at a time.
+  focused OCR, ASR, image semantics and face runner gates. `TASK-142` cleaned
+  public docs so supported local multimodal paths are no longer described as
+  experimental while unchecked custom/external providers stay clearly separate.
+  `TASK-143` through `TASK-147` execute and verify the remaining release and
+  final public-ready work one task at a time.
 
 Supported local MVP path:
 

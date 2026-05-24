@@ -20,6 +20,9 @@ documentation.
 
 ### Added
 
+- `TASK-142`: public documentation cleanup for the supported multimodal path,
+  including README, support matrix, LLM, installer, document pipeline and
+  release checklist wording for the v0.1.1 local-model gate.
 - `TASK-141`: full local-model live acceptance gate now covers deterministic
   MVP processing, image/audio generation smoke through `@mindory/llm`, worker
   model-operation metrics and the focused OCR, ASR, image semantics and face

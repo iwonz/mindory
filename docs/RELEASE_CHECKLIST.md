@@ -37,6 +37,7 @@ repository.
 - `pnpm published-release:acceptance`.
 - `pnpm public-debt:validate`.
 - `pnpm selfhost:gate`.
+- `MINDORY_LOCAL_MODEL_ACCEPTANCE_LIVE=true pnpm local-model:acceptance`.
 - `git status --short` returns no changes.
 - Signed manifest verification through `install.sh` or `install.ps1`
   verify-only mode for the generated manifest.
@@ -71,6 +72,18 @@ pnpm selfhost:gate
 For non-Docker release checklist rehearsal, use
 `pnpm selfhost:gate -- --dry-run`. The full gate is required before publishing
 or announcing a pre-release as usable by others.
+
+Then run the supported multimodal local-model gate:
+
+```bash
+MINDORY_LOCAL_MODEL_ACCEPTANCE_LIVE=true pnpm local-model:acceptance
+```
+
+This checks deterministic MVP processing, scanned PDF OCR, image
+OCR/caption/object/vector contracts, audio ASR transcript segments, video
+keyframes through image handlers, face observations/identities, image/audio
+generation smoke, source refs, jobs, unified search, worker model-operation
+metrics and the focused OCR, ASR, image semantics and face runner gates.
 
 Before announcing a public pre-release as usable by others, run the combined
 final gate:

@@ -352,11 +352,13 @@ then routes image vectors, captions and object observations through the
 `MINDORY_LLM_FACE_DETECTION_LOCAL_HTTP_BASE_URL=http://faces:8086` and
 `MINDORY_LLM_FACE_RECOGNITION_LOCAL_HTTP_BASE_URL=http://faces:8086`, then
 routes face boxes, embeddings and recognition ids through the
-`local-models-face` Compose profile. If a supported local runner is selected,
-the wizard applies the matching `@mindory/llm` role provider/model defaults and
-the redacted summary lists selected runners, roles, resource hints and
-healthchecks. If a custom runner is declined, roles only covered by that runner
-are written as disabled instead of being left half-configured. Supported
+`local-models-face` Compose profile. The deterministic local HTTP runner routes
+supported image/audio generation smoke and lightweight local acceptance calls
+through `http://llm:8080`. If a supported local runner is selected, the wizard
+applies the matching `@mindory/llm` role provider/model defaults and the
+redacted summary lists selected runners, roles, resource hints and healthchecks.
+If a custom runner is declined, roles only covered by that runner are written
+as disabled instead of being left half-configured. Supported
 multimodal roles can be enabled without experimental mode, but providers that
 are not supported for the selected role still require experimental mode
 explicitly when marked experimental. Providers marked future cannot be selected.
